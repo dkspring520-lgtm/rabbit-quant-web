@@ -93,10 +93,10 @@ export default function Home() {
               <path d={`${chart} L910 300 L10 300 Z`} fill="url(#priceFill)" />
               <path d={vwapPath} className="vwap-path"/><path d={chart} className="price-path"/>
               <line x1="0" y1="168" x2="920" y2="168" className="last-line"/><circle cx="910" cy="168" r="4" className="last-dot"/>
-              <g className="signal-marker oversold" transform="translate(170 132)"><circle r="11"/><text x="0" y="4">超卖</text></g>
-              <g className="signal-marker sell-confirm" transform="translate(310 88)"><circle r="12"/><text x="0" y="4">卖</text></g>
-              <g className="signal-marker overbought" transform="translate(454 141)"><circle r="11"/><text x="0" y="4">超买</text></g>
-              <g className="signal-marker buy-confirm" transform="translate(742 205)"><circle r="12"/><text x="0" y="4">买</text></g>
+              <g className="signal-marker observation oversold" transform="translate(170 132)"><circle className="signal-halo" r="10"/><circle r="5"/><text x="10" y="-7">超卖重点观察</text></g>
+              <g className="signal-marker confirm sell-confirm" transform="translate(310 88)"><circle r="8"/><text x="0" y="3">卖</text></g>
+              <g className="signal-marker observation overbought" transform="translate(454 141)"><circle r="5"/><text x="9" y="-7">超买观察</text></g>
+              <g className="signal-marker confirm buy-confirm" transform="translate(742 205)"><circle r="8"/><text x="0" y="3">买</text></g>
               {[18,45,65,88,110,72,96,44,38,54,62,32,28,41,35,31,50,40,36,30,58,42,34,66,48,37,29,45,53,81,56,49,62,73,48,92,55,68,44,78].map((h,i)=><rect key={i} x={i*23} y={300-h} width="10" height={h} className={i%3===0?'volume red':'volume'}/>) }
             </svg>
             <div className="price-flag">27.70</div>
