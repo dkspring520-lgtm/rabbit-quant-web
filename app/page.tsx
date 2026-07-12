@@ -89,7 +89,7 @@ export default function Home() {
         {stockList.map((item, index) => (
           <div className={`ticker-item ${activeStock === index ? 'selected' : ''}`} key={item.code}><button onClick={() => setActiveStock(index)}><span>{item.code} {item.name}</span><b>{item.price}</b><em className={item.change.startsWith('-') ? 'down' : ''}>{item.change}</em></button><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></div>
         ))}
-        <button className="ticker-add">＋ 添加监控</button>
+        <button className="ticker-add" onClick={()=>setOnboardingOpen(true)}>＋ 管理监控</button>
       </section>
 
       <section className="stock-head">
@@ -178,7 +178,7 @@ export default function Home() {
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "多股监控" ? <MultiWatchView onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "持仓对账" ? <HoldingsView /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={setProfile} />}
+      </> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "持仓对账" ? <HoldingsView /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={setProfile} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -204,7 +204,7 @@ export default function Home() {
         <div className="account-security"><i>✓</i><p><b>密码安全</b><span>测试版只在本机保存密码摘要，不保存密码明文；正式版将迁移至服务器账户库。</span></p></div>
         <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setLocalAuth(false)}}>退出登录</button></div>
       </div></div>}
-      {onboardingOpen&&<OnboardingView initial={preferences} onSave={(next)=>{setPreferences(next);try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}setOnboardingOpen(false)}}/>}
+      {onboardingOpen&&<OnboardingView initial={preferences} initialList={stockList} onSave={(next,list)=>{setPreferences(next);setStockList(list);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms · 盘中缓存≤4分钟</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
@@ -271,11 +271,17 @@ function HomeView({onNavigate}:{onNavigate:(view:string)=>void}) {
   </section>;
 }
 
-function OnboardingView({initial,onSave}:{initial:{stock:string;baseShares:number;risk:string};onSave:(value:{stock:string;baseShares:number;risk:string})=>void}){
+function OnboardingView({initial,initialList,onSave}:{initial:{stock:string;baseShares:number;risk:string};initialList:typeof initialStocks;onSave:(value:{stock:string;baseShares:number;risk:string},list:typeof initialStocks)=>void}){
   const [stock,setStock]=useState(initial.stock);
   const [shares,setShares]=useState(initial.baseShares);
   const [risk,setRisk]=useState(initial.risk);
-  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>只需三步，之后可以随时在账户中心修改。</p></div><div className="onboarding-step"><b>01</b><div><span>默认关注股票</span><div className="stock-options">{['601899 洛阳钼业','601012 隆基绿能','000063 中兴通讯'].map(item=><button className={stock===item?'active':''} onClick={()=>setStock(item)} key={item}>{item}</button>)}</div></div></div><div className="onboarding-step"><b>02</b><div><span>计划底仓</span><div className="share-setup"><button onClick={()=>setShares(Math.max(0,shares-100))}>−</button><label><input type="text" inputMode="numeric" autoComplete="off" value={shares||''} onChange={e=>setShares(Math.max(0,Number(e.target.value.replace(/\D/g,''))||0))}/><em>股</em></label><button onClick={()=>setShares(shares+100)}>＋</button></div><small>可以直接输入股数，也可以按每次 100 股增减；收盘应恢复到这个数量。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>onSave({stock,baseShares:shares,risk})}>保存并进入首页 <span>→</span></button></div></div>;
+  const [list,setList]=useState(initialList);
+  const [newCode,setNewCode]=useState('');
+  const [newName,setNewName]=useState('');
+  const [listError,setListError]=useState('');
+  const add=()=>{const code=newCode.replace(/\D/g,'').slice(0,6);const name=newName.trim();if(code.length!==6||!name){setListError('请输入6位股票代码和股票名称');return}if(list.some(item=>item.code===code)){setListError('该股票已经在监控列表中');return}const next=[...list,{code,name,price:'--',change:'0.00%'}];setList(next);setStock(`${code} ${name}`);setNewCode('');setNewName('');setListError('')};
+  const remove=(code:string)=>{if(list.length<=1){setListError('至少需要保留一只监控股票');return}const next=list.filter(item=>item.code!==code);setList(next);if(stock.startsWith(code))setStock(`${next[0].code} ${next[0].name}`);setListError('')};
+  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>管理监控股票、计划底仓和风险偏好。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>setNewCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="off" placeholder="6位代码"/><input value={newName} onChange={e=>setNewName(e.target.value)} autoComplete="off" placeholder="股票名称"/><button onClick={add}>＋ 添加</button></div>{listError&&<small className="list-error">{listError}</small>}<small>点击股票设为默认；删除和添加会同步到操盘台与多股监控。</small></div></div><div className="onboarding-step"><b>02</b><div><span>计划底仓</span><div className="share-setup"><button onClick={()=>setShares(Math.max(0,shares-100))}>−</button><label><input type="text" inputMode="numeric" autoComplete="off" value={shares||''} onChange={e=>setShares(Math.max(0,Number(e.target.value.replace(/\D/g,''))||0))}/><em>股</em></label><button onClick={()=>setShares(shares+100)}>＋</button></div><small>可以直接输入股数，也可以按每次 100 股增减；收盘应恢复到这个数量。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>onSave({stock,baseShares:shares,risk},list)}>保存并同步 <span>→</span></button></div></div>;
 }
 
 const watchRows = [
@@ -285,14 +291,15 @@ const watchRows = [
   { code:'600519',name:'贵州茅台',price:'1,678.01',change:'-0.18%',radar:91,signal:'等待回落',reason:'市场过热 · 禁止追高卖飞',score:7,position:'底仓正常',tone:'hot' },
 ];
 
-function MultiWatchView({onOpen}:{onOpen:(index:number)=>void}) {
+function MultiWatchView({stocks,onOpen,onManage}:{stocks:typeof initialStocks;onOpen:(index:number)=>void;onManage:()=>void}) {
   const [filter,setFilter]=useState('全部');
-  const rows=watchRows.filter(row=>filter==='全部'||(filter==='有机会'?row.score>=8:filter==='被拦截'?row.tone==='blocked':row.position==='等待闭环'));
+  const allRows=stocks.map(item=>watchRows.find(row=>row.code===item.code)||{...item,radar:72,signal:'等待数据',reason:'已加入监控，等待行情刷新',score:0,position:'底仓正常',tone:'watch'});
+  const rows=allRows.filter(row=>filter==='全部'||(filter==='有机会'?row.score>=8:filter==='被拦截'?row.tone==='blocked':row.position==='等待闭环'));
   return <section className="module-view watch-view">
     <div className="module-head"><div><span className="eyebrow">MULTI-ASSET RADAR</span><h1>多股实时监控</h1><p>统一使用市场雷达和 Smart‑T 决策门控，先显示风险，再显示机会。</p></div><div className="module-status"><i/>4只监控中 · 218ms</div></div>
     <div className="watch-summary"><div><span>监控股票</span><b>4</b><small>盘中自动刷新</small></div><div><span>可执行机会</span><b className="teal">1</b><small>确认分达到门槛</small></div><div><span>门控拦截</span><b>1</b><small>弱市禁止激进正T</small></div><div><span>待闭环</span><b className="amber-text">1</b><small>优先级高于新信号</small></div><div><span>市场雷达</span><b>72</b><small>震荡区间</small></div></div>
-    <div className="watch-toolbar"><div>{['全部','有机会','被拦截','待闭环'].map(item=><button className={filter===item?'active':''} onClick={()=>setFilter(item)} key={item}>{item}</button>)}</div><button className="watch-add">＋ 添加监控股票</button></div>
-    <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>市场雷达</span><span>Smart‑T状态</span><span>策略解释</span><span>确认分</span><span>仓位状态</span><span/></div>{rows.map((row,index)=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span><b>{row.price}</b><small className={row.change.startsWith('-')?'negative':'positive'}>{row.change}</small></span><span><b>{row.radar}</b><small>{row.radar<25?'风险区':row.radar>=88?'过热区':row.radar>=75?'强势区':'震荡区'}</small></span><em className={`watch-pill ${row.tone}`}>{row.signal}</em><span className="watch-reason">{row.reason}</span><span className="score-dots">{[1,2,3,4,5].map(n=><i className={n<=Math.ceil(row.score/2)?'on':''} key={n}/>)}<small>{row.score}/10</small></span><span className={row.position==='等待闭环'?'amber-text':''}>{row.position}</span><button onClick={()=>onOpen(watchRows.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
+    <div className="watch-toolbar"><div>{['全部','有机会','被拦截','待闭环'].map(item=><button className={filter===item?'active':''} onClick={()=>setFilter(item)} key={item}>{item}</button>)}</div><button className="watch-add" onClick={onManage}>＋ 管理监控股票</button></div>
+    <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>市场雷达</span><span>Smart‑T状态</span><span>策略解释</span><span>确认分</span><span>仓位状态</span><span/></div>{rows.map(row=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span><b>{row.price}</b><small className={row.change.startsWith('-')?'negative':'positive'}>{row.change}</small></span><span><b>{row.radar}</b><small>{row.radar<25?'风险区':row.radar>=88?'过热区':row.radar>=75?'强势区':'震荡区'}</small></span><em className={`watch-pill ${row.tone}`}>{row.signal}</em><span className="watch-reason">{row.reason}</span><span className="score-dots">{[1,2,3,4,5].map(n=><i className={n<=Math.ceil(row.score/2)?'on':''} key={n}/>)}<small>{row.score}/10</small></span><span className={row.position==='等待闭环'?'amber-text':''}>{row.position}</span><button onClick={()=>onOpen(stocks.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
     <div className="watch-rule"><b>雷达门控规则</b><span>&lt;25 风险区：禁止激进正T</span><span>25–74：按策略档位执行</span><span>75–87：反T门槛提高</span><span>≥88：必须等待真实回落</span></div>
   </section>;
 }
