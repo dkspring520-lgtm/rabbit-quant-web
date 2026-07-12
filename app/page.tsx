@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 
 const initialStocks = [
-  { code: "601899", name: "洛阳钼业", price: "27.70", change: "+1.28%" },
+  { code: "601899", name: "紫金矿业", price: "27.70", change: "+1.28%" },
   { code: "601012", name: "隆基绿能", price: "18.36", change: "-0.42%" },
   { code: "000063", name: "中兴通讯", price: "33.12", change: "+0.35%" },
   { code: "600519", name: "贵州茅台", price: "1,678.01", change: "-0.18%" },
 ];
 
 const knownStockNames: Record<string,string> = {
-  "601899":"洛阳钼业","601012":"隆基绿能","000063":"中兴通讯","600519":"贵州茅台",
+  "601899":"紫金矿业","603993":"洛阳钼业","601012":"隆基绿能","000063":"中兴通讯","600519":"贵州茅台",
   "000001":"平安银行","000333":"美的集团","000651":"格力电器","000858":"五粮液",
   "002594":"比亚迪","300750":"宁德时代","600036":"招商银行","600276":"恒瑞医药",
   "600900":"长江电力","601318":"中国平安","601398":"工商银行","601857":"中国石油"
@@ -32,7 +32,7 @@ export default function Home() {
   const [localAuth, setLocalAuth] = useState(false);
   const [accountName, setAccountName] = useState("jay cc");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
-  const [preferences, setPreferences] = useState({stock:'601899 洛阳钼业',baseShares:6000,risk:'稳健'});
+  const [preferences, setPreferences] = useState({stock:'601899 紫金矿业',baseShares:6000,risk:'稳健'});
   const [activeStock, setActiveStock] = useState(0);
   const [stockList, setStockList] = useState(initialStocks);
   const [profile, setProfile] = useState("平衡档");
@@ -66,9 +66,11 @@ export default function Home() {
           setLocalAuth(true);
           setAccountName(session);
           const saved=localStorage.getItem(`rabbit-prefs:${session.toLowerCase()}`);
-          if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);
+          if(saved){const prefs=JSON.parse(saved);if(typeof prefs.stock==='string'&&prefs.stock.startsWith('601899'))prefs.stock='601899 紫金矿业';setPreferences(prefs);localStorage.setItem(`rabbit-prefs:${session.toLowerCase()}`,JSON.stringify(prefs));}else setOnboardingOpen(true);
           const watchlist=localStorage.getItem(`rabbit-watchlist:${session.toLowerCase()}`);
-          if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length)setStockList(list);}
+          if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=list.map(item=>item?.code==='601899'?{...item,name:'紫金矿业'}:item?.code==='603993'?{...item,name:'洛阳钼业'}:item);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(normalized));}}
+          const savedProfile=localStorage.getItem(`rabbit-profile:${session.toLowerCase()}`);if(savedProfile)setProfile(savedProfile);
+          const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${session.toLowerCase()}`);if(savedStrategy)setCustomStrategy(savedStrategy);
         }
       } catch {}
       setAuthReady(true);
@@ -77,7 +79,18 @@ export default function Home() {
   }, []);
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-v2.png" alt="做T神器"/></main>;
-  if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{setAccountName(name);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
+  if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{
+    setAccountName(name);setLocalAuth(true);
+    try{
+      const userKey=name.toLowerCase();const persistent=isNew||remember;
+      (persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');
+      const saved=localStorage.getItem(`rabbit-prefs:${userKey}`);
+      if(saved){const prefs=JSON.parse(saved);if(typeof prefs.stock==='string'&&prefs.stock.startsWith('601899'))prefs.stock='601899 紫金矿业';setPreferences(prefs);}else setOnboardingOpen(true);
+      const watchlist=localStorage.getItem(`rabbit-watchlist:${userKey}`);
+      if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length)setStockList(list.map(item=>item?.code==='601899'?{...item,name:'紫金矿业'}:item?.code==='603993'?{...item,name:'洛阳钼业'}:item));}
+    }catch{}
+    if(isNew)setOnboardingOpen(true);
+  }}/>;
 
   return (
     <main className="app-shell">
@@ -129,7 +142,7 @@ export default function Home() {
           </div>
           <div className="chart-wrap">
             <div className="y-axis"><span>28.20</span><span>27.90</span><span>27.60</span><span>27.30</span><span>27.00</span></div>
-            <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="洛阳钼业分时价格与VWAP">
+            <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${stock.name}分时价格与VWAP`}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
@@ -278,7 +291,7 @@ function HomeView({onNavigate,stockCount}:{onNavigate:(view:string)=>void;stockC
   return <section className="product-home">
     <div className="home-hero">
       <div className="home-copy"><span className="eyebrow">RABBIT SMART‑T WORKSPACE</span><h1>看清买卖点，<br/><em>当天完成每一次T。</em></h1><p>集合竞价研判、市场雷达、正反T决策、仓位闭环和四兔训练集中在一个简单的交易工作台。</p><div className="home-actions"><button onClick={()=>onNavigate('操盘台')}>进入今日操盘台 <span>→</span></button><button onClick={()=>onNavigate('模拟回测')}>先做模拟回测</button></div><div className="home-trust"><span><i/>不自动下单</span><span><i/>T+1仓位校验</span><span><i/>收盘恢复底仓</span></div></div>
-      <div className="home-terminal"><div className="terminal-head"><span>601899 洛阳钼业</span><em><i/>实时监控中</em></div><div className="terminal-price"><strong>27.70</strong><span>+1.28%</span><small>市场雷达 72 / 100</small></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><defs><linearGradient id="homeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20 L600 180 L0 180Z" fill="url(#homeFill)"/><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20" className="home-line"/></svg><div className="terminal-signal"><span><i className="rabbit-dot-home">兔</i><b>反T观察</b></span><p>高开转弱，等待回落确认</p><em>确认分 8/10</em></div></div>
+      <div className="home-terminal"><div className="terminal-head"><span>601899 紫金矿业</span><em><i/>实时监控中</em></div><div className="terminal-price"><strong>27.70</strong><span>+1.28%</span><small>市场雷达 72 / 100</small></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><defs><linearGradient id="homeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20 L600 180 L0 180Z" fill="url(#homeFill)"/><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20" className="home-line"/></svg><div className="terminal-signal"><span><i className="rabbit-dot-home">兔</i><b>反T观察</b></span><p>高开转弱，等待回落确认</p><em>确认分 8/10</em></div></div>
     </div>
     <div className="home-strip"><div><span>今日闭环</span><b>2 次</b><small>全部恢复底仓</small></div><div><span>监控股票</span><b>{stockCount} 只</b><small>盘中持续扫描</small></div><div><span>已确认净收益</span><b className="teal">+¥887.43</b><small>未闭环不计入</small></div><div><span>四兔训练</span><b>68%</b><small>影子回放进行中</small></div></div>
     <div className="home-workflow"><div className="workflow-head"><div><span className="eyebrow">DAILY WORKFLOW</span><h2>每天只看四件事</h2></div><p>减少指标堆叠，把操作顺序固定下来。</p></div><div className="workflow-grid">{[{n:'01',title:'先看市场',copy:'集合竞价与市场雷达先决定今天能不能做、优先正T还是反T。',action:'多股监控',icon:'⌁'},{n:'02',title:'再等信号',copy:'价格、VWAP、量能和确认分同时满足，才显示可执行机会。',action:'操盘台',icon:'⌗'},{n:'03',title:'当天闭环',copy:'首笔成交后冻结同向信号，等量反向成交并恢复原底仓。',action:'持仓对账',icon:'⇄'},{n:'04',title:'收盘复盘',copy:'使用真实费用和可卖数量回放，训练参数只进入候选区。',action:'智能训练',icon:'◇'}].map(item=><button key={item.n} onClick={()=>onNavigate(item.action)}><span>{item.n}</span><i>{item.icon}</i><h3>{item.title}</h3><p>{item.copy}</p><em>{item.action} →</em></button>)}</div></div>
@@ -300,7 +313,7 @@ function OnboardingView({initial,initialList,onListChange,onSave}:{initial:{stoc
 }
 
 const watchRows = [
-  { code:'601899',name:'洛阳钼业',price:'27.70',change:'+1.28%',radar:72,signal:'反T观察',reason:'高开转弱 · 等待回落确认',score:8,position:'底仓正常',tone:'watch' },
+  { code:'601899',name:'紫金矿业',price:'27.70',change:'+1.28%',radar:72,signal:'反T观察',reason:'高开转弱 · 等待回落确认',score:8,position:'底仓正常',tone:'watch' },
   { code:'601012',name:'隆基绿能',price:'18.36',change:'-0.42%',radar:23,signal:'禁止正T',reason:'市场风险区 · 雷达硬拦截',score:5,position:'无未闭环',tone:'blocked' },
   { code:'000063',name:'中兴通讯',price:'33.12',change:'+0.35%',radar:81,signal:'提高门槛',reason:'强势市场 · 反T需10分确认',score:9,position:'等待闭环',tone:'warning' },
   { code:'600519',name:'贵州茅台',price:'1,678.01',change:'-0.18%',radar:91,signal:'等待回落',reason:'市场过热 · 禁止追高卖飞',score:7,position:'底仓正常',tone:'hot' },
@@ -376,7 +389,7 @@ function HoldingsView() {
       <div className="reconcile-state"><i/><span>已同步至 11:18:06</span><b>模拟数据</b></div>
     </div>
     <div className="position-overview">
-      <div className="position-identity"><span>601899</span><h2>洛阳钼业</h2><small>沪A · T+1</small></div>
+      <div className="position-identity"><span>601899</span><h2>紫金矿业</h2><small>沪A · T+1</small></div>
       <div className="position-metric"><span>计划底仓</span><b>6,000<small> 股</small></b><em>策略基准</em></div>
       <div className="position-metric"><span>当前持仓</span><b>8,200<small> 股</small></b><em>成本 ¥27.44</em></div>
       <div className="position-metric"><span>剩余可卖旧仓</span><b>3,000<small> 股</small></b><em>足够闭合 2,200 股</em></div>
@@ -422,7 +435,7 @@ function BacktestView({ profile, setProfile }: { profile: string; setProfile: (v
     <div className="backtest-grid">
       <aside className="backtest-config">
         <div className="config-title"><h2>回测参数</h2><span>已保存</span></div>
-        <label>股票代码<div className="field static-field"><b>601899</b><span>洛阳钼业</span></div></label>
+        <label>股票代码<div className="field static-field"><b>601899</b><span>紫金矿业</span></div></label>
         <div className="field-pair"><label>开始日期<div className="field static-field date-display"><b>2026-06-01</b><span>起</span></div></label><label>结束日期<div className="field static-field date-display"><b>2026-07-11</b><span>止</span></div></label></div>
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
