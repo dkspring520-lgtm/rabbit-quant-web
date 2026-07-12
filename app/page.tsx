@@ -178,8 +178,8 @@ function HoldingsView() {
       <div className="position-identity"><span>601899</span><h2>洛阳钼业</h2><small>沪A · T+1</small></div>
       <div className="position-metric"><span>计划底仓</span><b>6,000<small> 股</small></b><em>策略基准</em></div>
       <div className="position-metric"><span>当前持仓</span><b>8,200<small> 股</small></b><em>成本 ¥27.44</em></div>
-      <div className="position-metric"><span>今日可卖</span><b>6,000<small> 股</small></b><em>新买 2,200 股锁定</em></div>
-      <div className="position-metric warning"><span>仓位偏离</span><b>+2,200<small> 股</small></b><em>多买 · 需恢复</em></div>
+      <div className="position-metric"><span>剩余可卖旧仓</span><b>3,000<small> 股</small></b><em>足够闭合 2,200 股</em></div>
+      <div className="position-metric warning"><span>当日未闭合</span><b>+2,200<small> 股</small></b><em>异常 · 收盘前归零</em></div>
       <div className="position-metric profit"><span>今日净收益</span><b>+¥887.43</b><em>已扣 ¥98.26 费用</em></div>
     </div>
     <div className="reconcile-grid">
@@ -192,14 +192,15 @@ function HoldingsView() {
         </div>
       </div>
       <aside className="recovery-panel">
-        <span className="recovery-kicker">RISK CHECK</span><h2>今天多买了 2,200 股</h2><p>当前持仓高于计划底仓 36.7%。这 2,200 股为今日买入，受 T+1 限制，今天不可直接卖出。</p>
-        <div className="recovery-scale"><div><span>计划 6,000</span><b>当前 8,200</b></div><i><em/></i><small>超出部分不会计入明日可做T底仓，避免仓位继续放大。</small></div>
-        <div className="recovery-steps"><h3>恢复计划</h3><div><b>01</b><p><strong>今天停止继续加仓</strong><span>保留 6,000 股昨仓可卖额度，不用新买仓追信号。</span></p></div><div><b>02</b><p><strong>明日转为优先减仓</strong><span>开盘后分两次处理 2,200 股偏离仓，避免一次性冲击。</span></p></div><div><b>03</b><p><strong>恢复后再启动做T</strong><span>实际持仓回到 6,000 股附近，才重新允许完整策略循环。</span></p></div></div>
-        <button className={planDone?'done':''} onClick={()=>setPlanDone(!planDone)}>{planDone?'✓ 已加入明日计划':'加入明日恢复计划'}<span>→</span></button>
-        <small className="recovery-note">计划仅作提醒，不会自动下单。自动交易接口仍保持关闭。</small>
+        <span className="recovery-kicker">INTRADAY CLOSE ALERT</span><h2>正T尚未闭合：多买 2,200 股</h2><p>当前持仓高于底仓 36.7%。新买股票本身当天不可卖，但仍有 3,000 股昨日旧仓可卖，可用其中 2,200 股在收盘前完成等量闭环。</p>
+        <div className="close-deadline"><span>最迟处理时间</span><b>14:50</b><em>距风控检查 03:31:54</em></div>
+        <div className="recovery-scale"><div><span>目标底仓 6,000</span><b>当前 8,200</b></div><i><em/></i><small>目标：收盘时实际持仓恢复 6,000 股，未归零不得计为完成一次T。</small></div>
+        <div className="recovery-steps"><h3>当日闭环规则</h3><div><b>01</b><p><strong>立即停止继续买入</strong><span>未配对数量归零前，冻结新的正T与补仓信号。</span></p></div><div><b>02</b><p><strong>卖出等量昨日旧仓</strong><span>在价格与风险允许时分批卖出共 2,200 股，将持仓恢复到底仓。</span></p></div><div><b>03</b><p><strong>14:50 强制升级告警</strong><span>仍未闭合则标记“做T失败”，转为红色异常隔夜仓，不计策略收益。</span></p></div></div>
+        <button className={planDone?'done':''} onClick={()=>setPlanDone(!planDone)}>{planDone?'✓ 当日平仓提醒已开启':'开启当日平仓提醒'}<span>→</span></button>
+        <small className="recovery-note">这里只生成风控提醒，不会自动下单；自动交易接口仍保持关闭。</small>
       </aside>
     </div>
-    <div className="cycle-summary"><div><span>今日买入</span><b>5,200 股</b><small>均价 ¥27.44</small></div><div><span>今日卖出</span><b>3,000 股</b><small>均价 ¥27.81</small></div><div><span>已闭合循环</span><b>2 次</b><small>1 次正T · 1 次反T</small></div><div><span>未配对净买入</span><b className="warn">2,200 股</b><small>明日优先处理</small></div><div><span>毛收益 / 费用</span><b>¥985.69</b><small>- ¥98.26</small></div></div>
+    <div className="cycle-summary"><div><span>今日买入</span><b>5,200 股</b><small>均价 ¥27.44</small></div><div><span>今日卖出</span><b>3,000 股</b><small>均价 ¥27.81</small></div><div><span>已闭合循环</span><b>2 次</b><small>1 次正T · 1 次反T</small></div><div><span>待当日闭合</span><b className="warn">2,200 股</b><small>收盘目标必须为 0</small></div><div><span>已确认净收益</span><b>¥887.43</b><small>未闭合交易暂不计入</small></div></div>
   </section>;
 }
 
