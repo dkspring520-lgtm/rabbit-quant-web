@@ -27,6 +27,7 @@ export default function Home() {
   const [signalMode, setSignalMode] = useState("反T");
   const [confirmed, setConfirmed] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [activeView, setActiveView] = useState("操盘台");
   const stock = stocks[activeStock];
   const chart = useMemo(() => chartPath, []);
 
@@ -38,7 +39,7 @@ export default function Home() {
           <span className="brand-type"><strong><em>做T</em><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
-          {['操盘台','多股监控','模拟回测','智能训练','自动交易'].map((item, index) => <button className={index === 0 ? 'active' : ''} key={item}>{item}</button>)}
+          {['操盘台','多股监控','模拟回测','智能训练','自动交易'].map((item) => <button onClick={() => item === '操盘台' || item === '模拟回测' ? setActiveView(item) : undefined} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
           <span className="market-open"><i />市场交易中</span>
@@ -51,6 +52,7 @@ export default function Home() {
         </div>
       </header>
 
+      {activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
         {stocks.map((item, index) => (
           <button key={item.code} onClick={() => setActiveStock(index)} className={activeStock === index ? 'selected' : ''}>
@@ -124,8 +126,47 @@ export default function Home() {
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name}><span className={`agent-icon a${i}`}>{agent.icon}</span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
+      </> : <BacktestView profile={profile} setProfile={setProfile} />}
 
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
   );
+}
+
+function BacktestView({ profile, setProfile }: { profile: string; setProfile: (value: string) => void }) {
+  const [capital, setCapital] = useState(200000);
+  const [baseShares, setBaseShares] = useState(6000);
+  const [sellable, setSellable] = useState(6000);
+  const [feeRate, setFeeRate] = useState(0.025);
+  const [slippage, setSlippage] = useState(0.02);
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(true);
+  const run = () => { setRunning(true); setDone(false); window.setTimeout(() => { setRunning(false); setDone(true); }, 900); };
+  return <section className="backtest-view">
+    <div className="backtest-head">
+      <div><span className="eyebrow">TRUSTED REPLAY ENGINE</span><h1>可信模拟回测</h1><p>逐分钟重放，只使用当时已完成的数据；与实时监控共用 Smart‑T 决策引擎。</p></div>
+      <div className="integrity-badges"><span><i/>无未来数据</span><span><i/>统一费用模型</span><span><i/>真实可卖数量</span></div>
+    </div>
+    <div className="backtest-grid">
+      <aside className="backtest-config">
+        <div className="config-title"><h2>回测参数</h2><span>已保存</span></div>
+        <label>股票代码<div className="field fixed"><b>601899</b><span>洛阳钼业</span></div></label>
+        <div className="field-pair"><label>开始日期<input type="date" defaultValue="2026-06-01"/></label><label>结束日期<input type="date" defaultValue="2026-07-11"/></label></div>
+        <label>策略档位<select value={profile} onChange={e=>setProfile(e.target.value)}><option>稳健档</option><option>平衡档</option><option>灵敏档</option><option>量化学习</option></select></label>
+        <div className="field-pair"><label>模拟资金<input type="number" value={capital} onChange={e=>setCapital(+e.target.value)}/><em>元</em></label><label>真实底仓<input type="number" value={baseShares} onChange={e=>setBaseShares(+e.target.value)}/><em>股</em></label></div>
+        <div className="field-pair"><label>昨日可卖<input type="number" value={sellable} onChange={e=>setSellable(+e.target.value)}/><em>股</em></label><label>单次上限<div className="field fixed"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
+        <div className="cost-box"><div><span>佣金</span><label><input type="number" step="0.001" value={feeRate} onChange={e=>setFeeRate(+e.target.value)}/><em>%</em></label></div><div><span>单边滑点</span><label><input type="number" step="0.001" value={slippage} onChange={e=>setSlippage(+e.target.value)}/><em>%</em></label></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
+        <button className="run-backtest" onClick={run} disabled={running}>{running ? '正在逐分钟重放…' : '运行可信回测'}<span>→</span></button>
+        <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；尾盘恢复计划仓位。</p>
+      </aside>
+      <div className="backtest-results">
+        <div className="result-summary">
+          <div className="result-primary"><span>净收益</span><strong>{done ? '+¥ 8,426.30' : '—'}</strong><em>+4.21%</em></div>
+          <div><span>毛收益</span><b>¥ 11,208.00</b><small>未扣费用</small></div><div><span>费用与滑点</span><b>-¥ 2,781.70</b><small>占毛利 24.82%</small></div><div><span>最大回撤</span><b>-1.36%</b><small>¥ 2,718.00</small></div>
+        </div>
+        <div className="equity-panel"><div className="panel-heading"><div><h2>资金曲线</h2><span>2026-06-01 — 2026-07-11</span></div><div className="curve-legend"><span><i/>净资产</span><span><i/>基准持仓</span></div></div><svg viewBox="0 0 800 220" preserveAspectRatio="none" aria-label="回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".22"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{[40,80,120,160,200].map(y=><line key={y} x1="0" x2="800" y1={y} y2={y} className="equity-grid"/>)}<path d="M0 190 C55 176 82 182 120 160 S190 170 230 142 S302 151 350 120 S430 132 470 98 S550 112 600 80 S680 96 730 54 S772 60 800 32 L800 220 L0 220 Z" fill="url(#equityFill)"/><path d="M0 190 C55 176 82 182 120 160 S190 170 230 142 S302 151 350 120 S430 132 470 98 S550 112 600 80 S680 96 730 54 S772 60 800 32" className="equity-line"/><path d="M0 185 C130 174 220 178 320 150 S520 140 800 110" className="benchmark-line"/></svg></div>
+        <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>29</b></div><div><span>完成T循环</span><b>41</b></div><div><span>正T / 反T</span><b>18 / 23</b></div><div><span>胜率</span><b className="teal">68.29%</b></div><div><span>平均净价差</span><b>0.53%</b></div><div><span>平均持仓</span><b>21分</b></div></div><div className="failure-panel"><h3>未执行与失败原因</h3><p><span>价差不足 0.5%</span><b>17次</b></p><p><span>趋势方向拦截</span><b>9次</b></p><p><span>确认分不足</span><b>7次</b></p><p><span>可卖数量不足</span><b>2次</b></p></div></div>
+      </div>
+    </div>
+  </section>;
 }
