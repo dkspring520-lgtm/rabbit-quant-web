@@ -15,6 +15,7 @@ const agents = [
   { avatar: "/agents/official.png", name: "正式兔", role: "冠军策略", state: "运行中", value: "82%" },
   { avatar: "/agents/risk.png", name: "风控兔", role: "回撤监控", state: "低风险", value: "12%" },
 ];
+const strategyProfiles = ["稳健档","平衡档","灵敏档","量化学习","自定义策略"];
 
 const chartPath = "M10 228 L34 210 L55 222 L78 186 L102 196 L126 170 L148 178 L171 132 L194 142 L217 105 L240 123 L264 94 L286 111 L310 88 L334 102 L358 119 L382 110 L406 127 L430 118 L454 141 L478 136 L502 150 L526 145 L550 160 L574 151 L598 164 L622 158 L646 180 L670 171 L694 190 L718 185 L742 205 L766 196 L790 210 L814 190 L838 198 L862 176 L886 184 L910 168";
 const vwapPath = "M10 202 C120 184 200 160 300 150 S500 146 620 155 S790 167 910 170";
@@ -57,9 +58,7 @@ export default function Home() {
           <span className="market-open"><i />市场交易中</span>
           <span className="auto-off"><i />自动交易未连接</span>
           <span className="clock">09:36:21</span>
-          <select value={profile} onChange={(e) => setProfile(e.target.value)} aria-label="策略档位">
-            <option>稳健档</option><option>平衡档</option><option>灵敏档</option><option>量化学习</option><option>自定义策略</option>
-          </select>
+          <button className="profile-cycle" onClick={()=>setProfile(strategyProfiles[(strategyProfiles.indexOf(profile)+1)%strategyProfiles.length])} aria-label={`当前策略${profile}，点击切换`}><span>{profile}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
           <button className="icon-button" aria-label="设置">⌘</button>
         </div>
@@ -278,7 +277,7 @@ function BacktestView({ profile, setProfile }: { profile: string; setProfile: (v
         <div className="config-title"><h2>回测参数</h2><span>已保存</span></div>
         <label>股票代码<div className="field fixed"><b>601899</b><span>洛阳钼业</span></div></label>
         <div className="field-pair"><label>开始日期<div className="field fixed date-display"><b>2026-06-01</b><span>起</span></div></label><label>结束日期<div className="field fixed date-display"><b>2026-07-11</b><span>止</span></div></label></div>
-        <label>策略档位<select value={profile} onChange={e=>setProfile(e.target.value)}><option>稳健档</option><option>平衡档</option><option>灵敏档</option><option>量化学习</option></select></label>
+        <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
         <div className="field-pair"><label>昨日可卖<NumberStepper value={sellable} unit="股" step={100} min={0} onChange={setSellable}/></label><label>单次上限<div className="field fixed"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><div><span>单边滑点</span><NumberStepper value={slippage} unit="%" step={0.005} min={0} decimals={3} onChange={setSlippage}/></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
