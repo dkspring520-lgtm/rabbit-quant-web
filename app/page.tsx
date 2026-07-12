@@ -9,6 +9,13 @@ const initialStocks = [
   { code: "600519", name: "贵州茅台", price: "1,678.01", change: "-0.18%" },
 ];
 
+const knownStockNames: Record<string,string> = {
+  "601899":"洛阳钼业","601012":"隆基绿能","000063":"中兴通讯","600519":"贵州茅台",
+  "000001":"平安银行","000333":"美的集团","000651":"格力电器","000858":"五粮液",
+  "002594":"比亚迪","300750":"宁德时代","600036":"招商银行","600276":"恒瑞医药",
+  "600900":"长江电力","601318":"中国平安","601398":"工商银行","601857":"中国石油"
+};
+
 const agents = [
   { avatar: "/agents/training.png", name: "训练兔", role: "严格模拟", state: "训练中", value: "76%" },
   { avatar: "/agents/challenger.png", name: "挑战兔", role: "影子验证", state: "待评审", value: "58%" },
@@ -213,7 +220,7 @@ export default function Home() {
         <div className="account-security"><i>✓</i><p><b>密码安全</b><span>测试版只在本机保存密码摘要，不保存密码明文；正式版将迁移至服务器账户库。</span></p></div>
         <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session');sessionStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setLocalAuth(false)}}>退出登录</button></div>
       </div></div>}
-      {onboardingOpen&&<OnboardingView initial={preferences} initialList={stockList} onSave={(next,list)=>{setPreferences(next);setStockList(list);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}setOnboardingOpen(false)}}/>}
+      {onboardingOpen&&<OnboardingView initial={preferences} initialList={stockList} onListChange={(list)=>{setStockList(list);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}}} onSave={(next,list)=>{setPreferences(next);setStockList(list);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms · 盘中缓存≤4分钟</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
@@ -279,7 +286,7 @@ function HomeView({onNavigate,stockCount}:{onNavigate:(view:string)=>void;stockC
   </section>;
 }
 
-function OnboardingView({initial,initialList,onSave}:{initial:{stock:string;baseShares:number;risk:string};initialList:typeof initialStocks;onSave:(value:{stock:string;baseShares:number;risk:string},list:typeof initialStocks)=>void}){
+function OnboardingView({initial,initialList,onListChange,onSave}:{initial:{stock:string;baseShares:number;risk:string};initialList:typeof initialStocks;onListChange:(list:typeof initialStocks)=>void;onSave:(value:{stock:string;baseShares:number;risk:string},list:typeof initialStocks)=>void}){
   const [stock,setStock]=useState(initial.stock);
   const [shares,setShares]=useState(initial.baseShares);
   const [risk,setRisk]=useState(initial.risk);
@@ -287,9 +294,9 @@ function OnboardingView({initial,initialList,onSave}:{initial:{stock:string;base
   const [newCode,setNewCode]=useState('');
   const [newName,setNewName]=useState('');
   const [listError,setListError]=useState('');
-  const add=()=>{const code=newCode.replace(/\D/g,'').slice(0,6);const name=newName.trim();if(code.length!==6||!name){setListError('请输入6位股票代码和股票名称');return}if(list.some(item=>item.code===code)){setListError('该股票已经在监控列表中');return}const next=[...list,{code,name,price:'--',change:'0.00%'}];setList(next);setStock(`${code} ${name}`);setNewCode('');setNewName('');setListError('')};
-  const remove=(code:string)=>{if(list.length<=1){setListError('至少需要保留一只监控股票');return}const next=list.filter(item=>item.code!==code);setList(next);if(stock.startsWith(code))setStock(`${next[0].code} ${next[0].name}`);setListError('')};
-  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>管理监控股票、计划底仓和风险偏好。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>setNewCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="off" placeholder="6位代码"/><input value={newName} onChange={e=>setNewName(e.target.value)} autoComplete="off" placeholder="股票名称"/><button onClick={add}>＋ 添加</button></div>{listError&&<small className="list-error">{listError}</small>}<small>点击股票设为默认；删除和添加会同步到操盘台与多股监控。</small></div></div><div className="onboarding-step"><b>02</b><div><span>计划底仓</span><div className="share-setup"><button onClick={()=>setShares(Math.max(0,shares-100))}>−</button><label><input type="text" inputMode="numeric" autoComplete="off" value={shares||''} onChange={e=>setShares(Math.max(0,Number(e.target.value.replace(/\D/g,''))||0))}/><em>股</em></label><button onClick={()=>setShares(shares+100)}>＋</button></div><small>可以直接输入股数，也可以按每次 100 股增减；收盘应恢复到这个数量。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>onSave({stock,baseShares:shares,risk},list)}>保存并同步 <span>→</span></button></div></div>;
+  const add=()=>{const code=newCode.replace(/\D/g,'').slice(0,6);if(code.length!==6){setListError('请输入完整的6位股票代码');return}if(list.some(item=>item.code===code)){setListError('该股票已经在监控列表中');return}const name=newName.trim()||knownStockNames[code]||`自选股 ${code}`;const next=[...list,{code,name,price:'--',change:'0.00%'}];setList(next);onListChange(next);setStock(`${code} ${name}`);setNewCode('');setNewName('');setListError(`已添加 ${code} ${name}，监控台已同步`)};
+  const remove=(code:string)=>{if(list.length<=1){setListError('至少需要保留一只监控股票');return}const next=list.filter(item=>item.code!==code);setList(next);onListChange(next);if(stock.startsWith(code))setStock(`${next[0].code} ${next[0].name}`);setListError('已从监控台移除')};
+  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>管理监控股票、计划底仓和风险偏好。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>{const code=e.target.value.replace(/\D/g,'').slice(0,6);setNewCode(code);if(!newName&&knownStockNames[code])setNewName(knownStockNames[code]);setListError('')}} onKeyDown={e=>{if(e.key==='Enter')add()}} inputMode="numeric" autoComplete="off" placeholder="输入6位代码"/><input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add()}} autoComplete="off" placeholder="名称（可不填）"/><button onClick={add}>＋ 加入监控</button></div>{listError&&<small className={listError.startsWith('已')?'list-success':'list-error'}>{listError}</small>}<small>只填代码即可添加；添加和删除会立即同步到操盘台与多股监控。</small></div></div><div className="onboarding-step"><b>02</b><div><span>计划底仓</span><div className="share-setup"><button onClick={()=>setShares(Math.max(0,shares-100))}>−</button><label><input type="text" inputMode="numeric" autoComplete="off" value={shares||''} onChange={e=>setShares(Math.max(0,Number(e.target.value.replace(/\D/g,''))||0))}/><em>股</em></label><button onClick={()=>setShares(shares+100)}>＋</button></div><small>可以直接输入股数，也可以按每次 100 股增减；收盘应恢复到这个数量。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>onSave({stock,baseShares:shares,risk},list)}>保存底仓与偏好 <span>→</span></button></div></div>;
 }
 
 const watchRows = [
