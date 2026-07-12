@@ -107,7 +107,8 @@ export default function Home() {
               <g className="chart-badge sell active-signal" transform="translate(310 88)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-26" y="-39" width="52" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><g className="mini-rabbit" transform="translate(-15 -28)"><ellipse cx="-1.8" cy="-3" rx="1.2" ry="2.8"/><ellipse cx="1.8" cy="-3" rx="1.2" ry="2.8"/><circle cy="1" r="3.2"/><circle className="rabbit-eye" cx="-1.2" cy=".5" r=".45"/><circle className="rabbit-eye" cx="1.2" cy=".5" r=".45"/></g><text className="badge-copy" x="7" y="-25">卖出</text></g>
               <g className="chart-badge overbought active-signal" transform="translate(454 141)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-29" y="-39" width="58" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><text x="0" y="-25">♛ 超买</text></g>
               <g className="chart-badge buy active-signal" transform="translate(742 205)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="6" x2="0" y2="15"/><rect x="-26" y="18" width="52" height="21" rx="5"/><path d="M-5 18 L0 12 L5 18 Z"/><g className="mini-rabbit" transform="translate(-15 29)"><ellipse cx="-1.8" cy="-3" rx="1.2" ry="2.8"/><ellipse cx="1.8" cy="-3" rx="1.2" ry="2.8"/><circle cy="1" r="3.2"/><circle className="rabbit-eye" cx="-1.2" cy=".5" r=".45"/><circle className="rabbit-eye" cx="1.2" cy=".5" r=".45"/></g><text className="badge-copy" x="7" y="32">买入</text></g>
-              {[18,45,65,88,110,72,96,44,38,54,62,32,28,41,35,31,50,40,36,30,58,42,34,66,48,37,29,45,53,81,56,49,62,73,48,92,55,68,44,78].map((h,i)=><rect key={i} x={i*23} y={300-h} width="10" height={h} className={i%3===0?'volume red':'volume'}/>) }
+              <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
+              {[18,45,65,88,110,72,96,44,38,54,62,32,28,41,35,31,50,40,36,30,58,42,34,66,48,37,29,45,53,81,56,49,62,73,48,92,55,68,44,78].map((h,i)=>{const vh=Math.round(h*.42);return <rect key={i} x={i*23} y={300-vh} width="10" height={vh} className={i%3===0?'volume red':'volume'}/>}) }
             </svg>
             <div className="price-flag">27.70</div>
             <div className="x-axis"><span>09:30</span><span>10:00</span><span>10:30</span><span>11:30/13:00</span><span>14:00</span><span>14:30</span><span>15:00</span></div>
@@ -276,11 +277,11 @@ function BacktestView({ profile, setProfile }: { profile: string; setProfile: (v
       <aside className="backtest-config">
         <div className="config-title"><h2>回测参数</h2><span>已保存</span></div>
         <label>股票代码<div className="field fixed"><b>601899</b><span>洛阳钼业</span></div></label>
-        <div className="field-pair"><label>开始日期<input className="plain-input" type="text" inputMode="numeric" autoComplete="off" defaultValue="2026-06-01" aria-label="开始日期，格式为年月日"/></label><label>结束日期<input className="plain-input" type="text" inputMode="numeric" autoComplete="off" defaultValue="2026-07-11" aria-label="结束日期，格式为年月日"/></label></div>
+        <div className="field-pair"><label>开始日期<div className="field fixed date-display"><b>2026-06-01</b><span>起</span></div></label><label>结束日期<div className="field fixed date-display"><b>2026-07-11</b><span>止</span></div></label></div>
         <label>策略档位<select value={profile} onChange={e=>setProfile(e.target.value)}><option>稳健档</option><option>平衡档</option><option>灵敏档</option><option>量化学习</option></select></label>
-        <div className="field-pair"><label>模拟资金<input className="plain-input" type="text" inputMode="numeric" autoComplete="off" value={capital} onChange={e=>setCapital(Number(e.target.value.replace(/\D/g,'')) || 0)}/><em>元</em></label><label>真实底仓<input className="plain-input" type="text" inputMode="numeric" autoComplete="off" value={baseShares} onChange={e=>setBaseShares(Number(e.target.value.replace(/\D/g,'')) || 0)}/><em>股</em></label></div>
-        <div className="field-pair"><label>昨日可卖<input className="plain-input" type="text" inputMode="numeric" autoComplete="off" value={sellable} onChange={e=>setSellable(Number(e.target.value.replace(/\D/g,'')) || 0)}/><em>股</em></label><label>单次上限<div className="field fixed"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
-        <div className="cost-box"><div><span>佣金</span><label><input className="plain-input" type="text" inputMode="decimal" autoComplete="off" value={feeRate} onChange={e=>setFeeRate(Number(e.target.value.replace(/[^\d.]/g,'')) || 0)}/><em>%</em></label></div><div><span>单边滑点</span><label><input className="plain-input" type="text" inputMode="decimal" autoComplete="off" value={slippage} onChange={e=>setSlippage(Number(e.target.value.replace(/[^\d.]/g,'')) || 0)}/><em>%</em></label></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
+        <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
+        <div className="field-pair"><label>昨日可卖<NumberStepper value={sellable} unit="股" step={100} min={0} onChange={setSellable}/></label><label>单次上限<div className="field fixed"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
+        <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><div><span>单边滑点</span><NumberStepper value={slippage} unit="%" step={0.005} min={0} decimals={3} onChange={setSlippage}/></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <button className="run-backtest" onClick={run} disabled={running}>{running ? '正在逐分钟重放…' : '运行可信回测'}<span>→</span></button>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；14:50 前必须恢复计划底仓，否则整笔记为失败。</p>
       </aside>
@@ -294,4 +295,13 @@ function BacktestView({ profile, setProfile }: { profile: string; setProfile: (v
       </div>
     </div>
   </section>;
+}
+
+function NumberStepper({value,unit,step,min,onChange,decimals=0}:{value:number;unit:string;step:number;min:number;onChange:(value:number)=>void;decimals?:number}) {
+  const format=(number:number)=>decimals ? number.toFixed(decimals) : number.toLocaleString('zh-CN');
+  return <div className="number-stepper" role="group" aria-label={`${value}${unit}`}>
+    <button type="button" onClick={()=>onChange(Math.max(min,Number((value-step).toFixed(decimals))))} aria-label={`减少${step}${unit}`}>−</button>
+    <span><b>{format(value)}</b><em>{unit}</em></span>
+    <button type="button" onClick={()=>onChange(Number((value+step).toFixed(decimals)))} aria-label={`增加${step}${unit}`}>＋</button>
+  </div>;
 }
