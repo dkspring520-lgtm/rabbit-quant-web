@@ -28,8 +28,9 @@ export default function Home() {
   const [signalMode, setSignalMode] = useState("反T");
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [agentOpen, setAgentOpen] = useState(false);
-  const [activeView, setActiveView] = useState("操盘台");
+  const [activeView, setActiveView] = useState("首页");
   const [strategyOpen, setStrategyOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [trainingRunning, setTrainingRunning] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(68);
   const [customStrategy, setCustomStrategy] = useState("09:35后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；预期净价差低于0.5%不执行。");
@@ -52,7 +53,7 @@ export default function Home() {
           <span className="brand-type"><strong><em>做T</em><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
-          {['操盘台','多股监控','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
+          {['首页','操盘台','多股监控','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
           <span className="market-open"><i />市场交易中</span>
@@ -60,11 +61,12 @@ export default function Home() {
           <span className="clock">09:36:21</span>
           <button className="profile-cycle" onClick={()=>setProfile(strategyProfiles[(strategyProfiles.indexOf(profile)+1)%strategyProfiles.length])} aria-label={`当前策略${profile}，点击切换`}><span>{profile}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
+          <button className="account-button" onClick={()=>setAccountOpen(true)} aria-label="打开账户中心"><span>J</span><b>jay cc</b><i>⌄</i></button>
           <button className="icon-button" aria-label="设置">⌘</button>
         </div>
       </header>
 
-      {activeView === "操盘台" ? <>
+      {activeView === "首页" ? <HomeView onNavigate={setActiveView} /> : activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
         {stocks.map((item, index) => (
           <button key={item.code} onClick={() => setActiveStock(index)} className={activeStock === index ? 'selected' : ''}>
@@ -177,9 +179,30 @@ export default function Home() {
         </div>
       </div>}
 
+      {accountOpen && <div className="account-overlay" role="dialog" aria-modal="true" aria-label="账户中心" onMouseDown={e=>{if(e.target===e.currentTarget)setAccountOpen(false)}}><div className="account-dialog">
+        <div className="account-head"><div className="account-avatar">J</div><div><span>已通过 ChatGPT 安全登录</span><h2>jay cc</h2><p>524***@qq.com</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
+        <div className="account-plan"><div><span>当前套餐</span><b>个人体验版</b><small>账户已自动创建，无需设置站内密码</small></div><em>已激活</em></div>
+        <div className="account-stats"><div><span>监控股票</span><b>4 / 10</b></div><div><span>本月回测</span><b>29 次</b></div><div><span>策略版本</span><b>QB‑04</b></div></div>
+        <div className="account-settings"><h3>账户偏好</h3><label><span>默认策略档位<small>登录后自动恢复</small></span><b>{profile}</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>稳健</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
+        <div className="account-security"><i>✓</i><p><b>身份与数据安全</b><span>登录身份由 ChatGPT 验证；本站不保存你的登录密码。交易接口默认关闭。</span></p></div>
+        <button className="account-close" onClick={()=>setAccountOpen(false)}>完成</button>
+      </div></div>}
+
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
   );
+}
+
+function HomeView({onNavigate}:{onNavigate:(view:string)=>void}) {
+  return <section className="product-home">
+    <div className="home-hero">
+      <div className="home-copy"><span className="eyebrow">RABBIT SMART‑T WORKSPACE</span><h1>看清买卖点，<br/><em>当天完成每一次T。</em></h1><p>集合竞价研判、市场雷达、正反T决策、仓位闭环和四兔训练集中在一个简单的交易工作台。</p><div className="home-actions"><button onClick={()=>onNavigate('操盘台')}>进入今日操盘台 <span>→</span></button><button onClick={()=>onNavigate('模拟回测')}>先做模拟回测</button></div><div className="home-trust"><span><i/>不自动下单</span><span><i/>T+1仓位校验</span><span><i/>收盘恢复底仓</span></div></div>
+      <div className="home-terminal"><div className="terminal-head"><span>601899 洛阳钼业</span><em><i/>实时监控中</em></div><div className="terminal-price"><strong>27.70</strong><span>+1.28%</span><small>市场雷达 72 / 100</small></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><defs><linearGradient id="homeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20 L600 180 L0 180Z" fill="url(#homeFill)"/><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20" className="home-line"/></svg><div className="terminal-signal"><span><i className="rabbit-dot-home">兔</i><b>反T观察</b></span><p>高开转弱，等待回落确认</p><em>确认分 8/10</em></div></div>
+    </div>
+    <div className="home-strip"><div><span>今日闭环</span><b>2 次</b><small>全部恢复底仓</small></div><div><span>监控股票</span><b>4 只</b><small>1个可执行机会</small></div><div><span>已确认净收益</span><b className="teal">+¥887.43</b><small>未闭环不计入</small></div><div><span>四兔训练</span><b>68%</b><small>影子回放进行中</small></div></div>
+    <div className="home-workflow"><div className="workflow-head"><div><span className="eyebrow">DAILY WORKFLOW</span><h2>每天只看四件事</h2></div><p>减少指标堆叠，把操作顺序固定下来。</p></div><div className="workflow-grid">{[{n:'01',title:'先看市场',copy:'集合竞价与市场雷达先决定今天能不能做、优先正T还是反T。',action:'多股监控',icon:'⌁'},{n:'02',title:'再等信号',copy:'价格、VWAP、量能和确认分同时满足，才显示可执行机会。',action:'操盘台',icon:'⌗'},{n:'03',title:'当天闭环',copy:'首笔成交后冻结同向信号，等量反向成交并恢复原底仓。',action:'持仓对账',icon:'⇄'},{n:'04',title:'收盘复盘',copy:'使用真实费用和可卖数量回放，训练参数只进入候选区。',action:'智能训练',icon:'◇'}].map(item=><button key={item.n} onClick={()=>onNavigate(item.action)}><span>{item.n}</span><i>{item.icon}</i><h3>{item.title}</h3><p>{item.copy}</p><em>{item.action} →</em></button>)}</div></div>
+    <div className="home-risk"><span>重要提示</span><p>做T不保证盈利。所有信号仅用于策略研究和提醒；自动交易接口保持关闭，候选策略必须人工晋升。</p><button onClick={()=>onNavigate('模拟回测')}>查看可信回测</button></div>
+  </section>;
 }
 
 const watchRows = [

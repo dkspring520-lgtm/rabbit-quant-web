@@ -5,6 +5,7 @@ import "./backtest.css";
 import "./holdings.css";
 import "./modules.css";
 import "./typography.css";
+import "./home.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
