@@ -34,8 +34,8 @@ export default function Home() {
     <main className="app-shell">
       <header className="topbar">
         <div className="brand brand-lockup" aria-label="做T神器 Rabbit Smart-T">
-          <span className="brand-emblem"><img className="rabbit-logo" src="/double-rabbit-logo.png" alt="双兔品牌标志"/><i /></span>
-          <span className="brand-type"><strong><em>做T</em>神器</strong><small>RABBIT · SMART-T</small></span>
+          <span className="brand-emblem"><img className="rabbit-logo" src="/rabbit-brand-v2.png" alt="双兔与上涨T品牌标志"/><i /></span>
+          <span className="brand-type"><strong><em>做T</em><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
           {['操盘台','多股监控','模拟回测','智能训练','自动交易'].map((item, index) => <button className={index === 0 ? 'active' : ''} key={item}>{item}</button>)}
