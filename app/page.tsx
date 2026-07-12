@@ -275,11 +275,11 @@ function BacktestView({ profile, setProfile }: { profile: string; setProfile: (v
     <div className="backtest-grid">
       <aside className="backtest-config">
         <div className="config-title"><h2>回测参数</h2><span>已保存</span></div>
-        <label>股票代码<div className="field fixed"><b>601899</b><span>洛阳钼业</span></div></label>
-        <div className="field-pair"><label>开始日期<div className="field fixed date-display"><b>2026-06-01</b><span>起</span></div></label><label>结束日期<div className="field fixed date-display"><b>2026-07-11</b><span>止</span></div></label></div>
+        <label>股票代码<div className="field static-field"><b>601899</b><span>洛阳钼业</span></div></label>
+        <div className="field-pair"><label>开始日期<div className="field static-field date-display"><b>2026-06-01</b><span>起</span></div></label><label>结束日期<div className="field static-field date-display"><b>2026-07-11</b><span>止</span></div></label></div>
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
-        <div className="field-pair"><label>昨日可卖<NumberStepper value={sellable} unit="股" step={100} min={0} onChange={setSellable}/></label><label>单次上限<div className="field fixed"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
+        <div className="field-pair"><label>昨日可卖<NumberStepper value={sellable} unit="股" step={100} min={0} onChange={setSellable}/></label><label>单次上限<div className="field static-field"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><div><span>单边滑点</span><NumberStepper value={slippage} unit="%" step={0.005} min={0} decimals={3} onChange={setSlippage}/></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <button className="run-backtest" onClick={run} disabled={running}>{running ? '正在逐分钟重放…' : '运行可信回测'}<span>→</span></button>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；14:50 前必须恢复计划底仓，否则整笔记为失败。</p>
