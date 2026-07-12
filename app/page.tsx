@@ -116,6 +116,11 @@ export default function Home() {
           <button className={`primary-action ${confirmed ? 'confirmed' : ''}`} onClick={() => setConfirmed(!confirmed)}>
             <span>{confirmed ? '已加入执行计划' : signalMode === '反T' ? '卖出 1/3 昨仓' : '买入 1/3 计划仓'}</span><small>{confirmed ? '等待券商确认' : '点击确认策略计划'} →</small>
           </button>
+          <div className="closure-guard">
+            <div><span>当日闭环校验</span><b><i/>允许开T</b></div>
+            <p><span>计划数量</span><strong>2,000 股</strong></p><p><span>可卖旧仓</span><strong>6,000 股</strong></p><p><span>收盘目标</span><strong>回到 6,000 股</strong></p>
+            <small>{signalMode === '正T' ? '买入后必须在 14:50 前卖出等量昨日旧仓。' : '卖出后必须在 14:50 前买回等量股份。'}</small>
+          </div>
           <div className="decision-stats"><div><span>策略评分</span><b>8<small>/10</small></b></div><div><span>预期价差</span><b>0.62<small>%</small></b></div><div><span>市场雷达</span><b>72<small>/100</small></b></div></div>
           <div className="risk-box"><div><span>止盈参考</span><b>+0.60% ~ +1.20%</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>若价格重新站回 VWAP 并放量上攻，反T预案立即失效，避免卖飞。</p></div>
           <button className="automation-reserved" disabled><span><i />自动交易接口</span><b>已预留 · 当前关闭</b></button>
@@ -127,7 +132,7 @@ export default function Home() {
         <div className="history">
           <div className="lower-tabs">{['今日T循环','历史信号','模拟记录'].map(item=><button key={item} onClick={()=>setPanel(item)} className={panel===item?'active':''}>{item}</button>)}</div>
           <div className="history-head"><span>时间</span><span>方向</span><span>价格</span><span>数量</span><span>价差</span><span>状态</span></div>
-          {[['09:25:18','反T卖出','27.86','1/3仓','+0.62%','待回补'],['09:08:42','正T买入','27.55','1/3仓','—','已成交'],['09:02:11','反T卖出','27.68','1/3仓','+0.48%','已完成']].map((row,i)=><div className="history-row" key={i}>{row.map((cell,j)=><span className={j===1||j===4?'accent':''} key={j}>{cell}</span>)}</div>)}
+          {[['10:08:14','反T买回','27.55','2,000股','+0.62%','已闭环'],['09:41:26','反T卖出','27.86','2,000股','—','等待买回'],['09:02:11','正T循环','27.38→27.68','1,000股','+0.48%','已闭环']].map((row,i)=><div className="history-row" key={i}>{row.map((cell,j)=><span className={j===1||j===4?'accent':''} key={j}>{cell}</span>)}</div>)}
         </div>
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
           <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四智能体持续训练</span><small>量化学习档 · 每120分钟</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
@@ -228,7 +233,7 @@ function BacktestView({ profile, setProfile }: { profile: string; setProfile: (v
         <div className="field-pair"><label>昨日可卖<input className="plain-input" type="text" inputMode="numeric" autoComplete="off" value={sellable} onChange={e=>setSellable(Number(e.target.value.replace(/\D/g,'')) || 0)}/><em>股</em></label><label>单次上限<div className="field fixed"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
         <div className="cost-box"><div><span>佣金</span><label><input className="plain-input" type="text" inputMode="decimal" autoComplete="off" value={feeRate} onChange={e=>setFeeRate(Number(e.target.value.replace(/[^\d.]/g,'')) || 0)}/><em>%</em></label></div><div><span>单边滑点</span><label><input className="plain-input" type="text" inputMode="decimal" autoComplete="off" value={slippage} onChange={e=>setSlippage(Number(e.target.value.replace(/[^\d.]/g,'')) || 0)}/><em>%</em></label></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <button className="run-backtest" onClick={run} disabled={running}>{running ? '正在逐分钟重放…' : '运行可信回测'}<span>→</span></button>
-        <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；尾盘恢复计划仓位。</p>
+        <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；14:50 前必须恢复计划底仓，否则整笔记为失败。</p>
       </aside>
       <div className="backtest-results">
         <div className="result-summary">
@@ -236,7 +241,7 @@ function BacktestView({ profile, setProfile }: { profile: string; setProfile: (v
           <div><span>毛收益</span><b>¥ 11,208.00</b><small>未扣费用</small></div><div><span>费用与滑点</span><b>-¥ 2,781.70</b><small>占毛利 24.82%</small></div><div><span>最大回撤</span><b>-1.36%</b><small>¥ 2,718.00</small></div>
         </div>
         <div className="equity-panel"><div className="panel-heading"><div><h2>资金曲线</h2><span>2026-06-01 — 2026-07-11</span></div><div className="curve-legend"><span><i/>净资产</span><span><i/>基准持仓</span></div></div><svg viewBox="0 0 800 220" preserveAspectRatio="none" aria-label="回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".22"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{[40,80,120,160,200].map(y=><line key={y} x1="0" x2="800" y1={y} y2={y} className="equity-grid"/>)}<path d="M0 190 C55 176 82 182 120 160 S190 170 230 142 S302 151 350 120 S430 132 470 98 S550 112 600 80 S680 96 730 54 S772 60 800 32 L800 220 L0 220 Z" fill="url(#equityFill)"/><path d="M0 190 C55 176 82 182 120 160 S190 170 230 142 S302 151 350 120 S430 132 470 98 S550 112 600 80 S680 96 730 54 S772 60 800 32" className="equity-line"/><path d="M0 185 C130 174 220 178 320 150 S520 140 800 110" className="benchmark-line"/></svg></div>
-        <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>29</b></div><div><span>完成T循环</span><b>41</b></div><div><span>正T / 反T</span><b>18 / 23</b></div><div><span>胜率</span><b className="teal">68.29%</b></div><div><span>平均净价差</span><b>0.53%</b></div><div><span>平均持仓</span><b>21分</b></div></div><div className="failure-panel"><h3>未执行与失败原因</h3><p><span>价差不足 0.5%</span><b>17次</b></p><p><span>趋势方向拦截</span><b>9次</b></p><p><span>确认分不足</span><b>7次</b></p><p><span>可卖数量不足</span><b>2次</b></p></div></div>
+        <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>29</b></div><div><span>当日闭环</span><b>41 / 43</b></div><div><span>正T / 反T</span><b>18 / 23</b></div><div><span>闭环胜率</span><b className="teal">68.29%</b></div><div><span>收盘仓位一致率</span><b>95.35%</b></div><div><span>平均闭环时间</span><b>21分</b></div></div><div className="failure-panel"><h3>未执行与失败原因</h3><p><span>价差不足 0.5%</span><b>17次</b></p><p><span>趋势方向拦截</span><b>9次</b></p><p><span>可卖旧仓不足</span><b>2次</b></p><p><span>14:50 未恢复底仓</span><b className="failure-alert">2次</b></p></div></div>
       </div>
     </div>
   </section>;
