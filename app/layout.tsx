@@ -7,6 +7,7 @@ import "./modules.css";
 import "./typography.css";
 import "./home.css";
 import "./auth.css";
+import "./onboarding.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
