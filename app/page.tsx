@@ -33,7 +33,10 @@ export default function Home() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand"><img className="rabbit-logo" src="/double-rabbit-logo.png" alt="双兔品牌标志"/><strong>做T神器</strong><span className="beta">SMART-T</span></div>
+        <div className="brand brand-lockup" aria-label="做T神器 Rabbit Smart-T">
+          <span className="brand-emblem"><img className="rabbit-logo" src="/double-rabbit-logo.png" alt="双兔品牌标志"/><i /></span>
+          <span className="brand-type"><strong><em>做T</em>神器</strong><small>RABBIT · SMART-T</small></span>
+        </div>
         <nav className="main-nav" aria-label="主导航">
           {['操盘台','多股监控','模拟回测','智能训练','自动交易'].map((item, index) => <button className={index === 0 ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
