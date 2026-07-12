@@ -1,0 +1,6 @@
+body{font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+.brand-lockup .brand-type strong{font-weight:700;letter-spacing:-.04em}
+.chart-badge{font-family:system-ui,"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",Arial,sans-serif}
+.chart-badge text{letter-spacing:0!important}
+.chart-badge .badge-copy{font-weight:600}
+svg text{font-synthesis:none}
