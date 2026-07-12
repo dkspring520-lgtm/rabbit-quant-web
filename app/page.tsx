@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const stocks = [
+const initialStocks = [
   { code: "601899", name: "洛阳钼业", price: "27.70", change: "+1.28%" },
   { code: "601012", name: "隆基绿能", price: "18.36", change: "-0.42%" },
   { code: "000063", name: "中兴通讯", price: "33.12", change: "+0.35%" },
@@ -27,6 +27,7 @@ export default function Home() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [preferences, setPreferences] = useState({stock:'601899 洛阳钼业',baseShares:6000,risk:'稳健'});
   const [activeStock, setActiveStock] = useState(0);
+  const [stockList, setStockList] = useState(initialStocks);
   const [profile, setProfile] = useState("平衡档");
   const [period, setPeriod] = useState("分时");
   const [panel, setPanel] = useState("今日T循环");
@@ -39,7 +40,8 @@ export default function Home() {
   const [trainingRunning, setTrainingRunning] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(68);
   const [customStrategy, setCustomStrategy] = useState("09:35后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；预期净价差低于0.5%不执行。");
-  const stock = stocks[activeStock];
+  const stock = stockList[activeStock] || stockList[0];
+  const removeStock=(index:number)=>{if(stockList.length<=1)return;const next=stockList.filter((_,i)=>i!==index);setStockList(next);setActiveStock(current=>current===index?Math.max(0,index-1):current>index?current-1:current);try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}};
   const chart = useMemo(() => chartPath, []);
   useEffect(() => {
     if (!trainingRunning) return;
@@ -56,6 +58,7 @@ export default function Home() {
     } catch {}
     setAuthReady(true);
   }, []);
+  useEffect(()=>{if(!localAuth)return;try{const saved=localStorage.getItem(`rabbit-watchlist:${accountName.toLowerCase()}`);if(saved){const list=JSON.parse(saved);if(Array.isArray(list)&&list.length)setStockList(list)}}catch{}},[localAuth,accountName]);
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-v2.png" alt="做T神器"/></main>;
   if(!localAuth) return <AuthView onAuthenticated={(name,isNew)=>{setAccountName(name);setLocalAuth(true);try{localStorage.setItem('rabbit-auth-session',name);const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
@@ -83,10 +86,8 @@ export default function Home() {
 
       {activeView === "首页" ? <HomeView onNavigate={setActiveView} /> : activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
-        {stocks.map((item, index) => (
-          <button key={item.code} onClick={() => setActiveStock(index)} className={activeStock === index ? 'selected' : ''}>
-            <span>{item.code} {item.name}</span><b>{item.price}</b><em className={item.change.startsWith('-') ? 'down' : ''}>{item.change}</em>
-          </button>
+        {stockList.map((item, index) => (
+          <div className={`ticker-item ${activeStock === index ? 'selected' : ''}`} key={item.code}><button onClick={() => setActiveStock(index)}><span>{item.code} {item.name}</span><b>{item.price}</b><em className={item.change.startsWith('-') ? 'down' : ''}>{item.change}</em></button><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></div>
         ))}
         <button className="ticker-add">＋ 添加监控</button>
       </section>
@@ -273,7 +274,7 @@ function OnboardingView({initial,onSave}:{initial:{stock:string;baseShares:numbe
   const [stock,setStock]=useState(initial.stock);
   const [shares,setShares]=useState(initial.baseShares);
   const [risk,setRisk]=useState(initial.risk);
-  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>只需三步，之后可以随时在账户中心修改。</p></div><div className="onboarding-step"><b>01</b><div><span>默认关注股票</span><div className="stock-options">{['601899 洛阳钼业','601012 隆基绿能','000063 中兴通讯'].map(item=><button className={stock===item?'active':''} onClick={()=>setStock(item)} key={item}>{item}</button>)}</div></div></div><div className="onboarding-step"><b>02</b><div><span>计划底仓</span><div className="share-setup"><button onClick={()=>setShares(Math.max(0,shares-100))}>−</button><strong>{shares.toLocaleString()} 股</strong><button onClick={()=>setShares(shares+100)}>＋</button></div><small>做T完成后，收盘持仓应恢复到这个数量。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>onSave({stock,baseShares:shares,risk})}>保存并进入首页 <span>→</span></button></div></div>;
+  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>只需三步，之后可以随时在账户中心修改。</p></div><div className="onboarding-step"><b>01</b><div><span>默认关注股票</span><div className="stock-options">{['601899 洛阳钼业','601012 隆基绿能','000063 中兴通讯'].map(item=><button className={stock===item?'active':''} onClick={()=>setStock(item)} key={item}>{item}</button>)}</div></div></div><div className="onboarding-step"><b>02</b><div><span>计划底仓</span><div className="share-setup"><button onClick={()=>setShares(Math.max(0,shares-100))}>−</button><label><input type="text" inputMode="numeric" autoComplete="off" value={shares||''} onChange={e=>setShares(Math.max(0,Number(e.target.value.replace(/\D/g,''))||0))}/><em>股</em></label><button onClick={()=>setShares(shares+100)}>＋</button></div><small>可以直接输入股数，也可以按每次 100 股增减；收盘应恢复到这个数量。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>onSave({stock,baseShares:shares,risk})}>保存并进入首页 <span>→</span></button></div></div>;
 }
 
 const watchRows = [
