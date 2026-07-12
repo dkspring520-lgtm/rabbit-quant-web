@@ -47,7 +47,11 @@ export default function Home() {
   const [trainingRunning, setTrainingRunning] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(68);
   const [customStrategy, setCustomStrategy] = useState("09:35后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；预期净价差低于0.5%不执行。");
+  const [favoriteCodes, setFavoriteCodes] = useState<string[]>([]);
+  const [showIndicators, setShowIndicators] = useState(true);
+  const [marketClock, setMarketClock] = useState({time:'--:--:--',open:false,label:'休市中'});
   const stock = stockList[activeStock] || stockList[0];
+  const selectProfile=(next:string)=>{setProfile(next);try{localStorage.setItem(`rabbit-profile:${accountName.toLowerCase()}`,next)}catch{}};
   const removeStock=(index:number)=>{if(stockList.length<=1)return;const next=stockList.filter((_,i)=>i!==index);setStockList(next);setActiveStock(current=>current===index?Math.max(0,index-1):current>index?current-1:current);try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}};
   const chart = useMemo(() => chartPath, []);
   useEffect(() => {
@@ -58,6 +62,16 @@ export default function Home() {
     }), 450);
     return () => window.clearInterval(timer);
   }, [trainingRunning]);
+  useEffect(() => {
+    const updateClock=()=>{
+      const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Shanghai',weekday:'short',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(new Date());
+      const read=(type:string)=>parts.find(part=>part.type===type)?.value||'';
+      const total=Number(read('hour'))*60+Number(read('minute'));const workday=!['Sat','Sun'].includes(read('weekday'));
+      const open=workday&&((total>=570&&total<690)||(total>=780&&total<900));
+      setMarketClock({time:`${read('hour')}:${read('minute')}:${read('second')}`,open,label:open?'市场交易中':workday&&total<570?'等待开盘':'市场已收盘'});
+    };
+    updateClock();const timer=window.setInterval(updateClock,1000);return()=>window.clearInterval(timer);
+  }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
@@ -71,6 +85,7 @@ export default function Home() {
           if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=list.map(item=>item?.code==='601899'?{...item,name:'紫金矿业'}:item?.code==='603993'?{...item,name:'洛阳钼业'}:item);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(normalized));}}
           const savedProfile=localStorage.getItem(`rabbit-profile:${session.toLowerCase()}`);if(savedProfile)setProfile(savedProfile);
           const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${session.toLowerCase()}`);if(savedStrategy)setCustomStrategy(savedStrategy);
+          const savedFavorites=localStorage.getItem(`rabbit-favorites:${session.toLowerCase()}`);if(savedFavorites)setFavoriteCodes(JSON.parse(savedFavorites));
         }
       } catch {}
       setAuthReady(true);
@@ -88,6 +103,9 @@ export default function Home() {
       if(saved){const prefs=JSON.parse(saved);if(typeof prefs.stock==='string'&&prefs.stock.startsWith('601899'))prefs.stock='601899 紫金矿业';setPreferences(prefs);}else setOnboardingOpen(true);
       const watchlist=localStorage.getItem(`rabbit-watchlist:${userKey}`);
       if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length)setStockList(list.map(item=>item?.code==='601899'?{...item,name:'紫金矿业'}:item?.code==='603993'?{...item,name:'洛阳钼业'}:item));}
+      const savedProfile=localStorage.getItem(`rabbit-profile:${userKey}`);if(savedProfile)setProfile(savedProfile);
+      const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${userKey}`);if(savedStrategy)setCustomStrategy(savedStrategy);
+      const savedFavorites=localStorage.getItem(`rabbit-favorites:${userKey}`);if(savedFavorites)setFavoriteCodes(JSON.parse(savedFavorites));
     }catch{}
     if(isNew)setOnboardingOpen(true);
   }}/>;
@@ -103,13 +121,13 @@ export default function Home() {
           {['首页','操盘台','多股监控','策略市场','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
-          <span className="market-open"><i />市场交易中</span>
+          <span className={marketClock.open?'market-open':'market-open market-closed'}><i />{marketClock.label}</span>
           <span className="auto-off"><i />自动交易未连接</span>
-          <span className="clock">09:36:21</span>
-          <button className="profile-cycle" onClick={()=>setProfile(strategyProfiles[(strategyProfiles.indexOf(profile)+1)%strategyProfiles.length])} aria-label={`当前策略${profile}，点击切换`}><span>{profile}</span><i>⌄</i></button>
+          <span className="clock">{marketClock.time}</span>
+          <button className="profile-cycle" onClick={()=>selectProfile(strategyProfiles[(strategyProfiles.indexOf(profile)+1)%strategyProfiles.length])} aria-label={`当前策略${profile}，点击切换`}><span>{profile}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
           <button className="account-button" onClick={()=>setAccountOpen(true)} aria-label="打开账户中心"><span>{accountName.slice(0,1).toUpperCase()}</span><b>{accountName}</b><i>⌄</i></button>
-          <button className="icon-button" aria-label="设置">⌘</button>
+          <button className="icon-button" onClick={()=>setOnboardingOpen(true)} aria-label="设置交易偏好">⌘</button>
         </div>
       </header>
 
@@ -123,7 +141,7 @@ export default function Home() {
 
       <section className="stock-head">
         <div className="stock-identity">
-          <span className="stock-code">{stock.code}</span><h1>{stock.name}</h1><button className="star">☆</button>
+          <span className="stock-code">{stock.code}</span><h1>{stock.name}</h1><button className={`star ${favoriteCodes.includes(stock.code)?'active':''}`} onClick={()=>{const next=favoriteCodes.includes(stock.code)?favoriteCodes.filter(code=>code!==stock.code):[...favoriteCodes,stock.code];setFavoriteCodes(next);try{localStorage.setItem(`rabbit-favorites:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}}} aria-label={favoriteCodes.includes(stock.code)?'取消收藏':'收藏股票'}>{favoriteCodes.includes(stock.code)?'★':'☆'}</button>
         </div>
         <div className="quote"><strong>{stock.price}</strong><span>{stock.change}</span></div>
         <div className="quote-metrics">
@@ -138,7 +156,7 @@ export default function Home() {
             <div className="legend"><span><i className="coral-line"/>分时价 <b>27.70</b></span><span><i className="teal-line"/>VWAP <b>27.46</b></span></div>
             <span className="live-scan"><i/>开盘自动监控 · 实时扫描中</span>
             <div className="periods">{['分时','5分','15分','30分','60分','日K'].map(p => <button key={p} className={period === p ? 'active' : ''} onClick={() => setPeriod(p)}>{p}</button>)}</div>
-            <button className="tool-button">指标⌄</button><button className="tool-button">全屏</button>
+            <button className={`tool-button ${showIndicators?'active':''}`} onClick={()=>setShowIndicators(!showIndicators)}>{showIndicators?'隐藏指标':'显示指标'}</button><button className="tool-button" onClick={e=>{const target=e.currentTarget.closest('.chart-zone') as HTMLElement|null;if(target?.requestFullscreen)target.requestFullscreen()}}>全屏</button>
           </div>
           <div className="chart-wrap">
             <div className="y-axis"><span>28.20</span><span>27.90</span><span>27.60</span><span>27.30</span><span>27.00</span></div>
@@ -147,7 +165,7 @@ export default function Home() {
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
               <path d={`${chart} L910 300 L10 300 Z`} fill="url(#priceFill)" />
-              <path d={vwapPath} className="vwap-path"/><path d={chart} className="price-path"/>
+              {showIndicators&&<path d={vwapPath} className="vwap-path"/>}<path d={chart} className="price-path"/>
               <line x1="0" y1="168" x2="920" y2="168" className="last-line"/><circle cx="910" cy="168" r="4" className="last-dot"/>
               <g className="chart-badge oversold active-signal" transform="translate(170 132)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="6" x2="0" y2="15"/><rect x="-29" y="18" width="58" height="21" rx="5"/><path d="M-5 18 L0 12 L5 18 Z"/><text x="0" y="32">◆ 超卖</text></g>
               <g className="chart-badge sell active-signal" transform="translate(310 88)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-26" y="-39" width="52" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><g className="mini-rabbit" transform="translate(-15 -28)"><ellipse cx="-1.8" cy="-3" rx="1.2" ry="2.8"/><ellipse cx="1.8" cy="-3" rx="1.2" ry="2.8"/><circle cy="1" r="3.2"/><circle className="rabbit-eye" cx="-1.2" cy=".5" r=".45"/><circle className="rabbit-eye" cx="1.2" cy=".5" r=".45"/></g><text className="badge-copy" x="7" y="-25">卖出</text></g>
@@ -204,10 +222,10 @@ export default function Home() {
             <div className="training-metrics"><p><span>样本</span><b>10只 / 5日</b></p><p><span>触发</span><b>18 / 50</b></p><p><span>胜率</span><b>66.7%</b></p><p><span>净盈亏</span><b className="teal">+¥2,416</b></p><p><span>下轮训练</span><b>09:41 · 第13轮</b></p></div>
             <div className="training-log"><span>04:31:02</span><p>{trainingRunning?'训练兔正在获取分时样本并进行严格影子回放':'挑战兔完成样本外验证，候选参数等待人工晋升'}</p><em>自动晋升关闭</em></div>
           </div>}
-          <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
+          <div className="agent-grid">{agents.map((agent,i)=><button className="agent" onClick={()=>setActiveView('智能训练')} key={agent.name}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView /> : activeView === "持仓对账" ? <HoldingsView /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={setProfile} />}
+      </> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={selectProfile} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -218,22 +236,22 @@ export default function Home() {
               {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'8/10',cycles:'每日最多 3 次',spread:'最低净价差 0.35%',risk:'默认推荐'},
               {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'7/10',cycles:'每日最多 5 次',spread:'最低净价差 0.25%',risk:'假信号会增加'},
               {name:'量化学习',tag:'用历史结果持续优化',fit:'积累足够模拟样本后',score:'动态门槛',cycles:'每日最多 4 次',spread:'经验参数决定',risk:'新参数需人工晋级'},
-            ].map(item=><button key={item.name} onClick={()=>setProfile(item.name)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
+            ].map(item=><button key={item.name} onClick={()=>selectProfile(item.name)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
           </div>
-          <div className={`custom-strategy ${profile==='自定义策略'?'selected':''}`}><div className="custom-head"><div><h3>用户自定义策略</h3><p>用自然语言写下你的买卖条件，系统会同步到监控与模拟回测。</p></div><button onClick={()=>setProfile('自定义策略')}>{profile==='自定义策略'?'当前使用':'设为当前策略'}</button></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T策略规则"/><div className="hard-guards"><span>不可绕过：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
-          <div className="opening-rule"><span>开盘因果规则</span><p>09:30–09:35 只观察；09:35–10:00 只使用当前分钟及之前的数据。低开重新站上VWAP、高开跌破VWAP且确认后，分两次各 1/6；早盘累计不超过 1/3。</p><button onClick={()=>{try{localStorage.setItem('rabbit-custom-strategy',customStrategy)}catch{} setStrategyOpen(false)}}>保存并应用</button></div>
+          <div className={`custom-strategy ${profile==='自定义策略'?'selected':''}`}><div className="custom-head"><div><h3>用户自定义策略</h3><p>用自然语言写下你的买卖条件，系统会同步到监控与模拟回测。</p></div><button onClick={()=>selectProfile('自定义策略')}>{profile==='自定义策略'?'当前使用':'设为当前策略'}</button></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T策略规则"/><div className="hard-guards"><span>不可绕过：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
+          <div className="opening-rule"><span>开盘因果规则</span><p>09:30–09:35 只观察；09:35–10:00 只使用当前分钟及之前的数据。低开重新站上VWAP、高开跌破VWAP且确认后，分两次各 1/6；早盘累计不超过 1/3。</p><button onClick={()=>{try{localStorage.setItem(`rabbit-custom-strategy:${accountName.toLowerCase()}`,customStrategy);localStorage.setItem(`rabbit-profile:${accountName.toLowerCase()}`,profile)}catch{} setStrategyOpen(false)}}>保存并应用</button></div>
         </div>
       </div>}
 
       {accountOpen && <div className="account-overlay" role="dialog" aria-modal="true" aria-label="账户中心" onMouseDown={e=>{if(e.target===e.currentTarget)setAccountOpen(false)}}><div className="account-dialog">
         <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>用户名账户已登录</span><h2>{accountName}</h2><p>本机测试账户</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
         <div className="account-plan"><div><span>当前套餐</span><b>个人体验版</b><small>账户已自动创建，无需设置站内密码</small></div><em>已激活</em></div>
-        <div className="account-stats"><div><span>监控股票</span><b>4 / 10</b></div><div><span>本月回测</span><b>29 次</b></div><div><span>策略版本</span><b>QB‑04</b></div></div>
+        <div className="account-stats"><div><span>监控股票</span><b>{stockList.length} / 10</b></div><div><span>本月回测</span><b>29 次</b></div><div><span>策略版本</span><b>QB‑04</b></div></div>
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>计划底仓<small>用于当日闭环校验</small></span><b>{preferences.baseShares.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
         <div className="account-security"><i>✓</i><p><b>密码安全</b><span>测试版只在本机保存密码摘要，不保存密码明文；正式版将迁移至服务器账户库。</span></p></div>
         <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session');sessionStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setLocalAuth(false)}}>退出登录</button></div>
       </div></div>}
-      {onboardingOpen&&<OnboardingView initial={preferences} initialList={stockList} onListChange={(list)=>{setStockList(list);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}}} onSave={(next,list)=>{setPreferences(next);setStockList(list);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}setOnboardingOpen(false)}}/>}
+      {onboardingOpen&&<OnboardingView initial={preferences} initialList={stockList} onListChange={(list)=>{setStockList(list);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}}} onSave={(next,list)=>{setPreferences(next);setStockList(list);const preferredIndex=list.findIndex(item=>next.stock.startsWith(item.code));setActiveStock(preferredIndex>=0?preferredIndex:0);try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms · 盘中缓存≤4分钟</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
@@ -343,13 +361,13 @@ const marketStrategies = [
   {rank:5,name:'新锐挑战兔',author:'NeoQuant',mode:'回测',win:66,returns:13.7,drawdown:6.4,cycles:29,days:22,risk:'高风险',price:0,followers:48,tags:['灵敏档','超买超卖','小样本'],summary:'灵敏型候选策略，收益较高但样本量较少，目前仅允许历史回测与模拟观察。'},
 ];
 
-function StrategyMarketView(){
+function StrategyMarketView({accountName}:{accountName:string}){
   const [sort,setSort]=useState('综合榜');
   const [selected,setSelected]=useState<(typeof marketStrategies)[number]|null>(null);
-  const [subscribed,setSubscribed]=useState<string[]>([]);
+  const [subscribed,setSubscribed]=useState<string[]>(()=>{if(typeof window==='undefined')return[];try{const saved=localStorage.getItem(`rabbit-subscriptions:${accountName.toLowerCase()}`);return saved?JSON.parse(saved):[]}catch{return[]}});
   const [publishing,setPublishing]=useState(false);
   const rows=[...marketStrategies].sort((a,b)=>sort==='收益榜'?b.returns-a.returns:sort==='低回撤榜'?a.drawdown-b.drawdown:sort==='胜率榜'?b.win-a.win:a.rank-b.rank);
-  const follow=(name:string)=>setSubscribed(items=>items.includes(name)?items.filter(item=>item!==name):[...items,name]);
+  const follow=(name:string)=>setSubscribed(items=>{const next=items.includes(name)?items.filter(item=>item!==name):[...items,name];try{localStorage.setItem(`rabbit-subscriptions:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}return next});
   return <section className="market-view">
     <div className="market-hero"><div><span className="eyebrow">RABBIT STRATEGY MARKET</span><h1>策略智能体排行榜</h1><p>发现、比较并模拟跟随优秀的用户策略。所有指标都同时展示样本与风险，不用单一胜率制造错觉。</p></div><button onClick={()=>setPublishing(true)}>＋ 发布我的策略</button></div>
     <div className="market-guard"><b>测试版安全边界</b><span>支持策略发布、订阅与模拟跟随</span><span>真实资金自动交易保持关闭</span><span>不代管资金，不承诺收益</span></div>
@@ -398,7 +416,7 @@ function HoldingsView() {
     </div>
     <div className="reconcile-grid">
       <div className="ledger-panel">
-        <div className="panel-top"><div><h2>今日成交流水</h2><p>成交按时间排序，系统自动寻找可闭合的正T / 反T循环。</p></div><button>＋ 手动补录成交</button></div>
+        <div className="panel-top"><div><h2>今日成交流水</h2><p>成交按时间排序，系统自动寻找可闭合的正T / 反T循环。</p></div><button disabled title="下一版本接入成交存储后开放">手动补录 · 待接入</button></div>
         <div className="ledger-filter">{["全部流水","买入","卖出","未配对"].map(item=><button key={item} className={filter===item?'active':''} onClick={()=>setFilter(item)}>{item}<span>{item==='全部流水'?5:item==='买入'?3:item==='卖出'?2:1}</span></button>)}</div>
         <div className="ledger-table">
           <div className="ledger-row ledger-title"><span>成交时间</span><span>方向</span><span>成交价</span><span>数量</span><span>配对循环</span><span>费用</span><span>循环净收益</span><span>状态</span></div>
