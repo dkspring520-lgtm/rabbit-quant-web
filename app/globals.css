@@ -19,3 +19,5 @@
 .brand-lockup{gap:11px;min-width:236px}.brand-lockup .brand-emblem{width:70px;height:62px}.brand-lockup .brand-emblem .rabbit-logo{width:72px;height:66px}
 
 @media(max-width:760px){.brand-lockup{min-width:auto}.brand-lockup .brand-emblem{width:54px;height:54px}.brand-lockup .brand-emblem .rabbit-logo{width:56px;height:56px}}
+
+.market-open.market-closed{color:var(--dim);border-color:var(--line);background:transparent}.market-open.market-closed i{background:#59615f;box-shadow:none}.star{cursor:pointer}.star.active{color:#f2b84b}.tool-button.active{color:var(--teal);border-color:rgba(40,215,196,.35)}.chart-zone:fullscreen{background:var(--bg);padding:8px}.panel-top button:disabled{cursor:not-allowed;opacity:.55}
