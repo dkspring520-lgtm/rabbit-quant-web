@@ -140,6 +140,7 @@ export default function Home() {
           <div className="decision-tabs"><button onClick={() => setSignalMode('正T')} className={signalMode==='正T'?'active':''}>正T</button><button onClick={() => setSignalMode('反T')} className={signalMode==='反T'?'active':''}>反T</button></div>
           <div className="decision-label"><span>SMART-T 决策</span><em>可信度高</em></div>
           <div className="radar-gate"><div><span>市场雷达门控</span><b>72<small>/100</small></b></div><p><i/>震荡区间 · 使用当前档位标准门槛</p><small>雷达低于25禁止激进正T；75以上提高反T确认分；88以上必须等待真实回落。</small></div>
+          <div className="opening-causal"><span>09:35–10:00 开盘试单</span><b>仅使用已出现数据 · 单次 1/6 仓</b><small>低开站回VWAP才允许正T；高开跌破VWAP且回抽失败才允许反T。</small></div>
           <h2>{signalMode === '反T' ? '高开转弱' : '低开转强'}</h2>
           <p className="decision-copy">{signalMode === '反T' ? '冲高乏力，跌回开盘价与 VWAP 下方。' : '止跌回升，重新站上开盘价与 VWAP。'}</p>
           <button className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
@@ -167,11 +168,11 @@ export default function Home() {
           {([...(cycleStage === 'opened' ? [['刚刚',signalMode === '反T' ? '反T卖出' : '正T买入','27.70','2,000股','—','等待闭环']] : cycleStage === 'closed' ? [['刚刚',signalMode === '反T' ? '反T循环' : '正T循环',signalMode === '反T' ? '27.70→27.55' : '27.55→27.70','2,000股','+0.54%','已闭环']] : []),['10:08:14','反T循环','27.86→27.55','2,000股','+0.62%','已闭环'],['09:02:11','正T循环','27.38→27.68','1,000股','+0.48%','已闭环']] as string[][]).map((row,i)=><div className="history-row" key={`${row[0]}-${i}`}>{row.map((cell,j)=><span className={j===1||j===4?'accent':''} key={j}>{cell}</span>)}</div>)}
         </div>
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
-          <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四智能体持续训练</span><small>{trainingRunning?'影子回放进行中':'量化学习档 · 每60分钟'}</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
+          <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四智能体持续训练</span><small>{trainingRunning?'影子回放进行中':'持续影子训练 · 每5分钟'}</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
           {agentOpen && <div className="training-console">
             <div className="training-control"><div><span>训练批次 20260712-043102</span><b>{trainingRunning?'影子回放中':trainingProgress===100?'本轮已完成':'等待继续训练'}</b></div><button onClick={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} disabled={trainingRunning}>{trainingRunning?'训练中…':trainingProgress===100?'开始新批次':'继续训练'}</button></div>
             <div className="training-progress"><div style={{width:`${trainingProgress}%`}}/><span>{trainingProgress}%</span></div>
-            <div className="training-metrics"><p><span>样本</span><b>10只 / 5日</b></p><p><span>触发</span><b>18 / 50</b></p><p><span>胜率</span><b>66.7%</b></p><p><span>净盈亏</span><b className="teal">+¥2,416</b></p><p><span>学习记录</span><b>18信号 / 12成交</b></p></div>
+            <div className="training-metrics"><p><span>样本</span><b>10只 / 5日</b></p><p><span>触发</span><b>18 / 50</b></p><p><span>胜率</span><b>66.7%</b></p><p><span>净盈亏</span><b className="teal">+¥2,416</b></p><p><span>下轮训练</span><b>09:41 · 第13轮</b></p></div>
             <div className="training-log"><span>04:31:02</span><p>{trainingRunning?'训练兔正在获取分时样本并进行严格影子回放':'挑战兔完成样本外验证，候选参数等待人工晋升'}</p><em>自动晋升关闭</em></div>
           </div>}
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
@@ -191,7 +192,7 @@ export default function Home() {
             ].map(item=><button key={item.name} onClick={()=>setProfile(item.name)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
           </div>
           <div className={`custom-strategy ${profile==='自定义策略'?'selected':''}`}><div className="custom-head"><div><h3>用户自定义策略</h3><p>用自然语言写下你的买卖条件，系统会同步到监控与模拟回测。</p></div><button onClick={()=>setProfile('自定义策略')}>{profile==='自定义策略'?'当前使用':'设为当前策略'}</button></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T策略规则"/><div className="hard-guards"><span>不可绕过：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
-          <div className="opening-rule"><span>开盘统一规则</span><p>09:30–09:35 只观察；09:35–10:00 收盘确认＋回踩确认后分两次各 1/6；早盘累计不超过 1/3；10:00 后按盘中策略执行。</p><button onClick={()=>{try{localStorage.setItem('rabbit-custom-strategy',customStrategy)}catch{} setStrategyOpen(false)}}>保存并应用</button></div>
+          <div className="opening-rule"><span>开盘因果规则</span><p>09:30–09:35 只观察；09:35–10:00 只使用当前分钟及之前的数据。低开重新站上VWAP、高开跌破VWAP且确认后，分两次各 1/6；早盘累计不超过 1/3。</p><button onClick={()=>{try{localStorage.setItem('rabbit-custom-strategy',customStrategy)}catch{} setStrategyOpen(false)}}>保存并应用</button></div>
         </div>
       </div>}
 
@@ -205,7 +206,7 @@ export default function Home() {
       </div></div>}
       {onboardingOpen&&<OnboardingView initial={preferences} onSave={(next)=>{setPreferences(next);try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}setOnboardingOpen(false)}}/>}
 
-      <footer><span><i className="online"/>行情源正常 · 延迟 218ms</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
+      <footer><span><i className="online"/>行情源正常 · 延迟 218ms · 盘中缓存≤4分钟</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
   );
 }
@@ -298,8 +299,8 @@ function MultiWatchView({onOpen}:{onOpen:(index:number)=>void}) {
 
 function TrainingView({running,progress,onRun}:{running:boolean;progress:number;onRun:()=>void}) {
   return <section className="module-view training-view">
-    <div className="module-head"><div><span className="eyebrow">QUANTBRAIN LAB</span><h1>四兔持续训练中心</h1><p>影子回放、样本外挑战、人工晋升和风险否决相互隔离，训练结果不会直接进入正式交易。</p></div><button className="lab-run" onClick={onRun} disabled={running}>{running?'本轮训练中…':progress===100?'开始下一批次':'继续本轮训练'}<span>→</span></button></div>
-    <div className="lab-progress"><div className="lab-progress-head"><span>批次 20260712-043102 · 近5日严格影子回放</span><b>{running?'正在训练':progress===100?'本轮完成':'已暂停'} · {progress}%</b></div><i><em style={{width:`${progress}%`}}/></i><div className="lab-stages"><span className="done">读取样本</span><span className={progress>=40?'done':''}>训练兔回放</span><span className={progress>=70?'done':''}>挑战兔验证</span><span className={progress>=90?'done':''}>风控兔检查</span><span className={progress===100?'done':''}>等待人工晋升</span></div></div>
+    <div className="module-head"><div><span className="eyebrow">QUANTBRAIN LAB</span><h1>四兔持续训练中心</h1><p>每5分钟运行一轮影子训练；盘中只学习、不自动晋升，正式策略仍由人工确认。</p></div><button className="lab-run" onClick={onRun} disabled={running}>{running?'本轮训练中…':progress===100?'立即运行下一轮':'继续本轮训练'}<span>→</span></button></div>
+    <div className="lab-progress"><div className="lab-progress-head"><span>批次 20260712-043102 · 第12轮 · 近5日严格影子回放</span><b>{running?'正在训练':progress===100?'下轮 09:41':'已暂停'} · {progress}%</b></div><i><em style={{width:`${progress}%`}}/></i><div className="lab-stages"><span className="done">读取新鲜数据</span><span className={progress>=40?'done':''}>训练兔回放</span><span className={progress>=70?'done':''}>挑战兔验证</span><span className={progress>=90?'done':''}>风控兔检查</span><span className={progress===100?'done':''}>等待人工晋升</span></div></div>
     <div className="lab-grid">{agents.map((agent,index)=><article className="lab-agent" key={agent.name}><div><span className={`agent-icon a${index}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><p><b>{agent.name}</b><small>{agent.role}</small></p><em>{index===0&&running?'运行中':index===1?'样本外验证':index===2?'正式策略锁定':'风险低'}</em></div><strong>{index===0?`${progress}%`:agent.value}</strong><i><span style={{width:index===0?`${progress}%`:agent.value}}/></i><p>{index===0?'只在历史分时数据上学习，不接触正式账户。':index===1?'用训练兔未见过的样本检验候选参数。':index===2?'只有人工确认后才接收新版本。':'回撤、费用和仓位异常拥有一票否决权。'}</p></article>)}</div>
     <div className="lab-results"><div className="lab-metrics"><h2>本轮训练结果</h2><div><p><span>测试范围</span><b>10只 / 5日</b></p><p><span>触发信号</span><b>18 / 50</b></p><p><span>模拟成交</span><b>12</b></p><p><span>胜率</span><b>66.7%</b></p><p><span>净盈亏</span><b className="teal">+¥2,416</b></p><p><span>费用</span><b>-¥386</b></p></div><small>没有触发交易的批次不会被错误计为亏损；候选参数必须通过样本外验证和风险检查。</small></div><div className="promotion-card"><span>候选版本 QB‑20260712‑04</span><h2>等待人工晋升</h2><p>胜率与净收益达标，但样本量仍偏少。建议继续积累至少 20 个交易日后再评审。</p><button disabled>晋升为正式策略</button><small>自动晋升已关闭</small></div></div>
     <div className="lab-log"><h2>训练记录</h2>{[['04:31:02','训练兔','开始获取10只股票近5日分时数据'],['04:31:18','训练兔','完成50个样本窗口，记录18个有效信号'],['04:31:24','挑战兔','样本外胜率66.7%，候选进入风控检查'],['04:31:31','风控兔','最大回撤1.36%，费用占毛利13.8%'],['04:31:34','系统','本轮完成，候选参数等待人工晋升']].map(row=><div key={row[0]}><time>{row[0]}</time><b>{row[1]}</b><span>{row[2]}</span></div>)}</div>
