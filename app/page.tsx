@@ -51,7 +51,7 @@ export default function Home() {
           <span className="brand-type"><strong><em>做T</em><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
-          {['操盘台','多股监控','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => ['操盘台','持仓对账','模拟回测'].includes(item) ? setActiveView(item) : undefined} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
+          {['操盘台','多股监控','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
           <span className="market-open"><i />市场交易中</span>
@@ -159,7 +159,7 @@ export default function Home() {
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "持仓对账" ? <HoldingsView /> : <BacktestView profile={profile} setProfile={setProfile} />}
+      </> : activeView === "多股监控" ? <MultiWatchView onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "持仓对账" ? <HoldingsView /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={setProfile} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -180,6 +180,35 @@ export default function Home() {
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
   );
+}
+
+const watchRows = [
+  { code:'601899',name:'洛阳钼业',price:'27.70',change:'+1.28%',radar:72,signal:'反T观察',reason:'高开转弱 · 等待回落确认',score:8,position:'底仓正常',tone:'watch' },
+  { code:'601012',name:'隆基绿能',price:'18.36',change:'-0.42%',radar:23,signal:'禁止正T',reason:'市场风险区 · 雷达硬拦截',score:5,position:'无未闭环',tone:'blocked' },
+  { code:'000063',name:'中兴通讯',price:'33.12',change:'+0.35%',radar:81,signal:'提高门槛',reason:'强势市场 · 反T需10分确认',score:9,position:'等待闭环',tone:'warning' },
+  { code:'600519',name:'贵州茅台',price:'1,678.01',change:'-0.18%',radar:91,signal:'等待回落',reason:'市场过热 · 禁止追高卖飞',score:7,position:'底仓正常',tone:'hot' },
+];
+
+function MultiWatchView({onOpen}:{onOpen:(index:number)=>void}) {
+  const [filter,setFilter]=useState('全部');
+  const rows=watchRows.filter(row=>filter==='全部'||(filter==='有机会'?row.score>=8:filter==='被拦截'?row.tone==='blocked':row.position==='等待闭环'));
+  return <section className="module-view watch-view">
+    <div className="module-head"><div><span className="eyebrow">MULTI-ASSET RADAR</span><h1>多股实时监控</h1><p>统一使用市场雷达和 Smart‑T 决策门控，先显示风险，再显示机会。</p></div><div className="module-status"><i/>4只监控中 · 218ms</div></div>
+    <div className="watch-summary"><div><span>监控股票</span><b>4</b><small>盘中自动刷新</small></div><div><span>可执行机会</span><b className="teal">1</b><small>确认分达到门槛</small></div><div><span>门控拦截</span><b>1</b><small>弱市禁止激进正T</small></div><div><span>待闭环</span><b className="amber-text">1</b><small>优先级高于新信号</small></div><div><span>市场雷达</span><b>72</b><small>震荡区间</small></div></div>
+    <div className="watch-toolbar"><div>{['全部','有机会','被拦截','待闭环'].map(item=><button className={filter===item?'active':''} onClick={()=>setFilter(item)} key={item}>{item}</button>)}</div><button className="watch-add">＋ 添加监控股票</button></div>
+    <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>市场雷达</span><span>Smart‑T状态</span><span>策略解释</span><span>确认分</span><span>仓位状态</span><span/></div>{rows.map((row,index)=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span><b>{row.price}</b><small className={row.change.startsWith('-')?'negative':'positive'}>{row.change}</small></span><span><b>{row.radar}</b><small>{row.radar<25?'风险区':row.radar>=88?'过热区':row.radar>=75?'强势区':'震荡区'}</small></span><em className={`watch-pill ${row.tone}`}>{row.signal}</em><span className="watch-reason">{row.reason}</span><span className="score-dots">{[1,2,3,4,5].map(n=><i className={n<=Math.ceil(row.score/2)?'on':''} key={n}/>)}<small>{row.score}/10</small></span><span className={row.position==='等待闭环'?'amber-text':''}>{row.position}</span><button onClick={()=>onOpen(watchRows.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
+    <div className="watch-rule"><b>雷达门控规则</b><span>&lt;25 风险区：禁止激进正T</span><span>25–74：按策略档位执行</span><span>75–87：反T门槛提高</span><span>≥88：必须等待真实回落</span></div>
+  </section>;
+}
+
+function TrainingView({running,progress,onRun}:{running:boolean;progress:number;onRun:()=>void}) {
+  return <section className="module-view training-view">
+    <div className="module-head"><div><span className="eyebrow">QUANTBRAIN LAB</span><h1>四兔持续训练中心</h1><p>影子回放、样本外挑战、人工晋升和风险否决相互隔离，训练结果不会直接进入正式交易。</p></div><button className="lab-run" onClick={onRun} disabled={running}>{running?'本轮训练中…':progress===100?'开始下一批次':'继续本轮训练'}<span>→</span></button></div>
+    <div className="lab-progress"><div className="lab-progress-head"><span>批次 20260712-043102 · 近5日严格影子回放</span><b>{running?'正在训练':progress===100?'本轮完成':'已暂停'} · {progress}%</b></div><i><em style={{width:`${progress}%`}}/></i><div className="lab-stages"><span className="done">读取样本</span><span className={progress>=40?'done':''}>训练兔回放</span><span className={progress>=70?'done':''}>挑战兔验证</span><span className={progress>=90?'done':''}>风控兔检查</span><span className={progress===100?'done':''}>等待人工晋升</span></div></div>
+    <div className="lab-grid">{agents.map((agent,index)=><article className="lab-agent" key={agent.name}><div><span className={`agent-icon a${index}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><p><b>{agent.name}</b><small>{agent.role}</small></p><em>{index===0&&running?'运行中':index===1?'样本外验证':index===2?'正式策略锁定':'风险低'}</em></div><strong>{index===0?`${progress}%`:agent.value}</strong><i><span style={{width:index===0?`${progress}%`:agent.value}}/></i><p>{index===0?'只在历史分时数据上学习，不接触正式账户。':index===1?'用训练兔未见过的样本检验候选参数。':index===2?'只有人工确认后才接收新版本。':'回撤、费用和仓位异常拥有一票否决权。'}</p></article>)}</div>
+    <div className="lab-results"><div className="lab-metrics"><h2>本轮训练结果</h2><div><p><span>测试范围</span><b>10只 / 5日</b></p><p><span>触发信号</span><b>18 / 50</b></p><p><span>模拟成交</span><b>12</b></p><p><span>胜率</span><b>66.7%</b></p><p><span>净盈亏</span><b className="teal">+¥2,416</b></p><p><span>费用</span><b>-¥386</b></p></div><small>没有触发交易的批次不会被错误计为亏损；候选参数必须通过样本外验证和风险检查。</small></div><div className="promotion-card"><span>候选版本 QB‑20260712‑04</span><h2>等待人工晋升</h2><p>胜率与净收益达标，但样本量仍偏少。建议继续积累至少 20 个交易日后再评审。</p><button disabled>晋升为正式策略</button><small>自动晋升已关闭</small></div></div>
+    <div className="lab-log"><h2>训练记录</h2>{[['04:31:02','训练兔','开始获取10只股票近5日分时数据'],['04:31:18','训练兔','完成50个样本窗口，记录18个有效信号'],['04:31:24','挑战兔','样本外胜率66.7%，候选进入风控检查'],['04:31:31','风控兔','最大回撤1.36%，费用占毛利13.8%'],['04:31:34','系统','本轮完成，候选参数等待人工晋升']].map(row=><div key={row[0]}><time>{row[0]}</time><b>{row[1]}</b><span>{row[2]}</span></div>)}</div>
+  </section>;
 }
 
 const ledgerRows = [
