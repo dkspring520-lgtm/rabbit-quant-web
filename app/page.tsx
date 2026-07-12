@@ -24,6 +24,8 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [localAuth, setLocalAuth] = useState(false);
   const [accountName, setAccountName] = useState("jay cc");
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [preferences, setPreferences] = useState({stock:'601899 洛阳钼业',baseShares:6000,risk:'稳健'});
   const [activeStock, setActiveStock] = useState(0);
   const [profile, setProfile] = useState("平衡档");
   const [period, setPeriod] = useState("分时");
@@ -50,13 +52,13 @@ export default function Home() {
   useEffect(() => {
     try {
       const session=localStorage.getItem('rabbit-auth-session');
-      if(session){setLocalAuth(true);setAccountName(session);}
+      if(session){setLocalAuth(true);setAccountName(session);const saved=localStorage.getItem(`rabbit-prefs:${session.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);}
     } catch {}
     setAuthReady(true);
   }, []);
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-v2.png" alt="做T神器"/></main>;
-  if(!localAuth) return <AuthView onAuthenticated={(name)=>{setAccountName(name);setLocalAuth(true);try{localStorage.setItem('rabbit-auth-session',name)}catch{}}}/>;
+  if(!localAuth) return <AuthView onAuthenticated={(name,isNew)=>{setAccountName(name);setLocalAuth(true);try{localStorage.setItem('rabbit-auth-session',name);const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
 
   return (
     <main className="app-shell">
@@ -196,10 +198,11 @@ export default function Home() {
         <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>用户名账户已登录</span><h2>{accountName}</h2><p>本机测试账户</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
         <div className="account-plan"><div><span>当前套餐</span><b>个人体验版</b><small>账户已自动创建，无需设置站内密码</small></div><em>已激活</em></div>
         <div className="account-stats"><div><span>监控股票</span><b>4 / 10</b></div><div><span>本月回测</span><b>29 次</b></div><div><span>策略版本</span><b>QB‑04</b></div></div>
-        <div className="account-settings"><h3>账户偏好</h3><label><span>默认策略档位<small>登录后自动恢复</small></span><b>{profile}</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>稳健</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
+        <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>计划底仓<small>用于当日闭环校验</small></span><b>{preferences.baseShares.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
         <div className="account-security"><i>✓</i><p><b>密码安全</b><span>测试版只在本机保存密码摘要，不保存密码明文；正式版将迁移至服务器账户库。</span></p></div>
-        <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setLocalAuth(false)}}>退出登录</button></div>
+        <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setLocalAuth(false)}}>退出登录</button></div>
       </div></div>}
+      {onboardingOpen&&<OnboardingView initial={preferences} onSave={(next)=>{setPreferences(next);try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
@@ -212,7 +215,7 @@ async function passwordDigest(value:string){
   return Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,'0')).join('');
 }
 
-function AuthView({onAuthenticated}:{onAuthenticated:(name:string)=>void}) {
+function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean)=>void}) {
   const [mode,setMode]=useState<'login'|'register'>('login');
   const [username,setUsername]=useState('');
   const [password,setPassword]=useState('');
@@ -221,12 +224,15 @@ function AuthView({onAuthenticated}:{onAuthenticated:(name:string)=>void}) {
   const [remember,setRemember]=useState(true);
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
+  const [agreed,setAgreed]=useState(false);
+  const strength=password.length<6?0:Number(/[A-Z]/.test(password))+Number(/[a-z]/.test(password))+Number(/\d/.test(password))+Number(/[^A-Za-z0-9]/.test(password));
   const submit=async()=>{
     setError('');
     const name=username.trim();
     if(name.length<3){setError('用户名至少需要 3 个字符');return;}
     if(password.length<6){setError('密码至少需要 6 个字符');return;}
     if(mode==='register'&&password!==confirm){setError('两次输入的密码不一致');return;}
+    if(mode==='register'&&!agreed){setError('请先阅读并同意用户协议和隐私政策');return;}
     setBusy(true);
     try{
       const key=`rabbit-account:${name.toLowerCase()}`;
@@ -234,20 +240,20 @@ function AuthView({onAuthenticated}:{onAuthenticated:(name:string)=>void}) {
       if(mode==='register'){
         if(localStorage.getItem(key)){setError('该用户名已经存在，请直接登录');return;}
         localStorage.setItem(key,JSON.stringify({name,digest,createdAt:new Date().toISOString()}));
-        onAuthenticated(name);
+        onAuthenticated(name,true);
       }else{
         const saved=localStorage.getItem(key);
         if(!saved){setError('找不到该用户，请先注册');return;}
         const account=JSON.parse(saved);
         if(account.digest!==digest){setError('用户名或密码错误');return;}
         if(!remember) sessionStorage.setItem('rabbit-session-temporary','1');
-        onAuthenticated(account.name||name);
+        onAuthenticated(account.name||name,false);
       }
     }catch{setError('当前浏览器无法保存账户，请检查隐私设置');}finally{setBusy(false);}
   };
   return <main className="auth-page">
     <section className="auth-brand-panel"><div className="auth-brand"><img src="/rabbit-brand-v2.png" alt="双兔做T神器标志"/><span><b><em>做T</em>神器</b><small>SMART INTRADAY SYSTEM</small></span></div><div className="auth-message"><span className="eyebrow">RABBIT SMART‑T</span><h1>把复杂的盘面，<br/><em>变成简单的操作。</em></h1><p>多股监控、正反T决策、当日仓位闭环与四兔持续训练。</p></div><div className="auth-points"><span><i/>市场雷达硬门控</span><span><i/>T+1可卖数量校验</span><span><i/>收盘恢复计划底仓</span></div><small className="auth-disclaimer">策略研究工具 · 不构成投资建议</small></section>
-    <section className="auth-form-panel"><div className="auth-card"><div className="auth-card-head"><span>{mode==='login'?'WELCOME BACK':'CREATE ACCOUNT'}</span><h2>{mode==='login'?'登录做T神器':'创建用户名账户'}</h2><p>{mode==='login'?'继续查看你的监控、回测和训练记录。':'首次注册后即可进入个人交易工作台。'}</p></div><div className="auth-tabs"><button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setError('')}}>登录</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setError('')}}>注册</button></div><label className="auth-field"><span>用户名</span><input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" placeholder="请输入用户名"/></label><label className="auth-field"><span>密码</span><div><input value={password} onChange={e=>setPassword(e.target.value)} type={showPassword?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} placeholder="至少 6 个字符"/><button onClick={()=>setShowPassword(!showPassword)} type="button">{showPassword?'隐藏':'显示'}</button></div></label>{mode==='register'&&<label className="auth-field"><span>确认密码</span><input value={confirm} onChange={e=>setConfirm(e.target.value)} type={showPassword?'text':'password'} autoComplete="new-password" placeholder="再次输入密码"/></label>}{mode==='login'&&<div className="auth-options"><label><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/><span>记住登录</span></label><button type="button" onClick={()=>setError('测试版暂不支持找回密码，请重新注册其他用户名')}>忘记密码？</button></div>}{error&&<div className="auth-error"><i>!</i>{error}</div>}<button className="auth-submit" onClick={submit} disabled={busy}>{busy?'正在验证…':mode==='login'?'登录':'注册并进入'}<span>→</span></button><div className="auth-local-note"><i>i</i><p><b>本机测试账户</b><span>当前账户仅保存在这个浏览器中，清除浏览器数据后会丢失。正式商用版将接入服务器数据库。</span></p></div></div><footer className="auth-footer">© 2026 Rabbit Quant · 用户协议 · 隐私政策</footer></section>
+    <section className="auth-form-panel"><div className="auth-card"><div className="auth-card-head"><span>{mode==='login'?'WELCOME BACK':'CREATE ACCOUNT'}</span><h2>{mode==='login'?'登录做T神器':'创建用户名账户'}</h2><p>{mode==='login'?'继续查看你的监控、回测和训练记录。':'首次注册后即可进入个人交易工作台。'}</p></div><div className="auth-tabs"><button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setError('')}}>登录</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setError('')}}>注册</button></div><label className="auth-field"><span>用户名</span><input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" placeholder="请输入用户名"/></label><label className="auth-field"><span>密码</span><div><input value={password} onChange={e=>setPassword(e.target.value)} type={showPassword?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} placeholder="至少 6 个字符"/><button onClick={()=>setShowPassword(!showPassword)} type="button">{showPassword?'隐藏':'显示'}</button></div></label>{mode==='register'&&<><div className="password-strength"><span>密码强度</span><i className={strength>0?'on':''}/><i className={strength>1?'on':''}/><i className={strength>2?'on':''}/><i className={strength>3?'on':''}/><b>{strength<2?'较弱':strength<4?'可用':'较强'}</b></div><label className="auth-field"><span>确认密码</span><input value={confirm} onChange={e=>setConfirm(e.target.value)} type={showPassword?'text':'password'} autoComplete="new-password" placeholder="再次输入密码"/></label><label className="terms-check"><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/><span>我已阅读并同意《用户协议》和《隐私政策》，理解本工具不构成投资建议。</span></label></>}{mode==='login'&&<div className="auth-options"><label><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/><span>记住登录</span></label><button type="button" onClick={()=>setError('测试版暂不支持找回密码，请重新注册其他用户名')}>忘记密码？</button></div>}{error&&<div className="auth-error"><i>!</i>{error}</div>}<button className="auth-submit" onClick={submit} disabled={busy}>{busy?'正在验证…':mode==='login'?'登录':'注册并进入'}<span>→</span></button><div className="auth-local-note"><i>i</i><p><b>本机测试账户</b><span>当前账户仅保存在这个浏览器中，清除浏览器数据后会丢失。正式商用版将接入服务器数据库。</span></p></div></div><footer className="auth-footer">© 2026 Rabbit Quant · 用户协议 · 隐私政策</footer></section>
   </main>;
 }
 
@@ -261,6 +267,13 @@ function HomeView({onNavigate}:{onNavigate:(view:string)=>void}) {
     <div className="home-workflow"><div className="workflow-head"><div><span className="eyebrow">DAILY WORKFLOW</span><h2>每天只看四件事</h2></div><p>减少指标堆叠，把操作顺序固定下来。</p></div><div className="workflow-grid">{[{n:'01',title:'先看市场',copy:'集合竞价与市场雷达先决定今天能不能做、优先正T还是反T。',action:'多股监控',icon:'⌁'},{n:'02',title:'再等信号',copy:'价格、VWAP、量能和确认分同时满足，才显示可执行机会。',action:'操盘台',icon:'⌗'},{n:'03',title:'当天闭环',copy:'首笔成交后冻结同向信号，等量反向成交并恢复原底仓。',action:'持仓对账',icon:'⇄'},{n:'04',title:'收盘复盘',copy:'使用真实费用和可卖数量回放，训练参数只进入候选区。',action:'智能训练',icon:'◇'}].map(item=><button key={item.n} onClick={()=>onNavigate(item.action)}><span>{item.n}</span><i>{item.icon}</i><h3>{item.title}</h3><p>{item.copy}</p><em>{item.action} →</em></button>)}</div></div>
     <div className="home-risk"><span>重要提示</span><p>做T不保证盈利。所有信号仅用于策略研究和提醒；自动交易接口保持关闭，候选策略必须人工晋升。</p><button onClick={()=>onNavigate('模拟回测')}>查看可信回测</button></div>
   </section>;
+}
+
+function OnboardingView({initial,onSave}:{initial:{stock:string;baseShares:number;risk:string};onSave:(value:{stock:string;baseShares:number;risk:string})=>void}){
+  const [stock,setStock]=useState(initial.stock);
+  const [shares,setShares]=useState(initial.baseShares);
+  const [risk,setRisk]=useState(initial.risk);
+  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>只需三步，之后可以随时在账户中心修改。</p></div><div className="onboarding-step"><b>01</b><div><span>默认关注股票</span><div className="stock-options">{['601899 洛阳钼业','601012 隆基绿能','000063 中兴通讯'].map(item=><button className={stock===item?'active':''} onClick={()=>setStock(item)} key={item}>{item}</button>)}</div></div></div><div className="onboarding-step"><b>02</b><div><span>计划底仓</span><div className="share-setup"><button onClick={()=>setShares(Math.max(0,shares-100))}>−</button><strong>{shares.toLocaleString()} 股</strong><button onClick={()=>setShares(shares+100)}>＋</button></div><small>做T完成后，收盘持仓应恢复到这个数量。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>onSave({stock,baseShares:shares,risk})}>保存并进入首页 <span>→</span></button></div></div>;
 }
 
 const watchRows = [
