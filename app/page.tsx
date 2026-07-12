@@ -131,7 +131,7 @@ export default function Home() {
         </div>
       </header>
 
-      {activeView === "首页" ? <HomeView onNavigate={setActiveView} stockCount={stockList.length} /> : activeView === "操盘台" ? <>
+      {activeView === "首页" ? <HomeView onNavigate={setActiveView} stockCount={stockList.length} stock={stock} /> : activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
         {stockList.map((item, index) => (
           <div className={`ticker-item ${activeStock === index ? 'selected' : ''}`} key={item.code}><button onClick={() => setActiveStock(index)}><span>{item.code} {item.name}</span><b>{item.price}</b><em className={item.change.startsWith('-') ? 'down' : ''}>{item.change}</em></button><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></div>
@@ -225,7 +225,7 @@ export default function Home() {
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" onClick={()=>setActiveView('智能训练')} key={agent.name}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={selectProfile} />}
+      </> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView stock={stock} baseShares={preferences.baseShares} /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={selectProfile} stock={stock} initialBaseShares={preferences.baseShares} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -305,11 +305,11 @@ function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean,
   </main>;
 }
 
-function HomeView({onNavigate,stockCount}:{onNavigate:(view:string)=>void;stockCount:number}) {
+function HomeView({onNavigate,stockCount,stock}:{onNavigate:(view:string)=>void;stockCount:number;stock:(typeof initialStocks)[number]}) {
   return <section className="product-home">
     <div className="home-hero">
       <div className="home-copy"><span className="eyebrow">RABBIT SMART‑T WORKSPACE</span><h1>看清买卖点，<br/><em>当天完成每一次T。</em></h1><p>集合竞价研判、市场雷达、正反T决策、仓位闭环和四兔训练集中在一个简单的交易工作台。</p><div className="home-actions"><button onClick={()=>onNavigate('操盘台')}>进入今日操盘台 <span>→</span></button><button onClick={()=>onNavigate('模拟回测')}>先做模拟回测</button></div><div className="home-trust"><span><i/>不自动下单</span><span><i/>T+1仓位校验</span><span><i/>收盘恢复底仓</span></div></div>
-      <div className="home-terminal"><div className="terminal-head"><span>601899 紫金矿业</span><em><i/>实时监控中</em></div><div className="terminal-price"><strong>27.70</strong><span>+1.28%</span><small>市场雷达 72 / 100</small></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><defs><linearGradient id="homeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20 L600 180 L0 180Z" fill="url(#homeFill)"/><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20" className="home-line"/></svg><div className="terminal-signal"><span><i className="rabbit-dot-home">兔</i><b>反T观察</b></span><p>高开转弱，等待回落确认</p><em>确认分 8/10</em></div></div>
+      <div className="home-terminal"><div className="terminal-head"><span>{stock.code} {stock.name}</span><em><i/>实时监控中</em></div><div className="terminal-price"><strong>{stock.price}</strong><span>{stock.change}</span><small>市场雷达 72 / 100</small></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><defs><linearGradient id="homeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20 L600 180 L0 180Z" fill="url(#homeFill)"/><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20" className="home-line"/></svg><div className="terminal-signal"><span><i className="rabbit-dot-home">兔</i><b>反T观察</b></span><p>高开转弱，等待回落确认</p><em>确认分 8/10</em></div></div>
     </div>
     <div className="home-strip"><div><span>今日闭环</span><b>2 次</b><small>全部恢复底仓</small></div><div><span>监控股票</span><b>{stockCount} 只</b><small>盘中持续扫描</small></div><div><span>已确认净收益</span><b className="teal">+¥887.43</b><small>未闭环不计入</small></div><div><span>四兔训练</span><b>68%</b><small>影子回放进行中</small></div></div>
     <div className="home-workflow"><div className="workflow-head"><div><span className="eyebrow">DAILY WORKFLOW</span><h2>每天只看四件事</h2></div><p>减少指标堆叠，把操作顺序固定下来。</p></div><div className="workflow-grid">{[{n:'01',title:'先看市场',copy:'集合竞价与市场雷达先决定今天能不能做、优先正T还是反T。',action:'多股监控',icon:'⌁'},{n:'02',title:'再等信号',copy:'价格、VWAP、量能和确认分同时满足，才显示可执行机会。',action:'操盘台',icon:'⌗'},{n:'03',title:'当天闭环',copy:'首笔成交后冻结同向信号，等量反向成交并恢复原底仓。',action:'持仓对账',icon:'⇄'},{n:'04',title:'收盘复盘',copy:'使用真实费用和可卖数量回放，训练参数只进入候选区。',action:'智能训练',icon:'◇'}].map(item=><button key={item.n} onClick={()=>onNavigate(item.action)}><span>{item.n}</span><i>{item.icon}</i><h3>{item.title}</h3><p>{item.copy}</p><em>{item.action} →</em></button>)}</div></div>
@@ -397,7 +397,7 @@ const ledgerRows = [
   { time: "13:48:51", side: "买入", price: "27.39", qty: "1,000", cycle: "正T-02", fee: "¥6.85", result: "—", status: "已配对" },
 ];
 
-function HoldingsView() {
+function HoldingsView({stock,baseShares}:{stock:(typeof initialStocks)[number];baseShares:number}) {
   const [filter, setFilter] = useState("全部流水");
   const [planDone, setPlanDone] = useState(false);
   const visibleRows = ledgerRows.filter(row => filter === "全部流水" || (filter === "未配对" ? row.status !== "已配对" : row.side === filter));
@@ -407,9 +407,9 @@ function HoldingsView() {
       <div className="reconcile-state"><i/><span>已同步至 11:18:06</span><b>模拟数据</b></div>
     </div>
     <div className="position-overview">
-      <div className="position-identity"><span>601899</span><h2>紫金矿业</h2><small>沪A · T+1</small></div>
-      <div className="position-metric"><span>计划底仓</span><b>6,000<small> 股</small></b><em>策略基准</em></div>
-      <div className="position-metric"><span>当前持仓</span><b>8,200<small> 股</small></b><em>成本 ¥27.44</em></div>
+      <div className="position-identity"><span>{stock.code}</span><h2>{stock.name}</h2><small>沪深A · T+1</small></div>
+      <div className="position-metric"><span>计划底仓</span><b>{baseShares.toLocaleString()}<small> 股</small></b><em>策略基准</em></div>
+      <div className="position-metric"><span>当前持仓</span><b>{(baseShares+2200).toLocaleString()}<small> 股</small></b><em>模拟待闭环仓位</em></div>
       <div className="position-metric"><span>剩余可卖旧仓</span><b>3,000<small> 股</small></b><em>足够闭合 2,200 股</em></div>
       <div className="position-metric warning"><span>当日未闭合</span><b>+2,200<small> 股</small></b><em>异常 · 收盘前归零</em></div>
       <div className="position-metric profit"><span>今日净收益</span><b>+¥887.43</b><em>已扣 ¥98.26 费用</em></div>
@@ -424,9 +424,9 @@ function HoldingsView() {
         </div>
       </div>
       <aside className="recovery-panel">
-        <span className="recovery-kicker">INTRADAY CLOSE ALERT</span><h2>正T尚未闭合：多买 2,200 股</h2><p>当前持仓高于底仓 36.7%。新买股票本身当天不可卖，但仍有 3,000 股昨日旧仓可卖，可用其中 2,200 股在收盘前完成等量闭环。</p>
+        <span className="recovery-kicker">INTRADAY CLOSE ALERT</span><h2>正T尚未闭合：多买 2,200 股</h2><p>当前持仓高于计划底仓。新买股票本身当天不可卖，需使用昨日可卖旧仓在收盘前完成等量闭环。</p>
         <div className="close-deadline"><span>最迟处理时间</span><b>14:50</b><em>距风控检查 03:31:54</em></div>
-        <div className="recovery-scale"><div><span>目标底仓 6,000</span><b>当前 8,200</b></div><i><em/></i><small>目标：收盘时实际持仓恢复 6,000 股，未归零不得计为完成一次T。</small></div>
+        <div className="recovery-scale"><div><span>目标底仓 {baseShares.toLocaleString()}</span><b>当前 {(baseShares+2200).toLocaleString()}</b></div><i><em/></i><small>目标：收盘时实际持仓恢复计划底仓，未归零不得计为完成一次T。</small></div>
         <div className="recovery-steps"><h3>当日闭环规则</h3><div><b>01</b><p><strong>立即停止继续买入</strong><span>未配对数量归零前，冻结新的正T与补仓信号。</span></p></div><div><b>02</b><p><strong>卖出等量昨日旧仓</strong><span>在价格与风险允许时分批卖出共 2,200 股，将持仓恢复到底仓。</span></p></div><div><b>03</b><p><strong>14:50 强制升级告警</strong><span>仍未闭合则标记“做T失败”，转为红色异常隔夜仓，不计策略收益。</span></p></div></div>
         <button className={planDone?'done':''} onClick={()=>setPlanDone(!planDone)}>{planDone?'✓ 当日平仓提醒已开启':'开启当日平仓提醒'}<span>→</span></button>
         <small className="recovery-note">这里只生成风控提醒，不会自动下单；自动交易接口仍保持关闭。</small>
@@ -436,10 +436,10 @@ function HoldingsView() {
   </section>;
 }
 
-function BacktestView({ profile, setProfile }: { profile: string; setProfile: (value: string) => void }) {
+function BacktestView({ profile, setProfile, stock, initialBaseShares }: { profile: string; setProfile: (value: string) => void;stock:(typeof initialStocks)[number];initialBaseShares:number }) {
   const [capital, setCapital] = useState(200000);
-  const [baseShares, setBaseShares] = useState(6000);
-  const [sellable, setSellable] = useState(6000);
+  const [baseShares, setBaseShares] = useState(initialBaseShares);
+  const [sellable, setSellable] = useState(initialBaseShares);
   const [feeRate, setFeeRate] = useState(0.025);
   const [slippage, setSlippage] = useState(0.02);
   const [running, setRunning] = useState(false);
@@ -453,7 +453,7 @@ function BacktestView({ profile, setProfile }: { profile: string; setProfile: (v
     <div className="backtest-grid">
       <aside className="backtest-config">
         <div className="config-title"><h2>回测参数</h2><span>已保存</span></div>
-        <label>股票代码<div className="field static-field"><b>601899</b><span>紫金矿业</span></div></label>
+        <label>股票代码<div className="field static-field"><b>{stock.code}</b><span>{stock.name}</span></div></label>
         <div className="field-pair"><label>开始日期<div className="field static-field date-display"><b>2026-06-01</b><span>起</span></div></label><label>结束日期<div className="field static-field date-display"><b>2026-07-11</b><span>止</span></div></label></div>
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
