@@ -10,10 +10,10 @@ const stocks = [
 ];
 
 const agents = [
-  { icon: "◌", name: "训练兔", role: "严格模拟", state: "训练中", value: "76%" },
-  { icon: "◇", name: "挑战兔", role: "影子验证", state: "待评审", value: "58%" },
-  { icon: "●", name: "正式兔", role: "冠军策略", state: "运行中", value: "82%" },
-  { icon: "◆", name: "风控兔", role: "回撤监控", state: "低风险", value: "12%" },
+  { avatar: "/agents/training.png", name: "训练兔", role: "严格模拟", state: "训练中", value: "76%" },
+  { avatar: "/agents/challenger.png", name: "挑战兔", role: "影子验证", state: "待评审", value: "58%" },
+  { avatar: "/agents/official.png", name: "正式兔", role: "冠军策略", state: "运行中", value: "82%" },
+  { avatar: "/agents/risk.png", name: "风控兔", role: "回撤监控", state: "低风险", value: "12%" },
 ];
 
 const chartPath = "M10 228 L34 210 L55 222 L78 186 L102 196 L126 170 L148 178 L171 132 L194 142 L217 105 L240 123 L264 94 L286 111 L310 88 L334 102 L358 119 L382 110 L406 127 L430 118 L454 141 L478 136 L502 150 L526 145 L550 160 L574 151 L598 164 L622 158 L646 180 L670 171 L694 190 L718 185 L742 205 L766 196 L790 210 L814 190 L838 198 L862 176 L886 184 L910 168";
@@ -28,6 +28,8 @@ export default function Home() {
   const [confirmed, setConfirmed] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [activeView, setActiveView] = useState("操盘台");
+  const [strategyOpen, setStrategyOpen] = useState(false);
+  const [customStrategy, setCustomStrategy] = useState("09:35后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；预期净价差低于0.5%不执行。");
   const stock = stocks[activeStock];
   const chart = useMemo(() => chartPath, []);
 
@@ -46,8 +48,9 @@ export default function Home() {
           <span className="auto-off"><i />自动交易未连接</span>
           <span className="clock">09:36:21</span>
           <select value={profile} onChange={(e) => setProfile(e.target.value)} aria-label="策略档位">
-            <option>稳健档</option><option>平衡档</option><option>灵敏档</option><option>量化学习</option>
+            <option>稳健档</option><option>平衡档</option><option>灵敏档</option><option>量化学习</option><option>自定义策略</option>
           </select>
+          <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
           <button className="icon-button" aria-label="设置">⌘</button>
         </div>
       </header>
@@ -77,6 +80,7 @@ export default function Home() {
         <div className="chart-zone">
           <div className="chart-tools">
             <div className="legend"><span><i className="coral-line"/>分时价 <b>27.70</b></span><span><i className="teal-line"/>VWAP <b>27.46</b></span></div>
+            <span className="live-scan"><i/>开盘自动监控 · 实时扫描中</span>
             <div className="periods">{['分时','5分','15分','30分','60分','日K'].map(p => <button key={p} className={period === p ? 'active' : ''} onClick={() => setPeriod(p)}>{p}</button>)}</div>
             <button className="tool-button">指标⌄</button><button className="tool-button">全屏</button>
           </div>
@@ -89,6 +93,10 @@ export default function Home() {
               <path d={`${chart} L910 300 L10 300 Z`} fill="url(#priceFill)" />
               <path d={vwapPath} className="vwap-path"/><path d={chart} className="price-path"/>
               <line x1="0" y1="168" x2="920" y2="168" className="last-line"/><circle cx="910" cy="168" r="4" className="last-dot"/>
+              <g className="signal-marker oversold" transform="translate(170 132)"><circle r="11"/><text x="0" y="4">超卖</text></g>
+              <g className="signal-marker sell-confirm" transform="translate(310 88)"><circle r="12"/><text x="0" y="4">卖</text></g>
+              <g className="signal-marker overbought" transform="translate(454 141)"><circle r="11"/><text x="0" y="4">超买</text></g>
+              <g className="signal-marker buy-confirm" transform="translate(742 205)"><circle r="12"/><text x="0" y="4">买</text></g>
               {[18,45,65,88,110,72,96,44,38,54,62,32,28,41,35,31,50,40,36,30,58,42,34,66,48,37,29,45,53,81,56,49,62,73,48,92,55,68,44,78].map((h,i)=><rect key={i} x={i*23} y={300-h} width="10" height={h} className={i%3===0?'volume red':'volume'}/>) }
             </svg>
             <div className="price-flag">27.70</div>
@@ -96,7 +104,7 @@ export default function Home() {
           </div>
           <div className="signal-tape">
             <span className="tape-title">信号证据</span>
-            <span><i className="ok">✓</i>价格跌回 VWAP 下方</span><span><i className="ok">✓</i>量能放大 1.42×</span><span><i className="ok">✓</i>短线动能转弱</span><span><i className="wait">·</i>等待二次确认</span>
+            <span><i className="ok">✓</i>价格跌回 VWAP 下方</span><span><i className="ok">✓</i>量能放大 1.42×</span><span><i className="ok">✓</i>超买/超卖识别已启用</span><span><i className="wait">·</i>等待二次确认</span>
           </div>
         </div>
 
@@ -123,10 +131,26 @@ export default function Home() {
         </div>
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
           <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四智能体持续训练</span><small>量化学习档 · 每120分钟</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
-          <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name}><span className={`agent-icon a${i}`}>{agent.icon}</span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
+          <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
       </> : <BacktestView profile={profile} setProfile={setProfile} />}
+
+      {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
+        <div className="strategy-dialog">
+          <div className="strategy-dialog-head"><div><span>SMART‑T STRATEGY</span><h2>选择真正看得懂的策略</h2><p>策略决定信号门槛与频率；仓位、费用、可卖数量、止损和尾盘恢复始终由硬风控约束。</p></div><button onClick={()=>setStrategyOpen(false)} aria-label="关闭策略说明">×</button></div>
+          <div className="strategy-cards">
+            {[
+              {name:'稳健档',tag:'少做，只做最确定',fit:'震荡市、新手、重视回撤',score:'9/10',cycles:'每日最多 2 次',spread:'最低净价差 0.50%',risk:'可能错过快速机会'},
+              {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'8/10',cycles:'每日最多 3 次',spread:'最低净价差 0.35%',risk:'默认推荐'},
+              {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'7/10',cycles:'每日最多 5 次',spread:'最低净价差 0.25%',risk:'假信号会增加'},
+              {name:'量化学习',tag:'用历史结果持续优化',fit:'积累足够模拟样本后',score:'动态门槛',cycles:'每日最多 4 次',spread:'经验参数决定',risk:'新参数需人工晋级'},
+            ].map(item=><button key={item.name} onClick={()=>setProfile(item.name)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
+          </div>
+          <div className={`custom-strategy ${profile==='自定义策略'?'selected':''}`}><div className="custom-head"><div><h3>用户自定义策略</h3><p>用自然语言写下你的买卖条件，系统会同步到监控与模拟回测。</p></div><button onClick={()=>setProfile('自定义策略')}>{profile==='自定义策略'?'当前使用':'设为当前策略'}</button></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T策略规则"/><div className="hard-guards"><span>不可绕过：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
+          <div className="opening-rule"><span>开盘统一规则</span><p>09:30–09:35 只观察；09:35–10:00 收盘确认＋回踩确认后分两次各 1/6；早盘累计不超过 1/3；10:00 后按盘中策略执行。</p><button onClick={()=>{try{localStorage.setItem('rabbit-custom-strategy',customStrategy)}catch{} setStrategyOpen(false)}}>保存并应用</button></div>
+        </div>
+      </div>}
 
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
