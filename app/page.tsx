@@ -96,7 +96,7 @@ export default function Home() {
           </div>
           <div className="chart-wrap">
             <div className="y-axis"><span>28.20</span><span>27.90</span><span>27.60</span><span>27.30</span><span>27.00</span></div>
-            <svg viewBox="0 0 920 300" preserveAspectRatio="none" role="img" aria-label="洛阳钼业分时价格与VWAP">
+            <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="洛阳钼业分时价格与VWAP">
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
