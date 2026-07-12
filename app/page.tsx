@@ -52,16 +52,25 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [trainingRunning]);
   useEffect(() => {
-    try {
-      const session=localStorage.getItem('rabbit-auth-session');
-      if(session){setLocalAuth(true);setAccountName(session);const saved=localStorage.getItem(`rabbit-prefs:${session.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);}
-    } catch {}
-    setAuthReady(true);
+    const timer = window.setTimeout(() => {
+      try {
+        const session=localStorage.getItem('rabbit-auth-session')||sessionStorage.getItem('rabbit-auth-session');
+        if(session){
+          setLocalAuth(true);
+          setAccountName(session);
+          const saved=localStorage.getItem(`rabbit-prefs:${session.toLowerCase()}`);
+          if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);
+          const watchlist=localStorage.getItem(`rabbit-watchlist:${session.toLowerCase()}`);
+          if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length)setStockList(list);}
+        }
+      } catch {}
+      setAuthReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
-  useEffect(()=>{if(!localAuth)return;try{const saved=localStorage.getItem(`rabbit-watchlist:${accountName.toLowerCase()}`);if(saved){const list=JSON.parse(saved);if(Array.isArray(list)&&list.length)setStockList(list)}}catch{}},[localAuth,accountName]);
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-v2.png" alt="做T神器"/></main>;
-  if(!localAuth) return <AuthView onAuthenticated={(name,isNew)=>{setAccountName(name);setLocalAuth(true);try{localStorage.setItem('rabbit-auth-session',name);const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
+  if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{setAccountName(name);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
 
   return (
     <main className="app-shell">
@@ -84,7 +93,7 @@ export default function Home() {
         </div>
       </header>
 
-      {activeView === "首页" ? <HomeView onNavigate={setActiveView} /> : activeView === "操盘台" ? <>
+      {activeView === "首页" ? <HomeView onNavigate={setActiveView} stockCount={stockList.length} /> : activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
         {stockList.map((item, index) => (
           <div className={`ticker-item ${activeStock === index ? 'selected' : ''}`} key={item.code}><button onClick={() => setActiveStock(index)}><span>{item.code} {item.name}</span><b>{item.price}</b><em className={item.change.startsWith('-') ? 'down' : ''}>{item.change}</em></button><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></div>
@@ -202,7 +211,7 @@ export default function Home() {
         <div className="account-stats"><div><span>监控股票</span><b>4 / 10</b></div><div><span>本月回测</span><b>29 次</b></div><div><span>策略版本</span><b>QB‑04</b></div></div>
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>计划底仓<small>用于当日闭环校验</small></span><b>{preferences.baseShares.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
         <div className="account-security"><i>✓</i><p><b>密码安全</b><span>测试版只在本机保存密码摘要，不保存密码明文；正式版将迁移至服务器账户库。</span></p></div>
-        <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setLocalAuth(false)}}>退出登录</button></div>
+        <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session');sessionStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setLocalAuth(false)}}>退出登录</button></div>
       </div></div>}
       {onboardingOpen&&<OnboardingView initial={preferences} initialList={stockList} onSave={(next,list)=>{setPreferences(next);setStockList(list);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}setOnboardingOpen(false)}}/>}
 
@@ -217,7 +226,7 @@ async function passwordDigest(value:string){
   return Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,'0')).join('');
 }
 
-function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean)=>void}) {
+function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean,remember:boolean)=>void}) {
   const [mode,setMode]=useState<'login'|'register'>('login');
   const [username,setUsername]=useState('');
   const [password,setPassword]=useState('');
@@ -242,14 +251,13 @@ function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean)
       if(mode==='register'){
         if(localStorage.getItem(key)){setError('该用户名已经存在，请直接登录');return;}
         localStorage.setItem(key,JSON.stringify({name,digest,createdAt:new Date().toISOString()}));
-        onAuthenticated(name,true);
+        onAuthenticated(name,true,true);
       }else{
         const saved=localStorage.getItem(key);
         if(!saved){setError('找不到该用户，请先注册');return;}
         const account=JSON.parse(saved);
         if(account.digest!==digest){setError('用户名或密码错误');return;}
-        if(!remember) sessionStorage.setItem('rabbit-session-temporary','1');
-        onAuthenticated(account.name||name,false);
+        onAuthenticated(account.name||name,false,remember);
       }
     }catch{setError('当前浏览器无法保存账户，请检查隐私设置');}finally{setBusy(false);}
   };
@@ -259,13 +267,13 @@ function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean)
   </main>;
 }
 
-function HomeView({onNavigate}:{onNavigate:(view:string)=>void}) {
+function HomeView({onNavigate,stockCount}:{onNavigate:(view:string)=>void;stockCount:number}) {
   return <section className="product-home">
     <div className="home-hero">
       <div className="home-copy"><span className="eyebrow">RABBIT SMART‑T WORKSPACE</span><h1>看清买卖点，<br/><em>当天完成每一次T。</em></h1><p>集合竞价研判、市场雷达、正反T决策、仓位闭环和四兔训练集中在一个简单的交易工作台。</p><div className="home-actions"><button onClick={()=>onNavigate('操盘台')}>进入今日操盘台 <span>→</span></button><button onClick={()=>onNavigate('模拟回测')}>先做模拟回测</button></div><div className="home-trust"><span><i/>不自动下单</span><span><i/>T+1仓位校验</span><span><i/>收盘恢复底仓</span></div></div>
       <div className="home-terminal"><div className="terminal-head"><span>601899 洛阳钼业</span><em><i/>实时监控中</em></div><div className="terminal-price"><strong>27.70</strong><span>+1.28%</span><small>市场雷达 72 / 100</small></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><defs><linearGradient id="homeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20 L600 180 L0 180Z" fill="url(#homeFill)"/><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20" className="home-line"/></svg><div className="terminal-signal"><span><i className="rabbit-dot-home">兔</i><b>反T观察</b></span><p>高开转弱，等待回落确认</p><em>确认分 8/10</em></div></div>
     </div>
-    <div className="home-strip"><div><span>今日闭环</span><b>2 次</b><small>全部恢复底仓</small></div><div><span>监控股票</span><b>4 只</b><small>1个可执行机会</small></div><div><span>已确认净收益</span><b className="teal">+¥887.43</b><small>未闭环不计入</small></div><div><span>四兔训练</span><b>68%</b><small>影子回放进行中</small></div></div>
+    <div className="home-strip"><div><span>今日闭环</span><b>2 次</b><small>全部恢复底仓</small></div><div><span>监控股票</span><b>{stockCount} 只</b><small>盘中持续扫描</small></div><div><span>已确认净收益</span><b className="teal">+¥887.43</b><small>未闭环不计入</small></div><div><span>四兔训练</span><b>68%</b><small>影子回放进行中</small></div></div>
     <div className="home-workflow"><div className="workflow-head"><div><span className="eyebrow">DAILY WORKFLOW</span><h2>每天只看四件事</h2></div><p>减少指标堆叠，把操作顺序固定下来。</p></div><div className="workflow-grid">{[{n:'01',title:'先看市场',copy:'集合竞价与市场雷达先决定今天能不能做、优先正T还是反T。',action:'多股监控',icon:'⌁'},{n:'02',title:'再等信号',copy:'价格、VWAP、量能和确认分同时满足，才显示可执行机会。',action:'操盘台',icon:'⌗'},{n:'03',title:'当天闭环',copy:'首笔成交后冻结同向信号，等量反向成交并恢复原底仓。',action:'持仓对账',icon:'⇄'},{n:'04',title:'收盘复盘',copy:'使用真实费用和可卖数量回放，训练参数只进入候选区。',action:'智能训练',icon:'◇'}].map(item=><button key={item.n} onClick={()=>onNavigate(item.action)}><span>{item.n}</span><i>{item.icon}</i><h3>{item.title}</h3><p>{item.copy}</p><em>{item.action} →</em></button>)}</div></div>
     <div className="home-risk"><span>重要提示</span><p>做T不保证盈利。所有信号仅用于策略研究和提醒；自动交易接口保持关闭，候选策略必须人工晋升。</p><button onClick={()=>onNavigate('模拟回测')}>查看可信回测</button></div>
   </section>;
@@ -295,9 +303,12 @@ function MultiWatchView({stocks,onOpen,onManage}:{stocks:typeof initialStocks;on
   const [filter,setFilter]=useState('全部');
   const allRows=stocks.map(item=>watchRows.find(row=>row.code===item.code)||{...item,radar:72,signal:'等待数据',reason:'已加入监控，等待行情刷新',score:0,position:'底仓正常',tone:'watch'});
   const rows=allRows.filter(row=>filter==='全部'||(filter==='有机会'?row.score>=8:filter==='被拦截'?row.tone==='blocked':row.position==='等待闭环'));
+  const opportunities=allRows.filter(row=>row.score>=8).length;
+  const blocked=allRows.filter(row=>row.tone==='blocked').length;
+  const unclosed=allRows.filter(row=>row.position==='等待闭环').length;
   return <section className="module-view watch-view">
-    <div className="module-head"><div><span className="eyebrow">MULTI-ASSET RADAR</span><h1>多股实时监控</h1><p>统一使用市场雷达和 Smart‑T 决策门控，先显示风险，再显示机会。</p></div><div className="module-status"><i/>4只监控中 · 218ms</div></div>
-    <div className="watch-summary"><div><span>监控股票</span><b>4</b><small>盘中自动刷新</small></div><div><span>可执行机会</span><b className="teal">1</b><small>确认分达到门槛</small></div><div><span>门控拦截</span><b>1</b><small>弱市禁止激进正T</small></div><div><span>待闭环</span><b className="amber-text">1</b><small>优先级高于新信号</small></div><div><span>市场雷达</span><b>72</b><small>震荡区间</small></div></div>
+    <div className="module-head"><div><span className="eyebrow">MULTI-ASSET RADAR</span><h1>多股实时监控</h1><p>统一使用市场雷达和 Smart‑T 决策门控，先显示风险，再显示机会。</p></div><div className="module-status"><i/>{stocks.length}只监控中 · 218ms</div></div>
+    <div className="watch-summary"><div><span>监控股票</span><b>{stocks.length}</b><small>盘中自动刷新</small></div><div><span>可执行机会</span><b className="teal">{opportunities}</b><small>确认分达到门槛</small></div><div><span>门控拦截</span><b>{blocked}</b><small>弱市禁止激进正T</small></div><div><span>待闭环</span><b className="amber-text">{unclosed}</b><small>优先级高于新信号</small></div><div><span>市场雷达</span><b>72</b><small>震荡区间</small></div></div>
     <div className="watch-toolbar"><div>{['全部','有机会','被拦截','待闭环'].map(item=><button className={filter===item?'active':''} onClick={()=>setFilter(item)} key={item}>{item}</button>)}</div><button className="watch-add" onClick={onManage}>＋ 管理监控股票</button></div>
     <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>市场雷达</span><span>Smart‑T状态</span><span>策略解释</span><span>确认分</span><span>仓位状态</span><span/></div>{rows.map(row=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span><b>{row.price}</b><small className={row.change.startsWith('-')?'negative':'positive'}>{row.change}</small></span><span><b>{row.radar}</b><small>{row.radar<25?'风险区':row.radar>=88?'过热区':row.radar>=75?'强势区':'震荡区'}</small></span><em className={`watch-pill ${row.tone}`}>{row.signal}</em><span className="watch-reason">{row.reason}</span><span className="score-dots">{[1,2,3,4,5].map(n=><i className={n<=Math.ceil(row.score/2)?'on':''} key={n}/>)}<small>{row.score}/10</small></span><span className={row.position==='等待闭环'?'amber-text':''}>{row.position}</span><button onClick={()=>onOpen(stocks.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
     <div className="watch-rule"><b>雷达门控规则</b><span>&lt;25 风险区：禁止激进正T</span><span>25–74：按策略档位执行</span><span>75–87：反T门槛提高</span><span>≥88：必须等待真实回落</span></div>
