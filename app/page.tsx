@@ -41,7 +41,7 @@ export default function Home() {
           <span className="brand-type"><strong><em>做T</em><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
-          {['操盘台','多股监控','模拟回测','智能训练','自动交易'].map((item) => <button onClick={() => item === '操盘台' || item === '模拟回测' ? setActiveView(item) : undefined} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
+          {['操盘台','多股监控','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => ['操盘台','持仓对账','模拟回测'].includes(item) ? setActiveView(item) : undefined} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
           <span className="market-open"><i />市场交易中</span>
@@ -134,7 +134,7 @@ export default function Home() {
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : <BacktestView profile={profile} setProfile={setProfile} />}
+      </> : activeView === "持仓对账" ? <HoldingsView /> : <BacktestView profile={profile} setProfile={setProfile} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -155,6 +155,52 @@ export default function Home() {
       <footer><span><i className="online"/>行情源正常 · 延迟 218ms</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
     </main>
   );
+}
+
+const ledgerRows = [
+  { time: "09:41:26", side: "卖出", price: "27.86", qty: "2,000", cycle: "反T-01", fee: "¥41.79", result: "+¥578.21", status: "已配对" },
+  { time: "10:08:14", side: "买入", price: "27.55", qty: "2,000", cycle: "反T-01", fee: "¥13.78", result: "—", status: "已配对" },
+  { time: "10:36:09", side: "买入", price: "27.38", qty: "2,200", cycle: "待配对", fee: "¥15.06", result: "—", status: "仓位偏离" },
+  { time: "11:12:32", side: "卖出", price: "27.71", qty: "1,000", cycle: "正T-02", fee: "¥20.78", result: "+¥309.22", status: "已配对" },
+  { time: "13:48:51", side: "买入", price: "27.39", qty: "1,000", cycle: "正T-02", fee: "¥6.85", result: "—", status: "已配对" },
+];
+
+function HoldingsView() {
+  const [filter, setFilter] = useState("全部流水");
+  const [planDone, setPlanDone] = useState(false);
+  const visibleRows = ledgerRows.filter(row => filter === "全部流水" || (filter === "未配对" ? row.status !== "已配对" : row.side === filter));
+  return <section className="holdings-view">
+    <div className="holdings-head">
+      <div><span className="eyebrow">POSITION RECONCILIATION</span><h1>持仓与交易对账</h1><p>把底仓、当日成交和已完成 T 循环放在同一张账上，先核对仓位，再判断下一步。</p></div>
+      <div className="reconcile-state"><i/><span>已同步至 11:18:06</span><b>模拟数据</b></div>
+    </div>
+    <div className="position-overview">
+      <div className="position-identity"><span>601899</span><h2>洛阳钼业</h2><small>沪A · T+1</small></div>
+      <div className="position-metric"><span>计划底仓</span><b>6,000<small> 股</small></b><em>策略基准</em></div>
+      <div className="position-metric"><span>当前持仓</span><b>8,200<small> 股</small></b><em>成本 ¥27.44</em></div>
+      <div className="position-metric"><span>今日可卖</span><b>6,000<small> 股</small></b><em>新买 2,200 股锁定</em></div>
+      <div className="position-metric warning"><span>仓位偏离</span><b>+2,200<small> 股</small></b><em>多买 · 需恢复</em></div>
+      <div className="position-metric profit"><span>今日净收益</span><b>+¥887.43</b><em>已扣 ¥98.26 费用</em></div>
+    </div>
+    <div className="reconcile-grid">
+      <div className="ledger-panel">
+        <div className="panel-top"><div><h2>今日成交流水</h2><p>成交按时间排序，系统自动寻找可闭合的正T / 反T循环。</p></div><button>＋ 手动补录成交</button></div>
+        <div className="ledger-filter">{["全部流水","买入","卖出","未配对"].map(item=><button key={item} className={filter===item?'active':''} onClick={()=>setFilter(item)}>{item}<span>{item==='全部流水'?5:item==='买入'?3:item==='卖出'?2:1}</span></button>)}</div>
+        <div className="ledger-table">
+          <div className="ledger-row ledger-title"><span>成交时间</span><span>方向</span><span>成交价</span><span>数量</span><span>配对循环</span><span>费用</span><span>循环净收益</span><span>状态</span></div>
+          {visibleRows.map(row=><div className="ledger-row" key={row.time}><span>{row.time}</span><span className={row.side==='买入'?'buy-text':'sell-text'}>{row.side}</span><b>{row.price}</b><span>{row.qty}</span><span>{row.cycle}</span><span>{row.fee}</span><b className={row.result.startsWith('+')?'positive':''}>{row.result}</b><em className={row.status==='已配对'?'matched':'unmatched'}>{row.status}</em></div>)}
+        </div>
+      </div>
+      <aside className="recovery-panel">
+        <span className="recovery-kicker">RISK CHECK</span><h2>今天多买了 2,200 股</h2><p>当前持仓高于计划底仓 36.7%。这 2,200 股为今日买入，受 T+1 限制，今天不可直接卖出。</p>
+        <div className="recovery-scale"><div><span>计划 6,000</span><b>当前 8,200</b></div><i><em/></i><small>超出部分不会计入明日可做T底仓，避免仓位继续放大。</small></div>
+        <div className="recovery-steps"><h3>恢复计划</h3><div><b>01</b><p><strong>今天停止继续加仓</strong><span>保留 6,000 股昨仓可卖额度，不用新买仓追信号。</span></p></div><div><b>02</b><p><strong>明日转为优先减仓</strong><span>开盘后分两次处理 2,200 股偏离仓，避免一次性冲击。</span></p></div><div><b>03</b><p><strong>恢复后再启动做T</strong><span>实际持仓回到 6,000 股附近，才重新允许完整策略循环。</span></p></div></div>
+        <button className={planDone?'done':''} onClick={()=>setPlanDone(!planDone)}>{planDone?'✓ 已加入明日计划':'加入明日恢复计划'}<span>→</span></button>
+        <small className="recovery-note">计划仅作提醒，不会自动下单。自动交易接口仍保持关闭。</small>
+      </aside>
+    </div>
+    <div className="cycle-summary"><div><span>今日买入</span><b>5,200 股</b><small>均价 ¥27.44</small></div><div><span>今日卖出</span><b>3,000 股</b><small>均价 ¥27.81</small></div><div><span>已闭合循环</span><b>2 次</b><small>1 次正T · 1 次反T</small></div><div><span>未配对净买入</span><b className="warn">2,200 股</b><small>明日优先处理</small></div><div><span>毛收益 / 费用</span><b>¥985.69</b><small>- ¥98.26</small></div></div>
+  </section>;
 }
 
 function BacktestView({ profile, setProfile }: { profile: string; setProfile: (value: string) => void }) {
