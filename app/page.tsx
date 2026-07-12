@@ -25,7 +25,7 @@ export default function Home() {
   const [period, setPeriod] = useState("分时");
   const [panel, setPanel] = useState("今日T循环");
   const [signalMode, setSignalMode] = useState("反T");
-  const [confirmed, setConfirmed] = useState(false);
+  const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [agentOpen, setAgentOpen] = useState(false);
   const [activeView, setActiveView] = useState("操盘台");
   const [strategyOpen, setStrategyOpen] = useState(false);
@@ -113,13 +113,16 @@ export default function Home() {
           <div className="decision-label"><span>SMART-T 决策</span><em>可信度高</em></div>
           <h2>{signalMode === '反T' ? '高开转弱' : '低开转强'}</h2>
           <p className="decision-copy">{signalMode === '反T' ? '冲高乏力，跌回开盘价与 VWAP 下方。' : '止跌回升，重新站上开盘价与 VWAP。'}</p>
-          <button className={`primary-action ${confirmed ? 'confirmed' : ''}`} onClick={() => setConfirmed(!confirmed)}>
-            <span>{confirmed ? '已加入执行计划' : signalMode === '反T' ? '卖出 1/3 昨仓' : '买入 1/3 计划仓'}</span><small>{confirmed ? '等待券商确认' : '点击确认策略计划'} →</small>
+          <button className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
+            <span>{cycleStage === 'ready' ? (signalMode === '反T' ? '卖出 1/3 昨仓' : '买入 1/3 计划仓') : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
+            <small>{cycleStage === 'ready' ? '记录首笔成交' : cycleStage === 'opened' ? '完成反向成交' : '开始下一次循环'} →</small>
           </button>
-          <div className="closure-guard">
-            <div><span>当日闭环校验</span><b><i/>允许开T</b></div>
-            <p><span>计划数量</span><strong>2,000 股</strong></p><p><span>可卖旧仓</span><strong>6,000 股</strong></p><p><span>收盘目标</span><strong>回到 6,000 股</strong></p>
-            <small>{signalMode === '正T' ? '买入后必须在 14:50 前卖出等量昨日旧仓。' : '卖出后必须在 14:50 前买回等量股份。'}</small>
+          <div className={`closure-guard ${cycleStage}`}>
+            <div><span>当日闭环控制</span><b><i/>{cycleStage === 'ready' ? '允许开T' : cycleStage === 'opened' ? '等待闭环' : '已恢复底仓'}</b></div>
+            <p><span>计划数量</span><strong>2,000 股</strong></p><p><span>当前持仓</span><strong>{cycleStage === 'opened' ? (signalMode === '正T' ? '8,000 股' : '4,000 股') : '6,000 股'}</strong></p><p><span>收盘目标</span><strong>6,000 股</strong></p>
+            <div className="cycle-progress"><i className="done"/><span/><i className={cycleStage !== 'ready' ? 'done' : ''}/><span/><i className={cycleStage === 'closed' ? 'done' : ''}/></div>
+            <div className="cycle-labels"><span>校验通过</span><span>首笔成交</span><span>等量闭环</span></div>
+            <small>{cycleStage === 'ready' ? (signalMode === '正T' ? '可卖旧仓充足，买入后需卖出等量旧仓。' : '卖出后需在 14:50 前买回等量股份。') : cycleStage === 'opened' ? `尚有 2,000 股未配对，新的${signalMode}信号已冻结。` : '买卖数量相等，实际持仓已恢复计划底仓。'}</small>
           </div>
           <div className="decision-stats"><div><span>策略评分</span><b>8<small>/10</small></b></div><div><span>预期价差</span><b>0.62<small>%</small></b></div><div><span>市场雷达</span><b>72<small>/100</small></b></div></div>
           <div className="risk-box"><div><span>止盈参考</span><b>+0.60% ~ +1.20%</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>若价格重新站回 VWAP 并放量上攻，反T预案立即失效，避免卖飞。</p></div>
@@ -132,7 +135,7 @@ export default function Home() {
         <div className="history">
           <div className="lower-tabs">{['今日T循环','历史信号','模拟记录'].map(item=><button key={item} onClick={()=>setPanel(item)} className={panel===item?'active':''}>{item}</button>)}</div>
           <div className="history-head"><span>时间</span><span>方向</span><span>价格</span><span>数量</span><span>价差</span><span>状态</span></div>
-          {[['10:08:14','反T买回','27.55','2,000股','+0.62%','已闭环'],['09:41:26','反T卖出','27.86','2,000股','—','等待买回'],['09:02:11','正T循环','27.38→27.68','1,000股','+0.48%','已闭环']].map((row,i)=><div className="history-row" key={i}>{row.map((cell,j)=><span className={j===1||j===4?'accent':''} key={j}>{cell}</span>)}</div>)}
+          {([...(cycleStage === 'opened' ? [['刚刚',signalMode === '反T' ? '反T卖出' : '正T买入','27.70','2,000股','—','等待闭环']] : cycleStage === 'closed' ? [['刚刚',signalMode === '反T' ? '反T循环' : '正T循环',signalMode === '反T' ? '27.70→27.55' : '27.55→27.70','2,000股','+0.54%','已闭环']] : []),['10:08:14','反T循环','27.86→27.55','2,000股','+0.62%','已闭环'],['09:02:11','正T循环','27.38→27.68','1,000股','+0.48%','已闭环']] as string[][]).map((row,i)=><div className="history-row" key={`${row[0]}-${i}`}>{row.map((cell,j)=><span className={j===1||j===4?'accent':''} key={j}>{cell}</span>)}</div>)}
         </div>
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
           <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四智能体持续训练</span><small>量化学习档 · 每120分钟</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
