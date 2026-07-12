@@ -33,12 +33,13 @@ export default function Home() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand"><span className="rabbit-mark">♢♢</span><strong>做T神器</strong><span className="beta">SMART-T</span></div>
+        <div className="brand"><img className="rabbit-logo" src="/double-rabbit-logo.png" alt="双兔品牌标志"/><strong>做T神器</strong><span className="beta">SMART-T</span></div>
         <nav className="main-nav" aria-label="主导航">
-          {['操盘台','多股监控','模拟回测','智能训练'].map((item, index) => <button className={index === 0 ? 'active' : ''} key={item}>{item}</button>)}
+          {['操盘台','多股监控','模拟回测','智能训练','自动交易'].map((item, index) => <button className={index === 0 ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
           <span className="market-open"><i />市场交易中</span>
+          <span className="auto-off"><i />自动交易未连接</span>
           <span className="clock">09:36:21</span>
           <select value={profile} onChange={(e) => setProfile(e.target.value)} aria-label="策略档位">
             <option>稳健档</option><option>平衡档</option><option>灵敏档</option><option>量化学习</option>
@@ -104,6 +105,7 @@ export default function Home() {
           </button>
           <div className="decision-stats"><div><span>策略评分</span><b>8<small>/10</small></b></div><div><span>预期价差</span><b>0.62<small>%</small></b></div><div><span>市场雷达</span><b>72<small>/100</small></b></div></div>
           <div className="risk-box"><div><span>止盈参考</span><b>+0.60% ~ +1.20%</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>若价格重新站回 VWAP 并放量上攻，反T预案立即失效，避免卖飞。</p></div>
+          <button className="automation-reserved" disabled><span><i />自动交易接口</span><b>已预留 · 当前关闭</b></button>
           <div className="position-row"><span>计划仓位</span><div className="position-dots"><i className="on"/><i/><i/></div><b>1 / 3</b></div>
         </aside>
       </section>
