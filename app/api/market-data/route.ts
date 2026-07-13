@@ -13,7 +13,7 @@ function numeric(value: string | undefined) { const parsed = Number(value); retu
 function validCode(code: string) { if (!/^\d{6}$/.test(code)) throw new Error("股票代码必须是 6 位数字"); return code; }
 function marketPrefix(code: string) { return code.startsWith("6") ? "sh" : code.startsWith("4") || code.startsWith("8") ? "bj" : "sz"; }
 function sourceTime(value: string | undefined) { return value && /^\d{14}$/.test(value) ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}T${value.slice(8, 10)}:${value.slice(10, 12)}:${value.slice(12, 14)}+08:00` : null; }
-function isUsable(quote: Quote) { return quote.price !== null && quote.name.length > 0; }
+function isUsable(quote: Quote) { return quote.price !== null && quote.name.length > 0 && !/[\u0080-\u009f\uFFFD]/.test(quote.name); }
 
 async function fromTencent(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: string | null }> {
   const response = await fetch(`https://qt.gtimg.cn/q=${marketPrefix(code)}${code}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
