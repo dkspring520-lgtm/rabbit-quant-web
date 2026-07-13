@@ -532,41 +532,50 @@ function HoldingsView({accountName,preferences,stock}:{accountName:string;prefer
   const [manualRows, setManualRows] = useState<typeof ledgerRows>([]);
   const storageKey = `rabbit-manual-ledger:${accountName.toLowerCase()}:${stock.code}`;
   useEffect(()=>{try { const saved=localStorage.getItem(storageKey); if(saved) { const parsed=JSON.parse(saved); if(Array.isArray(parsed)) setManualRows(parsed); } else setManualRows([]); } catch {}},[storageKey]);
+  const saveManualRows=(next:typeof ledgerRows)=>{setManualRows(next);try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}};
+  const invalidate=(time:string)=>saveManualRows(manualRows.map(row=>row.time===time?{...row,status:'已失效',cycle:'已撤销'}:row));
+  const validManualRows=manualRows.filter(row=>row.status!=='已失效');
+  const quantity=(value:string)=>Number(value.replace(/,/g,''))||0;
+  const bought=validManualRows.filter(row=>row.side==='买入').reduce((sum,row)=>sum+quantity(row.qty),0);
+  const sold=validManualRows.filter(row=>row.side==='卖出').reduce((sum,row)=>sum+quantity(row.qty),0);
+  const netPosition=bought-sold;
+  const currentShares=Math.max(0,preferences.baseShares+netPosition);
+  const hasDeviation=netPosition!==0;
   const allRows = [...manualRows, ...ledgerRows];
-  const visibleRows = allRows.filter(row => filter === "全部流水" || (filter === "未配对" ? row.status !== "已配对" : row.side === filter));
+  const visibleRows = allRows.filter(row => filter === "全部流水" || (filter === "未配对" ? row.status !== "已配对" && row.status !== "已失效" : row.side === filter));
   return <section className="holdings-view">
     <div className="holdings-head">
-      <div><span className="eyebrow">POSITION RECONCILIATION</span><h1>持仓与交易对账</h1><p>把底仓、当日成交和已完成 T 循环放在同一张账上，先核对仓位，再判断下一步。</p></div>
-      <div className="reconcile-state"><i/><span>已同步至 11:18:06</span><b>模拟数据</b></div>
+      <div><span className="eyebrow">POSITION RECONCILIATION</span><h1>持仓与交易对账</h1><p>底仓会同步账户偏好；手动补录的成交会即时更新本机账本，供你核对仓位与当日闭环。</p></div>
+      <div className="reconcile-state"><i/><span>已同步至 {new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span><b>本机记录</b></div>
     </div>
     <div className="position-overview">
       <div className="position-identity"><span>{stock.code}</span><h2>{stock.name}</h2><small>沪深A · T+1</small></div>
       <div className="position-metric"><span>计划底仓</span><b>{preferences.baseShares.toLocaleString()}<small> 股</small></b><em>账户偏好同步</em></div>
-      <div className="position-metric"><span>当前持仓</span><b>8,200<small> 股</small></b><em>成本 ¥27.44</em></div>
-      <div className="position-metric"><span>剩余可卖旧仓</span><b>3,000<small> 股</small></b><em>足够闭合 2,200 股</em></div>
-      <div className="position-metric warning"><span>当日未闭合</span><b>+2,200<small> 股</small></b><em>异常 · 收盘前归零</em></div>
-      <div className="position-metric profit"><span>今日净收益</span><b>+¥887.43</b><em>已扣 ¥98.26 费用</em></div>
+      <div className="position-metric"><span>当前持仓</span><b>{currentShares.toLocaleString()}<small> 股</small></b><em>由手动成交计算</em></div>
+      <div className="position-metric"><span>本机已补录</span><b>{validManualRows.length}<small> 笔</small></b><em>失效记录不计入</em></div>
+      <div className={`position-metric ${hasDeviation?'warning':'profit'}`}><span>当日未闭合</span><b>{netPosition>0?'+':''}{netPosition.toLocaleString()}<small> 股</small></b><em>{hasDeviation?'收盘前应归零':'已恢复计划底仓'}</em></div>
+      <div className="position-metric profit"><span>成交方向</span><b>{bought.toLocaleString()} / {sold.toLocaleString()}</b><em>买入 / 卖出（股）</em></div>
     </div>
     <div className="reconcile-grid">
       <div className="ledger-panel">
-        <div className="panel-top"><div><h2>今日成交流水</h2><p>成交按时间排序，系统自动寻找可闭合的正T / 反T循环。</p></div><button onClick={()=>setManualOpen(value=>!value)}>{manualOpen?'收起补录':'＋ 手动补录成交'}</button></div>
-        {manualOpen&&<form className="manual-trade-form" onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);const side=String(form.get('side'));const price=Number(form.get('price'));const qty=Number(form.get('qty'));if(!Number.isFinite(price)||price<=0||!Number.isFinite(qty)||qty<=0)return;setManualRows(rows=>{const next=[{time:new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),side,price:price.toFixed(2),qty:qty.toLocaleString('zh-CN'),cycle:'手动待配对',fee:'待计算',result:'—',status:'未配对'},...rows];try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}return next;});event.currentTarget.reset();setManualOpen(false)}}><select name="side" defaultValue="买入"><option>买入</option><option>卖出</option></select><input name="price" type="number" min="0.01" step="0.01" required placeholder="成交价"/><input name="qty" type="number" min="100" step="100" required placeholder="数量（股）"/><button type="submit">保存成交</button></form>}
+        <div className="panel-top"><div><h2>今日成交流水</h2><p>手动补录会计入上方仓位；预置示例仅用于展示，不计入你的本机账本。</p></div><div><button onClick={()=>setManualOpen(value=>!value)}>{manualOpen?'收起补录':'＋ 手动补录成交'}</button>{manualRows.length>0&&<button onClick={()=>saveManualRows([])}>清空本机记录</button>}</div></div>
+        {manualOpen&&<form className="manual-trade-form" onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);const side=String(form.get('side'));const price=Number(form.get('price'));const qty=Number(form.get('qty'));if(!Number.isFinite(price)||price<=0||!Number.isFinite(qty)||qty<=0)return;saveManualRows([{time:new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),side,price:price.toFixed(2),qty:qty.toLocaleString('zh-CN'),cycle:'手动待配对',fee:'待计算',result:'—',status:'未配对'},...manualRows]);event.currentTarget.reset();setManualOpen(false)}}><select name="side" defaultValue="买入"><option>买入</option><option>卖出</option></select><input name="price" type="number" min="0.01" step="0.01" required placeholder="成交价"/><input name="qty" type="number" min="100" step="100" required placeholder="数量（股）"/><button type="submit">保存成交</button></form>}
         <div className="ledger-filter">{["全部流水","买入","卖出","未配对"].map(item=>{const count=allRows.filter(row=>item==='全部流水'||(item==='未配对'?row.status!=="已配对":row.side===item)).length;return <button key={item} className={filter===item?'active':''} onClick={()=>setFilter(item)}>{item}<span>{count}</span></button>})}</div>
         <div className="ledger-table">
           <div className="ledger-row ledger-title"><span>成交时间</span><span>方向</span><span>成交价</span><span>数量</span><span>配对循环</span><span>费用</span><span>循环净收益</span><span>状态</span></div>
-          {visibleRows.map((row,index)=><div className="ledger-row" key={`${row.time}-${index}`}><span>{row.time}</span><span className={row.side==='买入'?'buy-text':'sell-text'}>{row.side}</span><b>{row.price}</b><span>{row.qty}</span><span>{row.cycle}</span><span>{row.fee}</span><b className={row.result.startsWith('+')?'positive':''}>{row.result}</b><em className={row.status==='已配对'?'matched':'unmatched'}>{row.status}</em></div>)}
+          {visibleRows.map((row,index)=><div className="ledger-row" key={`${row.time}-${index}`}><span>{row.time}</span><span className={row.side==='买入'?'buy-text':'sell-text'}>{row.side}</span><b>{row.price}</b><span>{row.qty}</span><span>{row.cycle}</span><span>{row.fee}</span><b className={row.result.startsWith('+')?'positive':''}>{row.result}</b><span><em className={row.status==='已配对'?'matched':'unmatched'}>{row.status}</em>{manualRows.some(item=>item.time===row.time)&&row.status!=='已失效'&&<button className="invalidate-trade" onClick={()=>invalidate(row.time)}>设为失效</button>}</span></div>)}
         </div>
       </div>
       <aside className="recovery-panel">
-        <span className="recovery-kicker">INTRADAY CLOSE ALERT</span><h2>正T尚未闭合：多买 2,200 股</h2><p>当前持仓高于底仓 36.7%。新买股票本身当天不可卖，但仍有 3,000 股昨日旧仓可卖，可用其中 2,200 股在收盘前完成等量闭环。</p>
+        <span className="recovery-kicker">INTRADAY CLOSE ALERT</span><h2>{hasDeviation?`当日尚未闭合：${netPosition>0?'多买':'多卖'} ${Math.abs(netPosition).toLocaleString()} 股`:'当前已恢复计划底仓'}</h2><p>{hasDeviation?`本机账本显示当前持仓相对计划底仓偏离 ${Math.abs(netPosition).toLocaleString()} 股。请先核对成交记录与可卖旧仓，再决定是否补录或完成闭环。`:'没有待闭合的本机成交偏离。后续补录的买卖成交会自动反映在这里。'}</p>
         <div className="close-deadline"><span>最迟处理时间</span><b>14:50</b><em>距风控检查 03:31:54</em></div>
-        <div className="recovery-scale"><div><span>目标底仓 {preferences.baseShares.toLocaleString()}</span><b>当前 8,200</b></div><i><em/></i><small>目标：收盘时实际持仓恢复 {preferences.baseShares.toLocaleString()} 股，未归零不得计为完成一次T。</small></div>
+        <div className="recovery-scale"><div><span>目标底仓 {preferences.baseShares.toLocaleString()}</span><b>当前 {currentShares.toLocaleString()}</b></div><i><em style={{width:`${Math.min(100,Math.max(8,preferences.baseShares?currentShares/preferences.baseShares*100:0))}%`}}/></i><small>目标：收盘时实际持仓恢复 {preferences.baseShares.toLocaleString()} 股；这里以本机补录成交计算，需自行核对券商实际持仓。</small></div>
         <div className="recovery-steps"><h3>当日闭环规则</h3><div><b>01</b><p><strong>立即停止继续买入</strong><span>未配对数量归零前，冻结新的正T与补仓信号。</span></p></div><div><b>02</b><p><strong>卖出等量昨日旧仓</strong><span>在价格与风险允许时分批卖出共 2,200 股，将持仓恢复到底仓。</span></p></div><div><b>03</b><p><strong>14:50 强制升级告警</strong><span>仍未闭合则标记“做T失败”，转为红色异常隔夜仓，不计策略收益。</span></p></div></div>
         <button className={planDone?'done':''} onClick={()=>setPlanDone(!planDone)}>{planDone?'✓ 当日平仓提醒已开启':'开启当日平仓提醒'}<span>→</span></button>
         <small className="recovery-note">这里只生成风控提醒，不会自动下单；自动交易接口仍保持关闭。</small>
       </aside>
     </div>
-    <div className="cycle-summary"><div><span>今日买入</span><b>5,200 股</b><small>均价 ¥27.44</small></div><div><span>今日卖出</span><b>3,000 股</b><small>均价 ¥27.81</small></div><div><span>已闭合循环</span><b>2 次</b><small>1 次正T · 1 次反T</small></div><div><span>待当日闭合</span><b className="warn">2,200 股</b><small>收盘目标必须为 0</small></div><div><span>已确认净收益</span><b>¥887.43</b><small>未闭合交易暂不计入</small></div></div>
+    <div className="cycle-summary"><div><span>今日买入</span><b>{bought.toLocaleString()} 股</b><small>本机有效补录</small></div><div><span>今日卖出</span><b>{sold.toLocaleString()} 股</b><small>本机有效补录</small></div><div><span>有效成交</span><b>{validManualRows.length} 笔</b><small>已失效不计入</small></div><div><span>待当日闭合</span><b className={hasDeviation?'warn':''}>{Math.abs(netPosition).toLocaleString()} 股</b><small>收盘目标必须为 0</small></div><div><span>账本状态</span><b>{hasDeviation?'待核对':'已平衡'}</b><small>不替代券商实际数据</small></div></div>
   </section>;
 }
 
