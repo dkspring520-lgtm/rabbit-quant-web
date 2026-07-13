@@ -3,6 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Stock = { code:string; name:string; price:string; change:string; prices?:number[]; open?:number; high?:number; low?:number; vwap?:number; amount?:string };
+function normalizePrices(raw:unknown):number[]{
+  if(!Array.isArray(raw))return [];
+  return raw.map(item=>{
+    if(typeof item==='number')return item;
+    if(typeof item==='string')return Number(item);
+    if(item&&typeof item==='object')return Number((item as Record<string,unknown>).price);
+    return NaN;
+  }).filter(Number.isFinite);
+}
 const initialStocks:Stock[] = [
   { code: "601899", name: "紫金矿业", price: "27.70", change: "+1.28%", prices: [] as number[] },
   { code: "601012", name: "隆基绿能", price: "18.36", change: "-0.42%", prices: [] as number[] },
@@ -36,10 +45,12 @@ const strategyProfiles = ["稳健档","平衡档","灵敏档","量化学习","�
 const chartPath = "M10 228 L34 210 L55 222 L78 186 L102 196 L126 170 L148 178 L171 132 L194 142 L217 105 L240 123 L264 94 L286 111 L310 88 L334 102 L358 119 L382 110 L406 127 L430 118 L454 141 L478 136 L502 150 L526 145 L550 160 L574 151 L598 164 L622 158 L646 180 L670 171 L694 190 L718 185 L742 205 L766 196 L790 210 L814 190 L838 198 L862 176 L886 184 L910 168";
 const vwapPath = "M10 202 C120 184 200 160 300 150 S500 146 620 155 S790 167 910 170";
 function buildPriceChart(prices:number[]){
-  if(prices.length<2)return{path:chartPath,lastY:168};
+  if(prices.length<2)return{path:chartPath,lastY:168,values:[],min:0,max:0,vwapPath};
   const values=prices.slice(-80),min=Math.min(...values),max=Math.max(...values),span=Math.max(max-min,0.0001);
   const path=values.map((value,index)=>`${index?'L':'M'}${(10+900*index/Math.max(values.length-1,1)).toFixed(1)} ${(228-((value-min)/span)*150).toFixed(1)}`).join(' ');
-  return{path,lastY:228-((values[values.length-1]-min)/span)*150};
+  const average=values.reduce((sum,value)=>sum+value,0)/values.length;
+  const averageY=228-((average-min)/span)*150;
+  return{path,lastY:228-((values[values.length-1]-min)/span)*150,values,min,max,vwapPath:`M10 ${averageY.toFixed(1)} L910 ${averageY.toFixed(1)}`};
 }
 function fallbackPrices(stock:Stock, period:string){
   const current=Number(stock.price.replace(/,/g,''))||0;
@@ -78,6 +89,16 @@ export default function Home() {
   const persistWatchlist=(list:typeof initialStocks)=>{const text=list.map(item=>`${/^[569]/.test(item.code)?'sh':'sz'}${item.code}`).join(',');void backendJson('/api/watchlist',{method:'POST',body:JSON.stringify({text})}).catch(()=>{})};
   const removeStock=(index:number)=>{if(stockList.length<=1)return;const next=stockList.filter((_,i)=>i!==index);setStockList(next);setActiveStock(current=>current===index?Math.max(0,index-1):current>index?current-1:current);persistWatchlist(next);try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}};
   const chartState = useMemo(() => buildPriceChart((stock.prices&&stock.prices.length>1)?stock.prices:fallbackPrices(stock,period)), [stock,period]);
+  const signalPoints = useMemo(() => {
+    const values=chartState.values;
+    if(values.length<5)return [] as {x:number;y:number;kind:'buy'|'sell';label:string}[];
+    const minIndex=values.indexOf(Math.min(...values)), maxIndex=values.indexOf(Math.max(...values));
+    const span=Math.max(chartState.max-chartState.min,0.0001);
+    const point=(index:number,kind:'buy'|'sell')=>({x:10+900*index/Math.max(values.length-1,1),y:228-((values[index]-chartState.min)/span)*150,kind,label:kind==='buy'?'买入':'卖出'});
+    const result=[point(minIndex,'buy')];
+    if(Math.abs(maxIndex-minIndex)>Math.max(4,values.length*.12))result.push(point(maxIndex,'sell'));
+    return result.sort((a,b)=>a.x-b.x);
+  },[chartState]);
   const chart = chartState.path;
   const isDown = stock.change.trim().startsWith('-');
   const quoteNumber=Number(stock.price.replace(/,/g,''))||0;
@@ -105,7 +126,7 @@ export default function Home() {
   }, []);
   useEffect(()=>{
     if(!localAuth)return;
-    const refresh=async()=>{try{const {data}=await backendJson('/api/realtime');if(!data.ok||!Array.isArray(data.stocks))return;setStockList(current=>current.map(item=>{const live=data.stocks.find((row:Record<string,unknown>)=>String(row.code)===item.code);if(!live)return item;const change=Number(live.change||0);const prices=Array.isArray(live.prices)?live.prices.map(Number).filter(Number.isFinite):item.prices;return{...item,name:String(live.name||item.name),price:Number(live.price||0)>0?Number(live.price).toFixed(2):'--',change:`${change>=0?'+':''}${change.toFixed(2)}%`,prices,open:Number(live.open||0)||item.open,high:Number(live.high||0)||item.high,low:Number(live.low||0)||item.low,vwap:Number(live.vwap||0)||item.vwap,amount:live.amount?String(live.amount):item.amount}}))}catch{}};
+    const refresh=async()=>{try{const {data}=await backendJson('/api/realtime');if(!data.ok||!Array.isArray(data.stocks))return;setStockList(current=>current.map(item=>{const live=data.stocks.find((row:Record<string,unknown>)=>String(row.code)===item.code);if(!live)return item;const change=Number(live.change||0);const livePrices=normalizePrices(live.prices);const prices=livePrices.length>1?livePrices:item.prices;return{...item,name:String(live.name||item.name),price:Number(live.price||0)>0?Number(live.price).toFixed(2):'--',change:`${change>=0?'+':''}${change.toFixed(2)}%`,prices,open:Number(live.open||0)||item.open,high:Number(live.high||0)||item.high,low:Number(live.low||0)||item.low,vwap:Number(live.vwap||0)||item.vwap,amount:live.amount?String(live.amount):item.amount}}))}catch{}};
     void refresh();const timer=window.setInterval(refresh,15000);return()=>window.clearInterval(timer);
   },[localAuth]);
   useEffect(() => {
@@ -124,7 +145,7 @@ export default function Home() {
           const savedFavorites=localStorage.getItem(`rabbit-favorites:${session.toLowerCase()}`);if(savedFavorites)setFavoriteCodes(JSON.parse(savedFavorites));
           void (async()=>{try{
             const [{data:remoteWatch},{data:remoteSettings}]=await Promise.all([backendJson('/api/watchlist'),backendJson('/api/settings')]);
-            if(remoteWatch.ok&&Array.isArray(remoteWatch.stocks)&&remoteWatch.stocks.length){const rows=remoteWatch.stocks.map((item:Record<string,unknown>)=>{const code=String(item.code||'').replace(/^(sh|sz)/i,'').padStart(6,'0');return{code,name:String(item.name||knownStockNames[code]||`自选股 ${code}`),price:item.price?String(item.price):'--',change:item.change?String(item.change):'0.00%',prices:Array.isArray(item.prices)?item.prices.map(Number).filter(Number.isFinite):[],open:Number(item.open||0)||undefined,high:Number(item.high||0)||undefined,low:Number(item.low||0)||undefined,vwap:Number(item.vwap||0)||undefined,amount:item.amount?String(item.amount):undefined}});setStockList(rows);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(rows));}
+            if(remoteWatch.ok&&Array.isArray(remoteWatch.stocks)&&remoteWatch.stocks.length){const rows=remoteWatch.stocks.map((item:Record<string,unknown>)=>{const code=String(item.code||'').replace(/^(sh|sz)/i,'').padStart(6,'0');return{code,name:String(item.name||knownStockNames[code]||`自选股 ${code}`),price:item.price?String(item.price):'--',change:item.change?String(item.change):'0.00%',prices:normalizePrices(item.prices),open:Number(item.open||0)||undefined,high:Number(item.high||0)||undefined,low:Number(item.low||0)||undefined,vwap:Number(item.vwap||0)||undefined,amount:item.amount?String(item.amount):undefined}});setStockList(rows);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(rows));}
             if(remoteSettings.ok){if(remoteSettings.customStrategy)setCustomStrategy(String(remoteSettings.customStrategy));if(strategyProfiles.includes(String(remoteSettings.strategyMode)))setProfile(String(remoteSettings.strategyMode));}
           }catch{}})();
         }
@@ -200,18 +221,15 @@ export default function Home() {
             <button className={`tool-button ${showIndicators?'active':''}`} onClick={()=>setShowIndicators(!showIndicators)}>{showIndicators?'隐藏指标':'显示指标'}</button><button className="tool-button" onClick={e=>{const target=e.currentTarget.closest('.chart-zone') as HTMLElement|null;if(target?.requestFullscreen)target.requestFullscreen()}}>全屏</button>
           </div>
           <div className="chart-wrap">
-            <div className="y-axis"><span>28.20</span><span>27.90</span><span>27.60</span><span>27.30</span><span>27.00</span></div>
+            <div className="y-axis"><span>{chartState.max ? chartState.max.toFixed(2) : '--'}</span><span>{chartState.max ? (chartState.max-(chartState.max-chartState.min)*.25).toFixed(2) : '--'}</span><span>{chartState.max ? (chartState.max-(chartState.max-chartState.min)*.5).toFixed(2) : '--'}</span><span>{chartState.max ? (chartState.max-(chartState.max-chartState.min)*.75).toFixed(2) : '--'}</span><span>{chartState.min ? chartState.min.toFixed(2) : '--'}</span></div>
             <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${stock.name}分时价格与VWAP`}>
               <defs><linearGradient id="priceFillUp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient><linearGradient id="priceFillDown" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#42c98a" stopOpacity=".18"/><stop offset="1" stopColor="#42c98a" stopOpacity="0"/></linearGradient></defs>
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
               <path d={`${chart} L910 300 L10 300 Z`} fill={`url(#${isDown?'priceFillDown':'priceFillUp'})`} />
-              {showIndicators&&<path d={vwapPath} className="vwap-path"/>}<path d={chart} className={`price-path ${isDown?'down':''}`}/>
+              {showIndicators&&<path d={chartState.vwapPath} className="vwap-path"/>}<path d={chart} className={`price-path ${isDown?'down':''}`}/>
               <line x1="0" y1={chartState.lastY} x2="920" y2={chartState.lastY} className={`last-line ${isDown?'down':''}`}/><circle cx="910" cy={chartState.lastY} r="4" className={`last-dot ${isDown?'down':''}`}/>
-              <g className="chart-badge oversold active-signal" transform="translate(170 132)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="6" x2="0" y2="15"/><rect x="-29" y="18" width="58" height="21" rx="5"/><path d="M-5 18 L0 12 L5 18 Z"/><text x="0" y="32">◆ 超卖</text></g>
-              <g className="chart-badge sell active-signal" transform="translate(310 88)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-26" y="-39" width="52" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><g className="mini-rabbit" transform="translate(-15 -28)"><ellipse cx="-1.8" cy="-3" rx="1.2" ry="2.8"/><ellipse cx="1.8" cy="-3" rx="1.2" ry="2.8"/><circle cy="1" r="3.2"/><circle className="rabbit-eye" cx="-1.2" cy=".5" r=".45"/><circle className="rabbit-eye" cx="1.2" cy=".5" r=".45"/></g><text className="badge-copy" x="7" y="-25">卖出</text></g>
-              <g className="chart-badge overbought active-signal" transform="translate(454 141)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-29" y="-39" width="58" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><text x="0" y="-25">♛ 超买</text></g>
-              <g className="chart-badge buy active-signal" transform="translate(742 205)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="6" x2="0" y2="15"/><rect x="-26" y="18" width="52" height="21" rx="5"/><path d="M-5 18 L0 12 L5 18 Z"/><g className="mini-rabbit" transform="translate(-15 29)"><ellipse cx="-1.8" cy="-3" rx="1.2" ry="2.8"/><ellipse cx="1.8" cy="-3" rx="1.2" ry="2.8"/><circle cy="1" r="3.2"/><circle className="rabbit-eye" cx="-1.2" cy=".5" r=".45"/><circle className="rabbit-eye" cx="1.2" cy=".5" r=".45"/></g><text className="badge-copy" x="7" y="32">买入</text></g>
+              {signalPoints.map(point=><g key={`${point.kind}-${point.x}`} className={`chart-badge ${point.kind} active-signal`} transform={`translate(${point.x.toFixed(1)} ${point.y.toFixed(1)})`}><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1={point.kind==='buy'?6:-6} x2="0" y2={point.kind==='buy'?15:-15}/><rect x="-27" y={point.kind==='buy'?18:-39} width="54" height="21" rx="5"/><path d={point.kind==='buy'?'M-5 18 L0 12 L5 18 Z':'M-5 -18 L0 -12 L5 -18 Z'}/><text className="badge-copy" x="0" y={point.kind==='buy'?32:-25}>{point.label}</text></g>)}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
               {[18,45,65,88,110,72,96,44,38,54,62,32,28,41,35,31,50,40,36,30,58,42,34,66,48,37,29,45,53,81,56,49,62,73,48,92,55,68,44,78].map((h,i)=>{const vh=Math.round(h*.42);return <rect key={i} x={i*23} y={300-vh} width="10" height={vh} className={i%3===0?'volume red':'volume'}/>}) }
             </svg>
