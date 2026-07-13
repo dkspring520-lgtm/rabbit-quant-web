@@ -56,7 +56,7 @@ function runDailyBacktestLegacy(bars: MarketBar[], capital:number, baseShares:nu
 
 function money(value:number) { return `${value >= 0 ? "+" : "-"}¥ ${Math.abs(value).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`; }
 
-function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number}[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number): BacktestResult {
+function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number}[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number, minCommission:boolean, slippageMode:"percent"|"tick", forceCloseTime:string): BacktestResult {
   const points=minutes.filter(point=>Number.isFinite(point.price) && point.price>0);
   const quantity=Math.floor(Math.min(baseShares,sellable)/3/100)*100;
   if(points.length<30 || !quantity) return {net:0,gross:0,fees:0,maxDrawdown:0,trades:0,wins:0,days:0,curve:[capital],status:"真实分时样本或可卖底仓不足，未生成交易",actions:[]};
@@ -76,13 +76,15 @@ function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number
     const averageVolume=window.reduce((sum,item)=>sum+Math.max(1,item.volume),0)/window.length;
     const sellWindow=point.time>="0945" && point.time<="1430";
     const pressureExhaustion=point.price>=resistance*.998 && point.price<=previous.price && point.volume<=averageVolume*1.2;
+    const slip=slippageMode==="tick" ? slippage : point.price*slippage/100;
+    const commission=(turnover:number)=>Math.max(minCommission?5:0,turnover*feeRate/100);
     if(soldPrice===null && index>=20 && sellWindow && deviation>=threshold && pressureExhaustion){
-      soldPrice=point.price*(1-slippage/100); fees+=soldPrice*quantity*(feeRate/100+.0005); trades+=1;
+      soldPrice=point.price-slip; fees+=commission(soldPrice*quantity)+soldPrice*quantity*.0005; trades+=1;
       actions.push({time:point.time,side:"卖出",price:soldPrice,quantity,curveIndex:curve.length});
     }
     const buySignal=index>=20 && ((deviation<=threshold*.35 && point.price>=previous.price) || deviation<=-threshold*.35);
-    if(soldPrice!==null && (buySignal || index===points.length-1)){
-      const buyPrice=point.price*(1+slippage/100); fees+=buyPrice*quantity*feeRate/100; const pnl=(soldPrice-buyPrice)*quantity; cash+=pnl; gross+=pnl; if(pnl>(soldPrice+buyPrice)*quantity*feeRate/100+soldPrice*quantity*.0005)wins++; actions.push({time:point.time,side:"买回",price:buyPrice,quantity,curveIndex:curve.length}); soldPrice=null;
+    if(soldPrice!==null && (buySignal || point.time>=forceCloseTime || index===points.length-1)){
+      const buyPrice=point.price+slip; const buyFee=commission(buyPrice*quantity); fees+=buyFee; const pnl=(soldPrice-buyPrice)*quantity; cash+=pnl; gross+=pnl; if(pnl>buyFee+commission(soldPrice*quantity)+soldPrice*quantity*.0005)wins++; actions.push({time:point.time,side:"买回",price:buyPrice,quantity,curveIndex:curve.length}); soldPrice=null;
     }
     const mark=cash+(soldPrice===null?0:(soldPrice-point.price)*quantity); peak=Math.max(peak,mark); maxDrawdown=Math.max(maxDrawdown,(peak-mark)/peak); curve.push(mark);
   }
@@ -693,6 +695,9 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const [sellable, setSellable] = useState(preferences.baseShares);
   const [feeRate, setFeeRate] = useState(0.025);
   const [slippage, setSlippage] = useState(0.02);
+  const [minCommission, setMinCommission] = useState(true);
+  const [slippageMode, setSlippageMode] = useState<"percent"|"tick">("percent");
+  const [forceCloseTime, setForceCloseTime] = useState("1450");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [source, setSource] = useState<Pick<MarketData,"provider"|"fetchedAt"|"bars"> | null>(null);
@@ -711,7 +716,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         setRunStatus("未取得可用分时样本");
         return;
       }
-      const calculated=runIntradayBlindReplay(data.minutes,capital,baseShares,sellable,feeRate,slippage);
+      const calculated=runIntradayBlindReplay(data.minutes,capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime);
       setResult(calculated);
       setRunStatus(calculated.trades ? "盲测已完成" : "盲测完成：本次没有触发反 T 条件");
     } catch {
@@ -733,11 +738,13 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
       else if (pending) { paired.push({ sell: pending, buy: action }); pending = null; }
     });
     return paired.map(({ sell, buy }, index) => {
-      const rawSell = sell.price / (1 - slippage / 100);
-      const rawBuy = buy.price / (1 + slippage / 100);
+      const rawSell = slippageMode === "tick" ? sell.price + slippage : sell.price / (1 - slippage / 100);
+      const rawBuy = slippageMode === "tick" ? buy.price - slippage : buy.price / (1 + slippage / 100);
       const gross = (rawSell - rawBuy) * sell.quantity;
       const executionCost = ((rawSell - sell.price) + (buy.price - rawBuy)) * sell.quantity;
-      const fees = sell.price * sell.quantity * (feeRate / 100 + 0.0005) + buy.price * buy.quantity * feeRate / 100;
+      const sellCommission = Math.max(minCommission ? 5 : 0, sell.price * sell.quantity * feeRate / 100);
+      const buyCommission = Math.max(minCommission ? 5 : 0, buy.price * buy.quantity * feeRate / 100);
+      const fees = sellCommission + sell.price * sell.quantity * 0.0005 + buyCommission;
       return { index: index + 1, sell, buy, gross, executionCost, fees, net: gross - executionCost - fees };
     });
   })();
@@ -755,9 +762,11 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
         <div className="field-pair"><label>昨日可卖<NumberStepper value={sellable} unit="股" step={100} min={0} onChange={setSellable}/></label><label>单次上限<div className="field static-field"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
-        <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><div><span>单边滑点</span><NumberStepper value={slippage} unit="%" step={0.005} min={0} decimals={3} onChange={setSlippage}/></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
+        <label>券商费率模板<select value={`${feeRate}-${minCommission}`} onChange={event=>{const templates:{[key:string]:[number,boolean]}={"0.025-true":[0.025,true],"0.01-false":[0.01,false],"0.0085-true":[0.0085,true]};const value=templates[event.target.value];if(value){setFeeRate(value[0]);setMinCommission(value[1])}}}><option value="0.025-true">默认行业价：万2.5（最低5元）</option><option value="0.01-false">常见大客户价：万1免五</option><option value="0.0085-true">尊享价：万0.85（最低5元）</option></select></label>
+        <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
+        <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void run()} disabled={running}>{running ? '正在运行真实分时盲测…' : '运行随机分时盲测'}<span>→</span></button>
-        <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；14:50 前必须恢复计划底仓，否则整笔记为失败。</p>
+        <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
         <p className="config-note">状态：{runStatus}</p>
         {error&&<p className="config-note">{error}</p>}
       </aside>
