@@ -45,10 +45,12 @@ const strategyProfiles = ["稳健档","平衡档","灵敏档","量化学习","�
 const chartPath = "M10 228 L34 210 L55 222 L78 186 L102 196 L126 170 L148 178 L171 132 L194 142 L217 105 L240 123 L264 94 L286 111 L310 88 L334 102 L358 119 L382 110 L406 127 L430 118 L454 141 L478 136 L502 150 L526 145 L550 160 L574 151 L598 164 L622 158 L646 180 L670 171 L694 190 L718 185 L742 205 L766 196 L790 210 L814 190 L838 198 L862 176 L886 184 L910 168";
 const vwapPath = "M10 202 C120 184 200 160 300 150 S500 146 620 155 S790 167 910 170";
 function buildPriceChart(prices:number[]){
-  if(prices.length<2)return{path:chartPath,lastY:168,values:[],min:0,max:0};
+  if(prices.length<2)return{path:chartPath,lastY:168,values:[],min:0,max:0,vwapPath};
   const values=prices.slice(-80),min=Math.min(...values),max=Math.max(...values),span=Math.max(max-min,0.0001);
   const path=values.map((value,index)=>`${index?'L':'M'}${(10+900*index/Math.max(values.length-1,1)).toFixed(1)} ${(228-((value-min)/span)*150).toFixed(1)}`).join(' ');
-  return{path,lastY:228-((values[values.length-1]-min)/span)*150,values,min,max};
+  const average=values.reduce((sum,value)=>sum+value,0)/values.length;
+  const averageY=228-((average-min)/span)*150;
+  return{path,lastY:228-((values[values.length-1]-min)/span)*150,values,min,max,vwapPath:`M10 ${averageY.toFixed(1)} L910 ${averageY.toFixed(1)}`};
 }
 function fallbackPrices(stock:Stock, period:string){
   const current=Number(stock.price.replace(/,/g,''))||0;
@@ -225,7 +227,7 @@ export default function Home() {
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
               <path d={`${chart} L910 300 L10 300 Z`} fill={`url(#${isDown?'priceFillDown':'priceFillUp'})`} />
-              {showIndicators&&<path d={vwapPath} className="vwap-path"/>}<path d={chart} className={`price-path ${isDown?'down':''}`}/>
+              {showIndicators&&<path d={chartState.vwapPath} className="vwap-path"/>}<path d={chart} className={`price-path ${isDown?'down':''}`}/>
               <line x1="0" y1={chartState.lastY} x2="920" y2={chartState.lastY} className={`last-line ${isDown?'down':''}`}/><circle cx="910" cy={chartState.lastY} r="4" className={`last-dot ${isDown?'down':''}`}/>
               {signalPoints.map(point=><g key={`${point.kind}-${point.x}`} className={`chart-badge ${point.kind} active-signal`} transform={`translate(${point.x.toFixed(1)} ${point.y.toFixed(1)})`}><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1={point.kind==='buy'?6:-6} x2="0" y2={point.kind==='buy'?15:-15}/><rect x="-27" y={point.kind==='buy'?18:-39} width="54" height="21" rx="5"/><path d={point.kind==='buy'?'M-5 18 L0 12 L5 18 Z':'M-5 -18 L0 -12 L5 -18 Z'}/><text className="badge-copy" x="0" y={point.kind==='buy'?32:-25}>{point.label}</text></g>)}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
