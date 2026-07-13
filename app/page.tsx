@@ -25,7 +25,7 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 
 type BacktestResult = { net:number; gross:number; fees:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; status:string };
 
-function runDailyBacktest(bars: MarketBar[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number): BacktestResult {
+function runDailyBacktestLegacy(bars: MarketBar[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number): BacktestResult {
   let cash = capital;
   let peak = capital;
   let maxDrawdown = 0;
@@ -54,6 +54,27 @@ function runDailyBacktest(bars: MarketBar[], capital:number, baseShares:number, 
 }
 
 function money(value:number) { return `${value >= 0 ? "+" : "-"}¥ ${Math.abs(value).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`; }
+
+function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number}[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number): BacktestResult {
+  const points=minutes.filter(point=>Number.isFinite(point.price) && point.price>0);
+  const quantity=Math.floor(Math.min(baseShares,sellable)/3/100)*100;
+  if(points.length<30 || !quantity) return {net:0,gross:0,fees:0,maxDrawdown:0,trades:0,wins:0,days:0,curve:[capital],status:"真实分时样本或可卖底仓不足，未生成交易"};
+  const start=Math.min(points.length-20,Math.max(15,Math.floor(points.length*.12)+Math.floor(Math.random()*Math.max(1,Math.floor(points.length*.18)))));
+  let weighted=0,totalVolume=0,cash=capital,peak=capital,maxDrawdown=0,gross=0,fees=0,trades=0,wins=0;
+  let soldPrice:number|null=null; const curve=[capital];
+  for(let index=0;index<points.length;index+=1){
+    const point=points[index]; const volume=Math.max(1,point.volume); weighted+=point.price*volume; totalVolume+=volume;
+    if(index<start) continue;
+    const vwap=weighted/totalVolume; const deviation=(point.price-vwap)/vwap;
+    if(soldPrice===null && index>=15 && deviation>=.003 && point.price>points[Math.max(0,index-5)].price){
+      soldPrice=point.price*(1-slippage/100); fees+=soldPrice*quantity*(feeRate/100+.0005); trades+=1;
+    }else if(soldPrice!==null && (deviation<=.0005 || index===points.length-1)){
+      const buyPrice=point.price*(1+slippage/100); fees+=buyPrice*quantity*feeRate/100; const pnl=(soldPrice-buyPrice)*quantity; cash+=pnl; gross+=pnl; if(pnl>(soldPrice+buyPrice)*quantity*feeRate/100+soldPrice*quantity*.0005)wins++; soldPrice=null;
+    }
+    const mark=cash+(soldPrice===null?0:(soldPrice-point.price)*quantity); peak=Math.max(peak,mark); maxDrawdown=Math.max(maxDrawdown,(peak-mark)/peak); curve.push(mark);
+  }
+  return {net:cash-capital-fees,gross,fees,maxDrawdown,trades,wins,days:1,curve,status:trades?`真实分时盲测完成：从 ${points[start].time} 开始逐点揭示，未使用其后的价格。`:"本次盲测未触发反T条件"};
+}
 
 const initialStocks = [
   { code: "601899", name: "紫金矿业", price: "--", change: "--" },
@@ -663,34 +684,34 @@ function BacktestView({ profile, setProfile, preferences, stock }: { profile: st
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [source, setSource] = useState<Pick<MarketData,"provider"|"fetchedAt"|"bars"> | null>(null);
   const [error, setError] = useState("");
-  const run = async () => { setRunning(true); setError(""); try { const response=await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`); if(!response.ok)throw new Error("行情服务暂不可用"); const data=await response.json() as MarketData; const calculated=runDailyBacktest(data.bars,capital,baseShares,sellable,feeRate,slippage); setResult(calculated);setSource(data); }catch{setResult(null);setError("无法取得真实行情，未生成回测结果。请稍后重试。");}finally{setRunning(false);} };
+  const run = async () => { setRunning(true); setError(""); try { const response=await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`, { cache:"no-store" }); if(!response.ok)throw new Error("market unavailable"); const data=await response.json() as MarketData; const calculated=runIntradayBlindReplay(data.minutes ?? [],capital,baseShares,sellable,feeRate,slippage); setResult(calculated);setSource(data); }catch{setResult(null);setError("无法取得真实分时数据，未生成测试结果。");}finally{setRunning(false);} };
   const curve = result?.curve ?? [];
   const points = curve.length > 1 ? curve.map((value,index)=>`${(index/(curve.length-1))*800},${200-((value-Math.min(...curve))/(Math.max(...curve)-Math.min(...curve)||1))*160}`).join(" ") : "";
   return <section className="backtest-view">
     <div className="backtest-head">
-      <div><span className="eyebrow">DAILY DATA REPLAY</span><h1>真实日线模拟回测</h1><p>按公开日线 OHLC 数据、费用、滑点和可卖数量即时计算；不将日线结果表述为分钟级回放。</p></div>
-      <div className="integrity-badges"><span><i/>真实历史数据</span><span><i/>统一费用模型</span><span><i/>真实可卖数量</span></div>
+      <div><span className="eyebrow">INTRADAY BLIND REPLAY</span><h1>真实分时盲测</h1><p>随机隐藏后续分时，策略仅按已揭示的价格和成交量逐点决策；不读取当日收盘价、高低点或未来K线。</p></div>
+      <div className="integrity-badges"><span><i/>真实分时数据</span><span><i/>无未来函数</span><span><i/>真实可卖数量</span></div>
     </div>
     <div className="backtest-grid">
       <aside className="backtest-config">
         <div className="config-title"><h2>回测参数</h2><span>{source ? "已计算" : "等待运行"}</span></div>
         <label>股票代码<div className="field static-field"><b>{stock.code}</b><span>{stock.name}</span></div></label>
-        <div className="field-pair"><label>数据范围<div className="field static-field date-display"><b>{source?.bars[0]?.date ?? "近180日"}</b><span>起</span></div></label><label>数据截止<div className="field static-field date-display"><b>{source?.bars.at(-1)?.date ?? "运行后显示"}</b><span>止</span></div></label></div>
+        <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "当日完整分时" : "运行后显示"}</b><span>随机起点</span></div></label><label>决策方式<div className="field static-field date-display"><b>逐点揭示</b><span>盲测</span></div></label></div>
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
         <div className="field-pair"><label>昨日可卖<NumberStepper value={sellable} unit="股" step={100} min={0} onChange={setSellable}/></label><label>单次上限<div className="field static-field"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><div><span>单边滑点</span><NumberStepper value={slippage} unit="%" step={0.005} min={0} decimals={3} onChange={setSlippage}/></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
-        <button className="run-backtest" onClick={()=>void run()} disabled={running}>{running ? '正在计算真实日线…' : '运行日线回测'}<span>→</span></button>
+        <button className="run-backtest" onClick={()=>void run()} disabled={running}>{running ? '正在运行真实分时盲测…' : '运行随机分时盲测'}<span>→</span></button>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；14:50 前必须恢复计划底仓，否则整笔记为失败。</p>
         {error&&<p className="config-note">{error}</p>}
       </aside>
       <div className="backtest-results">
         <div className="result-summary">
           <div className="result-primary"><span>净收益</span><strong>{result ? money(result.net) : "—"}</strong><em>{result ? `${(result.net/capital*100).toFixed(2)}%` : "运行后显示"}</em></div>
-          <div><span>毛收益</span><b>{result ? money(result.gross) : "—"}</b><small>未扣费用</small></div><div><span>费用与滑点</span><b>{result ? money(-result.fees) : "—"}</b><small>佣金、滑点与印花税</small></div><div><span>最大回撤</span><b>{result ? `-${(result.maxDrawdown*100).toFixed(2)}%` : "—"}</b><small>{source ? "真实日线收盘估值" : "运行后显示"}</small></div>
+          <div><span>毛收益</span><b>{result ? money(result.gross) : "—"}</b><small>未扣费用</small></div><div><span>费用与滑点</span><b>{result ? money(-result.fees) : "—"}</b><small>佣金、滑点与印花税</small></div><div><span>最大回撤</span><b>{result ? `-${(result.maxDrawdown*100).toFixed(2)}%` : "—"}</b><small>{source ? "分时逐点盯市" : "运行后显示"}</small></div>
         </div>
-        <div className="equity-panel"><div className="panel-heading"><div><h2>资金曲线</h2><span>{source ? `${source.bars[0]?.date} — ${source.bars.at(-1)?.date}` : "运行后显示"}</span></div><div className="curve-legend"><span><i/>净资产</span><span>{source ? "公开延迟日线" : "未运行"}</span></div></div><svg viewBox="0 0 800 220" preserveAspectRatio="none" aria-label="回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".22"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{[40,80,120,160,200].map(y=><line key={y} x1="0" x2="800" y1={y} y2={y} className="equity-grid"/>)}{points&&<><polyline points={`${points} 800,220 0,220`} fill="url(#equityFill)"/><polyline points={points} className="equity-line" fill="none"/></>}</svg></div>
-        <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>{result?.days ?? "—"}</b></div><div><span>模拟循环</span><b>{result?.trades ?? "—"}</b></div><div><span>胜出循环</span><b>{result?.wins ?? "—"}</b></div><div><span>循环胜率</span><b className="teal">{result?.trades ? `${(result.wins/result.trades*100).toFixed(2)}%` : "—"}</b></div><div><span>底仓设定</span><b>{baseShares.toLocaleString()} 股</b></div><div><span>数据源</span><b>{source?.provider ?? "—"}</b></div></div><div className="failure-panel"><h3>计算说明</h3><p><span>数据属性</span><b>{source ? "公开延迟日线" : "未运行"}</b></p><p><span>执行规则</span><b>日内高低价估算</b></p><p><span>费用模型</span><b>佣金 + 滑点 + 印花税</b></p><p><span>计算状态</span><b className="failure-alert">{result?.status ?? "等待运行"}</b></p></div></div>
+        <div className="equity-panel"><div className="panel-heading"><div><h2>资金曲线</h2><span>{source ? "随机起点至收盘" : "运行后显示"}</span></div><div className="curve-legend"><span><i/>净资产</span><span>{source ? "公开真实分时" : "未运行"}</span></div></div><svg viewBox="0 0 800 220" preserveAspectRatio="none" aria-label="回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".22"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{[40,80,120,160,200].map(y=><line key={y} x1="0" x2="800" y1={y} y2={y} className="equity-grid"/>)}{points&&<><polyline points={`${points} 800,220 0,220`} fill="url(#equityFill)"/><polyline points={points} className="equity-line" fill="none"/></>}</svg></div>
+        <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>{result?.days ?? "—"}</b></div><div><span>模拟循环</span><b>{result?.trades ?? "—"}</b></div><div><span>胜出循环</span><b>{result?.wins ?? "—"}</b></div><div><span>循环胜率</span><b className="teal">{result?.trades ? `${(result.wins/result.trades*100).toFixed(2)}%` : "—"}</b></div><div><span>底仓设定</span><b>{baseShares.toLocaleString()} 股</b></div><div><span>数据源</span><b>{source?.provider ?? "—"}</b></div></div><div className="failure-panel"><h3>计算说明</h3><p><span>数据属性</span><b>{source ? "公开真实分时" : "未运行"}</b></p><p><span>执行规则</span><b>逐点揭示，不看未来</b></p><p><span>费用模型</span><b>佣金 + 滑点 + 印花税</b></p><p><span>计算状态</span><b className="failure-alert">{result?.status ?? "等待运行"}</b></p></div></div>
       </div>
     </div>
   </section>;
