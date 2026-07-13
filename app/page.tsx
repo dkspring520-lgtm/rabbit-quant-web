@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
-type MarketData = { provider:string; delayed:boolean; fetchedAt:string; quote:{ code:string; name:string; price:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[] };
+type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; quote:{ code:string; name:string; price:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[] };
 
 type BacktestResult = { net:number; gross:number; fees:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; status:string };
 
@@ -78,9 +78,12 @@ export default function Home() {
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [marketError, setMarketError] = useState("");
   const [marketQuotes, setMarketQuotes] = useState<Record<string, MarketData["quote"]>>({});
+  const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
+  const [trialError, setTrialError] = useState("");
   const [starred, setStarred] = useState(false);
   const [indicatorsVisible, setIndicatorsVisible] = useState(true);
   const stock = stockList[activeStock] || stockList[0];
+  const activeQuote = trialQuote?.quote ?? marketData?.quote;
   const removeStock=(index:number)=>{
     if(stockList.length<=1)return;
     const next=stockList.filter((_,i)=>i!==index);
@@ -158,6 +161,26 @@ export default function Home() {
   }, [localAuth, stockList]);
   useEffect(() => {
     if (!localAuth || !stock?.code) return;
+    let cancelled = false;
+    let inFlight = false;
+    const load = async () => {
+      if (inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
+      try {
+        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-realtime`, { cache: "no-store" });
+        if (!response.ok) throw new Error("trial quote unavailable");
+        const data = await response.json() as MarketData;
+        if (!cancelled) { setTrialQuote(data); setTrialError(""); }
+      } catch {
+        if (!cancelled) { setTrialQuote(null); setTrialError("1 秒试用行情暂不可用，已保留公开延迟行情作为参考。"); }
+      } finally { inFlight = false; }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 1_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [localAuth, stock?.code]);
+  useEffect(() => {
+    if (!localAuth || !stock?.code) return;
     try { setStarred(localStorage.getItem(`rabbit-star:${accountName.toLowerCase()}:${stock.code}`) === "1"); } catch {}
   }, [localAuth, accountName, stock?.code]);
   const toggleStar = () => setStarred(current => {
@@ -180,9 +203,9 @@ export default function Home() {
           {['首页','操盘台','多股监控','策略市场','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
-          <span className="market-open"><i />{marketData ? "行情已更新" : "行情连接中"}</span>
+          <span className="market-open"><i />{trialQuote ? "1 秒试用监控" : marketData ? "公开行情已更新" : "行情连接中"}</span>
           <span className="auto-off"><i />自动交易未连接</span>
-          <span className="clock">{marketData ? new Date(marketData.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
+          <span className="clock">{trialQuote ? new Date(trialQuote.sourceTimestamp || trialQuote.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : marketData ? new Date(marketData.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
           <button className="profile-cycle" onClick={()=>setProfile(strategyProfiles[(strategyProfiles.indexOf(profile)+1)%strategyProfiles.length])} aria-label={`当前策略${profile}，点击切换`}><span>{profile}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
           <button className="account-button" onClick={()=>setAccountOpen(true)} aria-label="打开账户中心"><span>{accountName.slice(0,1).toUpperCase()}</span><b>{accountName}</b><i>⌄</i></button>
@@ -200,11 +223,11 @@ export default function Home() {
 
       <section className="stock-head">
         <div className="stock-identity">
-          <span className="stock-code">{stock.code}</span><h1>{marketData?.quote.name || stock.name}</h1><button className="star" onClick={toggleStar} aria-label={starred ? "取消收藏当前股票" : "收藏当前股票"} aria-pressed={starred}>{starred ? "★" : "☆"}</button>
+          <span className="stock-code">{stock.code}</span><h1>{activeQuote?.name || stock.name}</h1><button className="star" onClick={toggleStar} aria-label={starred ? "取消收藏当前股票" : "收藏当前股票"} aria-pressed={starred}>{starred ? "★" : "☆"}</button>
         </div>
-        <div className="quote"><strong>{marketData?.quote.price?.toFixed(2) ?? "--"}</strong><span>{marketData?.quote.changePercent == null ? "--" : `${marketData.quote.changePercent >= 0 ? "+" : ""}${marketData.quote.changePercent.toFixed(2)}%`}</span></div>
+        <div className="quote"><strong>{activeQuote?.price?.toFixed(2) ?? "--"}</strong><span>{activeQuote?.changePercent == null ? "--" : `${activeQuote.changePercent >= 0 ? "+" : ""}${activeQuote.changePercent.toFixed(2)}%`}</span></div>
         <div className="quote-metrics">
-          <span>今开 <b>{marketData?.quote.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{marketData?.quote.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{marketData?.quote.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">公开延迟</b></span><span>分钟线 <b>未接入</b></span>
+          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{trialQuote ? "1 秒试用" : "公开延迟"}</b></span><span>分钟线 <b>未接入</b></span>
         </div>
         <div className="auction"><span>集合竞价</span><b>高开转弱 · 反T优先</b><small>3/4 条件确认</small></div>
       </section>
@@ -212,14 +235,14 @@ export default function Home() {
       <section className="workspace">
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="legend"><span><i className="coral-line"/>最新价 <b>{marketData?.quote.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="teal-line"/>均线参考</span>}</div>
-            <span className="live-scan"><i/>{marketData ? `公开行情 · ${marketData.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中"}</span>
+            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="teal-line"/>均线参考</span>}</div>
+            <span className="live-scan"><i/>{trialQuote ? `1 秒轮询试用 · ${trialQuote.provider}` : trialError || (marketData ? `公开行情 · ${marketData.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")}</span>
             <div className="periods">{['分时','5分','15分','30分','60分','日K'].map(p => <button key={p} className={period === p ? 'active' : ''} onClick={() => setPeriod(p)}>{p}</button>)}</div>
             <button className="tool-button" onClick={()=>setIndicatorsVisible(value=>!value)} aria-pressed={indicatorsVisible}>{indicatorsVisible ? "隐藏指标" : "显示指标"}</button><button className="tool-button" onClick={()=>void document.documentElement.requestFullscreen?.().catch(()=>{})}>全屏</button>
           </div>
           <div className="chart-wrap">
             <div className="y-axis"><span>28.20</span><span>27.90</span><span>27.60</span><span>27.30</span><span>27.00</span></div>
-            <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${marketData?.quote.name || stock.name}价格参考图`}>
+            <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}价格参考图`}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
