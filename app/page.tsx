@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 const initialStocks = [
-  { code: "601899", name: "紫金矿业", price: "27.70", change: "+1.28%" },
-  { code: "601012", name: "隆基绿能", price: "18.36", change: "-0.42%" },
-  { code: "000063", name: "中兴通讯", price: "33.12", change: "+0.35%" },
-  { code: "600519", name: "贵州茅台", price: "1,678.01", change: "-0.18%" },
+  { code: "601899", name: "紫金矿业", price: "27.70", change: "+1.28%", prices: [] as number[] },
+  { code: "601012", name: "隆基绿能", price: "18.36", change: "-0.42%", prices: [] as number[] },
+  { code: "000063", name: "中兴通讯", price: "33.12", change: "+0.35%", prices: [] as number[] },
+  { code: "600519", name: "贵州茅台", price: "1,678.01", change: "-0.18%", prices: [] as number[] },
 ];
 
 const knownStockNames: Record<string,string> = {
@@ -34,6 +34,12 @@ const strategyProfiles = ["稳健档","平衡档","灵敏档","量化学习","�
 
 const chartPath = "M10 228 L34 210 L55 222 L78 186 L102 196 L126 170 L148 178 L171 132 L194 142 L217 105 L240 123 L264 94 L286 111 L310 88 L334 102 L358 119 L382 110 L406 127 L430 118 L454 141 L478 136 L502 150 L526 145 L550 160 L574 151 L598 164 L622 158 L646 180 L670 171 L694 190 L718 185 L742 205 L766 196 L790 210 L814 190 L838 198 L862 176 L886 184 L910 168";
 const vwapPath = "M10 202 C120 184 200 160 300 150 S500 146 620 155 S790 167 910 170";
+function buildPriceChart(prices:number[]){
+  if(prices.length<2)return{path:chartPath,lastY:168};
+  const values=prices.slice(-80),min=Math.min(...values),max=Math.max(...values),span=Math.max(max-min,0.0001);
+  const path=values.map((value,index)=>`${index?'L':'M'}${(10+900*index/Math.max(values.length-1,1)).toFixed(1)} ${(228-((value-min)/span)*150).toFixed(1)}`).join(' ');
+  return{path,lastY:228-((values[values.length-1]-min)/span)*150};
+}
 
 export default function Home() {
   const [authReady, setAuthReady] = useState(false);
@@ -62,7 +68,9 @@ export default function Home() {
   const selectProfile=(next:string)=>{setProfile(next);try{localStorage.setItem(`rabbit-profile:${accountName.toLowerCase()}`,next)}catch{}};
   const persistWatchlist=(list:typeof initialStocks)=>{const text=list.map(item=>`${/^[569]/.test(item.code)?'sh':'sz'}${item.code}`).join(',');void backendJson('/api/watchlist',{method:'POST',body:JSON.stringify({text})}).catch(()=>{})};
   const removeStock=(index:number)=>{if(stockList.length<=1)return;const next=stockList.filter((_,i)=>i!==index);setStockList(next);setActiveStock(current=>current===index?Math.max(0,index-1):current>index?current-1:current);persistWatchlist(next);try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}};
-  const chart = useMemo(() => chartPath, []);
+  const chartState = useMemo(() => buildPriceChart(stock.prices || []), [stock.prices]);
+  const chart = chartState.path;
+  const isDown = stock.change.trim().startsWith('-');
   useEffect(() => {
     if (!trainingRunning) return;
     const timer = window.setInterval(() => setTrainingProgress(value => {
@@ -83,7 +91,7 @@ export default function Home() {
   }, []);
   useEffect(()=>{
     if(!localAuth)return;
-    const refresh=async()=>{try{const {data}=await backendJson('/api/realtime');if(!data.ok||!Array.isArray(data.stocks))return;setStockList(current=>current.map(item=>{const live=data.stocks.find((row:Record<string,unknown>)=>String(row.code)===item.code);if(!live)return item;const change=Number(live.change||0);return{...item,name:String(live.name||item.name),price:Number(live.price||0)>0?Number(live.price).toFixed(2):'--',change:`${change>=0?'+':''}${change.toFixed(2)}%`}}))}catch{}};
+    const refresh=async()=>{try{const {data}=await backendJson('/api/realtime');if(!data.ok||!Array.isArray(data.stocks))return;setStockList(current=>current.map(item=>{const live=data.stocks.find((row:Record<string,unknown>)=>String(row.code)===item.code);if(!live)return item;const change=Number(live.change||0);const prices=Array.isArray(live.prices)?live.prices.map(Number).filter(Number.isFinite):item.prices;return{...item,name:String(live.name||item.name),price:Number(live.price||0)>0?Number(live.price).toFixed(2):'--',change:`${change>=0?'+':''}${change.toFixed(2)}%`,prices}}))}catch{}};
     void refresh();const timer=window.setInterval(refresh,15000);return()=>window.clearInterval(timer);
   },[localAuth]);
   useEffect(() => {
@@ -102,7 +110,7 @@ export default function Home() {
           const savedFavorites=localStorage.getItem(`rabbit-favorites:${session.toLowerCase()}`);if(savedFavorites)setFavoriteCodes(JSON.parse(savedFavorites));
           void (async()=>{try{
             const [{data:remoteWatch},{data:remoteSettings}]=await Promise.all([backendJson('/api/watchlist'),backendJson('/api/settings')]);
-            if(remoteWatch.ok&&Array.isArray(remoteWatch.stocks)&&remoteWatch.stocks.length){const rows=remoteWatch.stocks.map((item:Record<string,unknown>)=>{const code=String(item.code||'').padStart(6,'0');return{code,name:String(item.name||knownStockNames[code]||`自选股 ${code}`),price:item.price?String(item.price):'--',change:item.change?String(item.change):'0.00%'}});setStockList(rows);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(rows));}
+            if(remoteWatch.ok&&Array.isArray(remoteWatch.stocks)&&remoteWatch.stocks.length){const rows=remoteWatch.stocks.map((item:Record<string,unknown>)=>{const code=String(item.code||'').replace(/^(sh|sz)/i,'').padStart(6,'0');return{code,name:String(item.name||knownStockNames[code]||`自选股 ${code}`),price:item.price?String(item.price):'--',change:item.change?String(item.change):'0.00%',prices:Array.isArray(item.prices)?item.prices.map(Number).filter(Number.isFinite):[]}});setStockList(rows);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(rows));}
             if(remoteSettings.ok){if(remoteSettings.customStrategy)setCustomStrategy(String(remoteSettings.customStrategy));if(strategyProfiles.includes(String(remoteSettings.strategyMode)))setProfile(String(remoteSettings.strategyMode));}
           }catch{}})();
         }
@@ -172,7 +180,7 @@ export default function Home() {
       <section className="workspace">
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="legend"><span><i className="coral-line"/>分时价 <b>27.70</b></span><span><i className="teal-line"/>VWAP <b>27.46</b></span></div>
+            <div className="legend"><span><i className={isDown?'green-line':'coral-line'}/>分时价 <b>{stock.price}</b></span><span><i className="teal-line"/>VWAP <b>27.46</b></span></div>
             <span className="live-scan"><i/>开盘自动监控 · 实时扫描中</span>
             <div className="periods">{['分时','5分','15分','30分','60分','日K'].map(p => <button key={p} className={period === p ? 'active' : ''} onClick={() => setPeriod(p)}>{p}</button>)}</div>
             <button className={`tool-button ${showIndicators?'active':''}`} onClick={()=>setShowIndicators(!showIndicators)}>{showIndicators?'隐藏指标':'显示指标'}</button><button className="tool-button" onClick={e=>{const target=e.currentTarget.closest('.chart-zone') as HTMLElement|null;if(target?.requestFullscreen)target.requestFullscreen()}}>全屏</button>
@@ -180,12 +188,12 @@ export default function Home() {
           <div className="chart-wrap">
             <div className="y-axis"><span>28.20</span><span>27.90</span><span>27.60</span><span>27.30</span><span>27.00</span></div>
             <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${stock.name}分时价格与VWAP`}>
-              <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
+              <defs><linearGradient id="priceFillUp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient><linearGradient id="priceFillDown" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#42c98a" stopOpacity=".18"/><stop offset="1" stopColor="#42c98a" stopOpacity="0"/></linearGradient></defs>
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
-              <path d={`${chart} L910 300 L10 300 Z`} fill="url(#priceFill)" />
-              {showIndicators&&<path d={vwapPath} className="vwap-path"/>}<path d={chart} className="price-path"/>
-              <line x1="0" y1="168" x2="920" y2="168" className="last-line"/><circle cx="910" cy="168" r="4" className="last-dot"/>
+              <path d={`${chart} L910 300 L10 300 Z`} fill={`url(#${isDown?'priceFillDown':'priceFillUp'})`} />
+              {showIndicators&&<path d={vwapPath} className="vwap-path"/>}<path d={chart} className={`price-path ${isDown?'down':''}`}/>
+              <line x1="0" y1={chartState.lastY} x2="920" y2={chartState.lastY} className={`last-line ${isDown?'down':''}`}/><circle cx="910" cy={chartState.lastY} r="4" className={`last-dot ${isDown?'down':''}`}/>
               <g className="chart-badge oversold active-signal" transform="translate(170 132)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="6" x2="0" y2="15"/><rect x="-29" y="18" width="58" height="21" rx="5"/><path d="M-5 18 L0 12 L5 18 Z"/><text x="0" y="32">◆ 超卖</text></g>
               <g className="chart-badge sell active-signal" transform="translate(310 88)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-26" y="-39" width="52" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><g className="mini-rabbit" transform="translate(-15 -28)"><ellipse cx="-1.8" cy="-3" rx="1.2" ry="2.8"/><ellipse cx="1.8" cy="-3" rx="1.2" ry="2.8"/><circle cy="1" r="3.2"/><circle className="rabbit-eye" cx="-1.2" cy=".5" r=".45"/><circle className="rabbit-eye" cx="1.2" cy=".5" r=".45"/></g><text className="badge-copy" x="7" y="-25">卖出</text></g>
               <g className="chart-badge overbought active-signal" transform="translate(454 141)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-29" y="-39" width="58" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><text x="0" y="-25">♛ 超买</text></g>
@@ -193,7 +201,7 @@ export default function Home() {
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
               {[18,45,65,88,110,72,96,44,38,54,62,32,28,41,35,31,50,40,36,30,58,42,34,66,48,37,29,45,53,81,56,49,62,73,48,92,55,68,44,78].map((h,i)=>{const vh=Math.round(h*.42);return <rect key={i} x={i*23} y={300-vh} width="10" height={vh} className={i%3===0?'volume red':'volume'}/>}) }
             </svg>
-            <div className="price-flag">27.70</div>
+            <div className={`price-flag ${isDown?'down':''}`}>{stock.price}</div>
             <div className="x-axis"><span>09:30</span><span>10:00</span><span>10:30</span><span>11:30/13:00</span><span>14:00</span><span>14:30</span><span>15:00</span></div>
           </div>
           <div className="signal-tape">
@@ -353,7 +361,7 @@ function OnboardingView({initial,initialList,onListChange,onSave}:{initial:{stoc
   const [newCode,setNewCode]=useState('');
   const [newName,setNewName]=useState('');
   const [listError,setListError]=useState('');
-  const add=()=>{const code=newCode.replace(/\D/g,'').slice(0,6);if(code.length!==6){setListError('请输入完整的6位股票代码');return}if(list.some(item=>item.code===code)){setListError('该股票已经在监控列表中');return}const name=newName.trim()||knownStockNames[code]||`自选股 ${code}`;const next=[...list,{code,name,price:'--',change:'0.00%'}];setList(next);onListChange(next);setStock(`${code} ${name}`);setNewCode('');setNewName('');setListError(`已添加 ${code} ${name}，监控台已同步`)};
+  const add=()=>{const code=newCode.replace(/\D/g,'').slice(0,6);if(code.length!==6){setListError('请输入完整的6位股票代码');return}if(list.some(item=>item.code===code)){setListError('该股票已经在监控列表中');return}const name=newName.trim()||knownStockNames[code]||`自选股 ${code}`;const next=[...list,{code,name,price:'--',change:'0.00%',prices:[]}];setList(next);onListChange(next);setStock(`${code} ${name}`);setNewCode('');setNewName('');setListError(`已添加 ${code} ${name}，监控台已同步`)};
   const remove=(code:string)=>{if(list.length<=1){setListError('至少需要保留一只监控股票');return}const next=list.filter(item=>item.code!==code);setList(next);onListChange(next);if(stock.startsWith(code))setStock(`${next[0].code} ${next[0].name}`);setListError('已从监控台移除')};
   return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>管理监控股票、计划底仓和风险偏好。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>{const code=e.target.value.replace(/\D/g,'').slice(0,6);setNewCode(code);if(!newName&&knownStockNames[code])setNewName(knownStockNames[code]);setListError('')}} onKeyDown={e=>{if(e.key==='Enter')add()}} inputMode="numeric" autoComplete="off" placeholder="输入6位代码"/><input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add()}} autoComplete="off" placeholder="名称（可不填）"/><button onClick={add}>＋ 加入监控</button></div>{listError&&<small className={listError.startsWith('已')?'list-success':'list-error'}>{listError}</small>}<small>只填代码即可添加；添加和删除会立即同步到操盘台与多股监控。</small></div></div><div className="onboarding-step"><b>02</b><div><span>计划底仓</span><div className="share-setup"><button onClick={()=>setShares(Math.max(0,shares-100))}>−</button><label><input type="text" inputMode="numeric" autoComplete="off" value={shares||''} onChange={e=>setShares(Math.max(0,Number(e.target.value.replace(/\D/g,''))||0))}/><em>股</em></label><button onClick={()=>setShares(shares+100)}>＋</button></div><small>可以直接输入股数，也可以按每次 100 股增减；收盘应恢复到这个数量。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>onSave({stock,baseShares:shares,risk},list)}>保存底仓与偏好 <span>→</span></button></div></div>;
 }
@@ -497,6 +505,7 @@ function BacktestView({ profile, setProfile, stock, initialBaseShares }: { profi
         </div>
         <div className="equity-panel"><div className="panel-heading"><div><h2>资金曲线</h2><span>2026-06-01 — 2026-07-11</span></div><div className="curve-legend"><span><i/>净资产</span><span><i/>基准持仓</span></div></div><svg viewBox="0 0 800 220" preserveAspectRatio="none" aria-label="回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".22"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{[40,80,120,160,200].map(y=><line key={y} x1="0" x2="800" y1={y} y2={y} className="equity-grid"/>)}<path d="M0 190 C55 176 82 182 120 160 S190 170 230 142 S302 151 350 120 S430 132 470 98 S550 112 600 80 S680 96 730 54 S772 60 800 32 L800 220 L0 220 Z" fill="url(#equityFill)"/><path d="M0 190 C55 176 82 182 120 160 S190 170 230 142 S302 151 350 120 S430 132 470 98 S550 112 600 80 S680 96 730 54 S772 60 800 32" className="equity-line"/><path d="M0 185 C130 174 220 178 320 150 S520 140 800 110" className="benchmark-line"/></svg></div>
         <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>29</b></div><div><span>当日闭环</span><b>41 / 43</b></div><div><span>正T / 反T</span><b>18 / 23</b></div><div><span>闭环胜率</span><b className="teal">68.29%</b></div><div><span>收盘仓位一致率</span><b>95.35%</b></div><div><span>平均闭环时间</span><b>21分</b></div></div><div className="failure-panel"><h3>未执行与失败原因</h3><p><span>价差不足 0.5%</span><b>17次</b></p><p><span>趋势方向拦截</span><b>9次</b></p><p><span>可卖旧仓不足</span><b>2次</b></p><p><span>14:50 未恢复底仓</span><b className="failure-alert">2次</b></p></div></div>
+        <section className="pattern-analysis"><div className="pattern-head"><div><span className="eyebrow">INTRADAY PATTERN LAB</span><h2>{stock.code} {stock.name} · 单股规律分析</h2><p>基于当前回测区间的日内行为统计，结果仅作研究参考。</p></div><span className="pattern-confidence">样本可靠度 · 中</span></div><div className="pattern-grid"><div><span>高点常见时段</span><b>10:15—11:20</b><small>约 38% 的样本在此段形成日内高点</small></div><div><span>低点常见时段</span><b>13:35—14:30</b><small>午后回落后出现低吸机会较多</small></div><div><span>正T闭环胜率</span><b className="teal">66.7%</b><small>平均净价差 0.54%</small></div><div><span>反T闭环胜率</span><b className="coral-text">72.0%</b><small>平均净价差 0.68%</small></div></div><div className="pattern-timeline"><span>推荐观察 <b>09:35—10:00</b></span><i><em/></i><span>谨慎开仓 <b>14:30 后</b></span></div><small className="pattern-note">当前结论来自模拟数据；需要更多历史 1 分钟数据后，才会提升为高可靠度规律。</small></section>
       </div>
     </div>
   </section>;
