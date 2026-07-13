@@ -99,7 +99,7 @@ export default function Home() {
       return updated;
     });
   };
-  const minutePoints = useMemo(() => trialQuote?.minutes?.length ? trialQuote.minutes : marketData?.minutes ?? [], [trialQuote?.minutes, marketData?.minutes]);
+  const minutePoints = useMemo(() => trialQuote?.minutes?.length ? trialQuote.minutes : marketData?.minutes ?? [], [trialQuote, marketData]);
   const chartModel = useMemo(() => {
     if (minutePoints.length < 2) return null;
     const prices=minutePoints.map(point=>point.price); const min=Math.min(...prices); const max=Math.max(...prices); const range=max-min||Math.max(max*.002,0.01);
@@ -235,7 +235,7 @@ export default function Home() {
         </div>
         <div className="quote"><strong>{activeQuote?.price?.toFixed(2) ?? "--"}</strong><span>{activeQuote?.changePercent == null ? "--" : `${activeQuote.changePercent >= 0 ? "+" : ""}${activeQuote.changePercent.toFixed(2)}%`}</span></div>
         <div className="quote-metrics">
-          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{trialQuote ? "1 秒试用" : "公开延迟"}</b></span><span>分钟线 <b>未接入</b></span>
+          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{trialQuote ? "1 秒试用" : "公开延迟"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? `${minutePoints.length} 点同步` : "等待数据"}</b></span>
         </div>
         <div className="auction"><span>集合竞价</span><b>高开转弱 · 反T优先</b><small>3/4 条件确认</small></div>
       </section>
