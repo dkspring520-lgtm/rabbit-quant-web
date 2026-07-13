@@ -504,6 +504,13 @@ const marketStrategies = [
   {rank:5,name:'新锐挑战兔',author:'NeoQuant',mode:'回测',win:66,returns:13.7,drawdown:6.4,cycles:29,days:22,risk:'高风险',price:0,followers:48,tags:['灵敏档','超买超卖','小样本'],summary:'灵敏型候选策略，收益较高但样本量较少，目前仅允许历史回测与模拟观察。'},
 ];
 
+const builtInStrategies = [
+  {id:'steady-pullback',name:'稳健回踩观察',tag:'低频 · 低回撤优先',fit:'适合先建立纪律：仅在趋势背景与回踩确认同时满足时观察。',rules:['09:45 前不触发','价格结构与量能同时确认','单日最多 2 次候选'],risk:'连续两次无效后，当日暂停'},
+  {id:'opening-reversal',name:'开盘反转确认',tag:'开盘 · 正反T候选',fit:'观察高开转弱或低开转强，不用第一根波动直接下结论。',rules:['仅记录 09:45 后信号','回抽失败/站回需二次确认','不追逐快速拉升或跳水'],risk:'开盘异常放量时只观察'},
+  {id:'afternoon-vwap',name:'午后均值回归',tag:'午后 · VWAP参考',fit:'用于震荡日午后偏离后的收敛观察，先处理未闭环仓位。',rules:['仅在 13:30–14:30 观察','量价收敛后才形成候选','已有未闭环时不新增'],risk:'14:50 前停止新候选'},
+  {id:'position-guard',name:'底仓闭环卫士',tag:'风控 · 始终生效',fit:'不是交易策略，而是每个策略都应遵守的仓位与尾盘检查。',rules:['T+1 可卖数量检查','未配对时冻结新候选','收盘前核对计划底仓'],risk:'不满足闭环条件即转人工核对'},
+];
+
 function readMarketStorage(accountName:string){
   if(typeof window==='undefined')return {subscribed:[] as string[],name:'',summary:''};
   try{
@@ -526,9 +533,12 @@ function StrategyMarketView({accountName}:{accountName:string}){
   const [draftName,setDraftName]=useState(()=>readMarketStorage(accountName).name);
   const [draftSummary,setDraftSummary]=useState(()=>readMarketStorage(accountName).summary);
   const [draftMessage,setDraftMessage]=useState('');
+  const [enabledBuiltIns,setEnabledBuiltIns]=useState<string[]>([]);
   const storageKey=`rabbit-market:${accountName.toLowerCase()}`;
+  useEffect(()=>{try{const saved=JSON.parse(localStorage.getItem(`${storageKey}:builtins`)||'[]');setEnabledBuiltIns(Array.isArray(saved)?saved:[])}catch{setEnabledBuiltIns([])}},[storageKey]);
   const rows=[...marketStrategies].sort((a,b)=>sort==='收益榜'?b.returns-a.returns:sort==='低回撤榜'?a.drawdown-b.drawdown:sort==='胜率榜'?b.win-a.win:a.rank-b.rank);
   const follow=(name:string)=>setSubscribed(items=>{const next=items.includes(name)?items.filter(item=>item!==name):[...items,name];try{localStorage.setItem(`${storageKey}:subscriptions`,JSON.stringify(next))}catch{}return next});
+  const toggleBuiltIn=(id:string)=>setEnabledBuiltIns(items=>{const next=items.includes(id)?items.filter(item=>item!==id):[...items,id];try{localStorage.setItem(`${storageKey}:builtins`,JSON.stringify(next));}catch{}return next;});
   const saveDraft=()=>{
     const name=draftName.trim();
     const summary=draftSummary.trim();
@@ -538,6 +548,7 @@ function StrategyMarketView({accountName}:{accountName:string}){
   return <section className="market-view">
     <div className="market-hero"><div><span className="eyebrow">RABBIT STRATEGY MARKET</span><h1>策略智能体排行榜</h1><p>发现、比较并模拟跟随优秀的用户策略。所有指标都同时展示样本与风险，不用单一胜率制造错觉。</p></div><button onClick={()=>setPublishing(true)}>＋ 发布我的策略</button></div>
     <div className="market-guard"><b>测试版安全边界</b><span>支持策略发布、订阅与模拟跟随</span><span>真实资金自动交易保持关闭</span><span>不代管资金，不承诺收益</span></div>
+    <section className="builtin-strategies"><div className="builtin-head"><div><span className="eyebrow">BUILT-IN PLAYBOOKS</span><h2>内置策略库</h2><p>这些是透明的研究规则，不是收益承诺。启用后只进入模拟观察和记录，不会自动下单。</p></div><b>已启用 {enabledBuiltIns.length} / {builtInStrategies.length}</b></div><div className="builtin-grid">{builtInStrategies.map(item=>{const enabled=enabledBuiltIns.includes(item.id);return <article className={enabled?'enabled':''} key={item.id}><div><span>{item.tag}</span><em>{enabled?'模拟观察中':'未启用'}</em></div><h3>{item.name}</h3><p>{item.fit}</p><ul>{item.rules.map(rule=><li key={rule}>{rule}</li>)}</ul><small>风控：{item.risk}</small><button onClick={()=>toggleBuiltIn(item.id)}>{enabled?'停止模拟观察':'启用模拟观察'}</button></article>})}</div></section>
     <div className="market-stats"><div><span>公开策略</span><b>128</b><small>46个通过样本检查</small></div><div><span>今日模拟跟随</span><b>1,284</b><small>全部由用户主动开启</small></div><div><span>平均闭环胜率</span><b>68.4%</b><small>至少20次闭环才统计</small></div><div><span>风险暂停</span><b className="amber-text">7</b><small>触发回撤或仓位异常</small></div></div>
     <div className="market-toolbar"><div>{['综合榜','胜率榜','收益榜','低回撤榜'].map(item=><button className={sort===item?'active':''} onClick={()=>setSort(item)} key={item}>{item}</button>)}</div><span>排行榜每个交易日收盘后更新</span></div>
     <div className="market-list"><div className="market-row market-title"><span>排名 / 策略</span><span>验证状态</span><span>胜率</span><span>扣费净收益</span><span>最大回撤</span><span>样本</span><span>订阅</span><span/></div>{rows.map(item=><div className="market-row" key={item.name}><span className="market-name"><i>{item.rank<=3?`TOP ${item.rank}`:`#${item.rank}`}</i><b>{item.name}</b><small>{item.author} · {item.tags.join(' / ')}</small></span><span><em className={item.mode==='模拟盘'?'verified':'backtested'}>{item.mode}</em><small>{item.days}个交易日</small></span><strong>{item.win}%</strong><strong className="teal">+{item.returns}%</strong><strong>-{item.drawdown}%</strong><span><b>{item.cycles}次闭环</b><small>{item.risk}</small></span><span><b>{item.price===0?'免费':`¥${item.price}/月`}</b><small>{item.followers}人关注</small></span><button onClick={()=>setSelected(item)}>查看策略 →</button></div>)}</div>
