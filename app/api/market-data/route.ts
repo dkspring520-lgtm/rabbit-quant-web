@@ -41,6 +41,26 @@ async function fromTencentMinutes(code: string): Promise<MinutePoint[]> {
   }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price));
 }
 
+async function fromEastmoneyMinutes(code: string): Promise<MinutePoint[]> {
+  const secid = `${code.startsWith("6") ? "1" : "0"}.${code}`;
+  const response = await fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56&klt=1&fqt=0&beg=0&end=20500101&lmt=500`);
+  const payload = await response.json() as { data?: { klines?: string[] } };
+  const rows = payload.data?.klines ?? [];
+  const datedPoints = rows.map((row) => {
+    const [timestamp, , close, , , volume] = row.split(",");
+    return { date: timestamp.slice(0, 10), time: timestamp.slice(-5).replace(":", ""), price: Number(close), volume: Number(volume) };
+  }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price) && point.price > 0);
+  const latestDate = datedPoints.at(-1)?.date;
+  const points = datedPoints.filter((point) => point.date === latestDate).map(({ time, price, volume }) => ({ time, price, volume }));
+  if (!response.ok || points.length < 2) throw new Error("东方财富分时不可用");
+  return points;
+}
+
+async function fromPublicMinutes(code: string) {
+  try { return await fromTencentMinutes(code); }
+  catch { return fromEastmoneyMinutes(code); }
+}
+
 async function fromTencentDailyBars(code: string) {
   const response = await fetch(`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${marketPrefix(code)}${code},day,,,180,qfq`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
   if (!response.ok) throw new Error("腾讯日线不可用");
@@ -83,15 +103,20 @@ export async function GET(request: Request) {
       let lastError: unknown;
       for (const provider of providers) {
         try {
-          const [data, minutes] = await Promise.all([provider(code), fromTencentMinutes(code).catch(() => [])]);
+          const [data, minutes] = await Promise.all([provider(code), fromPublicMinutes(code).catch(() => [])]);
           return Response.json({ ...data, minutes, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt: new Date().toISOString(), bars: [] }, { headers: { "Cache-Control": "no-store, max-age=0" } });
         } catch (error) { lastError = error; }
       }
       throw lastError instanceof Error ? lastError : new Error("所有试用行情源暂不可用");
     }
-    const [bars, quoteResult, minutes] = await Promise.all([fromTencentDailyBars(code), fromTencent(code).catch(() => fromEastmoneyQuote(code).catch(() => null)), fromTencentMinutes(code).catch(() => [])]);
-    const latest = bars.at(-1)!;
-    const fallbackQuote: Quote = { code, name: code, price: latest.close, previousClose: bars.at(-2)?.close ?? null, change: latest.close - (bars.at(-2)?.close ?? latest.close), changePercent: bars.at(-2)?.close ? (latest.close - bars.at(-2)!.close) / bars.at(-2)!.close * 100 : null, open: latest.open, high: latest.high, low: latest.low, volume: latest.volume, amount: latest.amount };
+    const [bars, quoteResult, minutes] = await Promise.all([
+      fromTencentDailyBars(code).catch(() => []),
+      fromTencent(code).catch(() => fromSina(code).catch(() => fromEastmoneyQuote(code).catch(() => null))),
+      fromPublicMinutes(code).catch(() => []),
+    ]);
+    const latest = bars.at(-1);
+    if (!quoteResult && !latest) throw new Error("所有公开行情源暂不可用");
+    const fallbackQuote: Quote = { code, name: code, price: latest?.close ?? null, previousClose: bars.at(-2)?.close ?? null, change: latest ? latest.close - (bars.at(-2)?.close ?? latest.close) : null, changePercent: latest && bars.at(-2)?.close ? (latest.close - bars.at(-2)!.close) / bars.at(-2)!.close * 100 : null, open: latest?.open ?? null, high: latest?.high ?? null, low: latest?.low ?? null, volume: latest?.volume ?? null, amount: latest?.amount ?? null };
     return Response.json({ provider: quoteResult?.provider ?? "tencent-public", quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minutes, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502 }); }
 }
