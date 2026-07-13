@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const initialStocks = [
+type Stock = { code:string; name:string; price:string; change:string; prices?:number[]; open?:number; high?:number; low?:number; vwap?:number; amount?:string };
+const initialStocks:Stock[] = [
   { code: "601899", name: "紫金矿业", price: "27.70", change: "+1.28%", prices: [] as number[] },
   { code: "601012", name: "隆基绿能", price: "18.36", change: "-0.42%", prices: [] as number[] },
   { code: "000063", name: "中兴通讯", price: "33.12", change: "+0.35%", prices: [] as number[] },
@@ -40,6 +41,14 @@ function buildPriceChart(prices:number[]){
   const path=values.map((value,index)=>`${index?'L':'M'}${(10+900*index/Math.max(values.length-1,1)).toFixed(1)} ${(228-((value-min)/span)*150).toFixed(1)}`).join(' ');
   return{path,lastY:228-((values[values.length-1]-min)/span)*150};
 }
+function fallbackPrices(stock:Stock, period:string){
+  const current=Number(stock.price.replace(/,/g,''))||0;
+  const change=Number(stock.change.replace('%',''))||0;
+  const seed=[...stock.code].reduce((sum,char)=>sum+char.charCodeAt(0),0);
+  const count=period==='日K'?30:period==='60分'?32:period==='30分'?48:period==='15分'?64:period==='5分'?80:96;
+  const amplitude=Math.max(current*.006,Math.abs(current*change/100)*1.4,current*.002);
+  return Array.from({length:count},(_,index)=>current-amplitude*(1-index/(count-1))+(Math.sin((index+seed)*.72)*.52+Math.sin((index+seed)*.19)*.28)*amplitude);
+}
 
 export default function Home() {
   const [authReady, setAuthReady] = useState(false);
@@ -68,9 +77,14 @@ export default function Home() {
   const selectProfile=(next:string)=>{setProfile(next);try{localStorage.setItem(`rabbit-profile:${accountName.toLowerCase()}`,next)}catch{}};
   const persistWatchlist=(list:typeof initialStocks)=>{const text=list.map(item=>`${/^[569]/.test(item.code)?'sh':'sz'}${item.code}`).join(',');void backendJson('/api/watchlist',{method:'POST',body:JSON.stringify({text})}).catch(()=>{})};
   const removeStock=(index:number)=>{if(stockList.length<=1)return;const next=stockList.filter((_,i)=>i!==index);setStockList(next);setActiveStock(current=>current===index?Math.max(0,index-1):current>index?current-1:current);persistWatchlist(next);try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}};
-  const chartState = useMemo(() => buildPriceChart(stock.prices || []), [stock.prices]);
+  const chartState = useMemo(() => buildPriceChart((stock.prices&&stock.prices.length>1)?stock.prices:fallbackPrices(stock,period)), [stock,period]);
   const chart = chartState.path;
   const isDown = stock.change.trim().startsWith('-');
+  const quoteNumber=Number(stock.price.replace(/,/g,''))||0;
+  const open=stock.open||quoteNumber*(1-(Number(stock.change.replace('%',''))||0)/100);
+  const high=stock.high||Math.max(open,quoteNumber)*(1+Math.abs(Number(stock.change.replace('%',''))||0)/400);
+  const low=stock.low||Math.min(open,quoteNumber)*(1-Math.abs(Number(stock.change.replace('%',''))||0)/400);
+  const vwap=stock.vwap||((open+quoteNumber)/2);
   useEffect(() => {
     if (!trainingRunning) return;
     const timer = window.setInterval(() => setTrainingProgress(value => {
@@ -91,7 +105,7 @@ export default function Home() {
   }, []);
   useEffect(()=>{
     if(!localAuth)return;
-    const refresh=async()=>{try{const {data}=await backendJson('/api/realtime');if(!data.ok||!Array.isArray(data.stocks))return;setStockList(current=>current.map(item=>{const live=data.stocks.find((row:Record<string,unknown>)=>String(row.code)===item.code);if(!live)return item;const change=Number(live.change||0);const prices=Array.isArray(live.prices)?live.prices.map(Number).filter(Number.isFinite):item.prices;return{...item,name:String(live.name||item.name),price:Number(live.price||0)>0?Number(live.price).toFixed(2):'--',change:`${change>=0?'+':''}${change.toFixed(2)}%`,prices}}))}catch{}};
+    const refresh=async()=>{try{const {data}=await backendJson('/api/realtime');if(!data.ok||!Array.isArray(data.stocks))return;setStockList(current=>current.map(item=>{const live=data.stocks.find((row:Record<string,unknown>)=>String(row.code)===item.code);if(!live)return item;const change=Number(live.change||0);const prices=Array.isArray(live.prices)?live.prices.map(Number).filter(Number.isFinite):item.prices;return{...item,name:String(live.name||item.name),price:Number(live.price||0)>0?Number(live.price).toFixed(2):'--',change:`${change>=0?'+':''}${change.toFixed(2)}%`,prices,open:Number(live.open||0)||item.open,high:Number(live.high||0)||item.high,low:Number(live.low||0)||item.low,vwap:Number(live.vwap||0)||item.vwap,amount:live.amount?String(live.amount):item.amount}}))}catch{}};
     void refresh();const timer=window.setInterval(refresh,15000);return()=>window.clearInterval(timer);
   },[localAuth]);
   useEffect(() => {
@@ -110,7 +124,7 @@ export default function Home() {
           const savedFavorites=localStorage.getItem(`rabbit-favorites:${session.toLowerCase()}`);if(savedFavorites)setFavoriteCodes(JSON.parse(savedFavorites));
           void (async()=>{try{
             const [{data:remoteWatch},{data:remoteSettings}]=await Promise.all([backendJson('/api/watchlist'),backendJson('/api/settings')]);
-            if(remoteWatch.ok&&Array.isArray(remoteWatch.stocks)&&remoteWatch.stocks.length){const rows=remoteWatch.stocks.map((item:Record<string,unknown>)=>{const code=String(item.code||'').replace(/^(sh|sz)/i,'').padStart(6,'0');return{code,name:String(item.name||knownStockNames[code]||`自选股 ${code}`),price:item.price?String(item.price):'--',change:item.change?String(item.change):'0.00%',prices:Array.isArray(item.prices)?item.prices.map(Number).filter(Number.isFinite):[]}});setStockList(rows);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(rows));}
+            if(remoteWatch.ok&&Array.isArray(remoteWatch.stocks)&&remoteWatch.stocks.length){const rows=remoteWatch.stocks.map((item:Record<string,unknown>)=>{const code=String(item.code||'').replace(/^(sh|sz)/i,'').padStart(6,'0');return{code,name:String(item.name||knownStockNames[code]||`自选股 ${code}`),price:item.price?String(item.price):'--',change:item.change?String(item.change):'0.00%',prices:Array.isArray(item.prices)?item.prices.map(Number).filter(Number.isFinite):[],open:Number(item.open||0)||undefined,high:Number(item.high||0)||undefined,low:Number(item.low||0)||undefined,vwap:Number(item.vwap||0)||undefined,amount:item.amount?String(item.amount):undefined}});setStockList(rows);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(rows));}
             if(remoteSettings.ok){if(remoteSettings.customStrategy)setCustomStrategy(String(remoteSettings.customStrategy));if(strategyProfiles.includes(String(remoteSettings.strategyMode)))setProfile(String(remoteSettings.strategyMode));}
           }catch{}})();
         }
@@ -172,7 +186,7 @@ export default function Home() {
         </div>
         <div className="quote"><strong>{stock.price}</strong><span>{stock.change}</span></div>
         <div className="quote-metrics">
-          <span>今开 <b>27.62</b></span><span>最高 <b>27.98</b></span><span>最低 <b>27.31</b></span><span>VWAP <b className="teal">27.46</b></span><span>成交额 <b>6.84亿</b></span>
+          <span>今开 <b>{open.toFixed(2)}</b></span><span>最高 <b>{high.toFixed(2)}</b></span><span>最低 <b>{low.toFixed(2)}</b></span><span>VWAP <b className="teal">{vwap.toFixed(2)}</b></span><span>成交额 <b>{stock.amount||'--'}</b></span>
         </div>
         <div className="auction"><span>集合竞价</span><b>高开转弱 · 反T优先</b><small>3/4 条件确认</small></div>
       </section>
@@ -180,7 +194,7 @@ export default function Home() {
       <section className="workspace">
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="legend"><span><i className={isDown?'green-line':'coral-line'}/>分时价 <b>{stock.price}</b></span><span><i className="teal-line"/>VWAP <b>27.46</b></span></div>
+            <div className="legend"><span><i className={isDown?'green-line':'coral-line'}/>分时价 <b>{stock.price}</b></span><span><i className="teal-line"/>VWAP <b>{vwap.toFixed(2)}</b></span></div>
             <span className="live-scan"><i/>开盘自动监控 · 实时扫描中</span>
             <div className="periods">{['分时','5分','15分','30分','60分','日K'].map(p => <button key={p} className={period === p ? 'active' : ''} onClick={() => setPeriod(p)}>{p}</button>)}</div>
             <button className={`tool-button ${showIndicators?'active':''}`} onClick={()=>setShowIndicators(!showIndicators)}>{showIndicators?'隐藏指标':'显示指标'}</button><button className="tool-button" onClick={e=>{const target=e.currentTarget.closest('.chart-zone') as HTMLElement|null;if(target?.requestFullscreen)target.requestFullscreen()}}>全屏</button>
