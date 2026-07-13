@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
-type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; quote:{ code:string; name:string; price:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[] };
+type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; quote:{ code:string; name:string; price:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[] };
 
 type BacktestResult = { net:number; gross:number; fees:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; status:string };
 
@@ -52,8 +52,6 @@ const agents = [
 ];
 const strategyProfiles = ["稳健档","平衡档","灵敏档","量化学习","自定义策略"];
 
-const chartPath = "M10 228 L34 210 L55 222 L78 186 L102 196 L126 170 L148 178 L171 132 L194 142 L217 105 L240 123 L264 94 L286 111 L310 88 L334 102 L358 119 L382 110 L406 127 L430 118 L454 141 L478 136 L502 150 L526 145 L550 160 L574 151 L598 164 L622 158 L646 180 L670 171 L694 190 L718 185 L742 205 L766 196 L790 210 L814 190 L838 198 L862 176 L886 184 L910 168";
-const vwapPath = "M10 202 C120 184 200 160 300 150 S500 146 620 155 S790 167 910 170";
 
 export default function Home() {
   const [authReady, setAuthReady] = useState(false);
@@ -80,7 +78,7 @@ export default function Home() {
   const [marketQuotes, setMarketQuotes] = useState<Record<string, MarketData["quote"]>>({});
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
   const [trialError, setTrialError] = useState("");
-  const [starred, setStarred] = useState(false);
+  const [starredRevision, setStarredRevision] = useState(0);
   const [indicatorsVisible, setIndicatorsVisible] = useState(true);
   const stock = stockList[activeStock] || stockList[0];
   const activeQuote = trialQuote?.quote ?? marketData?.quote;
@@ -101,7 +99,16 @@ export default function Home() {
       return updated;
     });
   };
-  const chart = useMemo(() => chartPath, []);
+  const minutePoints = useMemo(() => trialQuote?.minutes?.length ? trialQuote.minutes : marketData?.minutes ?? [], [trialQuote?.minutes, marketData?.minutes]);
+  const chartModel = useMemo(() => {
+    if (minutePoints.length < 2) return null;
+    const prices=minutePoints.map(point=>point.price); const min=Math.min(...prices); const max=Math.max(...prices); const range=max-min||Math.max(max*.002,0.01);
+    const pointAt=(point:{price:number},index:number)=>`${10+(index/(minutePoints.length-1))*900},${20+(max-point.price)/range*210}`;
+    const path=`M${minutePoints.map(pointAt).join(' L')}`;
+    let weighted=0, totalVolume=0; const vwap=minutePoints.map((point,index)=>{weighted+=point.price*Math.max(point.volume,1);totalVolume+=Math.max(point.volume,1);return pointAt({price:weighted/totalVolume},index)});
+    const maxVolume=Math.max(...minutePoints.map(point=>point.volume),1);
+    return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,volumes:minutePoints.map((point,index)=>({x:10+(index/(minutePoints.length-1))*900,height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:[max,max-range*.25,max-range*.5,max-range*.75,min]};
+  },[minutePoints]);
   useEffect(() => {
     if (!trainingRunning) return;
     const timer = window.setInterval(() => setTrainingProgress(value => {
@@ -179,15 +186,16 @@ export default function Home() {
     const timer = window.setInterval(() => void load(), 1_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [localAuth, stock?.code]);
-  useEffect(() => {
-    if (!localAuth || !stock?.code) return;
-    try { setStarred(localStorage.getItem(`rabbit-star:${accountName.toLowerCase()}:${stock.code}`) === "1"); } catch {}
-  }, [localAuth, accountName, stock?.code]);
-  const toggleStar = () => setStarred(current => {
-    const next = !current;
-    try { localStorage.setItem(`rabbit-star:${accountName.toLowerCase()}:${stock.code}`, next ? "1" : "0"); } catch {}
-    return next;
-  });
+  const starKey = localAuth && stock?.code ? `rabbit-star:${accountName.toLowerCase()}:${stock.code}` : "";
+  const starred = useMemo(() => {
+    void starredRevision;
+    try { return Boolean(starKey && localStorage.getItem(starKey) === "1"); } catch { return false; }
+  }, [starKey, starredRevision]);
+  const toggleStar = () => {
+    if (!starKey) return;
+    try { localStorage.setItem(starKey, starred ? "0" : "1"); } catch {}
+    setStarredRevision(value => value + 1);
+  };
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-v2.png" alt="做T神器"/></main>;
   if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{setAccountName(name);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length)setStockList(list);}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
@@ -241,22 +249,18 @@ export default function Home() {
             <button className="tool-button" onClick={()=>setIndicatorsVisible(value=>!value)} aria-pressed={indicatorsVisible}>{indicatorsVisible ? "隐藏指标" : "显示指标"}</button><button className="tool-button" onClick={()=>void document.documentElement.requestFullscreen?.().catch(()=>{})}>全屏</button>
           </div>
           <div className="chart-wrap">
-            <div className="y-axis"><span>28.20</span><span>27.90</span><span>27.60</span><span>27.30</span><span>27.00</span></div>
-            <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}价格参考图`}>
+            <div className="y-axis">{chartModel ? chartModel.ticks.map(value=><span key={value}>{value.toFixed(2)}</span>) : [0,1,2,3,4].map(value=><span key={value}>--</span>)}</div>
+            <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图`}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
-              <path d={`${chart} L910 300 L10 300 Z`} fill="url(#priceFill)" />
-              {indicatorsVisible&&<path d={vwapPath} className="vwap-path"/>}<path d={chart} className="price-path"/>
-              <line x1="0" y1="168" x2="920" y2="168" className="last-line"/><circle cx="910" cy="168" r="4" className="last-dot"/>
-              <g className="chart-badge oversold active-signal" transform="translate(170 132)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="6" x2="0" y2="15"/><rect x="-29" y="18" width="58" height="21" rx="5"/><path d="M-5 18 L0 12 L5 18 Z"/><text x="0" y="32">◆ 超卖</text></g>
-              <g className="chart-badge sell active-signal" transform="translate(310 88)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-26" y="-39" width="52" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><g className="mini-rabbit" transform="translate(-15 -28)"><ellipse cx="-1.8" cy="-3" rx="1.2" ry="2.8"/><ellipse cx="1.8" cy="-3" rx="1.2" ry="2.8"/><circle cy="1" r="3.2"/><circle className="rabbit-eye" cx="-1.2" cy=".5" r=".45"/><circle className="rabbit-eye" cx="1.2" cy=".5" r=".45"/></g><text className="badge-copy" x="7" y="-25">卖出</text></g>
-              <g className="chart-badge overbought active-signal" transform="translate(454 141)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="-6" x2="0" y2="-15"/><rect x="-29" y="-39" width="58" height="21" rx="5"/><path d="M-5 -18 L0 -12 L5 -18 Z"/><text x="0" y="-25">♛ 超买</text></g>
-              <g className="chart-badge buy active-signal" transform="translate(742 205)"><circle className="badge-pulse" r="7"/><circle className="badge-trigger" r="4"/><line x1="0" y1="6" x2="0" y2="15"/><rect x="-26" y="18" width="52" height="21" rx="5"/><path d="M-5 18 L0 12 L5 18 Z"/><g className="mini-rabbit" transform="translate(-15 29)"><ellipse cx="-1.8" cy="-3" rx="1.2" ry="2.8"/><ellipse cx="1.8" cy="-3" rx="1.2" ry="2.8"/><circle cy="1" r="3.2"/><circle className="rabbit-eye" cx="-1.2" cy=".5" r=".45"/><circle className="rabbit-eye" cx="1.2" cy=".5" r=".45"/></g><text className="badge-copy" x="7" y="32">买入</text></g>
+              {chartModel&&<><path d={`${chartModel.path} L910 252 L10 252 Z`} fill="url(#priceFill)" />
+              {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
+              <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx="910" cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
-              {[18,45,65,88,110,72,96,44,38,54,62,32,28,41,35,31,50,40,36,30,58,42,34,66,48,37,29,45,53,81,56,49,62,73,48,92,55,68,44,78].map((h,i)=>{const vh=Math.round(h*.42);return <rect key={i} x={i*23} y={300-vh} width="10" height={vh} className={i%3===0?'volume red':'volume'}/>}) }
+              {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x} y={300-bar.height} width={Math.max(2,850/chartModel.volumes.length)} height={bar.height} className={bar.up?'volume':'volume red'}/>) }
             </svg>
-            <div className="price-flag">27.70</div>
+            <div className="price-flag">{chartModel?.last.price.toFixed(2) ?? '--'}</div>
             <div className="x-axis"><span>09:30</span><span>10:00</span><span>10:30</span><span>11:30/13:00</span><span>14:00</span><span>14:30</span><span>15:00</span></div>
           </div>
           <div className="signal-tape">
@@ -307,7 +311,7 @@ export default function Home() {
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "懂它" ? <SingleStockResearchView accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView accountName={accountName} preferences={preferences} stock={stock} /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={setProfile} preferences={preferences} stock={stock} />}
+      </> : activeView === "懂它" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}`} accountName={accountName} preferences={preferences} stock={stock} /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView key={`${stock.code}:${preferences.baseShares}`} profile={profile} setProfile={setProfile} preferences={preferences} stock={stock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -462,13 +466,12 @@ type StockResearchNote = { id:string; date:string; mode:string; outcome:string; 
 function SingleStockResearchView({accountName,stock,quote,marketData,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;onOpenConsole:()=>void}) {
   const storageKey=`rabbit-stock-research:${accountName.toLowerCase()}:${stock.code}`;
   const ledgerKey=`rabbit-manual-ledger:${accountName.toLowerCase()}:${stock.code}`;
-  const [notes,setNotes]=useState<StockResearchNote[]>([]);
+  const [notes,setNotes]=useState<StockResearchNote[]>(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];return Array.isArray(parsed)?parsed:[]}catch{return [];}});
   const [feedback,setFeedback]=useState('');
   const [mode,setMode]=useState('观察');
   const [outcome,setOutcome]=useState('待验证');
-  const [manualCount,setManualCount]=useState(0);
-  useEffect(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];setNotes(Array.isArray(parsed)?parsed:[]);const ledger=localStorage.getItem(ledgerKey);const rows=ledger?JSON.parse(ledger):[];setManualCount(Array.isArray(rows)?rows.filter((row:{status?:string})=>row.status!=='已失效').length:0);}catch{setNotes([]);setManualCount(0);}},[storageKey,ledgerKey]);
-  const bars=marketData?.bars??[];
+  const [manualCount]=useState(()=>{try{const ledger=localStorage.getItem(ledgerKey);const rows=ledger?JSON.parse(ledger):[];return Array.isArray(rows)?rows.filter((row:{status?:string})=>row.status!=='已失效').length:0;}catch{return 0;}});
+  const bars=useMemo(()=>marketData?.bars??[],[marketData]);
   const stats=useMemo(()=>{
     const recent=bars.slice(-20);
     if(!recent.length)return {range:0,volumeRatio:0,trend:'等待日线数据',close:quote?.price??null,ma20:0,upDays:0};
@@ -533,9 +536,8 @@ function StrategyMarketView({accountName}:{accountName:string}){
   const [draftName,setDraftName]=useState(()=>readMarketStorage(accountName).name);
   const [draftSummary,setDraftSummary]=useState(()=>readMarketStorage(accountName).summary);
   const [draftMessage,setDraftMessage]=useState('');
-  const [enabledBuiltIns,setEnabledBuiltIns]=useState<string[]>([]);
   const storageKey=`rabbit-market:${accountName.toLowerCase()}`;
-  useEffect(()=>{try{const saved=JSON.parse(localStorage.getItem(`${storageKey}:builtins`)||'[]');setEnabledBuiltIns(Array.isArray(saved)?saved:[])}catch{setEnabledBuiltIns([])}},[storageKey]);
+  const [enabledBuiltIns,setEnabledBuiltIns]=useState<string[]>(()=>{try{const saved=JSON.parse(localStorage.getItem(`${storageKey}:builtins`)||'[]');return Array.isArray(saved)?saved:[]}catch{return [];}});
   const rows=[...marketStrategies].sort((a,b)=>sort==='收益榜'?b.returns-a.returns:sort==='低回撤榜'?a.drawdown-b.drawdown:sort==='胜率榜'?b.win-a.win:a.rank-b.rank);
   const follow=(name:string)=>setSubscribed(items=>{const next=items.includes(name)?items.filter(item=>item!==name):[...items,name];try{localStorage.setItem(`${storageKey}:subscriptions`,JSON.stringify(next))}catch{}return next});
   const toggleBuiltIn=(id:string)=>setEnabledBuiltIns(items=>{const next=items.includes(id)?items.filter(item=>item!==id):[...items,id];try{localStorage.setItem(`${storageKey}:builtins`,JSON.stringify(next));}catch{}return next;});
@@ -579,9 +581,8 @@ function HoldingsView({accountName,preferences,stock}:{accountName:string;prefer
   const [filter, setFilter] = useState("全部流水");
   const [planDone, setPlanDone] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
-  const [manualRows, setManualRows] = useState<typeof ledgerRows>([]);
   const storageKey = `rabbit-manual-ledger:${accountName.toLowerCase()}:${stock.code}`;
-  useEffect(()=>{try { const saved=localStorage.getItem(storageKey); if(saved) { const parsed=JSON.parse(saved); if(Array.isArray(parsed)) setManualRows(parsed); } else setManualRows([]); } catch {}},[storageKey]);
+  const [manualRows, setManualRows] = useState<typeof ledgerRows>(()=>{try { const saved=localStorage.getItem(storageKey); const parsed=saved?JSON.parse(saved):[]; return Array.isArray(parsed)?parsed:[]; } catch { return []; }});
   const saveManualRows=(next:typeof ledgerRows)=>{setManualRows(next);try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}};
   const invalidate=(time:string)=>saveManualRows(manualRows.map(row=>row.time===time?{...row,status:'已失效',cycle:'已撤销'}:row));
   const validManualRows=manualRows.filter(row=>row.status!=='已失效');
@@ -639,7 +640,6 @@ function BacktestView({ profile, setProfile, preferences, stock }: { profile: st
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [source, setSource] = useState<Pick<MarketData,"provider"|"fetchedAt"|"bars"> | null>(null);
   const [error, setError] = useState("");
-  useEffect(()=>{setBaseShares(preferences.baseShares);setSellable(preferences.baseShares);},[preferences.baseShares]);
   const run = async () => { setRunning(true); setError(""); try { const response=await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`); if(!response.ok)throw new Error("行情服务暂不可用"); const data=await response.json() as MarketData; const calculated=runDailyBacktest(data.bars,capital,baseShares,sellable,feeRate,slippage); setResult(calculated);setSource(data); }catch{setResult(null);setError("无法取得真实行情，未生成回测结果。请稍后重试。");}finally{setRunning(false);} };
   const curve = result?.curve ?? [];
   const points = curve.length > 1 ? curve.map((value,index)=>`${(index/(curve.length-1))*800},${200-((value-Math.min(...curve))/(Math.max(...curve)-Math.min(...curve)||1))*160}`).join(" ") : "";
