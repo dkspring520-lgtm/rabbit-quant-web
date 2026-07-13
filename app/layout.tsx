@@ -24,9 +24,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "做T神器｜A股日内量化决策终端",
   description: "多股监控、集合竞价研判、正反T决策、模拟复盘与四智能体持续训练。",
-  other: {
-    "codex-preview": "development",
-  },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
