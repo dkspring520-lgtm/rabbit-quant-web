@@ -4,6 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; quote:{ code:string; name:string; price:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[] };
+type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string };
+
+function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | undefined, minutes: { price:number }[]): StockState {
+  const closes = bars.map(bar => bar.close).filter(Number.isFinite);
+  if (closes.length < 20 || !quote?.price) return { label:"数据积累中", level:"flat", score:0, summary:"日线样本不足，暂不输出交易倾向。", action:"先观察，不开新 T" };
+  const last = quote.price;
+  const average = (values:number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const ma5 = average(closes.slice(-5)); const ma20 = average(closes.slice(-20));
+  const fiveDay = (last - closes.at(-6)!) / closes.at(-6)!;
+  const recentHigh = Math.max(...closes.slice(-20)); const drawdown = (last - recentHigh) / recentHigh;
+  const intradayRange = quote.high && quote.low ? (quote.high - quote.low) / last : 0;
+  const intradayMove = minutes.length > 1 ? (last - minutes[0].price) / minutes[0].price : 0;
+  if (quote.changePercent !== null && (quote.changePercent <= -5 || intradayRange >= .07 || drawdown <= -.1)) return { label:"极端风险", level:"risk", score:92, summary:"跌幅、振幅或回撤触发风险阈值。", action:"暂停做 T，等待波动收敛" };
+  if (last > ma5 && ma5 > ma20 && fiveDay >= .035 && intradayMove >= 0) return { label:"强势上涨", level:"up", score:82, summary:"价格站上 5/20 日均线，短期趋势向上。", action:"只做正 T，回踩确认再参与" };
+  if (last >= ma20 && fiveDay > -.015) return { label:"弱势上涨", level:"up", score:58, summary:"趋势仍偏多，但动能和确认度一般。", action:"轻仓正 T，避免追高" };
+  if (last < ma20 && (fiveDay <= -.025 || intradayMove < -.01)) return { label:"弱势下跌", level:"down", score:73, summary:"价格位于中期均线下方，反弹可信度偏低。", action:"优先减仓或反 T，不抄底" };
+  return { label:"横盘震荡", level:"flat", score:46, summary:"价格围绕均线反复，方向尚未形成。", action:"只在区间边缘低吸高抛" };
+}
 
 type BacktestResult = { net:number; gross:number; fees:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; status:string };
 
@@ -109,6 +127,7 @@ export default function Home() {
     const maxVolume=Math.max(...minutePoints.map(point=>point.volume),1);
     return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,volumes:minutePoints.map((point,index)=>({x:10+(index/(minutePoints.length-1))*900,height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:[max,max-range*.25,max-range*.5,max-range*.75,min]};
   },[minutePoints]);
+  const stockState = useMemo(() => recognizeStockState(marketData?.bars ?? [], activeQuote, minutePoints), [marketData?.bars, activeQuote, minutePoints]);
   useEffect(() => {
     if (!trainingRunning) return;
     const timer = window.setInterval(() => setTrainingProgress(value => {
@@ -272,6 +291,10 @@ export default function Home() {
         <aside className="decision-zone">
           <div className="decision-tabs"><button onClick={() => setSignalMode('正T')} className={signalMode==='正T'?'active':''}>正T</button><button onClick={() => setSignalMode('反T')} className={signalMode==='反T'?'active':''}>反T</button></div>
           <div className="decision-label"><span>SMART-T 决策</span><em>可信度高</em></div>
+          <div className={`stock-state ${stockState.level}`}>
+            <div><span>股票状态识别器</span><b>{stockState.label}</b></div><strong>{stockState.score}<small>/100</small></strong>
+            <p>{stockState.summary}</p><em>{stockState.action}</em>
+          </div>
           <div className="radar-gate"><div><span>市场雷达门控</span><b>72<small>/100</small></b></div><p><i/>震荡区间 · 使用当前档位标准门槛</p><small>雷达低于25禁止激进正T；75以上提高反T确认分；88以上必须等待真实回落。</small></div>
           <div className="opening-causal"><span>09:35–10:00 开盘试单</span><b>仅使用已出现数据 · 单次 1/6 仓</b><small>低开站回VWAP才允许正T；高开跌破VWAP且回抽失败才允许反T。</small></div>
           <h2>{signalMode === '反T' ? '高开转弱' : '低开转强'}</h2>
