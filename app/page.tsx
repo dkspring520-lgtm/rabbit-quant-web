@@ -725,6 +725,22 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const curveRange = curve.length ? Math.max(...curve)-curveMin || 1 : 1;
   const chartPoint = (value:number,index:number) => ({ x:(index/(curve.length-1))*800, y:200-((value-curveMin)/curveRange)*160 });
   const points = curve.length > 1 ? curve.map((value,index)=>{ const point=chartPoint(value,index); return `${point.x},${point.y}`; }).join(" ") : "";
+  const cycles = (() => {
+    const paired: { sell: ReplayAction; buy: ReplayAction }[] = [];
+    let pending: ReplayAction | null = null;
+    result?.actions.forEach(action => {
+      if (action.side === "卖出") pending = action;
+      else if (pending) { paired.push({ sell: pending, buy: action }); pending = null; }
+    });
+    return paired.map(({ sell, buy }, index) => {
+      const rawSell = sell.price / (1 - slippage / 100);
+      const rawBuy = buy.price / (1 + slippage / 100);
+      const gross = (rawSell - rawBuy) * sell.quantity;
+      const executionCost = ((rawSell - sell.price) + (buy.price - rawBuy)) * sell.quantity;
+      const fees = sell.price * sell.quantity * (feeRate / 100 + 0.0005) + buy.price * buy.quantity * feeRate / 100;
+      return { index: index + 1, sell, buy, gross, executionCost, fees, net: gross - executionCost - fees };
+    });
+  })();
   return <section className="backtest-view">
     <div className="backtest-head">
       <div><span className="eyebrow">INTRADAY BLIND REPLAY</span><h1>真实分时盲测</h1><p>随机隐藏后续分时，策略仅按已揭示的价格和成交量逐点决策；不读取当日收盘价、高低点或未来K线。</p></div>
@@ -751,7 +767,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
           <div><span>毛收益</span><b>{result ? money(result.gross) : "—"}</b><small>未扣费用</small></div><div><span>费用与滑点</span><b>{result ? money(-result.fees) : "—"}</b><small>佣金、滑点与印花税</small></div><div><span>最大回撤</span><b>{result ? `-${(result.maxDrawdown*100).toFixed(2)}%` : "—"}</b><small>{source ? "分时逐点盯市" : "运行后显示"}</small></div>
         </div>
         <div className="equity-panel"><div className="panel-heading"><div><h2>资金曲线</h2><span>{source ? "随机起点至收盘" : "运行后显示"}</span></div><div className="curve-legend"><span><i/>净资产</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买回</span></div></div><svg viewBox="0 0 800 220" preserveAspectRatio="none" aria-label="回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".22"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{[40,80,120,160,200].map(y=><line key={y} x1="0" x2="800" y1={y} y2={y} className="equity-grid"/>)}{points&&<><polyline points={`${points} 800,220 0,220`} fill="url(#equityFill)"/><polyline points={points} className="equity-line" fill="none"/>{result?.actions.map((action,index)=>{ const point=chartPoint(curve[Math.min(action.curveIndex,curve.length-1)] ?? capital,Math.min(action.curveIndex,curve.length-1)); const fill=action.side==="卖出"?"#ff6464":"#28d7c4"; return <g key={`${action.side}-${action.time}-${index}`}><circle cx={point.x} cy={point.y} r="7" fill={fill} stroke="#071312" strokeWidth="3"/><text x={point.x} y={point.y-12} textAnchor="middle" fill={fill} fontSize="13" fontWeight="700">{action.side}</text></g>; })}</>}</svg></div>
-        {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测买卖流水</h2><span>{result.actions.length ? "每笔均已标在曲线中" : "本次没有触发交易"}</span></div></div>{result.actions.length ? <div className="action-list">{result.actions.map((action,index)=><div className="action-row" key={`${action.side}-${action.time}-${index}`}><b className={action.side==="卖出"?"sell-marker":"buy-marker"}>{action.side}</b><span>{action.time}</span><span>¥ {action.price.toFixed(2)}</span><span>{action.quantity.toLocaleString()} 股</span></div>)}</div> : <p className="config-note">策略在本次随机起点后没有形成可执行的完整反 T 循环，资金不变。</p>}</div>}
+        {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "已按卖出 → 买回自动配对" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.sell.time}-${cycle.buy.time}`}><div><b>反 T 循环 #{cycle.index}</b><span>卖出 {cycle.sell.time} ¥ {cycle.sell.price.toFixed(2)} → 买回 {cycle.buy.time} ¥ {cycle.buy.price.toFixed(2)}</span></div><div><small>数量</small><b>{cycle.sell.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本次随机起点后没有形成可执行的完整反 T 循环，资金不变。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
         <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>{result?.days ?? "—"}</b></div><div><span>模拟循环</span><b>{result?.trades ?? "—"}</b></div><div><span>胜出循环</span><b>{result?.wins ?? "—"}</b></div><div><span>循环胜率</span><b className="teal">{result?.trades ? `${(result.wins/result.trades*100).toFixed(2)}%` : "—"}</b></div><div><span>底仓设定</span><b>{baseShares.toLocaleString()} 股</b></div><div><span>数据源</span><b>{source?.provider ?? "—"}</b></div></div><div className="failure-panel"><h3>计算说明</h3><p><span>数据属性</span><b>{source ? "公开真实分时" : "未运行"}</b></p><p><span>执行规则</span><b>逐点揭示，不看未来</b></p><p><span>费用模型</span><b>佣金 + 滑点 + 印花税</b></p><p><span>计算状态</span><b className="failure-alert">{result?.status ?? "等待运行"}</b></p></div></div>
       </div>
     </div>
