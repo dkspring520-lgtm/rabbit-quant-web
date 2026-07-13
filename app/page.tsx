@@ -61,7 +61,7 @@ function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number
   const quantity=Math.floor(Math.min(baseShares,sellable)/3/100)*100;
   if(points.length<30 || !quantity) return {net:0,gross:0,fees:0,maxDrawdown:0,trades:0,wins:0,days:0,curve:[capital],status:"真实分时样本或可卖底仓不足，未生成交易",actions:[]};
   const start=Math.min(points.length-20,Math.max(15,Math.floor(points.length*.12)+Math.floor(Math.random()*Math.max(1,Math.floor(points.length*.18)))));
-  let cash=capital,peak=capital,maxDrawdown=0,gross=0,fees=0,trades=0,wins=0;
+  let cash=capital,peak=capital,maxDrawdown=0,gross=0,fees=0,trades=0,wins=0,eligiblePoints=0,vwapSignals=0,pressureSignals=0;
   let soldPrice:number|null=null; const curve=[capital]; const actions:ReplayAction[]=[];
   for(let index=0;index<points.length;index+=1){
     const point=points[index];
@@ -70,14 +70,17 @@ function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number
     const totalVolume=window.reduce((sum,item)=>sum+Math.max(1,item.volume),0);
     const vwap=window.reduce((sum,item)=>sum+item.price*Math.max(1,item.volume),0)/totalVolume;
     const prices=window.map(item=>item.price); const range=(Math.max(...prices)-Math.min(...prices))/vwap;
-    const threshold=Math.max(.002,range*.8); const deviation=(point.price-vwap)/vwap;
+    const threshold=Math.max(.0012,range*.42); const deviation=(point.price-vwap)/vwap;
     const previous=points[Math.max(0,index-1)];
     const resistance=Math.max(...points.slice(Math.max(0,index-10),index).map(item=>item.price),point.price);
     const averageVolume=window.reduce((sum,item)=>sum+Math.max(1,item.volume),0)/window.length;
     const sellWindow=point.time>="0945" && point.time<="1430";
-    const pressureExhaustion=point.price>=resistance*.998 && point.price<=previous.price && point.volume<=averageVolume*1.2;
+    const pressureExhaustion=point.price>=resistance*.996 && point.price<=previous.price*1.0015 && (point.volume<=averageVolume*1.8 || deviation>=threshold*1.35);
     const slip=slippageMode==="tick" ? slippage : point.price*slippage/100;
     const commission=(turnover:number)=>Math.max(minCommission?5:0,turnover*feeRate/100);
+    if(index>=20 && sellWindow) eligiblePoints++;
+    if(index>=20 && sellWindow && deviation>=threshold) vwapSignals++;
+    if(index>=20 && sellWindow && pressureExhaustion) pressureSignals++;
     if(soldPrice===null && index>=20 && sellWindow && deviation>=threshold && pressureExhaustion){
       soldPrice=point.price-slip; fees+=commission(soldPrice*quantity)+soldPrice*quantity*.0005; trades+=1;
       actions.push({time:point.time,side:"卖出",price:soldPrice,quantity,curveIndex:curve.length});
@@ -88,7 +91,8 @@ function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number
     }
     const mark=cash+(soldPrice===null?0:(soldPrice-point.price)*quantity); peak=Math.max(peak,mark); maxDrawdown=Math.max(maxDrawdown,(peak-mark)/peak); curve.push(mark);
   }
-  return {net:cash-capital-fees,gross,fees,maxDrawdown,trades,wins,days:1,curve,status:trades?`融合策略 V3 完成：从 ${points[start].time} 开始逐点揭示，按动态 VWAP 与压力位滞涨执行反 T。`:"融合策略 V3 本次未形成完整反 T 条件",actions};
+  const noTradeReason = !eligiblePoints ? "随机起点后没有处于可开仓时段的样本" : !vwapSignals ? "价格未达到动态 VWAP 偏离阈值" : !pressureSignals ? "未出现压力位滞涨确认" : "信号未能在尾盘前完成闭环";
+  return {net:cash-capital-fees,gross,fees,maxDrawdown,trades,wins,days:1,curve,status:trades?`融合策略 V3 完成：从 ${points[start].time} 开始逐点揭示，按动态 VWAP 与压力位滞涨执行反 T。`:`融合策略 V3 本次未形成完整反 T 条件：${noTradeReason}。`,actions};
 }
 
 const initialStocks = [
@@ -97,6 +101,11 @@ const initialStocks = [
   { code: "000063", name: "中兴通讯", price: "--", change: "--" },
   { code: "600519", name: "贵州茅台", price: "--", change: "--" },
 ];
+
+const canonicalStockNames: Record<string, string> = {
+  "601899": "紫金矿业", "603993": "洛阳钼业", "601012": "隆基绿能", "000063": "中兴通讯", "600519": "贵州茅台"
+};
+const normalizeWatchlist = (list: { code:string; name:string; price:string; change:string }[]) => list.map(item => ({ ...item, name: canonicalStockNames[item.code] ?? item.name }));
 
 const agents = [
   { avatar: "/agents/training.png", name: "训练兔", role: "严格模拟", state: "训练中", value: "76%" },
@@ -182,7 +191,7 @@ export default function Home() {
           const saved=localStorage.getItem(`rabbit-prefs:${session.toLowerCase()}`);
           if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);
           const watchlist=localStorage.getItem(`rabbit-watchlist:${session.toLowerCase()}`);
-          if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length)setStockList(list);}
+          if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=normalizeWatchlist(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(normalized));}}
           const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${session.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');
           if(savedStrategy)setCustomStrategy(savedStrategy);
         }
@@ -253,7 +262,7 @@ export default function Home() {
   };
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-v2.png" alt="做T神器"/></main>;
-  if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{setAccountName(name);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length)setStockList(list);}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
+  if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{setAccountName(name);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=normalizeWatchlist(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
 
   return (
     <main className="app-shell">
@@ -509,13 +518,15 @@ function MultiWatchView({stocks,onOpen,onManage}:{stocks:typeof initialStocks;on
   const allRows=stocks.map(item=>{
     const quote=quotes[item.code];
     const change=quote?.changePercent;
-    return {code:item.code,name:quote?.name||item.name,price:quote?.price?.toFixed(2)||'--',change:change==null?'--':`${change>=0?'+':''}${change.toFixed(2)}%`};
+    const amplitude=quote?.high!=null&&quote?.low!=null&&quote?.price ? (quote.high-quote.low)/quote.price*100 : null;
+    const position=quote?.high!=null&&quote?.low!=null&&quote?.price&&quote.high>quote.low ? (quote.price-quote.low)/(quote.high-quote.low)*100 : null;
+    return {code:item.code,name:quote?.name||item.name,price:quote?.price?.toFixed(2)||'--',change:change==null?'--':`${change>=0?'+':''}${change.toFixed(2)}%`,changeValue:change,amplitude,position};
   });
   return <section className="module-view watch-view">
     <div className="module-head"><div><span className="eyebrow">MULTI-ASSET QUOTE MONITOR</span><h1>多股监控</h1><p>已接入公开行情轮询，报价每 5 秒尝试更新；仅用于观察，不会自动生成买卖指令或下单。</p></div><div className="module-status"><i/>{quoteStatus==='updated'?'公开行情正常':quoteStatus==='partial'?'部分行情可用':quoteStatus==='error'?'行情暂不可用':'正在连接行情'} · {stocks.length}只监控中</div></div>
     <div className="watch-summary"><div><span>监控股票</span><b>{stocks.length}</b><small>切换后台即暂停轮询</small></div><div><span>已取得报价</span><b className="teal">{Object.keys(quotes).filter(code=>stocks.some(stock=>stock.code===code)).length}</b><small>当前列表可用数量</small></div><div><span>刷新频率</span><b>5 秒</b><small>公开试用行情</small></div><div><span>最近更新</span><b>{updatedAt||'--:--:--'}</b><small>{quoteStatus==='partial'?'部分来源暂不可用':'页面可见时刷新'}</small></div><div><span>交易执行</span><b>关闭</b><small>不连接券商账户</small></div></div>
-    <div className="watch-toolbar"><div><span>最新报价与涨跌幅来自公开数据源；上游时效和可用性不保证为交易级。</span></div><button className="watch-add" onClick={onManage}>＋ 管理监控股票</button></div>
-    <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>涨跌幅</span><span>数据状态</span><span>监控说明</span><span/><span/><span/></div>{allRows.map(row=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span><b>{row.price}</b><small>公开行情</small></span><span><b className={row.change.startsWith('-')?'negative':'positive'}>{row.change}</b><small>{row.change==='--'?'等待更新':'当日涨跌幅'}</small></span><em className="watch-pill watch">仅监控</em><span className="watch-reason">行情变化仅供人工研判；请在操盘台结合仓位、T+1 与闭环规则确认。</span><span/><span/><button onClick={()=>onOpen(stocks.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
+    <div className="watch-toolbar"><div><span>公开行情试用 · 数据时效不保证为交易级</span></div><button className="watch-add" onClick={onManage}>＋ 管理监控股票</button></div>
+    <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>涨跌幅</span><span>日内振幅</span><span>日内位置</span><span>状态</span><span/></div>{allRows.map(row=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span className="watch-price"><b>{row.price}</b><small>公开行情</small></span><span><b className={row.changeValue!=null&&row.changeValue<0?'negative':row.changeValue!=null&&row.changeValue>0?'positive':'neutral'}>{row.change}</b><small>{row.change==='--'?'等待更新':'当日涨跌幅'}</small></span><span><b>{row.amplitude==null?'--':`${row.amplitude.toFixed(2)}%`}</b><small>高低波动</small></span><span className="day-position"><i><em style={{width:`${row.position??0}%`}}/></i><b>{row.position==null?'--':`${row.position.toFixed(0)}%`}</b></span><em className="watch-pill watch">仅监控</em><button onClick={()=>onOpen(stocks.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
     <div className="watch-rule"><b>使用说明</b><span>多股页为 5 秒公开行情试用</span><span>操盘台为当前选股 1 秒轮询试用</span><span>页面切到后台会暂停请求</span><span>报价不构成交易建议，也不触发自动下单</span></div>
   </section>;
 }
@@ -547,7 +558,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,onOpenConso
   const saveNote=()=>{const note=feedback.trim();if(!note)return;const next=[{id:`${Date.now()}`,date:new Date().toLocaleDateString('zh-CN'),mode,outcome,note},...notes];setNotes(next);try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}setFeedback('');setOutcome('待验证');};
   return <section className="stock-research-view">
     <div className="research-head"><div><span className="eyebrow">SINGLE STOCK RESEARCH · DEVICE LOCAL</span><h1>懂它 · 单股智研档案</h1><p>把公开日线、你本机补录的成交和每日复盘合在一只股票档案中；策略只形成候选，不会自动改参数、发单或承诺收益。</p></div><button onClick={onOpenConsole}>打开操盘台 →</button></div>
-    <div className="research-status"><div><span>{stock.code} · {stock.name}</span><b>{quote?.price?.toFixed(2)??'--'}</b><em>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><p><i/>档案成熟度：<strong>{maturity}</strong> · 有效学习样本 {samples} 条 · 仅保存在当前设备浏览器</p></div>
+    <div className="research-status"><div><span>{stock.code} · {stock.name}</span><b>{quote?.price?.toFixed(2)??'--'}</b><em>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><p><i/>档案成熟度：<strong>{maturity}</strong> · 有效学习样本 {samples} / 30 条 <b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b> · 仅保存在当前设备浏览器</p></div>
     <div className="research-grid">
       <article className="research-card research-summary"><span>今日研究结论</span><h2>{candidate}</h2><p>{stats.trend}；近20日平均振幅 {stats.range?`${stats.range.toFixed(2)}%`:'待计算'}，最近量能约为20日均量 {stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'待计算'}。当前只生成观察条件，不输出自动交易指令。</p><div><b>研究假设失效条件</b><small>出现与候选逻辑相反的趋势、量能或复盘结果时，标记为无效并重新积累样本。</small></div></article>
       <article className="research-card"><span>股性指纹 · 日线</span><div className="fingerprint"><p><small>平均振幅</small><b>{stats.range?`${stats.range.toFixed(2)}%`:'--'}</b></p><p><small>阳线天数</small><b>{bars.length?`${stats.upDays}/20`:'--'}</b></p><p><small>20日均价</small><b>{stats.ma20?stats.ma20.toFixed(2):'--'}</b></p><p><small>量能比</small><b>{stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'--'}</b></p></div><small className="data-note">数据来自当前公开日线接口；不等于分钟级或交易级行情。</small></article>
@@ -787,7 +798,7 @@ function NumberStepper({value,unit,step,min,onChange,decimals=0}:{value:number;u
   const format=(number:number)=>decimals ? number.toFixed(decimals) : number.toLocaleString('zh-CN');
   return <div className="number-stepper" role="group" aria-label={`${value}${unit}`}>
     <button type="button" onClick={()=>onChange(Math.max(min,Number((value-step).toFixed(decimals))))} aria-label={`减少${step}${unit}`}>−</button>
-    <span><b>{format(value)}</b><em>{unit}</em></span>
+    <label><input type="text" inputMode={decimals?"decimal":"numeric"} value={format(value)} onChange={event=>{const raw=event.target.value.replace(decimals?/[^\d.]/g:/\D/g,"");const parsed=Number(raw);if(raw!==""&&Number.isFinite(parsed))onChange(Math.max(min,Number(parsed.toFixed(decimals))) )}} aria-label={`输入${unit}数值`}/><em>{unit}</em></label>
     <button type="button" onClick={()=>onChange(Number((value+step).toFixed(decimals)))} aria-label={`增加${step}${unit}`}>＋</button>
   </div>;
 }
