@@ -684,7 +684,29 @@ function BacktestView({ profile, setProfile, preferences, stock }: { profile: st
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [source, setSource] = useState<Pick<MarketData,"provider"|"fetchedAt"|"bars"> | null>(null);
   const [error, setError] = useState("");
-  const run = async () => { setRunning(true); setError(""); try { const response=await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`, { cache:"no-store" }); if(!response.ok)throw new Error("market unavailable"); const data=await response.json() as MarketData; const calculated=runIntradayBlindReplay(data.minutes ?? [],capital,baseShares,sellable,feeRate,slippage); setResult(calculated);setSource(data); }catch{setResult(null);setError("无法取得真实分时数据，未生成测试结果。");}finally{setRunning(false);} };
+  const [runStatus, setRunStatus] = useState("等待运行");
+  const run = async () => {
+    setRunning(true); setError(""); setRunStatus("正在获取公开真实分时数据…");
+    try {
+      const response=await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`, { cache:"no-store" });
+      if(!response.ok) throw new Error("market unavailable");
+      const data=await response.json() as MarketData;
+      setSource(data);
+      if((data.minutes ?? []).length < 30) {
+        setResult(null);
+        setError("当前未取得足够的当日 1 分钟分时，未执行回测；请在交易日收盘后重试或更换股票。");
+        setRunStatus("未取得可用分时样本");
+        return;
+      }
+      const calculated=runIntradayBlindReplay(data.minutes,capital,baseShares,sellable,feeRate,slippage);
+      setResult(calculated);
+      setRunStatus(calculated.trades ? "盲测已完成" : "盲测完成：本次没有触发反 T 条件");
+    } catch {
+      setResult(null); setSource(null);
+      setError("公开行情源暂不可用，未生成测试结果。请稍后重试。");
+      setRunStatus("行情获取失败");
+    } finally { setRunning(false); }
+  };
   const curve = result?.curve ?? [];
   const points = curve.length > 1 ? curve.map((value,index)=>`${(index/(curve.length-1))*800},${200-((value-Math.min(...curve))/(Math.max(...curve)-Math.min(...curve)||1))*160}`).join(" ") : "";
   return <section className="backtest-view">
@@ -694,7 +716,7 @@ function BacktestView({ profile, setProfile, preferences, stock }: { profile: st
     </div>
     <div className="backtest-grid">
       <aside className="backtest-config">
-        <div className="config-title"><h2>回测参数</h2><span>{source ? "已计算" : "等待运行"}</span></div>
+        <div className="config-title"><h2>回测参数</h2><span>{running ? "计算中" : runStatus}</span></div>
         <label>股票代码<div className="field static-field"><b>{stock.code}</b><span>{stock.name}</span></div></label>
         <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "当日完整分时" : "运行后显示"}</b><span>随机起点</span></div></label><label>决策方式<div className="field static-field date-display"><b>逐点揭示</b><span>盲测</span></div></label></div>
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
@@ -703,6 +725,7 @@ function BacktestView({ profile, setProfile, preferences, stock }: { profile: st
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><div><span>单边滑点</span><NumberStepper value={slippage} unit="%" step={0.005} min={0} decimals={3} onChange={setSlippage}/></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <button className="run-backtest" onClick={()=>void run()} disabled={running}>{running ? '正在运行真实分时盲测…' : '运行随机分时盲测'}<span>→</span></button>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；14:50 前必须恢复计划底仓，否则整笔记为失败。</p>
+        <p className="config-note">状态：{runStatus}</p>
         {error&&<p className="config-note">{error}</p>}
       </aside>
       <div className="backtest-results">
