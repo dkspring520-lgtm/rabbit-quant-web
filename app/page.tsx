@@ -61,21 +61,32 @@ function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number
   const quantity=Math.floor(Math.min(baseShares,sellable)/3/100)*100;
   if(points.length<30 || !quantity) return {net:0,gross:0,fees:0,maxDrawdown:0,trades:0,wins:0,days:0,curve:[capital],status:"真实分时样本或可卖底仓不足，未生成交易",actions:[]};
   const start=Math.min(points.length-20,Math.max(15,Math.floor(points.length*.12)+Math.floor(Math.random()*Math.max(1,Math.floor(points.length*.18)))));
-  let weighted=0,totalVolume=0,cash=capital,peak=capital,maxDrawdown=0,gross=0,fees=0,trades=0,wins=0;
+  let cash=capital,peak=capital,maxDrawdown=0,gross=0,fees=0,trades=0,wins=0;
   let soldPrice:number|null=null; const curve=[capital]; const actions:ReplayAction[]=[];
   for(let index=0;index<points.length;index+=1){
-    const point=points[index]; const volume=Math.max(1,point.volume); weighted+=point.price*volume; totalVolume+=volume;
+    const point=points[index];
     if(index<start) continue;
-    const vwap=weighted/totalVolume; const deviation=(point.price-vwap)/vwap;
-    if(soldPrice===null && index>=15 && deviation>=.003 && point.price>points[Math.max(0,index-5)].price){
+    const window=points.slice(Math.max(0,index-19),index+1);
+    const totalVolume=window.reduce((sum,item)=>sum+Math.max(1,item.volume),0);
+    const vwap=window.reduce((sum,item)=>sum+item.price*Math.max(1,item.volume),0)/totalVolume;
+    const prices=window.map(item=>item.price); const range=(Math.max(...prices)-Math.min(...prices))/vwap;
+    const threshold=Math.max(.002,range*.8); const deviation=(point.price-vwap)/vwap;
+    const previous=points[Math.max(0,index-1)];
+    const resistance=Math.max(...points.slice(Math.max(0,index-10),index).map(item=>item.price),point.price);
+    const averageVolume=window.reduce((sum,item)=>sum+Math.max(1,item.volume),0)/window.length;
+    const sellWindow=point.time>="0945" && point.time<="1430";
+    const pressureExhaustion=point.price>=resistance*.998 && point.price<=previous.price && point.volume<=averageVolume*1.2;
+    if(soldPrice===null && index>=20 && sellWindow && deviation>=threshold && pressureExhaustion){
       soldPrice=point.price*(1-slippage/100); fees+=soldPrice*quantity*(feeRate/100+.0005); trades+=1;
       actions.push({time:point.time,side:"卖出",price:soldPrice,quantity,curveIndex:curve.length});
-    }else if(soldPrice!==null && (deviation<=.0005 || index===points.length-1)){
+    }
+    const buySignal=index>=20 && ((deviation<=threshold*.35 && point.price>=previous.price) || deviation<=-threshold*.35);
+    if(soldPrice!==null && (buySignal || index===points.length-1)){
       const buyPrice=point.price*(1+slippage/100); fees+=buyPrice*quantity*feeRate/100; const pnl=(soldPrice-buyPrice)*quantity; cash+=pnl; gross+=pnl; if(pnl>(soldPrice+buyPrice)*quantity*feeRate/100+soldPrice*quantity*.0005)wins++; actions.push({time:point.time,side:"买回",price:buyPrice,quantity,curveIndex:curve.length}); soldPrice=null;
     }
     const mark=cash+(soldPrice===null?0:(soldPrice-point.price)*quantity); peak=Math.max(peak,mark); maxDrawdown=Math.max(maxDrawdown,(peak-mark)/peak); curve.push(mark);
   }
-  return {net:cash-capital-fees,gross,fees,maxDrawdown,trades,wins,days:1,curve,status:trades?`真实分时盲测完成：从 ${points[start].time} 开始逐点揭示，已标记每笔卖出和买回。`:"本次盲测未触发反T条件",actions};
+  return {net:cash-capital-fees,gross,fees,maxDrawdown,trades,wins,days:1,curve,status:trades?`融合策略 V3 完成：从 ${points[start].time} 开始逐点揭示，按动态 VWAP 与压力位滞涨执行反 T。`:"融合策略 V3 本次未形成完整反 T 条件",actions};
 }
 
 const initialStocks = [
@@ -357,7 +368,7 @@ export default function Home() {
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "懂它" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}`} accountName={accountName} preferences={preferences} stock={stock} /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView key={`${stock.code}:${preferences.baseShares}`} profile={profile} setProfile={setProfile} preferences={preferences} stock={stock} />}
+      </> : activeView === "懂它" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}`} accountName={accountName} preferences={preferences} stock={stock} /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView key={`${stock.code}:${preferences.baseShares}`} profile={profile} setProfile={setProfile} preferences={preferences} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={setActiveStock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -676,7 +687,7 @@ function HoldingsView({accountName,preferences,stock}:{accountName:string;prefer
   </section>;
 }
 
-function BacktestView({ profile, setProfile, preferences, stock }: { profile: string; setProfile: (value: string) => void; preferences:{stock:string;baseShares:number;risk:string}; stock:{code:string;name:string;price:string;change:string} }) {
+function BacktestView({ profile, setProfile, preferences, stock, stocks, activeStock, onSelectStock }: { profile: string; setProfile: (value: string) => void; preferences:{stock:string;baseShares:number;risk:string}; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void }) {
   const [capital, setCapital] = useState(200000);
   const [baseShares, setBaseShares] = useState(preferences.baseShares);
   const [sellable, setSellable] = useState(preferences.baseShares);
@@ -722,7 +733,8 @@ function BacktestView({ profile, setProfile, preferences, stock }: { profile: st
     <div className="backtest-grid">
       <aside className="backtest-config">
         <div className="config-title"><h2>回测参数</h2><span>{running ? "计算中" : runStatus}</span></div>
-        <label>股票代码<div className="field static-field"><b>{stock.code}</b><span>{stock.name}</span></div></label>
+        <label>回测股票<select className="backtest-stock-select" value={activeStock} onChange={event=>onSelectStock(Number(event.target.value))} aria-label="选择回测股票">{stocks.map((item,index)=><option key={item.code} value={index}>{item.code} {item.name}</option>)}</select></label>
+        <label>买卖逻辑<div className="field static-field"><b>融合策略 V3</b><span>动态 VWAP + 压力位滞涨反 T</span></div></label>
         <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "当日完整分时" : "运行后显示"}</b><span>随机起点</span></div></label><label>决策方式<div className="field static-field date-display"><b>逐点揭示</b><span>盲测</span></div></label></div>
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
