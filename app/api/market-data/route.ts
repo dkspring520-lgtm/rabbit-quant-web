@@ -41,6 +41,16 @@ async function fromTencentMinutes(code: string): Promise<MinutePoint[]> {
   }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price));
 }
 
+async function fromTencentDailyBars(code: string) {
+  const response = await fetch(`https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${marketPrefix(code)}${code},day,,,180,qfq`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
+  if (!response.ok) throw new Error("腾讯日线不可用");
+  const payload = await response.json() as { data?: Record<string, { qfqday?: string[][] }> };
+  const rows = payload.data?.[`${marketPrefix(code)}${code}`]?.qfqday ?? [];
+  const bars = rows.map(([date, open, close, high, low, volume]) => ({ date, open: Number(open), close: Number(close), high: Number(high), low: Number(low), volume: Number(volume), amount: 0 })).filter((bar) => Number.isFinite(bar.close));
+  if (bars.length < 2) throw new Error("未取得足够日线数据");
+  return bars;
+}
+
 async function fromSina(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: string | null }> {
   const response = await fetch(`https://hq.sinajs.cn/list=${marketPrefix(code)}${code}`, { headers: { Referer: "https://finance.sina.com.cn/" } });
   if (!response.ok) throw new Error("新浪行情不可用");
@@ -79,11 +89,9 @@ export async function GET(request: Request) {
       }
       throw lastError instanceof Error ? lastError : new Error("所有试用行情源暂不可用");
     }
-    const [quoteResult, klineResponse, minutes] = await Promise.all([fromEastmoneyQuote(code), fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${code.startsWith("6") ? "1" : "0"}.${code}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&lmt=180&end=20500101`), fromTencentMinutes(code).catch(() => [])]);
-    if (!klineResponse.ok) throw new Error("日线服务暂不可用");
-    const rows = (await klineResponse.json() as { data?: { klines?: string[] } }).data?.klines ?? [];
-    const bars = rows.map((row) => { const [date, open, close, high, low, volume, amount] = row.split(","); return { date, open: Number(open), close: Number(close), high: Number(high), low: Number(low), volume: Number(volume), amount: Number(amount) }; }).filter((bar) => Number.isFinite(bar.close));
-    if (bars.length < 2) throw new Error("未取得足够日线数据");
-    return Response.json({ ...quoteResult, minutes, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
+    const [bars, quoteResult, minutes] = await Promise.all([fromTencentDailyBars(code), fromEastmoneyQuote(code).catch(() => null), fromTencentMinutes(code).catch(() => [])]);
+    const latest = bars.at(-1)!;
+    const fallbackQuote: Quote = { code, name: code, price: latest.close, previousClose: bars.at(-2)?.close ?? null, change: latest.close - (bars.at(-2)?.close ?? latest.close), changePercent: bars.at(-2)?.close ? (latest.close - bars.at(-2)!.close) / bars.at(-2)!.close * 100 : null, open: latest.open, high: latest.high, low: latest.low, volume: latest.volume, amount: latest.amount };
+    return Response.json({ provider: quoteResult?.provider ?? "tencent-public", quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minutes, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502 }); }
 }
