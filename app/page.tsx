@@ -200,7 +200,7 @@ export default function Home() {
           <span className="brand-type"><strong><em>做T</em><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
-          {['首页','操盘台','多股监控','策略市场','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
+          {['首页','操盘台','懂它','多股监控','策略市场','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
           <span className="market-open"><i />{trialQuote ? "1 秒试用监控" : marketData ? "公开行情已更新" : "行情连接中"}</span>
@@ -307,7 +307,7 @@ export default function Home() {
           <div className="agent-grid">{agents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView accountName={accountName} preferences={preferences} stock={stock} /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={setProfile} preferences={preferences} stock={stock} />}
+      </> : activeView === "懂它" ? <SingleStockResearchView accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView accountName={accountName} preferences={preferences} stock={stock} /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView profile={profile} setProfile={setProfile} preferences={preferences} stock={stock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -454,6 +454,45 @@ function MultiWatchView({stocks,onOpen,onManage}:{stocks:typeof initialStocks;on
     <div className="watch-toolbar"><div><span>最新报价与涨跌幅来自公开数据源；上游时效和可用性不保证为交易级。</span></div><button className="watch-add" onClick={onManage}>＋ 管理监控股票</button></div>
     <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>涨跌幅</span><span>数据状态</span><span>监控说明</span><span/><span/><span/></div>{allRows.map(row=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span><b>{row.price}</b><small>公开行情</small></span><span><b className={row.change.startsWith('-')?'negative':'positive'}>{row.change}</b><small>{row.change==='--'?'等待更新':'当日涨跌幅'}</small></span><em className="watch-pill watch">仅监控</em><span className="watch-reason">行情变化仅供人工研判；请在操盘台结合仓位、T+1 与闭环规则确认。</span><span/><span/><button onClick={()=>onOpen(stocks.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
     <div className="watch-rule"><b>使用说明</b><span>多股页为 5 秒公开行情试用</span><span>操盘台为当前选股 1 秒轮询试用</span><span>页面切到后台会暂停请求</span><span>报价不构成交易建议，也不触发自动下单</span></div>
+  </section>;
+}
+
+type StockResearchNote = { id:string; date:string; mode:string; outcome:string; note:string };
+
+function SingleStockResearchView({accountName,stock,quote,marketData,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;onOpenConsole:()=>void}) {
+  const storageKey=`rabbit-stock-research:${accountName.toLowerCase()}:${stock.code}`;
+  const ledgerKey=`rabbit-manual-ledger:${accountName.toLowerCase()}:${stock.code}`;
+  const [notes,setNotes]=useState<StockResearchNote[]>([]);
+  const [feedback,setFeedback]=useState('');
+  const [mode,setMode]=useState('观察');
+  const [outcome,setOutcome]=useState('待验证');
+  const [manualCount,setManualCount]=useState(0);
+  useEffect(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];setNotes(Array.isArray(parsed)?parsed:[]);const ledger=localStorage.getItem(ledgerKey);const rows=ledger?JSON.parse(ledger):[];setManualCount(Array.isArray(rows)?rows.filter((row:{status?:string})=>row.status!=='已失效').length:0);}catch{setNotes([]);setManualCount(0);}},[storageKey,ledgerKey]);
+  const bars=marketData?.bars??[];
+  const stats=useMemo(()=>{
+    const recent=bars.slice(-20);
+    if(!recent.length)return {range:0,volumeRatio:0,trend:'等待日线数据',close:quote?.price??null,ma20:0,upDays:0};
+    const range=recent.reduce((sum,bar)=>sum+(bar.close?((bar.high-bar.low)/bar.close)*100:0),0)/recent.length;
+    const averageVolume=recent.reduce((sum,bar)=>sum+bar.volume,0)/recent.length;
+    const latest=recent.at(-1)!;
+    const ma20=recent.reduce((sum,bar)=>sum+bar.close,0)/recent.length;
+    const upDays=recent.filter(bar=>bar.close>=bar.open).length;
+    return {range,volumeRatio:averageVolume?latest.volume/averageVolume:0,trend:latest.close>=ma20?'日线仍在20日均价上方':'日线位于20日均价下方',close:quote?.price??latest.close,ma20,upDays};
+  },[bars,quote?.price]);
+  const samples=notes.length+manualCount;
+  const maturity=samples<10?'样本不足':samples<30?'观察中':'候选验证';
+  const candidate=stats.range===0?'等待数据形成候选':stats.range<3.5?'低波动回踩观察':'高波动分批观察';
+  const saveNote=()=>{const note=feedback.trim();if(!note)return;const next=[{id:`${Date.now()}`,date:new Date().toLocaleDateString('zh-CN'),mode,outcome,note},...notes];setNotes(next);try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}setFeedback('');setOutcome('待验证');};
+  return <section className="stock-research-view">
+    <div className="research-head"><div><span className="eyebrow">SINGLE STOCK RESEARCH · DEVICE LOCAL</span><h1>懂它 · 单股智研档案</h1><p>把公开日线、你本机补录的成交和每日复盘合在一只股票档案中；策略只形成候选，不会自动改参数、发单或承诺收益。</p></div><button onClick={onOpenConsole}>打开操盘台 →</button></div>
+    <div className="research-status"><div><span>{stock.code} · {stock.name}</span><b>{quote?.price?.toFixed(2)??'--'}</b><em>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><p><i/>档案成熟度：<strong>{maturity}</strong> · 有效学习样本 {samples} 条 · 仅保存在当前设备浏览器</p></div>
+    <div className="research-grid">
+      <article className="research-card research-summary"><span>今日研究结论</span><h2>{candidate}</h2><p>{stats.trend}；近20日平均振幅 {stats.range?`${stats.range.toFixed(2)}%`:'待计算'}，最近量能约为20日均量 {stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'待计算'}。当前只生成观察条件，不输出自动交易指令。</p><div><b>研究假设失效条件</b><small>出现与候选逻辑相反的趋势、量能或复盘结果时，标记为无效并重新积累样本。</small></div></article>
+      <article className="research-card"><span>股性指纹 · 日线</span><div className="fingerprint"><p><small>平均振幅</small><b>{stats.range?`${stats.range.toFixed(2)}%`:'--'}</b></p><p><small>阳线天数</small><b>{bars.length?`${stats.upDays}/20`:'--'}</b></p><p><small>20日均价</small><b>{stats.ma20?stats.ma20.toFixed(2):'--'}</b></p><p><small>量能比</small><b>{stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'--'}</b></p></div><small className="data-note">数据来自当前公开日线接口；不等于分钟级或交易级行情。</small></article>
+      <article className="research-card"><span>候选策略库</span><ul className="candidate-list"><li><b>{candidate}</b><small>{stats.range<3.5?'波动收窄时，优先等确认而非追价。':'日内波动偏大，先控制单次试错与频率。'}</small><em>未启用</em></li><li><b>{stats.trend.includes('上方')?'趋势内回撤观察':'均值回归观察'}</b><small>以日线结构作背景，不将日线当作盘中买卖依据。</small><em>未启用</em></li><li><b>开盘噪声规避</b><small>09:45 前只记录，不以早盘单一波动验证假设。</small><em>未启用</em></li></ul></article>
+      <article className="research-card feedback-card"><span>写入一次复盘</span><p>每条记录都会进入该股的样本库。请把结果写清楚，避免只记录“感觉”。</p><div className="feedback-controls"><select value={mode} onChange={event=>setMode(event.target.value)}><option>观察</option><option>正T</option><option>反T</option></select><select value={outcome} onChange={event=>setOutcome(event.target.value)}><option>待验证</option><option>有效</option><option>无效</option></select></div><textarea value={feedback} onChange={event=>setFeedback(event.target.value)} placeholder="例如：10:15 回踩后量能未跟上，等待条件未满足；不执行。"/><button onClick={saveNote} disabled={!feedback.trim()}>保存本次复盘</button></article>
+    </div>
+    <div className="research-bottom"><div><span>本机成交反馈</span><b>{manualCount} 笔有效补录</b><small>来自“持仓对账”；失效记录不会计入样本。</small></div><div><span>最近复盘</span>{notes.length?notes.slice(0,3).map(note=><p key={note.id}><b>{note.date} · {note.mode}</b><em className={note.outcome==='有效'?'valid':note.outcome==='无效'?'invalid':''}>{note.outcome}</em><small>{note.note}</small></p>):<p className="empty-note">尚无复盘。先记录观察，再让档案慢慢形成对这只股票的认识。</p>}</div><aside><span>升级规则</span><b>积累 ≥30 条样本后再进入候选验证</b><small>仍需人工查看回测、样本外表现、费用和风险；自动晋升保持关闭。</small></aside></div>
   </section>;
 }
 
