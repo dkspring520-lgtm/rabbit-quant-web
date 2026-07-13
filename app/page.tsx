@@ -306,10 +306,11 @@ function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean,
       try{
         const endpoint=mode==='register'?'/api/register':'/api/login';
         const {data}=await backendJson(endpoint,{method:'POST',body:JSON.stringify({email:backendIdentity(name),password,nickname:name,avatar:1})});
-        if(!data.ok){setError(data.message||'服务器账户验证失败');return;}
-        const key=`rabbit-account:${name.toLowerCase()}`;const digest=await passwordDigest(password);
-        localStorage.setItem(key,JSON.stringify({name,digest,server:true,createdAt:new Date().toISOString()}));
-        onAuthenticated(data.account?.nickname||name,mode==='register',remember);window.setTimeout(()=>window.location.reload(),0);return;
+        if(data.ok){
+          const key=`rabbit-account:${name.toLowerCase()}`;const digest=await passwordDigest(password);
+          localStorage.setItem(key,JSON.stringify({name,digest,server:true,createdAt:new Date().toISOString()}));
+          onAuthenticated(data.account?.nickname||name,mode==='register',remember);window.setTimeout(()=>window.location.reload(),0);return;
+        }
       }catch{}
       const key=`rabbit-account:${name.toLowerCase()}`;
       const digest=await passwordDigest(password);
