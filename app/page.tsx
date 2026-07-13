@@ -25,7 +25,13 @@ function normalizeTimes(raw:unknown):string[]{
   return raw.map(item=>{
     const value=item&&typeof item==='object'?(item as Record<string,unknown>).time||(item as Record<string,unknown>).datetime||(item as Record<string,unknown>).timestamp:item;
     if(typeof value==='number'&&Number.isFinite(value)){const date=new Date(value<1e12?value*1000:value);return Number.isNaN(date.getTime())?'':date.toISOString()}
-    return typeof value==='string'?value:'';
+    if(typeof value==='string'){
+      const trimmed=value.trim();
+      if(/^\d+(?:\.\d+)?$/.test(trimmed)){const numeric=Number(trimmed);const date=new Date(numeric<1e12?numeric*1000:numeric);return Number.isNaN(date.getTime())?'':date.toISOString()}
+      const date=new Date(trimmed);
+      return Number.isNaN(date.getTime())?trimmed:date.toISOString();
+    }
+    return '';
   });
 }
 function formatMarketAmount(raw:unknown):string|undefined{
