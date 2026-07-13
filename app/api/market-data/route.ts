@@ -3,6 +3,7 @@ type Quote = {
   change: number | null; changePercent: number | null; open: number | null;
   high: number | null; low: number | null; volume: number | null; amount: number | null;
 };
+type MinutePoint = { time: string; price: number; volume: number };
 
 type EastmoneyQuote = { f43?: number; f44?: number; f45?: number; f46?: number; f47?: number; f48?: number; f57?: string; f58?: string; f60?: number; f169?: number; f170?: number; };
 const quoteFields = "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170";
@@ -17,11 +18,27 @@ function isUsable(quote: Quote) { return quote.price !== null && quote.name.leng
 async function fromTencent(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: string | null }> {
   const response = await fetch(`https://qt.gtimg.cn/q=${marketPrefix(code)}${code}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
   if (!response.ok) throw new Error("腾讯行情不可用");
-  const fields = (await response.text()).match(/="([^"]*)"/)?.[1]?.split("~");
+  const text = new TextDecoder("gb18030").decode(await response.arrayBuffer());
+  const fields = text.match(/="([^"]*)"/)?.[1]?.split("~");
   if (!fields || fields.length < 35) throw new Error("腾讯行情返回无效");
   const quote = { code: fields[2] || code, name: fields[1] || "", price: numeric(fields[3]), previousClose: numeric(fields[4]), open: numeric(fields[5]), volume: numeric(fields[6]), change: numeric(fields[31]), changePercent: numeric(fields[32]), high: numeric(fields[33]), low: numeric(fields[34]), amount: null };
   if (!isUsable(quote)) throw new Error("腾讯行情无有效价格");
   return { provider: "tencent-public", quote, sourceTimestamp: sourceTime(fields[30]) };
+}
+
+async function fromTencentMinutes(code: string): Promise<MinutePoint[]> {
+  const response = await fetch(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${marketPrefix(code)}${code}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
+  if (!response.ok) throw new Error("腾讯分时不可用");
+  const payload = await response.json() as { data?: Record<string, { data?: { data?: string[] } }> };
+  const rows = payload.data?.[`${marketPrefix(code)}${code}`]?.data?.data ?? [];
+  let previousVolume = 0;
+  return rows.map((row) => {
+    const [time, rawPrice, rawVolume] = row.split(" ");
+    const price = Number(rawPrice); const cumulativeVolume = Number(rawVolume);
+    const volume = Number.isFinite(cumulativeVolume) ? Math.max(0, cumulativeVolume - previousVolume) : 0;
+    previousVolume = Number.isFinite(cumulativeVolume) ? cumulativeVolume : previousVolume;
+    return { time, price, volume };
+  }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price));
 }
 
 async function fromSina(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: string | null }> {
@@ -56,17 +73,17 @@ export async function GET(request: Request) {
       let lastError: unknown;
       for (const provider of providers) {
         try {
-          const data = await provider(code);
-          return Response.json({ ...data, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt: new Date().toISOString(), bars: [] }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+          const [data, minutes] = await Promise.all([provider(code), fromTencentMinutes(code).catch(() => [])]);
+          return Response.json({ ...data, minutes, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt: new Date().toISOString(), bars: [] }, { headers: { "Cache-Control": "no-store, max-age=0" } });
         } catch (error) { lastError = error; }
       }
       throw lastError instanceof Error ? lastError : new Error("所有试用行情源暂不可用");
     }
-    const [quoteResult, klineResponse] = await Promise.all([fromEastmoneyQuote(code), fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${code.startsWith("6") ? "1" : "0"}.${code}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&lmt=180&end=20500101`)]);
+    const [quoteResult, klineResponse, minutes] = await Promise.all([fromEastmoneyQuote(code), fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${code.startsWith("6") ? "1" : "0"}.${code}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&lmt=180&end=20500101`), fromTencentMinutes(code).catch(() => [])]);
     if (!klineResponse.ok) throw new Error("日线服务暂不可用");
     const rows = (await klineResponse.json() as { data?: { klines?: string[] } }).data?.klines ?? [];
     const bars = rows.map((row) => { const [date, open, close, high, low, volume, amount] = row.split(","); return { date, open: Number(open), close: Number(close), high: Number(high), low: Number(low), volume: Number(volume), amount: Number(amount) }; }).filter((bar) => Number.isFinite(bar.close));
     if (bars.length < 2) throw new Error("未取得足够日线数据");
-    return Response.json({ ...quoteResult, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
+    return Response.json({ ...quoteResult, minutes, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502 }); }
 }
