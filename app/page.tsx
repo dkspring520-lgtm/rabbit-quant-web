@@ -41,7 +41,23 @@ export default function Home() {
   const [trainingProgress, setTrainingProgress] = useState(68);
   const [customStrategy, setCustomStrategy] = useState("09:35后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；预期净价差低于0.5%不执行。");
   const stock = stockList[activeStock] || stockList[0];
-  const removeStock=(index:number)=>{if(stockList.length<=1)return;const next=stockList.filter((_,i)=>i!==index);setStockList(next);setActiveStock(current=>current===index?Math.max(0,index-1):current>index?current-1:current);try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}};
+  const removeStock=(index:number)=>{
+    if(stockList.length<=1)return;
+    const next=stockList.filter((_,i)=>i!==index);
+    setStockList(next);
+    setActiveStock(current=>current===index?Math.max(0,index-1):current>index?current-1:current);
+    setPreferences(current=>{
+      const stock=next.some(item=>`${item.code} ${item.name}`===current.stock)
+        ? current.stock
+        : `${next[0].code} ${next[0].name}`;
+      const updated={...current,stock};
+      try{
+        localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next));
+        localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(updated));
+      }catch{}
+      return updated;
+    });
+  };
   const chart = useMemo(() => chartPath, []);
   useEffect(() => {
     if (!trainingRunning) return;
