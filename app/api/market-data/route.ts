@@ -89,7 +89,7 @@ export async function GET(request: Request) {
       }
       throw lastError instanceof Error ? lastError : new Error("所有试用行情源暂不可用");
     }
-    const [bars, quoteResult, minutes] = await Promise.all([fromTencentDailyBars(code), fromEastmoneyQuote(code).catch(() => null), fromTencentMinutes(code).catch(() => [])]);
+    const [bars, quoteResult, minutes] = await Promise.all([fromTencentDailyBars(code), fromTencent(code).catch(() => fromEastmoneyQuote(code).catch(() => null)), fromTencentMinutes(code).catch(() => [])]);
     const latest = bars.at(-1)!;
     const fallbackQuote: Quote = { code, name: code, price: latest.close, previousClose: bars.at(-2)?.close ?? null, change: latest.close - (bars.at(-2)?.close ?? latest.close), changePercent: bars.at(-2)?.close ? (latest.close - bars.at(-2)!.close) / bars.at(-2)!.close * 100 : null, open: latest.open, high: latest.high, low: latest.low, volume: latest.volume, amount: latest.amount };
     return Response.json({ provider: quoteResult?.provider ?? "tencent-public", quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minutes, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
