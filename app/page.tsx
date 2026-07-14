@@ -366,14 +366,14 @@ export default function Home() {
     setStarredRevision(value => value + 1);
   };
 
-  if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-gold.png" alt="做T神器"/></main>;
+  if(!authReady) return <main className="auth-loading"><img src="/rabbit-logo-compact.png" alt="做T神器"/></main>;
   if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{setAccountName(name);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=normalizeWatchlist(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
 
   return (
     <main className="app-shell">
       <header className="topbar">
         <div className="brand brand-lockup" aria-label="做T神器 Rabbit Smart-T">
-          <span className="brand-emblem"><img className="rabbit-logo" src="/rabbit-brand-gold.png" alt="做T神器双兔黑金品牌标志"/><i /></span>
+          <span className="brand-emblem"><img className="rabbit-logo" src="/rabbit-logo-compact.png" alt="做T神器双兔黑金品牌标志"/><i /></span>
           <span className="brand-type"><strong><em>做T</em><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
