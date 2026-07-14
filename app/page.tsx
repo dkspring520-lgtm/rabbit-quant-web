@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { runSmartTReplay } from "@/lib/smart-t-engine.mjs";
+import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX } from "@/lib/intraday-axis.mjs";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
@@ -221,12 +222,13 @@ export default function Home() {
   const chartModel = useMemo(() => {
     if (minutePoints.length < 2) return null;
     const prices=minutePoints.map(point=>point.price); const min=Math.min(...prices); const max=Math.max(...prices); const range=max-min||Math.max(max*.002,0.01);
-    const pointAt=(point:{price:number},index:number)=>`${10+(index/(minutePoints.length-1))*900},${20+(max-point.price)/range*210}`;
+    const pointAt=(point:{price:number},index:number)=>`${intradayChartX(minutePoints[index].time)},${20+(max-point.price)/range*210}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
     let weighted=0, totalVolume=0; const vwap=minutePoints.map((point,index)=>{weighted+=point.price*Math.max(point.volume,1);totalVolume+=Math.max(point.volume,1);return pointAt({price:weighted/totalVolume},index)});
     const maxVolume=Math.max(...minutePoints.map(point=>point.volume),1);
     const lastVwap=weighted/Math.max(totalVolume,1);
-    return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,lastVwap,volumes:minutePoints.map((point,index)=>({x:10+(index/(minutePoints.length-1))*900,height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:[max,max-range*.25,max-range*.5,max-range*.75,min]};
+    const firstX=intradayChartX(minutePoints[0].time); const lastX=intradayChartX(minutePoints.at(-1)!.time);
+    return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,volumes:minutePoints.map((point,index)=>({x:intradayChartX(point.time),height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:[max,max-range*.25,max-range*.5,max-range*.75,min]};
   },[minutePoints]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
   const liveEngine = useMemo(() => runSmartTReplay(minutePoints, {
@@ -542,17 +544,17 @@ export default function Home() {
             <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图`}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
               {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
-              {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
-              {chartModel&&<><path d={`${chartModel.path} L910 252 L10 252 Z`} fill="url(#priceFill)" />
+              {A_SHARE_INTRADAY_AXIS.map(tick => {const x=intradaySlotX(tick.slot);return <line key={tick.label} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>})}
+              {chartModel&&<><path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
-              {currentObservations.filter(observation=>!observation.executable).map((observation,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===observation.time);if(minuteIndex<0)return null;const x=10+(minuteIndex/Math.max(1,minutePoints.length-1))*900;const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;return <g className="candidate-signal-marker" key={`candidate-${observation.time}-${index}`}><circle cx={x} cy={y} r="4"/><text x={x} y={y-9} textAnchor="middle">候</text></g>})}
-              {liveEngine.actions.map((action,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===action.time);if(minuteIndex<0)return null;const x=10+(minuteIndex/Math.max(1,minutePoints.length-1))*900;const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=action.side==="卖出";const label=action.direction==="反T"?(isSell?"反T卖":"反T回"):(isSell?"正T卖":"正T买");return <g className="live-signal-marker" key={`${action.time}-${action.side}-${index}`}><circle cx={x} cy={y} r="6" className={isSell?'sell':'buy'}/><text x={x} y={isSell?y-11:y+19} textAnchor="middle" className={isSell?'sell':'buy'}>{label}</text></g>})}
-              <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx="910" cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
+              {currentObservations.filter(observation=>!observation.executable).map((observation,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===observation.time);if(minuteIndex<0)return null;const x=intradayChartX(minutePoints[minuteIndex].time);const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;return <g className="candidate-signal-marker" key={`candidate-${observation.time}-${index}`}><circle cx={x} cy={y} r="4"/><text x={x} y={y-9} textAnchor="middle">候</text></g>})}
+              {liveEngine.actions.map((action,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===action.time);if(minuteIndex<0)return null;const x=intradayChartX(minutePoints[minuteIndex].time);const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=action.side==="卖出";const label=action.direction==="反T"?(isSell?"反T卖":"反T回"):(isSell?"正T卖":"正T买");return <g className="live-signal-marker" key={`${action.time}-${action.side}-${index}`}><circle cx={x} cy={y} r="6" className={isSell?'sell':'buy'}/><text x={x} y={isSell?y-11:y+19} textAnchor="middle" className={isSell?'sell':'buy'}>{label}</text></g>})}
+              <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx={chartModel.lastX} cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
               {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x} y={300-bar.height} width={Math.max(2,850/chartModel.volumes.length)} height={bar.height} className={bar.up?'volume':'volume red'}/>) }
             </svg>
             <div className="price-flag">{chartModel?.last.price.toFixed(2) ?? '--'}</div>
-            <div className="x-axis"><span>09:30</span><span>10:00</span><span>10:30</span><span>11:30/13:00</span><span>14:00</span><span>14:30</span><span>15:00</span></div>
+            <div className="x-axis">{A_SHARE_INTRADAY_AXIS.map(tick=><span key={tick.label} style={{left:`${intradaySlotX(tick.slot)/9.2}%`}}>{tick.label}</span>)}</div>
           </div>
           <div className="signal-tape">
             <span className="tape-title">信号证据</span>
