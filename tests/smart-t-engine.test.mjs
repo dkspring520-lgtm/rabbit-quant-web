@@ -87,3 +87,13 @@ test("a low gap without sustained recovery remains a no-trade sample", () => {
   assert.equal(result.trades, 0);
   assert.equal(result.actions.length, 0);
 });
+
+test("full-day replay starts at the earliest causal window and keeps chart markers in time order", () => {
+  const result = runSmartTReplay(openingRecoverySession("rise"), { ...options, randomValue: 0 });
+  assert.equal(result.startTime, "0940");
+  assert.equal(result.actions.length, 2);
+  assert.ok(result.actions[0].time >= "0945");
+  assert.ok(result.actions[0].time < result.actions[1].time);
+  assert.equal(result.actions[0].direction, "正T");
+  assert.deepEqual(result.actions.map(action => action.side), ["买入", "卖出"]);
+});

@@ -88,6 +88,29 @@ async function fromEastmoneyMinutes(code: string): Promise<MinutePoint[]> {
   return points;
 }
 
+async function fromEastmoneyIntradaySessions(code: string): Promise<IntradaySession[]> {
+  const secid = `${code.startsWith("6") ? "1" : "0"}.${code}`;
+  const response = await fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56&klt=1&fqt=0&beg=0&end=20500101&lmt=1500`);
+  const payload = await response.json() as { data?: { klines?: string[] } };
+  if (!response.ok) throw new Error("东方财富多日分时不可用");
+  const grouped = new Map<string, MinutePoint[]>();
+  for (const row of payload.data?.klines ?? []) {
+    const [timestamp, , close, , , volume] = row.split(",");
+    const date = timestamp?.slice(0, 10); const time = timestamp?.slice(-5).replace(":", "");
+    const point = { time, price: Number(close), volume: Number(volume) };
+    if (!date || !/^\d{4}$/.test(time) || !Number.isFinite(point.price) || point.price <= 0) continue;
+    grouped.set(date, [...(grouped.get(date) ?? []), point]);
+  }
+  const dates = [...grouped.keys()].sort();
+  return dates.flatMap((date, index) => {
+    const minutes = grouped.get(date)!;
+    if (minutes.length < 180 || minutes.at(-1)!.time < "1450") return [];
+    const previousDate = dates[index - 1];
+    const previousClose = previousDate ? grouped.get(previousDate)?.at(-1)?.price ?? null : null;
+    return [{ date: date.replaceAll("-", ""), previousClose, minutes }];
+  });
+}
+
 async function fromPublicMinutes(code: string) {
   try { return await fromTencentMinutes(code); }
   catch { return fromEastmoneyMinutes(code); }
@@ -145,7 +168,7 @@ export async function GET(request: Request) {
       fromTencentDailyBars(code).catch(() => []),
       fromTencent(code).catch(() => fromSina(code).catch(() => fromEastmoneyQuote(code).catch(() => null))),
       fromPublicMinutes(code).catch(() => []),
-      fromTencentIntradaySessions(code).catch(() => []),
+      fromTencentIntradaySessions(code).then(sessions => sessions.length ? sessions : fromEastmoneyIntradaySessions(code)).catch(() => fromEastmoneyIntradaySessions(code).catch(() => [])),
     ]);
     const latest = bars.at(-1);
     if (!quoteResult && !latest) throw new Error("所有公开行情源暂不可用");
