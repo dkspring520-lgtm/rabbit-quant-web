@@ -772,6 +772,9 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const [slippageMode, setSlippageMode] = useState<"percent"|"tick">("percent");
   const [forceCloseTime, setForceCloseTime] = useState("1450");
   const [running, setRunning] = useState(false);
+  const [runMode, setRunMode] = useState<"single"|"batch"|null>(null);
+  const [singleRunCount, setSingleRunCount] = useState(0);
+  const [singleRunDate, setSingleRunDate] = useState("");
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [batch, setBatch] = useState<BatchBacktestResult | null>(null);
   // Published validation batch: stable by default so A/B results are
@@ -798,7 +801,10 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
     return {...data,sampleDate:session.date,minutes:session.minutes,intradaySessions:data.intradaySessions,quote:{...data.quote,price,previousClose,open,high:prices.length?Math.max(...prices):null,low:prices.length?Math.min(...prices):null,change:price!==null&&previousClose!==null?price-previousClose:null,changePercent:price!==null&&previousClose?((price-previousClose)/previousClose)*100:null}};
   };
   const runSingle = async () => {
-    setRunning(true); setError(""); setRunStatus("正在获取当前股票真实分时…");
+    const attempt=singleRunCount+1;
+    setSingleRunCount(attempt); setSingleRunDate("");
+    setRunning(true); setRunMode("single"); setError(""); setResult(null); setBatch(null); setSource(null);
+    setRunStatus(`第 ${attempt} 次：正在获取 ${stock.code} ${stock.name} 最新完整分时…`);
     try {
       const fetched=await fetchStock(stock.code);
       const sessions=fetched.intradaySessions ?? [];
@@ -809,21 +815,28 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         setRunStatus("未取得完整分时样本");
         return;
       }
-      const selected=sessions[Math.floor(seededFraction(`${batchSeed}:${stock.code}:single-day`)*sessions.length)];
+      // A single replay means the selected stock's latest complete session.
+      // Only the reveal point changes between attempts; the trading day does not
+      // silently jump to an older session.
+      const selected=[...sessions].sort((left,right)=>right.date.localeCompare(left.date))[0];
       const data=sessionData(fetched,selected);
+      setSingleRunDate(selected.date);
       setSource(data);
-      const calculated=replay(data,stock.code,"single");
+      const calculated=replay(data,stock.code,`single:${attempt}`);
       setResult(calculated);
       setBatch(null);
-      setRunStatus(calculated.trades ? "盲测已完成" : "盲测完成：本次没有触发符合成本与风控条件的正/反 T");
+      setRunStatus(calculated.trades
+        ? `第 ${attempt} 次完成：${selected.date} 从 ${formatTime(calculated.startTime)} 开始盲测，形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
+        : `第 ${attempt} 次完成：${selected.date} 从 ${formatTime(calculated.startTime)} 开始盲测，未触发正/反 T，资金保持不变`);
+      setTimeout(()=>document.getElementById("single-backtest-result")?.scrollIntoView({behavior:"smooth",block:"start"}),0);
     } catch {
       setResult(null); setBatch(null); setSource(null);
       setError("公开行情源暂不可用，未生成测试结果。请稍后重试。");
       setRunStatus("行情获取失败");
-    } finally { setRunning(false); }
+    } finally { setRunning(false); setRunMode(null); }
   };
   const runBatch = async () => {
-    setRunning(true); setError(""); setRunStatus("正在获取 20 股真实分时并运行 100 轮（共 2,000 样本）…");
+    setRunning(true); setRunMode("batch"); setError(""); setRunStatus("正在获取 20 股真实分时并运行 100 轮（共 2,000 样本）…");
     try {
       const universe=[...new Set([...benchmarkUniverse,...stocks.map(item=>item.code)])].slice(0,20).map(code=>({code,name:stocks.find(item=>item.code===code)?.name ?? code}));
       const fetched=await Promise.allSettled(universe.map(async item=>({item,data:await fetchStock(item.code)})));
@@ -885,7 +898,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
       setResult(null); setBatch(null); setSource(null);
       setError("自选池暂未取得足够的真实 1 分钟分时数据，未生成统计结果；请稍后重试或更换股票。");
       setRunStatus("100 轮盲测未完成");
-    } finally { setRunning(false); }
+    } finally { setRunning(false); setRunMode(null); }
   };
   const curve = result?.curve ?? [];
   const largestMove=Math.max(1,...curve.map(value=>Math.abs(value-capital)));
@@ -934,14 +947,15 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         <label>券商费率模板<select value={`${feeRate}-${minCommission}`} onChange={event=>{const templates:{[key:string]:[number,boolean]}={"0.025-true":[0.025,true],"0.01-false":[0.01,false],"0.0085-true":[0.0085,true]};const value=templates[event.target.value];if(value){setFeeRate(value[0]);setMinCommission(value[1])}}}><option value="0.025-true">默认行业价：万2.5（最低5元）</option><option value="0.01-false">常见大客户价：万1免五</option><option value="0.0085-true">尊享价：万0.85（最低5元）</option></select></label>
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
-        <button className="run-backtest" onClick={()=>void runBatch()} disabled={running}>{running ? '正在运行 2,000 个真实分时盲测…' : '运行 100 轮 × 20 股对比盲测'}<span>→</span></button>
-        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runSingle()} disabled={running}>仅测当前股票 1 次</button><button type="button" onClick={()=>{setBatchSeed(Date.now()%1_000_000_000);setBatch(null)}} disabled={running}>换随机批次</button></div>
+        <button className="run-backtest" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch' ? '正在运行 2,000 个真实分时盲测…' : '运行 100 轮 × 20 股对比盲测'}<span>→</span></button>
+        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在测试 ${stock.code}…`:`测试 ${stock.code} ${stock.name} 1 次`}</button><button type="button" onClick={()=>{setBatchSeed(Date.now()%1_000_000_000);setBatch(null);setResult(null);setSource(null);setSingleRunCount(0);setSingleRunDate("");setRunStatus("已换随机批次，等待运行")}} disabled={running}>换随机批次</button></div>
+        {(runMode==='single'||singleRunCount>0)&&!batch&&<div className={`single-run-status ${running?'running':result?'done':'idle'}`}><i/><span><b>{running?`第 ${singleRunCount} 次正在计算`:`第 ${singleRunCount} 次已返回结果`}</b><small>{singleRunDate?`${singleRunDate} · 最新完整交易日`:`${stock.code} ${stock.name}`}</small></span></div>}
         <p className="seed-note">随机种子 {Math.floor(batchSeed)} · 同一批次可复现</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
         <p className="config-note">状态：{runStatus}</p>
         {error&&<p className="config-note">{error}</p>}
       </aside>
-      <div className="backtest-results">
+      <div className="backtest-results" id="single-backtest-result">
         {batch&&<section className="batch-report" aria-label="100轮20股盲测汇总"><div className="batch-report-head"><div><span>MULTI-STOCK CAUSAL A/B</span><h2>100 轮 × {batch.stocks} 股真实分时盲测</h2></div><em>固定验证种子 {Math.floor(batch.seed)}</em></div><div className="batch-metrics"><div><span>扣费后循环胜率</span><strong>{batch.completed?`${(batch.wins/batch.completed*100).toFixed(2)}%`:'—'}</strong><small>{batch.wins}/{batch.completed} 个闭环盈利</small></div><div><span>毛收益</span><b>{money(batch.gross)}</b><small>{batch.samples.toLocaleString()} 个因果样本</small></div><div><span>交易费用 + 滑点</span><b>{money(-(batch.fees+batch.executionCost))}</b><small>费用 {money(-batch.fees)} · 滑点 {money(-batch.executionCost)}</small></div><div><span>总净收益</span><b>{money(batch.net)}</b><small>平均每轮 {money(batch.averageNet)}</small></div><div><span>有交易 / 盈利 / 亏损轮</span><b>{batch.tradingRounds} / {batch.profitableRounds} / {batch.losingRounds}</b><small>共 {batch.rounds} 轮</small></div><div><span>盈利因子 / 最差回撤</span><b>{batch.profitFactor===null?'—':batch.profitFactor.toFixed(2)} / -{(batch.maxDrawdown*100).toFixed(2)}%</b><small>{batch.uniqueSessions} 个完整股票日 · {batch.providers.join(' / ')}</small></div></div><div className="ab-compare"><b>同样本旧版</b><span>闭环 {batch.legacy.completed}</span><span>胜率 {batch.legacy.completed?(batch.legacy.wins/batch.legacy.completed*100).toFixed(2):'—'}%</span><span>净收益 {money(batch.legacy.net)}</span><strong>新版差额 {money(batch.net-batch.legacy.net)}</strong></div><div className="stock-feedback"><div className="stock-feedback-head"><div><b>20 股逐股反馈</b><span>每只股票 100 次随机揭示；未交易也显示原因</span></div><em>正T / 反T 为已开仓循环数</em></div><div className="stock-feedback-scroll"><table><thead><tr><th>股票</th><th>完整股票日</th><th>闭环</th><th>扣费后胜率</th><th>正T / 反T</th><th>累计净收益</th><th>未交易样本</th><th>反馈</th></tr></thead><tbody>{batch.stockFeedback.map(item=><tr key={item.code} className={item.code===source?.quote.code?'representative':''}><td><b>{item.code}</b><span>{item.name}</span></td><td>{item.sessions}</td><td>{item.completed}</td><td>{item.winRate===null?'—':`${(item.winRate*100).toFixed(2)}%`}</td><td>{item.positiveT} / {item.reverseT}</td><td className={item.net>0?'profit':item.net<0?'loss':''}>{money(item.net)}</td><td>{item.noTrade} / {item.samples}</td><td>{item.feedback}</td></tr>)}</tbody></table></div></div><p>新旧引擎使用同一股票日、同一逐分钟数据、同一固定种子和相同费用。2,000 次因果抽样来自 {batch.uniqueSessions} 个公开源完整股票日；胜率按扣除佣金、最低 5 元、印花税及双向滑点后的完整循环计算，未触发不计胜负。</p></section>}
         <div className="result-summary">
           <div className="result-primary"><span>{batch?"代表样本净收益":"净收益"}</span><strong>{result ? money(result.net) : "—"}</strong><em>{result ? `${(result.net/capital*100).toFixed(3)}%` : "运行后显示"}</em></div>
