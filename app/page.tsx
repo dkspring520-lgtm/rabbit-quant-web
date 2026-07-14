@@ -7,6 +7,8 @@ type MarketBar = { date:string; open:number; close:number; high:number; low:numb
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
 type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[]; intradaySessions?:IntradaySession[] };
 type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string };
+type MarketContextItem = { id:string; label:string; group:"market"|"sector"|"related"|"cross"|"currency"; price:number|null; changePercent:number|null; sourceTimestamp:string|null; provider:string; inverse?:boolean };
+type MarketContext = { code:string; profile:string; fetchedAt:string; items:MarketContextItem[]; gate:{ score:number; level:"normal"|"caution"|"restricted"|"locked"|"degraded"; label:string; action:string; positionFraction:number; hardLock:boolean; reasons:string[] }; availableSources:string[]; errors:string[]; events:{ status:string; label:string; participatesInGate:boolean } };
 
 function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | undefined, minutes: { price:number }[]): StockState {
   const closes = bars.map(bar => bar.close).filter(Number.isFinite);
@@ -64,6 +66,12 @@ function money(value:number) { return `${value >= 0 ? "+" : "-"}¥ ${Math.abs(va
 function seededFraction(input:string) {
   let hash=2166136261;
   for(let index=0;index<input.length;index+=1){hash^=input.charCodeAt(index);hash=Math.imul(hash,16777619)}
+  // FNV-1a alone keeps visible correlation when only a numeric suffix changes
+  // (for example round:0, round:1, ...). Apply a Murmur-style final avalanche
+  // so deterministic replay points are spread across the whole session.
+  hash^=hash>>>16; hash=Math.imul(hash,0x85ebca6b);
+  hash^=hash>>>13; hash=Math.imul(hash,0xc2b2ae35);
+  hash^=hash>>>16;
   return (hash>>>0)/4294967296;
 }
 
@@ -159,6 +167,8 @@ export default function Home() {
   const [marketQuotes, setMarketQuotes] = useState<Record<string, MarketData["quote"]>>({});
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
   const [trialError, setTrialError] = useState("");
+  const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
+  const [marketContextError, setMarketContextError] = useState("");
   const [starredRevision, setStarredRevision] = useState(0);
   const [indicatorsVisible, setIndicatorsVisible] = useState(true);
   const stock = stockList[activeStock] || stockList[0];
@@ -192,6 +202,19 @@ export default function Home() {
     return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,lastVwap,volumes:minutePoints.map((point,index)=>({x:10+(index/(minutePoints.length-1))*900,height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:[max,max-range*.25,max-range*.5,max-range*.75,min]};
   },[minutePoints]);
   const stockState = useMemo(() => recognizeStockState(marketData?.bars ?? [], activeQuote, minutePoints), [marketData?.bars, activeQuote, minutePoints]);
+  const liveEngine = useMemo(() => runSmartTReplay(minutePoints, {
+    capital:200_000,
+    baseShares:preferences.baseShares,
+    sellable:preferences.baseShares,
+    feeRate:.025,
+    slippage:.02,
+    minCommission:true,
+    slippageMode:"percent",
+    forceCloseTime:"1450",
+    profile,
+    previousClose:activeQuote?.previousClose ?? null,
+    randomValue:0,
+  }),[minutePoints,preferences.baseShares,profile,activeQuote?.previousClose]);
   const openingAssessment = useMemo(() => {
     const price=activeQuote?.price; const open=activeQuote?.open;
     const previousClose=price != null && activeQuote?.change != null
@@ -220,11 +243,18 @@ export default function Home() {
     const directionConfirmed=(lowOpen&&aboveReference&&rising)||(highOpen&&belowReference&&falling);
     const confirmed=[lowOpen||highOpen,inDecisionWindow,lowOpen?aboveReference:highOpen?belowReference:false,lowOpen?rising:highOpen?falling:false].filter(Boolean).length;
     if(stockState.level==="risk") return {status:"locked" as const,mode:null,confirmed,reason:"股票状态触发极端风险，自动信号已锁定。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
+    if(marketContext?.gate.hardLock) return {status:"locked" as const,mode:null,confirmed,reason:`外部环境雷达：${marketContext.gate.label}，只允许恢复底仓。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
+    if(marketContext?.gate.level==="restricted") return {status:"waiting" as const,mode:null,confirmed,reason:`外部环境雷达：${marketContext.gate.label}，暂停新开循环。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(!lowOpen&&!highOpen) return {status:"waiting" as const,mode:null,confirmed,reason:"平开或开盘数据不完整，等待形成明确方向。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:45 前只采样，过滤开盘噪声。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
-    if(directionConfirmed) return {status:"ready" as const,mode:(lowOpen?"正T":"反T") as "正T"|"反T",confirmed,reason:lowOpen?"低开后站回开盘价与 VWAP，短线连续走强。":"高开后跌破开盘价与 VWAP，短线连续走弱。",lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
-    return {status:"waiting" as const,mode:null,confirmed,reason:lowOpen?"已识别低开，等待站回 VWAP 并连续走强。":"已识别高开，等待跌破 VWAP 并连续走弱。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
-  },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState.level]);
+    const latestAction=liveEngine.actions.at(-1);
+    const cycleActions=latestAction?liveEngine.actions.filter(action=>action.cycleId===latestAction.cycleId):[];
+    const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
+    const fresh=Boolean(latestAction&&minuteNumber(lastTime)-minuteNumber(latestAction.time)>=0&&minuteNumber(lastTime)-minuteNumber(latestAction.time)<=2);
+    if(latestAction&&cycleActions.length%2===1&&fresh) return {status:"ready" as const,mode:(latestAction.direction??(lowOpen?"正T":"反T")) as "正T"|"反T",confirmed:4,reason:`融合引擎实时信号：${latestAction.time} ${latestAction.direction} ${latestAction.side}，成本、趋势、量价与风控均已通过。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
+    if(latestAction&&fresh) return {status:"waiting" as const,mode:null,confirmed,reason:`融合引擎已于 ${latestAction.time} 完成${latestAction.direction}闭环，等待下一次有效信号。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
+    return {status:"waiting" as const,mode:null,confirmed,reason:directionConfirmed?`基础方向已确认，但融合引擎仍在检查成本、量价和盈亏比。`:liveEngine.status,lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
+  },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState.level,marketContext,liveEngine]);
   const signalMode:"正T"|"反T"=autoDecision.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
   useEffect(() => {
     if (!trainingRunning) return;
@@ -270,6 +300,28 @@ export default function Home() {
     const timer = window.setInterval(load, 30_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [localAuth, stock?.code]);
+  useEffect(() => {
+    if (!localAuth || !stock?.code) return;
+    let cancelled = false;
+    let inFlight = false;
+    const load = async () => {
+      if (inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
+      try {
+        const change=marketData?.quote.changePercent;
+        const query=change==null?"":`&change=${encodeURIComponent(change.toFixed(4))}`;
+        const response=await fetch(`/api/market-context?code=${encodeURIComponent(stock.code)}${query}`,{cache:"no-store"});
+        if(!response.ok) throw new Error("context unavailable");
+        const data=await response.json() as MarketContext;
+        if(!cancelled){setMarketContext(data);setMarketContextError("")}
+      } catch {
+        if(!cancelled){setMarketContext(null);setMarketContextError("外部环境行情暂不可用，已自动降为个股保守模式。");}
+      } finally { inFlight=false; }
+    };
+    void load();
+    const timer=window.setInterval(()=>void load(),15_000);
+    return()=>{cancelled=true;window.clearInterval(timer)};
+  },[localAuth,stock?.code,marketData?.quote.changePercent]);
   useEffect(() => {
     if (!localAuth || !stockList.length) return;
     let cancelled = false;
@@ -398,7 +450,7 @@ export default function Home() {
             <div><span>股票状态识别器</span><b>{stockState.label}</b></div><strong>{stockState.score}<small>/100</small></strong>
             <p>{stockState.summary}</p><em>{stockState.action}</em>
           </div>
-          <div className="radar-gate"><div><span>市场雷达门控</span><b>72<small>/100</small></b></div><p><i/>震荡区间 · 使用当前档位标准门槛</p><small>雷达低于25禁止激进正T；75以上提高反T确认分；88以上必须等待真实回落。</small></div>
+          <div className={`context-radar ${marketContext?.gate.level ?? "loading"}`}><div className="context-radar-head"><span>外部环境雷达 · {marketContext?.profile ?? "加载中"}</span><b>{marketContext?.gate.score ?? "--"}<small>/100</small></b></div><p><i/>{marketContext?.gate.label ?? "正在获取指数、行业与关联品种"}</p><strong>{(marketContext?.gate.action ?? marketContextError) || "15 秒级异步风控，不阻塞 1 秒个股监控"}</strong>{Boolean(marketContext?.items.length)&&<div className="context-radar-grid">{marketContext!.items.slice(0,6).map(item=><span key={item.id}><small>{item.label}</small><b className={(item.changePercent??0)>0?"up":(item.changePercent??0)<0?"down":""}>{item.changePercent==null?"--":`${item.changePercent>0?"+":""}${item.changePercent.toFixed(2)}%`}</b></span>)}</div>}<div className="context-radar-foot"><span>{marketContext?.gate.reasons.join(" · ") || "公开行情仅供人工研判"}</span><em>{marketContext?.events.label ?? "公告与新闻层加载中"}</em></div></div>
           <div className="opening-causal"><span>09:45 后自动判断</span><b>仅使用已出现数据 · 无需手动切换</b><small>低开站回VWAP并连续走强才生成正T；高开跌破VWAP并连续走弱才生成反T。</small></div>
           <h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2>
           <p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p>
@@ -790,7 +842,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
     previousClose:data.quote.previousClose ?? data.bars.at(-2)?.close ?? null,
     randomValue:randomOverride ?? seededFraction(`${batchSeed}:${code}:${seedKey}`),
   });
-  const replayLegacy=(data:MarketData,code:string,seedKey:string)=>runIntradayBlindReplayLegacy(data.minutes ?? [],capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,seededFraction(`${batchSeed}:${code}:${seedKey}`));
+  const replayLegacy=(data:MarketData,code:string,seedKey:string,randomOverride?:number)=>runIntradayBlindReplayLegacy(data.minutes ?? [],capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,randomOverride ?? seededFraction(`${batchSeed}:${code}:${seedKey}`));
   const fetchStock=async (code:string) => {
     const response=await fetch(`/api/market-data?code=${encodeURIComponent(code)}`, { cache:"no-store" });
     if(!response.ok) throw new Error("market unavailable");
@@ -818,23 +870,19 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         setRunStatus("未取得完整分时样本");
         return;
       }
-      // A single replay means the selected stock's latest complete session.
-      // Only the reveal point changes between attempts; the trading day does not
-      // silently jump to an older session.
+      // One click means one complete trading day. The engine still decides
+      // causally minute by minute, but repeated clicks must not manufacture
+      // extra samples by changing the reveal point inside the same day.
       const selected=[...sessions].sort((left,right)=>right.date.localeCompare(left.date))[0];
       const data=sessionData(fetched,selected);
       setSingleRunDate(selected.date);
       setSource(data);
-      // Golden-ratio stepping spreads consecutive attempts across the usable
-      // session instead of clustering adjacent hashed attempt numbers around
-      // almost the same reveal minute.
-      const revealFraction=(seededFraction(`${batchSeed}:${stock.code}:single-base`)+attempt*.618033988749895)%1;
-      const calculated=replay(data,stock.code,`single:${attempt}`,revealFraction);
+      const calculated=replay(data,stock.code,`full-day:${selected.date}`,0);
       setResult(calculated);
       setBatch(null);
       setRunStatus(calculated.trades
-        ? `第 ${attempt} 次完成：${selected.date} 从 ${formatTime(calculated.startTime)} 开始盲测，形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
-        : `第 ${attempt} 次完成：${selected.date} 从 ${formatTime(calculated.startTime)} 开始盲测，未触发正/反 T，资金保持不变`);
+        ? `${selected.date} 全日回放完成：形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
+        : `${selected.date} 全日回放完成：未触发正/反 T，资金保持不变`);
       setTimeout(()=>document.getElementById("single-backtest-result")?.scrollIntoView({behavior:"smooth",block:"start"}),0);
     } catch {
       setResult(null); setBatch(null); setSource(null);
@@ -844,30 +892,30 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   };
   const runBatch = async () => {
     setLastAction("batch");
-    setRunning(true); setRunMode("batch"); setError(""); setRunStatus("正在获取 20 股真实分时并运行 100 轮（共 2,000 样本）…");
+    setRunning(true); setRunMode("batch"); setError(""); setRunStatus("正在获取 20 股最近 5 个完整交易日（共 100 个股票日）…");
     try {
       const universe=[...new Set([...benchmarkUniverse,...stocks.map(item=>item.code)])].slice(0,20).map(code=>({code,name:stocks.find(item=>item.code===code)?.name ?? code}));
       const fetched=await Promise.allSettled(universe.map(async item=>({item,data:await fetchStock(item.code)})));
       const available=fetched.flatMap(entry=>entry.status==="fulfilled" && (entry.value.data.intradaySessions ?? []).length ? [entry.value] : []);
       if(!available.length) throw new Error("no minute data");
-      const rounds=Array.from({length:100},(_,round)=>available.map(selected=>{
-        const sessions=selected.data.intradaySessions!;
-        const session=sessions[Math.floor(seededFraction(`${batchSeed}:${selected.item.code}:session:${round}`)*sessions.length)];
-        const data=sessionData(selected.data,session);
-        return {selected:{...selected,data},result:replay(data,selected.item.code,`round:${round}`),legacy:replayLegacy(data,selected.item.code,`round:${round}`)};
-      }));
-      const trials=rounds.flat();
+      const trials=available.flatMap(selected=>[...selected.data.intradaySessions!]
+        .sort((left,right)=>right.date.localeCompare(left.date))
+        .slice(0,5)
+        .map(session=>{
+          const data=sessionData(selected.data,session);
+          return {selected:{...selected,data},result:replay(data,selected.item.code,`full-day:${session.date}`,0),legacy:replayLegacy(data,selected.item.code,`full-day:${session.date}`,0)};
+        }));
       const results=trials.map(item=>item.result);
       const legacyResults=trials.map(item=>item.legacy);
       const summarize=(items:BacktestResult[]):BatchMetrics=>{
         const cycleNets=items.flatMap(item=>item.cycleNets);
-        const roundNets=rounds.map((_,round)=>items.slice(round*available.length,(round+1)*available.length).reduce((sum,item)=>sum+item.net,0));
+        const roundNets=items.map(item=>item.net);
         const positive=cycleNets.filter(value=>value>0).reduce((sum,value)=>sum+value,0);
         const negative=Math.abs(cycleNets.filter(value=>value<0).reduce((sum,value)=>sum+value,0));
         return {samples:items.length,completed:cycleNets.length,wins:cycleNets.filter(value=>value>0).length,gross:items.reduce((sum,item)=>sum+item.gross,0),fees:items.reduce((sum,item)=>sum+item.fees,0),executionCost:items.reduce((sum,item)=>sum+item.executionCost,0),net:items.reduce((sum,item)=>sum+item.net,0),tradingRounds:roundNets.filter(value=>value!==0).length,profitableRounds:roundNets.filter(value=>value>0).length,losingRounds:roundNets.filter(value=>value<0).length,profitFactor:negative?positive/negative:null,maxDrawdown:Math.max(...items.map(item=>item.maxDrawdown))};
       };
       const metrics=summarize(results); const legacy=summarize(legacyResults);
-      const roundNets=rounds.map(items=>items.reduce((sum,item)=>sum+item.result.net,0)).sort((a,b)=>a-b);
+      const roundNets=results.map(item=>item.net).sort((a,b)=>a-b);
       const stockFeedback=available.map(selected=>{
         const stockTrials=trials.filter(item=>item.selected.item.code===selected.item.code);
         const stockResults=stockTrials.map(item=>item.result);
@@ -897,28 +945,30 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
                 : "量价确认不足，未强行开仓";
         return {code:selected.item.code,name:selected.data.quote.name || selected.item.name,sessions:selected.data.intradaySessions?.length ?? 0,samples:stockResults.length,completed,wins,winRate:completed?wins/completed:null,positiveT,reverseT,net:stockResults.reduce((sum,item)=>sum+item.net,0),noTrade:stockResults.filter(item=>item.trades===0).length,feedback};
       });
-      const representative=trials.find(item=>item.selected.item.code===stock.code && item.result.trades>0) ?? trials.find(item=>item.result.trades>0) ?? trials[0];
+      const representative=trials.find(item=>item.selected.item.code===stock.code && item.result.trades>0) ?? trials.find(item=>item.selected.item.code===stock.code) ?? trials.find(item=>item.result.trades>0) ?? trials[0];
       setResult(representative.result); setSource(representative.selected.data);
-      const uniqueSessions=available.reduce((sum,item)=>sum+(item.data.intradaySessions?.length ?? 0),0);
-      setBatch({...metrics,rounds:100,stocks:available.length,uniqueSessions,noTrade:results.filter(item=>item.trades===0).length,averageNet:metrics.net/100,medianNet:(roundNets[49]+roundNets[50])/2,seed:batchSeed,providers:[...new Set(available.map(item=>item.data.provider))],legacy,stockFeedback});
-      setRunStatus(`100 轮完成：${available.length} 只股票/轮，来自 ${uniqueSessions} 个真实股票日，${metrics.completed} 个闭环`);
+      const uniqueSessions=trials.length;
+      const middle=Math.floor(roundNets.length/2);
+      const medianNet=roundNets.length%2 ? roundNets[middle] : ((roundNets[middle-1] ?? 0)+(roundNets[middle] ?? 0))/2;
+      setBatch({...metrics,rounds:trials.length,stocks:available.length,uniqueSessions,noTrade:results.filter(item=>item.trades===0).length,averageNet:metrics.net/Math.max(1,trials.length),medianNet,seed:batchSeed,providers:[...new Set(available.map(item=>item.data.provider))],legacy,stockFeedback});
+      setRunStatus(`${trials.length} 个完整股票日回放完成：${available.length} 只股票，${metrics.completed} 个闭环`);
     } catch {
       setResult(null); setBatch(null); setSource(null);
       setError("自选池暂未取得足够的真实 1 分钟分时数据，未生成统计结果；请稍后重试或更换股票。");
-      setRunStatus("100 轮盲测未完成");
+      setRunStatus("完整股票日回放未完成");
     } finally { setRunning(false); setRunMode(null); }
   };
-  const curve = result?.curve ?? [];
-  const largestMove=Math.max(1,...curve.map(value=>Math.abs(value-capital)));
-  const magnitude=10**Math.floor(Math.log10(largestMove));
-  const normalized=largestMove/magnitude;
-  const halfRange=(normalized<=1?1:normalized<=2?2:normalized<=5?5:10)*magnitude*1.2;
-  const chartMin=capital-halfRange,chartMax=capital+halfRange;
+  const fullDayMinutes=source?.minutes ?? [];
+  const fullDayPrices=fullDayMinutes.map(point=>point.price);
+  const observedMin=fullDayPrices.length?Math.min(...fullDayPrices):0;
+  const observedMax=fullDayPrices.length?Math.max(...fullDayPrices):1;
+  const pricePadding=Math.max(.01,(observedMax-observedMin)*.12);
+  const chartMin=Math.max(.01,observedMin-pricePadding),chartMax=observedMax+pricePadding;
   const chartTicks=Array.from({length:5},(_,index)=>chartMax-(chartMax-chartMin)*index/4);
-  const chartPoint = (value:number,index:number) => ({ x:65+(index/Math.max(1,curve.length-1))*755, y:18+((chartMax-value)/(chartMax-chartMin))*184 });
-  const points = curve.length > 1 ? curve.map((value,index)=>{ const point=chartPoint(value,index); return `${point.x},${point.y}`; }).join(" ") : "";
-  const baseY=chartPoint(capital,0).y;
-  const chartTimes=result?.curveTimes ?? [];
+  const chartPoint = (value:number,index:number) => ({ x:65+(index/Math.max(1,fullDayMinutes.length-1))*755, y:18+((chartMax-value)/Math.max(.01,chartMax-chartMin))*184 });
+  const points = fullDayPrices.length > 1 ? fullDayPrices.map((value,index)=>{ const point=chartPoint(value,index); return `${point.x},${point.y}`; }).join(" ") : "";
+  const previousClose=source?.quote.previousClose ?? null;
+  const previousCloseY=previousClose && previousClose>=chartMin && previousClose<=chartMax ? chartPoint(previousClose,0).y : null;
   const formatTime=(value:string|undefined)=>value && value.length>=4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : "--:--";
   const cycles = (() => {
     const paired: { first: ReplayAction; second: ReplayAction }[] = [];
@@ -940,7 +990,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   })();
   return <section className="backtest-view">
     <div className="backtest-head">
-      <div><span className="eyebrow">INTRADAY BLIND REPLAY</span><h1>真实分时盲测</h1><p>随机隐藏后续分时，策略仅按已揭示的价格和成交量逐点决策；不读取当日收盘价、高低点或未来K线。</p></div>
+      <div><span className="eyebrow">FULL-DAY CAUSAL REPLAY</span><h1>完整交易日分时盲测</h1><p>从开盘到收盘逐分钟推进，策略在每一分钟只能读取当时及此前数据；回放完成后显示整日分时并标注真实决策点。</p></div>
       <div className="integrity-badges"><span><i/>真实分时数据</span><span><i/>无未来函数</span><span><i/>真实可卖数量</span></div>
     </div>
     <div className="backtest-grid">
@@ -948,29 +998,29 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         <div className="config-title"><h2>回测参数</h2><span>{running ? "计算中" : runStatus}</span></div>
         <label>回测股票<select className="backtest-stock-select" value={activeStock} onChange={event=>onSelectStock(Number(event.target.value))} aria-label="选择回测股票">{stocks.map((item,index)=><option key={item.code} value={index}>{item.code} {item.name}</option>)}</select></label>
         <label>买卖逻辑<div className="field static-field"><b>Smart-T 融合策略 V4</b><span>正/反 T + 开盘试单 + 趋势量价 + 成本风控</span></div></label>
-        <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "公开真实分时" : "运行后显示"}</b><span>{batch ? `${batch.uniqueSessions} 个完整股票日` : source?.sampleDate ?? "随机揭示起点"}</span></div></label><label>决策方式<div className="field static-field date-display"><b>逐分钟因果判断</b><span>不读未来高低点/收盘价</span></div></label></div>
+        <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "公开真实分时" : "运行后显示"}</b><span>{batch ? `${batch.uniqueSessions} 个不重复股票日` : source?.sampleDate ?? "完整交易日"}</span></div></label><label>决策方式<div className="field static-field date-display"><b>全日逐分钟因果判断</b><span>不读未来高低点/收盘价</span></div></label></div>
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
         <div className="field-pair"><label>昨日可卖<NumberStepper value={sellable} unit="股" step={100} min={0} onChange={setSellable}/></label><label>单次上限<div className="field static-field"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
         <label>券商费率模板<select value={`${feeRate}-${minCommission}`} onChange={event=>{const templates:{[key:string]:[number,boolean]}={"0.025-true":[0.025,true],"0.01-false":[0.01,false],"0.0085-true":[0.0085,true]};const value=templates[event.target.value];if(value){setFeeRate(value[0]);setMinCommission(value[1])}}}><option value="0.025-true">默认行业价：万2.5（最低5元）</option><option value="0.01-false">常见大客户价：万1免五</option><option value="0.0085-true">尊享价：万0.85（最低5元）</option></select></label>
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
-        <button className="run-backtest" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch' ? '正在运行 2,000 个真实分时盲测…' : '运行 100 轮 × 20 股对比盲测'}<span>→</span></button>
-        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在测试 ${stock.code}…`:`测试 ${stock.code} ${stock.name} 1 次`}</button><button type="button" onClick={()=>{const nextSeed=Date.now()%1_000_000_000;setBatchSeed(nextSeed);setBatch(null);setResult(null);setSource(null);setError("");setSingleRunCount(0);setSingleRunDate("");setLastAction("shuffle");setShuffleCount(value=>value+1);setRunStatus(`已换随机批次：种子 ${nextSeed}，请点击单次或 100 轮测试`)}} disabled={running}>{shuffleCount?`再换随机批次（已换 ${shuffleCount} 次）`:'换随机批次'}</button></div>
-        <div className={`single-run-status ${running?'running':error?'error':result||batch||lastAction==='shuffle'?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在计算 2,000 个因果样本…':`第 ${singleRunCount} 次正在测试 ${stock.code}…`):error?'运行失败':lastAction==='shuffle'?'随机批次已更换':lastAction==='batch'&&batch?`100 轮 × ${batch.stocks} 股测试完成`:lastAction==='single'&&result?(result.trades?`第 ${singleRunCount} 次完成：触发 ${result.trades} 个做T闭环`:`第 ${singleRunCount} 次完成：本次未触发做T条件`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${singleRunDate} 最新完整交易日`:''}</small></span></div>
-        <p className="seed-note">随机种子 {Math.floor(batchSeed)} · 同一批次可复现</p>
+        <button className="run-backtest" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch' ? '正在回放 100 个完整股票日…' : '回放 100 个完整股票日（20股 × 5日）'}<span>→</span></button>
+        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}</button><button type="button" onClick={()=>{const nextSeed=Date.now()%1_000_000_000;setBatchSeed(nextSeed);setBatch(null);setResult(null);setSource(null);setError("");setSingleRunCount(0);setSingleRunDate("");setLastAction("shuffle");setShuffleCount(value=>value+1);setRunStatus(`已刷新验证批次：${nextSeed}；完整股票日不会重复抽样`)}} disabled={running}>{shuffleCount?`再次刷新数据（已刷新 ${shuffleCount} 次）`:'刷新验证数据'}</button></div>
+        <div className={`single-run-status ${running?'running':error?'error':result||batch||lastAction==='shuffle'?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在计算 100 个完整股票日…':`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='shuffle'?'验证数据已刷新':lastAction==='batch'&&batch?`${batch.uniqueSessions} 个完整股票日测试完成`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：未触发做T条件`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${singleRunDate} 最新完整交易日`:''}</small></span></div>
+        <p className="seed-note">验证批次 {Math.floor(batchSeed)} · 每个股票日仅计算一次</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
         <p className="config-note">状态：{runStatus}</p>
         {error&&<p className="config-note">{error}</p>}
       </aside>
       <div className="backtest-results" id="single-backtest-result">
-        {batch&&<section className="batch-report" aria-label="100轮20股盲测汇总"><div className="batch-report-head"><div><span>MULTI-STOCK CAUSAL A/B</span><h2>100 轮 × {batch.stocks} 股真实分时盲测</h2></div><em>固定验证种子 {Math.floor(batch.seed)}</em></div><div className="batch-metrics"><div><span>扣费后循环胜率</span><strong>{batch.completed?`${(batch.wins/batch.completed*100).toFixed(2)}%`:'—'}</strong><small>{batch.wins}/{batch.completed} 个闭环盈利</small></div><div><span>毛收益</span><b>{money(batch.gross)}</b><small>{batch.samples.toLocaleString()} 个因果样本</small></div><div><span>交易费用 + 滑点</span><b>{money(-(batch.fees+batch.executionCost))}</b><small>费用 {money(-batch.fees)} · 滑点 {money(-batch.executionCost)}</small></div><div><span>总净收益</span><b>{money(batch.net)}</b><small>平均每轮 {money(batch.averageNet)}</small></div><div><span>有交易 / 盈利 / 亏损轮</span><b>{batch.tradingRounds} / {batch.profitableRounds} / {batch.losingRounds}</b><small>共 {batch.rounds} 轮</small></div><div><span>盈利因子 / 最差回撤</span><b>{batch.profitFactor===null?'—':batch.profitFactor.toFixed(2)} / -{(batch.maxDrawdown*100).toFixed(2)}%</b><small>{batch.uniqueSessions} 个完整股票日 · {batch.providers.join(' / ')}</small></div></div><div className="ab-compare"><b>同样本旧版</b><span>闭环 {batch.legacy.completed}</span><span>胜率 {batch.legacy.completed?(batch.legacy.wins/batch.legacy.completed*100).toFixed(2):'—'}%</span><span>净收益 {money(batch.legacy.net)}</span><strong>新版差额 {money(batch.net-batch.legacy.net)}</strong></div><div className="stock-feedback"><div className="stock-feedback-head"><div><b>20 股逐股反馈</b><span>每只股票 100 次随机揭示；未交易也显示原因</span></div><em>正T / 反T 为已开仓循环数</em></div><div className="stock-feedback-scroll"><table><thead><tr><th>股票</th><th>完整股票日</th><th>闭环</th><th>扣费后胜率</th><th>正T / 反T</th><th>累计净收益</th><th>未交易样本</th><th>反馈</th></tr></thead><tbody>{batch.stockFeedback.map(item=><tr key={item.code} className={item.code===source?.quote.code?'representative':''}><td><b>{item.code}</b><span>{item.name}</span></td><td>{item.sessions}</td><td>{item.completed}</td><td>{item.winRate===null?'—':`${(item.winRate*100).toFixed(2)}%`}</td><td>{item.positiveT} / {item.reverseT}</td><td className={item.net>0?'profit':item.net<0?'loss':''}>{money(item.net)}</td><td>{item.noTrade} / {item.samples}</td><td>{item.feedback}</td></tr>)}</tbody></table></div></div><p>新旧引擎使用同一股票日、同一逐分钟数据、同一固定种子和相同费用。2,000 次因果抽样来自 {batch.uniqueSessions} 个公开源完整股票日；胜率按扣除佣金、最低 5 元、印花税及双向滑点后的完整循环计算，未触发不计胜负。</p></section>}
+        {batch&&<section className="batch-report" aria-label="100个完整股票日盲测汇总"><div className="batch-report-head"><div><span>MULTI-STOCK FULL-DAY CAUSAL A/B</span><h2>{batch.uniqueSessions} 个完整股票日真实分时盲测</h2></div><em>{batch.stocks} 股 × 最近 5 个完整交易日</em></div><div className="batch-metrics"><div><span>扣费后循环胜率</span><strong>{batch.completed?`${(batch.wins/batch.completed*100).toFixed(2)}%`:'—'}</strong><small>{batch.wins}/{batch.completed} 个闭环盈利</small></div><div><span>毛收益</span><b>{money(batch.gross)}</b><small>{batch.samples.toLocaleString()} 个不重复股票日</small></div><div><span>交易费用 + 滑点</span><b>{money(-(batch.fees+batch.executionCost))}</b><small>费用 {money(-batch.fees)} · 滑点 {money(-batch.executionCost)}</small></div><div><span>总净收益</span><b>{money(batch.net)}</b><small>平均每个股票日 {money(batch.averageNet)}</small></div><div><span>有交易 / 盈利 / 亏损日</span><b>{batch.tradingRounds} / {batch.profitableRounds} / {batch.losingRounds}</b><small>共 {batch.rounds} 个股票日</small></div><div><span>盈利因子 / 最差回撤</span><b>{batch.profitFactor===null?'—':batch.profitFactor.toFixed(2)} / -{(batch.maxDrawdown*100).toFixed(2)}%</b><small>{batch.uniqueSessions} 个完整股票日 · {batch.providers.join(' / ')}</small></div></div><div className="ab-compare"><b>同样本旧版</b><span>闭环 {batch.legacy.completed}</span><span>胜率 {batch.legacy.completed?(batch.legacy.wins/batch.legacy.completed*100).toFixed(2):'—'}%</span><span>净收益 {money(batch.legacy.net)}</span><strong>新版差额 {money(batch.net-batch.legacy.net)}</strong></div><div className="stock-feedback"><div className="stock-feedback-head"><div><b>20 股逐股反馈</b><span>每只股票最近 5 个完整交易日各回放一次；未交易也显示原因</span></div><em>正T / 反T 为不重复股票日内的闭环数</em></div><div className="stock-feedback-scroll"><table><thead><tr><th>股票</th><th>完整股票日</th><th>闭环</th><th>扣费后胜率</th><th>正T / 反T</th><th>累计净收益</th><th>未交易样本</th><th>反馈</th></tr></thead><tbody>{batch.stockFeedback.map(item=><tr key={item.code} className={item.code===source?.quote.code?'representative':''}><td><b>{item.code}</b><span>{item.name}</span></td><td>{item.samples}</td><td>{item.completed}</td><td>{item.winRate===null?'—':`${(item.winRate*100).toFixed(2)}%`}</td><td>{item.positiveT} / {item.reverseT}</td><td className={item.net>0?'profit':item.net<0?'loss':''}>{money(item.net)}</td><td>{item.noTrade} / {item.samples}</td><td>{item.feedback}</td></tr>)}</tbody></table></div></div><p>每个“股票 × 交易日”只计算一次，策略从允许交易的最早时段逐分钟运行到收盘；胜率按扣除佣金、最低 5 元、印花税及双向滑点后的完整循环计算，未触发不计胜负。</p></section>}
         <div className="result-summary">
           <div className="result-primary"><span>{batch?"代表样本净收益":"净收益"}</span><strong>{result ? money(result.net) : "—"}</strong><em>{result ? `${(result.net/capital*100).toFixed(3)}%` : "运行后显示"}</em></div>
           <div><span>理论毛收益</span><b>{result ? money(result.gross) : "—"}</b><small>未扣费用与滑点</small></div><div><span>费用与滑点</span><b>{result ? money(-(result.fees+result.executionCost)) : "—"}</b><small>佣金、印花税及双向滑点</small></div><div><span>最大回撤</span><b>{result ? `-${(result.maxDrawdown*100).toFixed(3)}%` : "—"}</b><small>{source ? "费用进入逐点资金曲线" : "运行后显示"}</small></div>
         </div>
-        <div className="equity-panel"><div className="panel-heading"><div><h2>{source?`代表样本资金曲线 · ${source.quote.code} ${source.quote.name}`:"代表样本真实资金曲线"}</h2><span>{result ? `${source?.sampleDate ?? "—"} · ${formatTime(result.startTime)} 至 ${formatTime(chartTimes.at(-1))} · 纵轴为真实人民币` : "运行后显示"}</span></div><div className="curve-legend"><span><i/>净资产</span><span className="base-legend"><i/>初始资金</span><span className="sell-marker">● 正T卖出 / 反T先卖</span><span className="buy-marker">● 正T买入 / 反T买回</span></div></div><svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="带真实人民币坐标和时间轴的回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toLocaleString('zh-CN',{maximumFractionDigits:0})}</text></g>})}<line x1="65" x2="820" y1={baseY} y2={baseY} className="equity-base-line"/>{points&&<><polyline points={`${points} 820,${baseY} 65,${baseY}`} fill="url(#equityFill)"/><polyline points={points} className="equity-line" fill="none"/>{result?.actions.map((action,index)=>{ const point=chartPoint(curve[Math.min(action.curveIndex,curve.length-1)] ?? capital,Math.min(action.curveIndex,curve.length-1)); const fill=action.side==="卖出"?"#ff6464":"#28d7c4"; const label=action.direction==="反T"?(action.side==="卖出"?"反T先卖":"反T买回"):(action.side==="买入"?"正T买入":"正T卖出"); return <g key={`${action.side}-${action.time}-${index}`}><circle cx={point.x} cy={point.y} r="5" fill={fill} stroke="#071312" strokeWidth="2"/><text x={point.x} y={point.y-10} textAnchor="middle" fill={fill} fontSize="10" fontWeight="700">{label}</text></g>; })}<text x="65" y="222" className="equity-time-label">{formatTime(chartTimes[0])}</text><text x="442" y="222" textAnchor="middle" className="equity-time-label">{formatTime(chartTimes[Math.floor(chartTimes.length/2)])}</text><text x="820" y="222" textAnchor="end" className="equity-time-label">{formatTime(chartTimes.at(-1))}</text></>}</svg><div className="chart-truth-note"><span>纵轴以初始资金为中心对称缩放，并明确显示金额刻度</span><b>本样本波动区间 ¥{chartMin.toLocaleString('zh-CN',{maximumFractionDigits:0})} — ¥{chartMax.toLocaleString('zh-CN',{maximumFractionDigits:0})}</b></div></div>
-        {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "已按同一循环的两笔成交自动配对" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.first.time}-${cycle.second.time}`}><div><b>{cycle.direction} 循环 #{cycle.index}</b><span>{cycle.first.side} {cycle.first.time} ¥ {cycle.first.price.toFixed(2)} → {cycle.second.side} {cycle.second.time} ¥ {cycle.second.price.toFixed(2)}</span></div><div><small>数量</small><b>{cycle.first.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本次随机揭示起点后没有形成同时满足成本、趋势和风控条件的正/反 T 循环，资金不变。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
+        <div className="equity-panel"><div className="panel-heading"><div><h2>{source?`完整交易日真实分时 · ${source.quote.code} ${source.quote.name}`:"完整交易日真实分时"}</h2><span>{result ? `${source?.sampleDate ?? "—"} · ${formatTime(fullDayMinutes[0]?.time)} 至 ${formatTime(fullDayMinutes.at(-1)?.time)} · 策略从 ${formatTime(result.startTime)} 起逐分钟判断` : "运行后显示"}</span></div><div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span></div></div><svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".16"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toFixed(2)}</text></g>})}{previousCloseY!==null&&<line x1="65" x2="820" y1={previousCloseY} y2={previousCloseY} className="equity-base-line"/>}{points&&<><polyline points={`${points} 820,202 65,202`} fill="url(#equityFill)"/><polyline points={points} className="equity-line" fill="none"/>{result?.actions.map((action,index)=>{const minuteIndex=fullDayMinutes.findIndex(point=>point.time===action.time);if(minuteIndex<0)return null;const point=chartPoint(fullDayMinutes[minuteIndex].price,minuteIndex);const isSell=action.side==="卖出";const fill=isSell?"#ff6464":"#28d7c4";const label=action.direction==="反T"?(isSell?"反T先卖":"反T买回"):(action.side==="买入"?"正T买入":"正T卖出");return <g key={`${action.side}-${action.time}-${index}`}><circle cx={point.x} cy={point.y} r="5" fill={fill} stroke="#071312" strokeWidth="2"/><text x={point.x} y={isSell?point.y-10:point.y+17} textAnchor="middle" fill={fill} fontSize="10" fontWeight="700">{label}</text></g>})}<text x="65" y="222" className="equity-time-label">{formatTime(fullDayMinutes[0]?.time)}</text><text x="442" y="222" textAnchor="middle" className="equity-time-label">{formatTime(fullDayMinutes[Math.floor(fullDayMinutes.length/2)]?.time)}</text><text x="820" y="222" textAnchor="end" className="equity-time-label">{formatTime(fullDayMinutes.at(-1)?.time)}</text></>}</svg><div className="chart-truth-note"><span>曲线展示整日真实 1 分钟价格；买卖点来自逐分钟因果决策，不读取未来数据</span><b>开 {fullDayPrices[0]?.toFixed(2) ?? "—"} · 高 {observedMax.toFixed(2)} · 低 {observedMin.toFixed(2)} · 收 {fullDayPrices.at(-1)?.toFixed(2) ?? "—"}</b></div></div>
+        {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "已按同一循环的两笔成交自动配对" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.first.time}-${cycle.second.time}`}><div><b>{cycle.direction} 循环 #{cycle.index}</b><span>{cycle.first.side} {cycle.first.time} ¥ {cycle.first.price.toFixed(2)} → {cycle.second.side} {cycle.second.time} ¥ {cycle.second.price.toFixed(2)}</span></div><div><small>数量</small><b>{cycle.first.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本完整交易日内没有形成同时满足成本、趋势和风控条件的正/反 T 循环，资金不变；整日真实分时仍保留用于复盘。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
         <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>{result?.days ?? "—"}</b></div><div><span>模拟循环</span><b>{result?.trades ?? "—"}</b></div><div><span>胜出循环</span><b>{result?.wins ?? "—"}</b></div><div><span>循环胜率</span><b className="teal">{result?.trades ? `${(result.wins/result.trades*100).toFixed(2)}%` : "—"}</b></div><div><span>底仓设定</span><b>{baseShares.toLocaleString()} 股</b></div><div><span>数据源</span><b>{source?.provider ?? "—"}</b></div></div><div className="failure-panel"><h3>计算说明</h3><p><span>样本证券</span><b>{source ? `${source.quote.code} ${source.quote.name}` : "未运行"}</b></p><p><span>样本交易日</span><b>{source?.sampleDate ?? "—"}</b></p><p><span>样本规模</span><b>{source ? `${source.minutes?.length ?? 0} 个分钟点` : "—"}</b></p><p><span>执行规则</span><b>逐点揭示，不看未来</b></p><p><span>费用模型</span><b>佣金 + 滑点 + 印花税</b></p><p><span>计算状态</span><b className="failure-alert">{result?.status ?? "等待运行"}</b></p></div></div>
       </div>
     </div>
