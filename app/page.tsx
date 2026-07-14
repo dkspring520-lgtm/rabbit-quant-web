@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { runSmartTReplay } from "@/lib/smart-t-engine.mjs";
-import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX } from "@/lib/intraday-axis.mjs";
+import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX, isAShareTradingMinute } from "@/lib/intraday-axis.mjs";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
@@ -218,7 +218,8 @@ export default function Home() {
       return updated;
     });
   };
-  const minutePoints = useMemo(() => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [], [currentTrial, currentMarket]);
+  const rawMinutePoints = useMemo(() => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [], [currentTrial, currentMarket]);
+  const minutePoints = useMemo(() => rawMinutePoints.filter(point=>isAShareTradingMinute(point.time)), [rawMinutePoints]);
   const chartModel = useMemo(() => {
     if (minutePoints.length < 2) return null;
     const prices=minutePoints.map(point=>point.price); const min=Math.min(...prices); const max=Math.max(...prices); const range=max-min||Math.max(max*.002,0.01);
