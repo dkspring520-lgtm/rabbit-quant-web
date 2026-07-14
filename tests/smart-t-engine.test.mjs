@@ -97,3 +97,13 @@ test("full-day replay starts at the earliest causal window and keeps chart marke
   assert.equal(result.actions[0].direction, "正T");
   assert.deepEqual(result.actions.map(action => action.side), ["买入", "卖出"]);
 });
+
+test("buy-first orders are reduced to the cash available in the simulated account", () => {
+  const reduced = runSmartTReplay(openingRecoverySession("rise"), { ...options, capital: 1_500, minCommission: false });
+  const blocked = runSmartTReplay(openingRecoverySession("rise"), { ...options, capital: 500, minCommission: false });
+
+  assert.equal(reduced.actions[0]?.side, "买入");
+  assert.equal(reduced.actions[0]?.quantity, 100);
+  assert.equal(blocked.actions.length, 0);
+  assert.ok(blocked.diagnostics.cashBlocked > 0);
+});
