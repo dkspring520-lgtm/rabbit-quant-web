@@ -124,7 +124,7 @@ export async function GET(request: Request) {
       gate,
       availableSources: [...new Set(items.map(item => item.provider))],
       errors,
-      events: { status: "not-connected", label: "公告与新闻事件层尚未接入", participatesInGate: false },
+      events: { status: "separate-radar", label: "公告与新闻由监控名单事件雷达独立扫描", participatesInGate: true },
     }, { headers: { "Cache-Control": "public, max-age=10, s-maxage=10" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "外部环境雷达请求失败" }, { status: 400 });
