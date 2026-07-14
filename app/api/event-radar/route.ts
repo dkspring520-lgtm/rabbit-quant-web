@@ -1,4 +1,4 @@
-import { classifyEvent, evaluateEventGate, stripEventMarkup } from "@/lib/event-radar.mjs";
+import { classifyEvent, dedupeRelatedEvents, evaluateEventGate, stripEventMarkup } from "@/lib/event-radar.mjs";
 
 type RawEvent = {
   id: string; code: string; title: string; summary: string; url: string; source: string;
@@ -64,11 +64,10 @@ export async function GET(request: Request) {
       ...(announcements.status === "fulfilled" ? announcements.value : []),
       ...(news.status === "fulfilled" ? news.value : []),
     ];
-    const deduped = [...new Map(raw.map(item => [`${item.code}:${item.title}`, item])).values()];
-    const items = deduped.map(item => ({ ...item, ...classifyEvent({ ...item, now }) }))
+    const classified = raw.map(item => ({ ...item, ...classifyEvent({ ...item, now }) }))
       .filter(item => item.ageHours <= 72)
-      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
-      .slice(0, 12);
+      .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
+    const items = dedupeRelatedEvents(classified).slice(0, 12);
     const gate = evaluateEventGate(items);
     return {
       ...stock, items, gate,
