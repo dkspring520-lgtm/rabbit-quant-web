@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aShareMinuteSlot, intradayChartX } from "../lib/intraday-axis.mjs";
+import { aShareMinuteSlot, intradayChartX, isAShareTradingMinute } from "../lib/intraday-axis.mjs";
 
 test("A 股分时轴按真实交易分钟定位并压缩午休", () => {
   assert.equal(aShareMinuteSlot("09:30"), 0);
@@ -24,4 +24,14 @@ test("未走完的盘中行情不会被拉伸到收盘位置", () => {
   assert.equal(intradayChartX("14:00"), 685);
   assert.equal(intradayChartX("14:30"), 797.5);
   assert.equal(intradayChartX("15:00"), 910);
+});
+
+test("盘后固定价成交点不会混入连续竞价分时", () => {
+  assert.equal(isAShareTradingMinute("09:30"), true);
+  assert.equal(isAShareTradingMinute("11:30"), true);
+  assert.equal(isAShareTradingMinute("11:31"), false);
+  assert.equal(isAShareTradingMinute("13:00"), true);
+  assert.equal(isAShareTradingMinute("15:00"), true);
+  assert.equal(isAShareTradingMinute("15:06"), false);
+  assert.equal(isAShareTradingMinute("15:30"), false);
 });
