@@ -137,7 +137,6 @@ export default function Home() {
   const [stockList, setStockList] = useState(initialStocks);
   const [profile, setProfile] = useState("平衡档");
   const [panel, setPanel] = useState("今日T循环");
-  const [signalMode, setSignalMode] = useState("反T");
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [agentOpen, setAgentOpen] = useState(false);
   const [activeView, setActiveView] = useState("首页");
@@ -199,10 +198,25 @@ export default function Home() {
     if(gap>=.001) return {session:"高开",gapText,auction:belowReference?"高开转弱 · 反T观察":"高开偏强 · 等待回落",confirmation:belowReference?"3/4 条件确认":"2/4 条件确认",suggested:"反T",positiveTitle:"高开回踩观察",positiveCopy:"高开股票需等待回踩企稳，不能把高开直接当成正 T 买点。",negativeTitle:belowReference?"高开转弱":"高开滞涨观察",negativeCopy:belowReference?"价格跌回开盘价与 VWAP 下方，仍需回抽失败确认。":"价格尚未同时跌破开盘价与 VWAP，不急于卖出。"};
     return {session:"平开",gapText:`平开 ${(gap*100).toFixed(2)}%`,auction:"平开震荡 · 区间观察",confirmation:"2/4 条件确认",suggested:"正T",positiveTitle:"平开正T观察",positiveCopy:"等待价格回踩后重新站上 VWAP，再判断正 T。",negativeTitle:"平开反T观察",negativeCopy:"等待价格冲高后跌回 VWAP，再判断反 T。"};
   },[activeQuote,chartModel?.lastVwap]);
-  useEffect(() => {
-    if(openingAssessment.session==="低开") setSignalMode("正T");
-    else if(openingAssessment.session==="高开") setSignalMode("反T");
-  },[stock.code,openingAssessment.session]);
+  const autoDecision = useMemo(() => {
+    const price=activeQuote?.price ?? 0; const open=activeQuote?.open ?? 0; const vwap=chartModel?.lastVwap ?? 0;
+    const lastTime=(minutePoints.at(-1)?.time ?? "").replace(/\D/g,"").slice(0,4);
+    const inDecisionWindow=lastTime>="0945" && lastTime<="1430";
+    const recent=minutePoints.slice(-4).map(point=>point.price);
+    const rising=recent.length>=4 && recent.at(-1)!>=recent[0]*1.001;
+    const falling=recent.length>=4 && recent.at(-1)!<=recent[0]*.999;
+    const lowOpen=openingAssessment.session==="低开"; const highOpen=openingAssessment.session==="高开";
+    const aboveReference=Boolean(price && open && vwap && price>=open && price>=vwap);
+    const belowReference=Boolean(price && open && vwap && price<=open && price<=vwap);
+    const directionConfirmed=(lowOpen&&aboveReference&&rising)||(highOpen&&belowReference&&falling);
+    const confirmed=[lowOpen||highOpen,inDecisionWindow,lowOpen?aboveReference:highOpen?belowReference:false,lowOpen?rising:highOpen?falling:false].filter(Boolean).length;
+    if(stockState.level==="risk") return {status:"locked" as const,mode:null,confirmed,reason:"股票状态触发极端风险，自动信号已锁定。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
+    if(!lowOpen&&!highOpen) return {status:"waiting" as const,mode:null,confirmed,reason:"平开或开盘数据不完整，等待形成明确方向。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
+    if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:45 前只采样，过滤开盘噪声。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
+    if(directionConfirmed) return {status:"ready" as const,mode:(lowOpen?"正T":"反T") as "正T"|"反T",confirmed,reason:lowOpen?"低开后站回开盘价与 VWAP，短线连续走强。":"高开后跌破开盘价与 VWAP，短线连续走弱。",lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
+    return {status:"waiting" as const,mode:null,confirmed,reason:lowOpen?"已识别低开，等待站回 VWAP 并连续走强。":"已识别高开，等待跌破 VWAP 并连续走弱。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
+  },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState.level]);
+  const signalMode:"正T"|"反T"=autoDecision.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
   useEffect(() => {
     if (!trainingRunning) return;
     const timer = window.setInterval(() => setTrainingProgress(value => {
@@ -306,7 +320,7 @@ export default function Home() {
         </nav>
         <div className="top-actions">
           <span className="market-open"><i />{trialQuote ? "1 秒试用监控" : marketData ? "公开行情已更新" : "行情连接中"}</span>
-          <span className="auto-off"><i />自动交易未连接</span>
+          <span className="auto-off"><i />自动判断运行中 · 下单未连接</span>
           <span className="clock">{trialQuote ? new Date(trialQuote.sourceTimestamp || trialQuote.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : marketData ? new Date(marketData.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
           <button className="profile-cycle" onClick={()=>setProfile(strategyProfiles[(strategyProfiles.indexOf(profile)+1)%strategyProfiles.length])} aria-label={`当前策略${profile}，点击切换`}><span>{profile}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
@@ -361,23 +375,26 @@ export default function Home() {
           </div>
           <div className="signal-tape">
             <span className="tape-title">信号证据</span>
-            <span><i className="ok">✓</i>价格跌回 VWAP 下方</span><span><i className="ok">✓</i>量能放大 1.42×</span><span><i className="ok">✓</i>超买/超卖识别已启用</span><span><i className="wait">·</i>等待二次确认</span>
+            <span><i className={openingAssessment.session==="低开"||openingAssessment.session==="高开"?"ok":"wait"}>{openingAssessment.session==="低开"||openingAssessment.session==="高开"?"✓":"·"}</i>{openingAssessment.gapText}</span>
+            <span><i className={autoDecision.referenceConfirmed?"ok":"wait"}>{autoDecision.referenceConfirmed?"✓":"·"}</i>开盘价 + VWAP</span>
+            <span><i className={autoDecision.trendConfirmed?"ok":"wait"}>{autoDecision.trendConfirmed?"✓":"·"}</i>连续走势确认</span>
+            <span><i className={autoDecision.inDecisionWindow?"ok":"wait"}>{autoDecision.inDecisionWindow?"✓":"·"}</i>{autoDecision.lastTime||"--:--"} 时间门控</span>
           </div>
         </div>
 
         <aside className="decision-zone">
-          <div className="decision-tabs"><button onClick={() => setSignalMode('正T')} className={signalMode==='正T'?'active':''}>正T</button><button onClick={() => setSignalMode('反T')} className={signalMode==='反T'?'active':''}>反T</button></div>
-          <div className="decision-label"><span>SMART-T 决策</span><em>可信度高</em></div>
+          <div className={`auto-direction ${autoDecision.status}`}><div><span>自动方向</span><b>{autoDecision.status==="locked"?"风控锁定":autoDecision.mode??"等待确认"}</b></div><small>{autoDecision.reason}</small><em>{autoDecision.confirmed}/4</em></div>
+          <div className="decision-label"><span>SMART-T 自动决策</span><em>{autoDecision.status==="ready"?"信号已确认":autoDecision.status==="locked"?"禁止开T":"1秒监控中"}</em></div>
           <div className={`stock-state ${stockState.level}`}>
             <div><span>股票状态识别器</span><b>{stockState.label}</b></div><strong>{stockState.score}<small>/100</small></strong>
             <p>{stockState.summary}</p><em>{stockState.action}</em>
           </div>
           <div className="radar-gate"><div><span>市场雷达门控</span><b>72<small>/100</small></b></div><p><i/>震荡区间 · 使用当前档位标准门槛</p><small>雷达低于25禁止激进正T；75以上提高反T确认分；88以上必须等待真实回落。</small></div>
-          <div className="opening-causal"><span>09:35–10:00 开盘试单</span><b>仅使用已出现数据 · 单次 1/6 仓</b><small>低开站回VWAP才允许正T；高开跌破VWAP且回抽失败才允许反T。</small></div>
+          <div className="opening-causal"><span>09:45 后自动判断</span><b>仅使用已出现数据 · 无需手动切换</b><small>低开站回VWAP并连续走强才生成正T；高开跌破VWAP并连续走弱才生成反T。</small></div>
           <h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2>
           <p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p>
-          <button className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
-            <span>{cycleStage === 'ready' ? (signalMode === '反T' ? '卖出 1/3 昨仓' : '买入 1/3 计划仓') : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
+          <button disabled={cycleStage==='ready'&&autoDecision.status!=="ready"} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
+            <span>{cycleStage === 'ready' ? autoDecision.status==="locked"?'风控锁定 · 暂停做T':autoDecision.status!=="ready"?'等待自动信号':(signalMode === '反T' ? '反T信号 · 卖出 1/3 昨仓' : '正T信号 · 买入 1/3 计划仓') : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
             <small>{cycleStage === 'ready' ? '记录首笔成交' : cycleStage === 'opened' ? '完成反向成交' : '开始下一次循环'} →</small>
           </button>
           <div className={`closure-guard ${cycleStage}`}>
