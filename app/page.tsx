@@ -314,14 +314,14 @@ export default function Home() {
     setStarredRevision(value => value + 1);
   };
 
-  if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-v3.png" alt="做T神器"/></main>;
+  if(!authReady) return <main className="auth-loading"><img src="/rabbit-brand-gold.png" alt="做T神器"/></main>;
   if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{setAccountName(name);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved)setPreferences(JSON.parse(saved));else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=normalizeWatchlist(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
 
   return (
     <main className="app-shell">
       <header className="topbar">
         <div className="brand brand-lockup" aria-label="做T神器 Rabbit Smart-T">
-          <span className="brand-emblem"><img className="rabbit-logo" src="/rabbit-brand-v3.png" alt="正反T双兔品牌标志"/><i /></span>
+          <span className="brand-emblem"><img className="rabbit-logo" src="/rabbit-brand-gold.png" alt="做T神器双兔黑金品牌标志"/><i /></span>
           <span className="brand-type"><strong><em>做T</em><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
@@ -512,7 +512,7 @@ function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean,
     }catch{setError('当前浏览器无法保存账户，请检查隐私设置');}finally{setBusy(false);}
   };
   return <main className="auth-page">
-    <section className="auth-brand-panel"><div className="auth-brand"><img src="/rabbit-brand-v3.png" alt="正反T双兔品牌标志"/><span><b><em>做T</em>神器</b><small>SMART INTRADAY SYSTEM</small></span></div><div className="auth-message"><span className="eyebrow">RABBIT SMART‑T</span><h1>把复杂的盘面，<br/><em>变成简单的操作。</em></h1><p>多股监控、正反T决策、当日仓位闭环与四兔持续训练。</p></div><div className="auth-points"><span><i/>市场雷达硬门控</span><span><i/>T+1可卖数量校验</span><span><i/>收盘恢复计划底仓</span></div><small className="auth-disclaimer">策略研究工具 · 不构成投资建议</small></section>
+    <section className="auth-brand-panel"><div className="auth-brand"><img src="/rabbit-brand-gold.png" alt="做T神器双兔黑金品牌标志"/><span><b><em>做T</em>神器</b><small>RABBIT QUANT</small></span></div><div className="auth-message"><span className="eyebrow">RABBIT SMART‑T</span><h1>把复杂的盘面，<br/><em>变成简单的操作。</em></h1><p>多股监控、正反T决策、当日仓位闭环与四兔持续训练。</p></div><div className="auth-points"><span><i/>市场雷达硬门控</span><span><i/>T+1可卖数量校验</span><span><i/>收盘恢复计划底仓</span></div><small className="auth-disclaimer">策略研究工具 · 不构成投资建议</small></section>
     <section className="auth-form-panel"><div className="auth-card"><div className="auth-card-head"><span>{mode==='login'?'WELCOME BACK':'CREATE ACCOUNT'}</span><h2>{mode==='login'?'登录做T神器':'创建用户名账户'}</h2><p>{mode==='login'?'继续查看你的监控、回测和训练记录。':'首次注册后即可进入个人交易工作台。'}</p></div><div className="auth-tabs"><button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setError('')}}>登录</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setError('')}}>注册</button></div><label className="auth-field"><span>用户名</span><input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" placeholder="请输入用户名"/></label><label className="auth-field"><span>密码</span><div><input value={password} onChange={e=>setPassword(e.target.value)} type={showPassword?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} placeholder="至少 6 个字符"/><button onClick={()=>setShowPassword(!showPassword)} type="button">{showPassword?'隐藏':'显示'}</button></div></label>{mode==='register'&&<><div className="password-strength"><span>密码强度</span><i className={strength>0?'on':''}/><i className={strength>1?'on':''}/><i className={strength>2?'on':''}/><i className={strength>3?'on':''}/><b>{strength<2?'较弱':strength<4?'可用':'较强'}</b></div><label className="auth-field"><span>确认密码</span><input value={confirm} onChange={e=>setConfirm(e.target.value)} type={showPassword?'text':'password'} autoComplete="new-password" placeholder="再次输入密码"/></label><label className="terms-check"><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/><span>我已阅读并同意《用户协议》和《隐私政策》，理解本工具不构成投资建议。</span></label></>}{mode==='login'&&<div className="auth-options"><label><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/><span>记住登录</span></label><button type="button" onClick={()=>setError('测试版暂不支持找回密码，请重新注册其他用户名')}>忘记密码？</button></div>}{error&&<div className="auth-error"><i>!</i>{error}</div>}<button className="auth-submit" onClick={submit} disabled={busy}>{busy?'正在验证…':mode==='login'?'登录':'注册并进入'}<span>→</span></button><div className="auth-local-note"><i>i</i><p><b>本机测试账户</b><span>当前账户仅保存在这个浏览器中，清除浏览器数据后会丢失。正式商用版将接入服务器数据库。</span></p></div></div><footer className="auth-footer">© 2026 Rabbit Quant · 用户协议 · 隐私政策</footer></section>
   </main>;
 }
@@ -783,10 +783,12 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const [source, setSource] = useState<MarketData | null>(null);
   const [error, setError] = useState("");
   const [runStatus, setRunStatus] = useState("等待运行");
-  const replay=(data:MarketData,code:string,seedKey:string):BacktestResult=>runSmartTReplay(data.minutes ?? [],{
+  const [lastAction, setLastAction] = useState<"idle"|"single"|"batch"|"shuffle">("idle");
+  const [shuffleCount, setShuffleCount] = useState(0);
+  const replay=(data:MarketData,code:string,seedKey:string,randomOverride?:number):BacktestResult=>runSmartTReplay(data.minutes ?? [],{
     capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,profile,
     previousClose:data.quote.previousClose ?? data.bars.at(-2)?.close ?? null,
-    randomValue:seededFraction(`${batchSeed}:${code}:${seedKey}`),
+    randomValue:randomOverride ?? seededFraction(`${batchSeed}:${code}:${seedKey}`),
   });
   const replayLegacy=(data:MarketData,code:string,seedKey:string)=>runIntradayBlindReplayLegacy(data.minutes ?? [],capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,seededFraction(`${batchSeed}:${code}:${seedKey}`));
   const fetchStock=async (code:string) => {
@@ -803,6 +805,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const runSingle = async () => {
     const attempt=singleRunCount+1;
     setSingleRunCount(attempt); setSingleRunDate("");
+    setLastAction("single");
     setRunning(true); setRunMode("single"); setError(""); setResult(null); setBatch(null); setSource(null);
     setRunStatus(`第 ${attempt} 次：正在获取 ${stock.code} ${stock.name} 最新完整分时…`);
     try {
@@ -822,7 +825,11 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
       const data=sessionData(fetched,selected);
       setSingleRunDate(selected.date);
       setSource(data);
-      const calculated=replay(data,stock.code,`single:${attempt}`);
+      // Golden-ratio stepping spreads consecutive attempts across the usable
+      // session instead of clustering adjacent hashed attempt numbers around
+      // almost the same reveal minute.
+      const revealFraction=(seededFraction(`${batchSeed}:${stock.code}:single-base`)+attempt*.618033988749895)%1;
+      const calculated=replay(data,stock.code,`single:${attempt}`,revealFraction);
       setResult(calculated);
       setBatch(null);
       setRunStatus(calculated.trades
@@ -836,6 +843,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
     } finally { setRunning(false); setRunMode(null); }
   };
   const runBatch = async () => {
+    setLastAction("batch");
     setRunning(true); setRunMode("batch"); setError(""); setRunStatus("正在获取 20 股真实分时并运行 100 轮（共 2,000 样本）…");
     try {
       const universe=[...new Set([...benchmarkUniverse,...stocks.map(item=>item.code)])].slice(0,20).map(code=>({code,name:stocks.find(item=>item.code===code)?.name ?? code}));
@@ -948,8 +956,8 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch' ? '正在运行 2,000 个真实分时盲测…' : '运行 100 轮 × 20 股对比盲测'}<span>→</span></button>
-        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在测试 ${stock.code}…`:`测试 ${stock.code} ${stock.name} 1 次`}</button><button type="button" onClick={()=>{setBatchSeed(Date.now()%1_000_000_000);setBatch(null);setResult(null);setSource(null);setSingleRunCount(0);setSingleRunDate("");setRunStatus("已换随机批次，等待运行")}} disabled={running}>换随机批次</button></div>
-        {(runMode==='single'||singleRunCount>0)&&!batch&&<div className={`single-run-status ${running?'running':result?'done':'idle'}`}><i/><span><b>{running?`第 ${singleRunCount} 次正在计算`:`第 ${singleRunCount} 次已返回结果`}</b><small>{singleRunDate?`${singleRunDate} · 最新完整交易日`:`${stock.code} ${stock.name}`}</small></span></div>}
+        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在测试 ${stock.code}…`:`测试 ${stock.code} ${stock.name} 1 次`}</button><button type="button" onClick={()=>{const nextSeed=Date.now()%1_000_000_000;setBatchSeed(nextSeed);setBatch(null);setResult(null);setSource(null);setError("");setSingleRunCount(0);setSingleRunDate("");setLastAction("shuffle");setShuffleCount(value=>value+1);setRunStatus(`已换随机批次：种子 ${nextSeed}，请点击单次或 100 轮测试`)}} disabled={running}>{shuffleCount?`再换随机批次（已换 ${shuffleCount} 次）`:'换随机批次'}</button></div>
+        <div className={`single-run-status ${running?'running':error?'error':result||batch||lastAction==='shuffle'?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在计算 2,000 个因果样本…':`第 ${singleRunCount} 次正在测试 ${stock.code}…`):error?'运行失败':lastAction==='shuffle'?'随机批次已更换':lastAction==='batch'&&batch?`100 轮 × ${batch.stocks} 股测试完成`:lastAction==='single'&&result?(result.trades?`第 ${singleRunCount} 次完成：触发 ${result.trades} 个做T闭环`:`第 ${singleRunCount} 次完成：本次未触发做T条件`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${singleRunDate} 最新完整交易日`:''}</small></span></div>
         <p className="seed-note">随机种子 {Math.floor(batchSeed)} · 同一批次可复现</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
         <p className="config-note">状态：{runStatus}</p>
