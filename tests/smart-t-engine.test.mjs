@@ -76,6 +76,18 @@ test("a completed profitable cycle reports net results after all costs", () => {
   assert.ok(Math.abs(result.net - (result.gross - result.fees - result.executionCost)) < 0.01);
 });
 
+test("candidate observations are deduplicated and do not relax the execution gate", () => {
+  const result = runSmartTReplay(openingRecoverySession("rise"), options);
+  const minuteNumber = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(2, 4));
+
+  assert.ok(result.observations.length >= 1);
+  assert.ok(result.observations.length <= 3, "one stock-day must not flood the desk with repeated candidates");
+  result.observations.slice(1).forEach((observation, index) => {
+    assert.ok(minuteNumber(observation.time) - minuteNumber(result.observations[index].time) >= 8);
+  });
+  assert.equal(result.trades, 1, "formal cycles keep the original V4 execution threshold");
+});
+
 test("a low gap without sustained recovery remains a no-trade sample", () => {
   const noise = sessionTimes.slice(0, 35).map((time, index) => ({
     time,
