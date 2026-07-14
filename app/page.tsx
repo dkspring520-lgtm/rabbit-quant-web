@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { runSmartTReplay } from "@/lib/smart-t-engine.mjs";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
-type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; quote:{ code:string; name:string; price:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[] };
+type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
+type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[]; intradaySessions?:IntradaySession[] };
 type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string };
 
 function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | undefined, minutes: { price:number }[]): StockState {
@@ -23,9 +25,10 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
   return { label:"横盘震荡", level:"flat", score:46, summary:"价格围绕均线反复，方向尚未形成。", action:"只在区间边缘低吸高抛" };
 }
 
-type ReplayAction = { time:string; side:"卖出"|"买回"; price:number; quantity:number; curveIndex:number };
+type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number };
 type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; startTime:string; status:string; actions:ReplayAction[] };
-type BatchBacktestResult = { trials:number; stocks:number; completed:number; noTrade:number; cycles:number; wins:number; net:number; averageNet:number; medianNet:number; profitFactor:number|null; maxDrawdown:number; seed:number; providers:string[] };
+type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
+type BatchBacktestResult = BatchMetrics & { rounds:number; stocks:number; uniqueSessions:number; noTrade:number; averageNet:number; medianNet:number; seed:number; providers:string[]; legacy:BatchMetrics };
 
 function runDailyBacktestLegacy(bars: MarketBar[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number): BacktestResult {
   let cash = capital;
@@ -63,7 +66,7 @@ function seededFraction(input:string) {
   return (hash>>>0)/4294967296;
 }
 
-function runIntradayBlindReplay(minutes: {time:string;price:number;volume:number}[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number, minCommission:boolean, slippageMode:"percent"|"tick", forceCloseTime:string, randomValue=Math.random()): BacktestResult {
+function runIntradayBlindReplayLegacy(minutes: {time:string;price:number;volume:number}[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number, minCommission:boolean, slippageMode:"percent"|"tick", forceCloseTime:string, randomValue=Math.random()): BacktestResult {
   const points=minutes.filter(point=>Number.isFinite(point.price) && point.price>0);
   const quantity=Math.floor(Math.min(baseShares,sellable)/3/100)*100;
   if(points.length<30 || !quantity) return {net:0,gross:0,fees:0,executionCost:0,maxDrawdown:0,trades:0,wins:0,days:0,curve:[capital],curveTimes:[],cycleNets:[],startTime:"",status:"真实分时样本或可卖底仓不足，未生成交易",actions:[]};
@@ -111,6 +114,11 @@ const initialStocks = [
   { code: "601012", name: "隆基绿能", price: "--", change: "--" },
   { code: "000063", name: "中兴通讯", price: "--", change: "--" },
   { code: "600519", name: "贵州茅台", price: "--", change: "--" },
+];
+
+const benchmarkUniverse = [
+  "601899","601012","000063","600519","600036","601318","600276","600030","601166","600887",
+  "000333","000651","002415","300750","002594","600900","601088","600309","600690","000858",
 ];
 
 const canonicalStockNames: Record<string, string> = {
@@ -765,32 +773,48 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [batch, setBatch] = useState<BatchBacktestResult | null>(null);
-  const [batchSeed, setBatchSeed] = useState(()=>Date.now()%1_000_000_000);
+  // Published validation batch: stable by default so A/B results are
+  // reproducible across browsers and deployments. Users can still reshuffle.
+  const [batchSeed, setBatchSeed] = useState(2026071403);
   const [source, setSource] = useState<MarketData | null>(null);
   const [error, setError] = useState("");
   const [runStatus, setRunStatus] = useState("等待运行");
-  const replay=(data:MarketData,code:string,seedKey:string)=>runIntradayBlindReplay(data.minutes ?? [],capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,seededFraction(`${batchSeed}:${code}:${seedKey}`));
+  const replay=(data:MarketData,code:string,seedKey:string):BacktestResult=>runSmartTReplay(data.minutes ?? [],{
+    capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,profile,
+    previousClose:data.quote.previousClose ?? data.bars.at(-2)?.close ?? null,
+    randomValue:seededFraction(`${batchSeed}:${code}:${seedKey}`),
+  });
+  const replayLegacy=(data:MarketData,code:string,seedKey:string)=>runIntradayBlindReplayLegacy(data.minutes ?? [],capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,seededFraction(`${batchSeed}:${code}:${seedKey}`));
   const fetchStock=async (code:string) => {
     const response=await fetch(`/api/market-data?code=${encodeURIComponent(code)}`, { cache:"no-store" });
     if(!response.ok) throw new Error("market unavailable");
     return await response.json() as MarketData;
   };
+  const sessionData=(data:MarketData,session:IntradaySession):MarketData=>{
+    const prices=session.minutes.map(point=>point.price);
+    const open=prices[0] ?? null; const price=prices.at(-1) ?? null;
+    const previousClose=session.previousClose;
+    return {...data,sampleDate:session.date,minutes:session.minutes,intradaySessions:data.intradaySessions,quote:{...data.quote,price,previousClose,open,high:prices.length?Math.max(...prices):null,low:prices.length?Math.min(...prices):null,change:price!==null&&previousClose!==null?price-previousClose:null,changePercent:price!==null&&previousClose?((price-previousClose)/previousClose)*100:null}};
+  };
   const runSingle = async () => {
     setRunning(true); setError(""); setRunStatus("正在获取当前股票真实分时…");
     try {
-      const data=await fetchStock(stock.code);
-      setSource(data);
-      if((data.minutes ?? []).length < 30) {
+      const fetched=await fetchStock(stock.code);
+      const sessions=fetched.intradaySessions ?? [];
+      if(!sessions.length) {
         setResult(null);
         setBatch(null);
-        setError("当前未取得足够的当日 1 分钟分时，未执行回测；请在交易日收盘后重试或更换股票。");
-        setRunStatus("未取得可用分时样本");
+        setError("当前未取得完整交易日的 1 分钟分时，未执行回测；半日行情不会被误当成收盘。");
+        setRunStatus("未取得完整分时样本");
         return;
       }
+      const selected=sessions[Math.floor(seededFraction(`${batchSeed}:${stock.code}:single-day`)*sessions.length)];
+      const data=sessionData(fetched,selected);
+      setSource(data);
       const calculated=replay(data,stock.code,"single");
       setResult(calculated);
       setBatch(null);
-      setRunStatus(calculated.trades ? "盲测已完成" : "盲测完成：本次没有触发反 T 条件");
+      setRunStatus(calculated.trades ? "盲测已完成" : "盲测完成：本次没有触发符合成本与风控条件的正/反 T");
     } catch {
       setResult(null); setBatch(null); setSource(null);
       setError("公开行情源暂不可用，未生成测试结果。请稍后重试。");
@@ -798,30 +822,39 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
     } finally { setRunning(false); }
   };
   const runBatch = async () => {
-    setRunning(true); setError(""); setRunStatus("正在获取自选池真实分时并运行 100 次…");
+    setRunning(true); setError(""); setRunStatus("正在获取 20 股真实分时并运行 100 轮（共 2,000 样本）…");
     try {
-      const universe=stocks.slice(0,8);
+      const universe=[...new Set([...benchmarkUniverse,...stocks.map(item=>item.code)])].slice(0,20).map(code=>({code,name:stocks.find(item=>item.code===code)?.name ?? code}));
       const fetched=await Promise.allSettled(universe.map(async item=>({item,data:await fetchStock(item.code)})));
-      const available=fetched.flatMap(entry=>entry.status==="fulfilled" && (entry.value.data.minutes ?? []).length>=30 ? [entry.value] : []);
+      const available=fetched.flatMap(entry=>entry.status==="fulfilled" && (entry.value.data.intradaySessions ?? []).length ? [entry.value] : []);
       if(!available.length) throw new Error("no minute data");
-      const trials=Array.from({length:100},(_,index)=>{
-        const selected=available[Math.floor(seededFraction(`${batchSeed}:stock:${index}`)*available.length)];
-        return { selected, result:replay(selected.data,selected.item.code,`trial:${index}`) };
-      });
+      const rounds=Array.from({length:100},(_,round)=>available.map(selected=>{
+        const sessions=selected.data.intradaySessions!;
+        const session=sessions[Math.floor(seededFraction(`${batchSeed}:${selected.item.code}:session:${round}`)*sessions.length)];
+        const data=sessionData(selected.data,session);
+        return {selected:{...selected,data},result:replay(data,selected.item.code,`round:${round}`),legacy:replayLegacy(data,selected.item.code,`round:${round}`)};
+      }));
+      const trials=rounds.flat();
       const results=trials.map(item=>item.result);
-      const cycleNets=results.flatMap(item=>item.cycleNets);
-      const positive=cycleNets.filter(value=>value>0).reduce((sum,value)=>sum+value,0);
-      const negative=Math.abs(cycleNets.filter(value=>value<0).reduce((sum,value)=>sum+value,0));
-      const sortedNets=results.map(item=>item.net).sort((a,b)=>a-b);
-      const totalNet=results.reduce((sum,item)=>sum+item.net,0);
+      const legacyResults=trials.map(item=>item.legacy);
+      const summarize=(items:BacktestResult[]):BatchMetrics=>{
+        const cycleNets=items.flatMap(item=>item.cycleNets);
+        const roundNets=rounds.map((_,round)=>items.slice(round*available.length,(round+1)*available.length).reduce((sum,item)=>sum+item.net,0));
+        const positive=cycleNets.filter(value=>value>0).reduce((sum,value)=>sum+value,0);
+        const negative=Math.abs(cycleNets.filter(value=>value<0).reduce((sum,value)=>sum+value,0));
+        return {samples:items.length,completed:cycleNets.length,wins:cycleNets.filter(value=>value>0).length,gross:items.reduce((sum,item)=>sum+item.gross,0),fees:items.reduce((sum,item)=>sum+item.fees,0),executionCost:items.reduce((sum,item)=>sum+item.executionCost,0),net:items.reduce((sum,item)=>sum+item.net,0),tradingRounds:roundNets.filter(value=>value!==0).length,profitableRounds:roundNets.filter(value=>value>0).length,losingRounds:roundNets.filter(value=>value<0).length,profitFactor:negative?positive/negative:null,maxDrawdown:Math.max(...items.map(item=>item.maxDrawdown))};
+      };
+      const metrics=summarize(results); const legacy=summarize(legacyResults);
+      const roundNets=rounds.map(items=>items.reduce((sum,item)=>sum+item.result.net,0)).sort((a,b)=>a-b);
       const representative=trials.find(item=>item.selected.item.code===stock.code && item.result.trades>0) ?? trials.find(item=>item.result.trades>0) ?? trials[0];
       setResult(representative.result); setSource(representative.selected.data);
-      setBatch({trials:100,stocks:available.length,completed:results.filter(item=>item.trades>0).length,noTrade:results.filter(item=>item.trades===0).length,cycles:cycleNets.length,wins:cycleNets.filter(value=>value>0).length,net:totalNet,averageNet:totalNet/results.length,medianNet:(sortedNets[49]+sortedNets[50])/2,profitFactor:negative?positive/negative:null,maxDrawdown:Math.max(...results.map(item=>item.maxDrawdown)),seed:batchSeed,providers:[...new Set(available.map(item=>item.data.provider))]});
-      setRunStatus(`100 次完成：${available.length} 只股票，${cycleNets.length} 个闭环`);
+      const uniqueSessions=available.reduce((sum,item)=>sum+(item.data.intradaySessions?.length ?? 0),0);
+      setBatch({...metrics,rounds:100,stocks:available.length,uniqueSessions,noTrade:results.filter(item=>item.trades===0).length,averageNet:metrics.net/100,medianNet:(roundNets[49]+roundNets[50])/2,seed:batchSeed,providers:[...new Set(available.map(item=>item.data.provider))],legacy});
+      setRunStatus(`100 轮完成：${available.length} 只股票/轮，来自 ${uniqueSessions} 个真实股票日，${metrics.completed} 个闭环`);
     } catch {
       setResult(null); setBatch(null); setSource(null);
       setError("自选池暂未取得足够的真实 1 分钟分时数据，未生成统计结果；请稍后重试或更换股票。");
-      setRunStatus("100 次盲测未完成");
+      setRunStatus("100 轮盲测未完成");
     } finally { setRunning(false); }
   };
   const curve = result?.curve ?? [];
@@ -837,21 +870,21 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const chartTimes=result?.curveTimes ?? [];
   const formatTime=(value:string|undefined)=>value && value.length>=4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : "--:--";
   const cycles = (() => {
-    const paired: { sell: ReplayAction; buy: ReplayAction }[] = [];
+    const paired: { first: ReplayAction; second: ReplayAction }[] = [];
     let pending: ReplayAction | null = null;
     result?.actions.forEach(action => {
-      if (action.side === "卖出") pending = action;
-      else if (pending) { paired.push({ sell: pending, buy: action }); pending = null; }
+      if (!pending) pending = action;
+      else if (!action.cycleId || !pending.cycleId || action.cycleId === pending.cycleId) { paired.push({ first: pending, second: action }); pending = null; }
     });
-    return paired.map(({ sell, buy }, index) => {
-      const rawSell = slippageMode === "tick" ? sell.price + slippage : sell.price / (1 - slippage / 100);
-      const rawBuy = slippageMode === "tick" ? buy.price - slippage : buy.price / (1 + slippage / 100);
-      const gross = (rawSell - rawBuy) * sell.quantity;
-      const executionCost = ((rawSell - sell.price) + (buy.price - rawBuy)) * sell.quantity;
-      const sellCommission = Math.max(minCommission ? 5 : 0, sell.price * sell.quantity * feeRate / 100);
-      const buyCommission = Math.max(minCommission ? 5 : 0, buy.price * buy.quantity * feeRate / 100);
-      const fees = sellCommission + sell.price * sell.quantity * 0.0005 + buyCommission;
-      return { index: index + 1, sell, buy, gross, executionCost, fees, net: gross - executionCost - fees };
+    return paired.map(({ first, second }, index) => {
+      const raw=(action:ReplayAction)=>slippageMode === "tick" ? action.price+(action.side==="卖出"?slippage:-slippage) : action.price/(action.side==="卖出"?1-slippage/100:1+slippage/100);
+      const rawFirst=raw(first),rawSecond=raw(second); const quantity=first.quantity;
+      const direction=first.side==="卖出"?"反T":"正T";
+      const gross=(direction==="正T"?rawSecond-rawFirst:rawFirst-rawSecond)*quantity;
+      const executionCost=(Math.abs(rawFirst-first.price)+Math.abs(rawSecond-second.price))*quantity;
+      const commission=(action:ReplayAction)=>Math.max(minCommission ? 5 : 0, action.price*action.quantity*feeRate/100);
+      const fees=commission(first)+commission(second)+(first.side==="卖出"?first.price*quantity*.0005:second.price*quantity*.0005);
+      return { index: index + 1, first, second, direction, gross, executionCost, fees, net: gross - executionCost - fees };
     });
   })();
   return <section className="backtest-view">
@@ -863,15 +896,15 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
       <aside className="backtest-config">
         <div className="config-title"><h2>回测参数</h2><span>{running ? "计算中" : runStatus}</span></div>
         <label>回测股票<select className="backtest-stock-select" value={activeStock} onChange={event=>onSelectStock(Number(event.target.value))} aria-label="选择回测股票">{stocks.map((item,index)=><option key={item.code} value={index}>{item.code} {item.name}</option>)}</select></label>
-        <label>买卖逻辑<div className="field static-field"><b>融合策略 V3</b><span>动态 VWAP + 压力位滞涨反 T</span></div></label>
-        <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "公开真实分时" : "运行后显示"}</b><span>{batch ? `${batch.stocks} 只股票` : "随机起点"}</span></div></label><label>决策方式<div className="field static-field date-display"><b>逐点揭示</b><span>不看未来</span></div></label></div>
+        <label>买卖逻辑<div className="field static-field"><b>Smart-T 融合策略 V4</b><span>正/反 T + 开盘试单 + 趋势量价 + 成本风控</span></div></label>
+        <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "公开真实分时" : "运行后显示"}</b><span>{batch ? `${batch.uniqueSessions} 个完整股票日` : source?.sampleDate ?? "随机揭示起点"}</span></div></label><label>决策方式<div className="field static-field date-display"><b>逐分钟因果判断</b><span>不读未来高低点/收盘价</span></div></label></div>
         <label>策略档位<div className="profile-picker">{strategyProfiles.slice(0,4).map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div></label>
         <div className="field-pair"><label>模拟资金<NumberStepper value={capital} unit="元" step={10000} min={50000} onChange={setCapital}/></label><label>真实底仓<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/></label></div>
         <div className="field-pair"><label>昨日可卖<NumberStepper value={sellable} unit="股" step={100} min={0} onChange={setSellable}/></label><label>单次上限<div className="field static-field"><b>{Math.floor(Math.min(baseShares, sellable)/3/100)*100}</b><span>股</span></div></label></div>
         <label>券商费率模板<select value={`${feeRate}-${minCommission}`} onChange={event=>{const templates:{[key:string]:[number,boolean]}={"0.025-true":[0.025,true],"0.01-false":[0.01,false],"0.0085-true":[0.0085,true]};const value=templates[event.target.value];if(value){setFeeRate(value[0]);setMinCommission(value[1])}}}><option value="0.025-true">默认行业价：万2.5（最低5元）</option><option value="0.01-false">常见大客户价：万1免五</option><option value="0.0085-true">尊享价：万0.85（最低5元）</option></select></label>
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
-        <button className="run-backtest" onClick={()=>void runBatch()} disabled={running}>{running ? '正在运行真实分时盲测…' : '运行多股 100 次盲测'}<span>→</span></button>
+        <button className="run-backtest" onClick={()=>void runBatch()} disabled={running}>{running ? '正在运行 2,000 个真实分时盲测…' : '运行 100 轮 × 20 股对比盲测'}<span>→</span></button>
         <div className="replay-secondary-actions"><button type="button" onClick={()=>void runSingle()} disabled={running}>仅测当前股票 1 次</button><button type="button" onClick={()=>{setBatchSeed(Date.now()%1_000_000_000);setBatch(null)}} disabled={running}>换随机批次</button></div>
         <p className="seed-note">随机种子 {Math.floor(batchSeed)} · 同一批次可复现</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
@@ -879,14 +912,14 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         {error&&<p className="config-note">{error}</p>}
       </aside>
       <div className="backtest-results">
-        {batch&&<section className="batch-report" aria-label="100次盲测汇总"><div className="batch-report-head"><div><span>MULTI-STOCK MONTE CARLO</span><h2>100 次真实分时盲测汇总</h2></div><em>种子 {Math.floor(batch.seed)}</em></div><div className="batch-metrics"><div><span>扣费后循环胜率</span><strong>{batch.cycles?`${(batch.wins/batch.cycles*100).toFixed(1)}%`:'—'}</strong><small>{batch.wins}/{batch.cycles} 个闭环盈利</small></div><div><span>平均每次净收益</span><b>{money(batch.averageNet)}</b><small>含 {batch.noTrade} 次未触发</small></div><div><span>总净收益</span><b>{money(batch.net)}</b><small>100 次独立资金账本之和</small></div><div><span>盈利因子</span><b>{batch.profitFactor===null?'—':batch.profitFactor.toFixed(2)}</b><small>盈利总额 ÷ 亏损总额</small></div><div><span>最差最大回撤</span><b className="risk-number">-{(batch.maxDrawdown*100).toFixed(2)}%</b><small>100 次中的最差样本</small></div><div><span>有效触发率</span><b>{(batch.completed/batch.trials*100).toFixed(0)}%</b><small>{batch.stocks} 只股票 · {batch.providers.join(' / ')}</small></div></div><p>胜率按扣除佣金、最低 5 元、印花税及双向滑点后的完整循环计算；未触发不会伪装成胜负。</p></section>}
+        {batch&&<section className="batch-report" aria-label="100轮20股盲测汇总"><div className="batch-report-head"><div><span>MULTI-STOCK CAUSAL A/B</span><h2>100 轮 × {batch.stocks} 股真实分时盲测</h2></div><em>固定验证种子 {Math.floor(batch.seed)}</em></div><div className="batch-metrics"><div><span>扣费后循环胜率</span><strong>{batch.completed?`${(batch.wins/batch.completed*100).toFixed(2)}%`:'—'}</strong><small>{batch.wins}/{batch.completed} 个闭环盈利</small></div><div><span>毛收益</span><b>{money(batch.gross)}</b><small>{batch.samples.toLocaleString()} 个因果样本</small></div><div><span>交易费用 + 滑点</span><b>{money(-(batch.fees+batch.executionCost))}</b><small>费用 {money(-batch.fees)} · 滑点 {money(-batch.executionCost)}</small></div><div><span>总净收益</span><b>{money(batch.net)}</b><small>平均每轮 {money(batch.averageNet)}</small></div><div><span>有交易 / 盈利 / 亏损轮</span><b>{batch.tradingRounds} / {batch.profitableRounds} / {batch.losingRounds}</b><small>共 {batch.rounds} 轮</small></div><div><span>盈利因子 / 最差回撤</span><b>{batch.profitFactor===null?'—':batch.profitFactor.toFixed(2)} / -{(batch.maxDrawdown*100).toFixed(2)}%</b><small>{batch.uniqueSessions} 个完整股票日 · {batch.providers.join(' / ')}</small></div></div><div className="ab-compare"><b>同样本旧版</b><span>闭环 {batch.legacy.completed}</span><span>胜率 {batch.legacy.completed?(batch.legacy.wins/batch.legacy.completed*100).toFixed(2):'—'}%</span><span>净收益 {money(batch.legacy.net)}</span><strong>新版差额 {money(batch.net-batch.legacy.net)}</strong></div><p>新旧引擎使用同一股票日、同一逐分钟数据、同一固定种子和相同费用。2,000 次因果抽样来自 {batch.uniqueSessions} 个公开源完整股票日；胜率按扣除佣金、最低 5 元、印花税及双向滑点后的完整循环计算，未触发不计胜负。</p></section>}
         <div className="result-summary">
           <div className="result-primary"><span>{batch?"代表样本净收益":"净收益"}</span><strong>{result ? money(result.net) : "—"}</strong><em>{result ? `${(result.net/capital*100).toFixed(3)}%` : "运行后显示"}</em></div>
           <div><span>理论毛收益</span><b>{result ? money(result.gross) : "—"}</b><small>未扣费用与滑点</small></div><div><span>费用与滑点</span><b>{result ? money(-(result.fees+result.executionCost)) : "—"}</b><small>佣金、印花税及双向滑点</small></div><div><span>最大回撤</span><b>{result ? `-${(result.maxDrawdown*100).toFixed(3)}%` : "—"}</b><small>{source ? "费用进入逐点资金曲线" : "运行后显示"}</small></div>
         </div>
-        <div className="equity-panel"><div className="panel-heading"><div><h2>代表样本真实资金曲线</h2><span>{result ? `${formatTime(result.startTime)} 至 ${formatTime(chartTimes.at(-1))} · 纵轴为真实人民币` : "运行后显示"}</span></div><div className="curve-legend"><span><i/>净资产</span><span className="base-legend"><i/>初始资金</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买回</span></div></div><svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="带真实人民币坐标和时间轴的回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toLocaleString('zh-CN',{maximumFractionDigits:0})}</text></g>})}<line x1="65" x2="820" y1={baseY} y2={baseY} className="equity-base-line"/>{points&&<><polyline points={`${points} 820,${baseY} 65,${baseY}`} fill="url(#equityFill)"/><polyline points={points} className="equity-line" fill="none"/>{result?.actions.map((action,index)=>{ const point=chartPoint(curve[Math.min(action.curveIndex,curve.length-1)] ?? capital,Math.min(action.curveIndex,curve.length-1)); const fill=action.side==="卖出"?"#ff6464":"#28d7c4"; return <g key={`${action.side}-${action.time}-${index}`}><circle cx={point.x} cy={point.y} r="5" fill={fill} stroke="#071312" strokeWidth="2"/><text x={point.x} y={point.y-10} textAnchor="middle" fill={fill} fontSize="10" fontWeight="700">{action.side}</text></g>; })}<text x="65" y="222" className="equity-time-label">{formatTime(chartTimes[0])}</text><text x="442" y="222" textAnchor="middle" className="equity-time-label">{formatTime(chartTimes[Math.floor(chartTimes.length/2)])}</text><text x="820" y="222" textAnchor="end" className="equity-time-label">{formatTime(chartTimes.at(-1))}</text></>}</svg><div className="chart-truth-note"><span>纵轴以初始资金为中心对称缩放，并明确显示金额刻度</span><b>本样本波动区间 ¥{chartMin.toLocaleString('zh-CN',{maximumFractionDigits:0})} — ¥{chartMax.toLocaleString('zh-CN',{maximumFractionDigits:0})}</b></div></div>
-        {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "已按卖出 → 买回自动配对" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.sell.time}-${cycle.buy.time}`}><div><b>反 T 循环 #{cycle.index}</b><span>卖出 {cycle.sell.time} ¥ {cycle.sell.price.toFixed(2)} → 买回 {cycle.buy.time} ¥ {cycle.buy.price.toFixed(2)}</span></div><div><small>数量</small><b>{cycle.sell.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本次随机起点后没有形成可执行的完整反 T 循环，资金不变。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
-        <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>{result?.days ?? "—"}</b></div><div><span>模拟循环</span><b>{result?.trades ?? "—"}</b></div><div><span>胜出循环</span><b>{result?.wins ?? "—"}</b></div><div><span>循环胜率</span><b className="teal">{result?.trades ? `${(result.wins/result.trades*100).toFixed(2)}%` : "—"}</b></div><div><span>底仓设定</span><b>{baseShares.toLocaleString()} 股</b></div><div><span>数据源</span><b>{source?.provider ?? "—"}</b></div></div><div className="failure-panel"><h3>计算说明</h3><p><span>样本证券</span><b>{source ? `${source.quote.code} ${source.quote.name}` : "未运行"}</b></p><p><span>样本规模</span><b>{source ? `${source.minutes?.length ?? 0} 个分钟点` : "—"}</b></p><p><span>执行规则</span><b>逐点揭示，不看未来</b></p><p><span>费用模型</span><b>佣金 + 滑点 + 印花税</b></p><p><span>计算状态</span><b className="failure-alert">{result?.status ?? "等待运行"}</b></p></div></div>
+        <div className="equity-panel"><div className="panel-heading"><div><h2>代表样本真实资金曲线</h2><span>{result ? `${formatTime(result.startTime)} 至 ${formatTime(chartTimes.at(-1))} · 纵轴为真实人民币` : "运行后显示"}</span></div><div className="curve-legend"><span><i/>净资产</span><span className="base-legend"><i/>初始资金</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span></div></div><svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="带真实人民币坐标和时间轴的回测资金曲线"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toLocaleString('zh-CN',{maximumFractionDigits:0})}</text></g>})}<line x1="65" x2="820" y1={baseY} y2={baseY} className="equity-base-line"/>{points&&<><polyline points={`${points} 820,${baseY} 65,${baseY}`} fill="url(#equityFill)"/><polyline points={points} className="equity-line" fill="none"/>{result?.actions.map((action,index)=>{ const point=chartPoint(curve[Math.min(action.curveIndex,curve.length-1)] ?? capital,Math.min(action.curveIndex,curve.length-1)); const fill=action.side==="卖出"?"#ff6464":"#28d7c4"; return <g key={`${action.side}-${action.time}-${index}`}><circle cx={point.x} cy={point.y} r="5" fill={fill} stroke="#071312" strokeWidth="2"/><text x={point.x} y={point.y-10} textAnchor="middle" fill={fill} fontSize="10" fontWeight="700">{action.side}</text></g>; })}<text x="65" y="222" className="equity-time-label">{formatTime(chartTimes[0])}</text><text x="442" y="222" textAnchor="middle" className="equity-time-label">{formatTime(chartTimes[Math.floor(chartTimes.length/2)])}</text><text x="820" y="222" textAnchor="end" className="equity-time-label">{formatTime(chartTimes.at(-1))}</text></>}</svg><div className="chart-truth-note"><span>纵轴以初始资金为中心对称缩放，并明确显示金额刻度</span><b>本样本波动区间 ¥{chartMin.toLocaleString('zh-CN',{maximumFractionDigits:0})} — ¥{chartMax.toLocaleString('zh-CN',{maximumFractionDigits:0})}</b></div></div>
+        {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "已按同一循环的两笔成交自动配对" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.first.time}-${cycle.second.time}`}><div><b>{cycle.direction} 循环 #{cycle.index}</b><span>{cycle.first.side} {cycle.first.time} ¥ {cycle.first.price.toFixed(2)} → {cycle.second.side} {cycle.second.time} ¥ {cycle.second.price.toFixed(2)}</span></div><div><small>数量</small><b>{cycle.first.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本次随机揭示起点后没有形成同时满足成本、趋势和风控条件的正/反 T 循环，资金不变。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
+        <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>{result?.days ?? "—"}</b></div><div><span>模拟循环</span><b>{result?.trades ?? "—"}</b></div><div><span>胜出循环</span><b>{result?.wins ?? "—"}</b></div><div><span>循环胜率</span><b className="teal">{result?.trades ? `${(result.wins/result.trades*100).toFixed(2)}%` : "—"}</b></div><div><span>底仓设定</span><b>{baseShares.toLocaleString()} 股</b></div><div><span>数据源</span><b>{source?.provider ?? "—"}</b></div></div><div className="failure-panel"><h3>计算说明</h3><p><span>样本证券</span><b>{source ? `${source.quote.code} ${source.quote.name}` : "未运行"}</b></p><p><span>样本交易日</span><b>{source?.sampleDate ?? "—"}</b></p><p><span>样本规模</span><b>{source ? `${source.minutes?.length ?? 0} 个分钟点` : "—"}</b></p><p><span>执行规则</span><b>逐点揭示，不看未来</b></p><p><span>费用模型</span><b>佣金 + 滑点 + 印花税</b></p><p><span>计算状态</span><b className="failure-alert">{result?.status ?? "等待运行"}</b></p></div></div>
       </div>
     </div>
   </section>;

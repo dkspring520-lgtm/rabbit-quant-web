@@ -4,6 +4,7 @@ type Quote = {
   high: number | null; low: number | null; volume: number | null; amount: number | null;
 };
 type MinutePoint = { time: string; price: number; volume: number };
+type IntradaySession = { date: string; previousClose: number | null; minutes: MinutePoint[] };
 
 type EastmoneyQuote = { f43?: number; f44?: number; f45?: number; f46?: number; f47?: number; f48?: number; f57?: string; f58?: string; f60?: number; f169?: number; f170?: number; };
 const quoteFields = "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170";
@@ -18,7 +19,13 @@ function isUsable(quote: Quote) { return quote.price !== null && quote.name.leng
 async function fromTencent(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: string | null }> {
   const response = await fetch(`https://qt.gtimg.cn/q=${marketPrefix(code)}${code}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
   if (!response.ok) throw new Error("腾讯行情不可用");
-  const text = new TextDecoder("gb18030").decode(await response.arrayBuffer());
+  const bytes = await response.arrayBuffer();
+  // Tencent currently returns UTF-8 from some edges and GB18030 from others.
+  // A fatal UTF-8 pass lets us distinguish the two without turning valid
+  // Chinese names into mojibake such as "ç´«é‡‘çŸ¿ä¸š".
+  let text: string;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+  catch { text = new TextDecoder("gb18030").decode(bytes); }
   const fields = text.match(/="([^"]*)"/)?.[1]?.split("~");
   if (!fields || fields.length < 35) throw new Error("腾讯行情返回无效");
   const quote = { code: fields[2] || code, name: fields[1] || "", price: numeric(fields[3]), previousClose: numeric(fields[4]), open: numeric(fields[5]), volume: numeric(fields[6]), change: numeric(fields[31]), changePercent: numeric(fields[32]), high: numeric(fields[33]), low: numeric(fields[34]), amount: null };
@@ -39,6 +46,31 @@ async function fromTencentMinutes(code: string): Promise<MinutePoint[]> {
     previousVolume = Number.isFinite(cumulativeVolume) ? cumulativeVolume : previousVolume;
     return { time, price, volume };
   }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price));
+}
+
+async function fromTencentIntradaySessions(code: string): Promise<IntradaySession[]> {
+  const symbol = `${marketPrefix(code)}${code}`;
+  const response = await fetch(`https://web.ifzq.gtimg.cn/appstock/app/day/query?code=${symbol}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
+  if (!response.ok) throw new Error("腾讯多日分时不可用");
+  const payload = await response.json() as { data?: Record<string, { data?: { date?: string; data?: string[] }[] }> };
+  const days = payload.data?.[symbol]?.data ?? [];
+  return days.flatMap((day, index) => {
+    let previousVolume = 0;
+    const minutes = (day.data ?? []).map((row) => {
+      const [time, rawPrice, rawVolume] = row.split(" ");
+      const price = Number(rawPrice); const cumulativeVolume = Number(rawVolume);
+      const volume = Number.isFinite(cumulativeVolume) ? Math.max(0, cumulativeVolume - previousVolume) : 0;
+      previousVolume = Number.isFinite(cumulativeVolume) ? cumulativeVolume : previousVolume;
+      return { time, price, volume };
+    }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price) && point.price > 0 && point.time <= "1500");
+    const previousRows = days[index + 1]?.data ?? [];
+    const previousClose = numeric(previousRows.at(-1)?.split(" ")[1]);
+    // The current trading day may stop at 11:30/now. Only expose sessions that
+    // reached the closing window so a replay cannot mistake a partial day for
+    // an end-of-day forced close.
+    if (!day.date || minutes.length < 180 || minutes.at(-1)!.time < "1450") return [];
+    return [{ date: day.date, previousClose, minutes }];
+  });
 }
 
 async function fromEastmoneyMinutes(code: string): Promise<MinutePoint[]> {
@@ -109,14 +141,15 @@ export async function GET(request: Request) {
       }
       throw lastError instanceof Error ? lastError : new Error("所有试用行情源暂不可用");
     }
-    const [bars, quoteResult, minutes] = await Promise.all([
+    const [bars, quoteResult, minutes, intradaySessions] = await Promise.all([
       fromTencentDailyBars(code).catch(() => []),
       fromTencent(code).catch(() => fromSina(code).catch(() => fromEastmoneyQuote(code).catch(() => null))),
       fromPublicMinutes(code).catch(() => []),
+      fromTencentIntradaySessions(code).catch(() => []),
     ]);
     const latest = bars.at(-1);
     if (!quoteResult && !latest) throw new Error("所有公开行情源暂不可用");
     const fallbackQuote: Quote = { code, name: code, price: latest?.close ?? null, previousClose: bars.at(-2)?.close ?? null, change: latest ? latest.close - (bars.at(-2)?.close ?? latest.close) : null, changePercent: latest && bars.at(-2)?.close ? (latest.close - bars.at(-2)!.close) / bars.at(-2)!.close * 100 : null, open: latest?.open ?? null, high: latest?.high ?? null, low: latest?.low ?? null, volume: latest?.volume ?? null, amount: latest?.amount ?? null };
-    return Response.json({ provider: quoteResult?.provider ?? "tencent-public", quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minutes, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
+    return Response.json({ provider: quoteResult?.provider ?? "tencent-public", quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minutes, intradaySessions, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502 }); }
 }
