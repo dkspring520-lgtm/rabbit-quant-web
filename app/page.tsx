@@ -136,7 +136,6 @@ export default function Home() {
   const [activeStock, setActiveStock] = useState(0);
   const [stockList, setStockList] = useState(initialStocks);
   const [profile, setProfile] = useState("平衡档");
-  const [period, setPeriod] = useState("分时");
   const [panel, setPanel] = useState("今日T循环");
   const [signalMode, setSignalMode] = useState("反T");
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
@@ -340,7 +339,9 @@ export default function Home() {
           <div className="chart-tools">
             <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="teal-line"/>均线参考</span>}</div>
             <span className="live-scan"><i/>{trialQuote ? `1 秒轮询试用 · ${trialQuote.provider}` : trialError || (marketData ? `公开行情 · ${marketData.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")}</span>
-            <div className="periods">{['分时','5分','15分','30分','60分','日K'].map(p => <button key={p} className={period === p ? 'active' : ''} onClick={() => setPeriod(p)}>{p}</button>)}</div>
+            <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
+              <i/>当日分时 <small>1分钟</small>
+            </div>
             <button className="tool-button" onClick={()=>setIndicatorsVisible(value=>!value)} aria-pressed={indicatorsVisible}>{indicatorsVisible ? "隐藏指标" : "显示指标"}</button><button className="tool-button" onClick={()=>void document.documentElement.requestFullscreen?.().catch(()=>{})}>全屏</button>
           </div>
           <div className="chart-wrap">
