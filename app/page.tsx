@@ -36,7 +36,8 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 }
 
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string };
-type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; startTime:string; status:string; actions:ReplayAction[]; diagnostics?:Record<string,number> };
+type ReplayObservation = { time:string; direction:"正T"|"反T"; score:number; threshold:number; edge:number; executable:boolean; blockers:string[]; reason:string };
+type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
 type StockBatchFeedback = { code:string; name:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; feedback:string };
 type BatchBacktestResult = BatchMetrics & { rounds:number; stocks:number; uniqueSessions:number; noTrade:number; averageNet:number; medianNet:number; providers:string[]; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
@@ -70,6 +71,22 @@ function runDailyBacktestLegacy(bars: MarketBar[], capital:number, baseShares:nu
 }
 
 function money(value:number) { return `${value >= 0 ? "+" : "-"}¥ ${Math.abs(value).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`; }
+
+function aShareSession(now:Date|null) {
+  if (!now) return { label:"交易状态校准中", live:false, tone:"pending", detail:"正在按北京时间校准" };
+  const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Shanghai",weekday:"short",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(now);
+  const read=(type:string)=>parts.find(part=>part.type===type)?.value??"";
+  const weekday=read("weekday");
+  const minute=Number(read("hour"))*60+Number(read("minute"));
+  if(!["Mon","Tue","Wed","Thu","Fri"].includes(weekday)) return {label:"周末休市",live:false,tone:"closed",detail:"保留最近行情，不生成实时执行信号"};
+  if(minute<555) return {label:"盘前准备",live:false,tone:"pending",detail:"09:15 集合竞价开始"};
+  if(minute<565) return {label:"集合竞价",live:false,tone:"auction",detail:"只观察开盘方向，暂不执行"};
+  if(minute<570) return {label:"开盘准备",live:false,tone:"auction",detail:"等待 09:30 连续竞价"};
+  if(minute<=690) return {label:"上午交易中",live:true,tone:"live",detail:"1 秒监控与自动判断运行中"};
+  if(minute<780) return {label:"午间休市",live:false,tone:"paused",detail:"13:00 恢复监控，不生成新执行信号"};
+  if(minute<=900) return {label:"下午交易中",live:true,tone:"live",detail:"1 秒监控与自动判断运行中"};
+  return {label:"今日已收盘",live:false,tone:"closed",detail:"保留收盘行情，可进入模拟回测复盘"};
+}
 
 function runIntradayBlindReplayLegacy(minutes: {time:string;price:number;volume:number}[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number, minCommission:boolean, slippageMode:"percent"|"tick", forceCloseTime:string, randomValue=0): BacktestResult {
   const points=minutes.filter(point=>Number.isFinite(point.price) && point.price>0);
@@ -162,6 +179,8 @@ export default function Home() {
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [marketError, setMarketError] = useState("");
   const [marketQuotes, setMarketQuotes] = useState<Record<string, MarketData["quote"]>>({});
+  const [marketSnapshots, setMarketSnapshots] = useState<Record<string, MarketData>>({});
+  const [clockNow, setClockNow] = useState<Date|null>(null);
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
   const [trialError, setTrialError] = useState("");
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
@@ -173,6 +192,7 @@ export default function Home() {
   const currentMarket = marketData?.quote.code === stock?.code ? marketData : null;
   const currentContext = marketContext?.code === stock?.code ? marketContext : null;
   const activeQuote = currentTrial?.quote ?? currentMarket?.quote;
+  const marketSession = useMemo(() => aShareSession(clockNow), [clockNow]);
   const removeStock=(index:number)=>{
     if(stockList.length<=1)return;
     const next=stockList.filter((_,i)=>i!==index);
@@ -215,6 +235,21 @@ export default function Home() {
     previousClose:activeQuote?.previousClose ?? null,
     randomValue:0,
   }),[minutePoints,preferences.baseShares,profile,activeQuote?.previousClose]);
+  const currentObservations=(liveEngine.observations ?? []) as ReplayObservation[];
+  const signalFunnel = useMemo(() => {
+    const rows=stockList.flatMap(item=>{
+      const snapshot=item.code===stock?.code ? (currentTrial ?? currentMarket ?? marketSnapshots[item.code]) : marketSnapshots[item.code];
+      if(!snapshot?.minutes?.length)return [];
+      const replay=item.code===stock?.code ? liveEngine : runSmartTReplay(snapshot.minutes,{
+        capital:200_000,baseShares:preferences.baseShares,sellable:preferences.baseShares,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:snapshot.quote.previousClose??null,randomValue:0,
+      });
+      const observations=(replay.observations??[]) as ReplayObservation[];
+      const formalCycles=replay.trades;
+      return [{code:item.code,name:snapshot.quote.name||item.name,observations,formalCycles}];
+    });
+    const latest=rows.flatMap(row=>row.observations.map(observation=>({...observation,code:row.code,name:row.name}))).sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
+    return {scanned:rows.length,candidates:rows.reduce((sum,row)=>sum+row.observations.length,0),formal:rows.reduce((sum,row)=>sum+row.formalCycles,0),latest,currentCandidates:rows.find(row=>row.code===stock?.code)?.observations.length??0};
+  },[stockList,stock?.code,currentTrial,currentMarket,marketSnapshots,liveEngine,preferences.baseShares,profile]);
   const personalStrategyStats = useMemo(() => {
     const sessions=(currentMarket?.intradaySessions ?? [])
       .filter(session=>session.minutes.length>=180)
@@ -266,6 +301,7 @@ export default function Home() {
     const belowReference=Boolean(price && open && vwap && price<=open && price<=vwap);
     const directionConfirmed=(lowOpen&&aboveReference&&rising)||(highOpen&&belowReference&&falling);
     const confirmed=[lowOpen||highOpen,inDecisionWindow,lowOpen?aboveReference:highOpen?belowReference:false,lowOpen?rising:highOpen?falling:false].filter(Boolean).length;
+    if(!marketSession.live) return {status:"waiting" as const,mode:null,confirmed,reason:`${marketSession.label}：${marketSession.detail}`,lastTime,inDecisionWindow:false,referenceConfirmed:false,trendConfirmed:false};
     if(stockState.level==="risk") return {status:"locked" as const,mode:null,confirmed,reason:`股票状态风控：${stockState.details.join("；")}`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentContext?.gate.hardLock) return {status:"locked" as const,mode:null,confirmed,reason:`外部环境雷达：${currentContext.gate.label}，只允许恢复底仓。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentContext?.gate.level==="restricted") return {status:"waiting" as const,mode:null,confirmed,reason:`外部环境雷达：${currentContext.gate.label}，暂停新开循环。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
@@ -278,8 +314,14 @@ export default function Home() {
     if(latestAction&&cycleActions.length%2===1&&fresh) return {status:"ready" as const,mode:(latestAction.direction??(lowOpen?"正T":"反T")) as "正T"|"反T",confirmed:4,reason:`融合引擎实时信号：${latestAction.time} ${latestAction.direction} ${latestAction.side}，成本、趋势、量价与风控均已通过。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
     if(latestAction&&fresh) return {status:"waiting" as const,mode:null,confirmed,reason:`融合引擎已于 ${latestAction.time} 完成${latestAction.direction}闭环，等待下一次有效信号。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
     return {status:"waiting" as const,mode:null,confirmed,reason:directionConfirmed?`基础方向已确认，但融合引擎仍在检查成本、量价和盈亏比。`:liveEngine.status,lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
-  },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState,currentContext,liveEngine]);
+  },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState,currentContext,liveEngine,marketSession]);
   const signalMode:"正T"|"反T"=autoDecision.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
+  useEffect(() => {
+    const update=()=>setClockNow(new Date());
+    update();
+    const timer=window.setInterval(update,1_000);
+    return()=>window.clearInterval(timer);
+  },[]);
   useEffect(() => {
     if (!trainingRunning) return;
     const timer = window.setInterval(() => setTrainingProgress(value => {
@@ -349,15 +391,25 @@ export default function Home() {
   useEffect(() => {
     if (!localAuth || !stockList.length) return;
     let cancelled = false;
-    void Promise.all(stockList.map(async item => {
-      const response = await fetch(`/api/market-data?code=${encodeURIComponent(item.code)}`);
-      if (!response.ok) throw new Error("quote unavailable");
-      const data = await response.json() as MarketData;
-      return data.quote;
-    })).then(quotes => {
-      if (!cancelled) setMarketQuotes(Object.fromEntries(quotes.map(quote => [quote.code, quote])));
-    }).catch(() => {});
-    return () => { cancelled = true; };
+    let inFlight=false;
+    const load=async()=>{
+      if(inFlight||document.visibilityState!=="visible")return;
+      inFlight=true;
+      try{
+        const snapshots=await Promise.all(stockList.map(async item=>{
+          const response=await fetch(`/api/market-data?code=${encodeURIComponent(item.code)}`);
+          if(!response.ok)throw new Error("quote unavailable");
+          return await response.json() as MarketData;
+        }));
+        if(!cancelled){
+          setMarketQuotes(Object.fromEntries(snapshots.map(snapshot=>[snapshot.quote.code,snapshot.quote])));
+          setMarketSnapshots(Object.fromEntries(snapshots.map(snapshot=>[snapshot.quote.code,snapshot])));
+        }
+      }catch{}finally{inFlight=false;}
+    };
+    void load();
+    const timer=window.setInterval(()=>void load(),30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [localAuth, stockList]);
   useEffect(() => {
     if (!localAuth || !stock?.code) return;
@@ -376,9 +428,9 @@ export default function Home() {
       } finally { inFlight = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), 1_000);
+    const timer = window.setInterval(() => void load(), marketSession.live ? 1_000 : 30_000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [localAuth, stock?.code]);
+  }, [localAuth, stock?.code, marketSession.live]);
   const starKey = localAuth && stock?.code ? `rabbit-star:${accountName.toLowerCase()}:${stock.code}` : "";
   const starred = useMemo(() => {
     void starredRevision;
@@ -404,8 +456,8 @@ export default function Home() {
           {['首页','操盘台','单股智研','多股监控','策略市场','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
-          <span className="market-open"><i />{currentTrial ? "1 秒试用监控" : currentMarket ? "公开行情已更新" : "行情连接中"}</span>
-          <span className="auto-off"><i />自动判断运行中 · 下单未连接</span>
+          <span className={`market-open ${marketSession.tone}`} title={`${marketSession.detail}；法定节假日以交易所公告为准`}><i />{marketSession.label}<small>{marketSession.live?" · 1秒监控":" · 行情保留"}</small></span>
+          <span className={`auto-off ${marketSession.live?"running":"paused"}`}><i />{marketSession.live?"自动判断运行中":"自动判断已暂停"} · 下单未连接</span>
           <span className="clock">{currentTrial ? new Date(currentTrial.sourceTimestamp || currentTrial.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : currentMarket ? new Date(currentMarket.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
           <button className="profile-cycle" onClick={()=>setStrategyOpen(true)} aria-label={`Smart-T V4 当前使用${profile}，点击查看策略档位`} title="操盘台与模拟回测共用此档位"><span>V4 · {profile.replace('档','')}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
@@ -437,7 +489,7 @@ export default function Home() {
         <div className="chart-zone">
           <div className="chart-tools">
             <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="teal-line"/>均线参考</span>}</div>
-            <span className="live-scan"><i/>{currentTrial ? `1 秒轮询试用 · ${currentTrial.provider}` : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")}</span>
+            <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? `1 秒轮询试用 · ${currentTrial.provider}` : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):marketSession.detail}</span>
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
@@ -451,6 +503,7 @@ export default function Home() {
               {[100,200,300,400,500,600,700,800].map(x => <line key={x} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>)}
               {chartModel&&<><path d={`${chartModel.path} L910 252 L10 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
+              {currentObservations.filter(observation=>!observation.executable).map((observation,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===observation.time);if(minuteIndex<0)return null;const x=10+(minuteIndex/Math.max(1,minutePoints.length-1))*900;const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;return <g className="candidate-signal-marker" key={`candidate-${observation.time}-${index}`}><circle cx={x} cy={y} r="4"/><text x={x} y={y-9} textAnchor="middle">候</text></g>})}
               {liveEngine.actions.map((action,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===action.time);if(minuteIndex<0)return null;const x=10+(minuteIndex/Math.max(1,minutePoints.length-1))*900;const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=action.side==="卖出";const label=action.direction==="反T"?(isSell?"反T卖":"反T回"):(isSell?"正T卖":"正T买");return <g className="live-signal-marker" key={`${action.time}-${action.side}-${index}`}><circle cx={x} cy={y} r="6" className={isSell?'sell':'buy'}/><text x={x} y={isSell?y-11:y+19} textAnchor="middle" className={isSell?'sell':'buy'}>{label}</text></g>})}
               <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx="910" cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
@@ -469,6 +522,12 @@ export default function Home() {
         </div>
 
         <aside className="decision-zone">
+          <div className="signal-funnel" aria-label="候选观察与正式执行信号">
+            <div className="signal-layer candidate"><span>候选观察</span><b>{signalFunnel.candidates}<small> 个</small></b><em>{signalFunnel.scanned} 只已扫描 · 本股 {signalFunnel.currentCandidates}</em></div>
+            <i>→</i>
+            <div className="signal-layer formal"><span>正式执行闭环</span><b>{signalFunnel.formal}<small> 个</small></b><em>V4 四重过滤后保留</em></div>
+          </div>
+          <div className="signal-funnel-note"><span>{signalFunnel.latest?`最新候选 ${signalFunnel.latest.time.slice(0,2)}:${signalFunnel.latest.time.slice(2)} · ${signalFunnel.latest.code} ${signalFunnel.latest.direction}`:"当前尚无候选观察"}</span><em>候选仅提醒；趋势、量价、成本和风控全部通过后才进入正式层</em></div>
           <div className={`auto-direction ${autoDecision.status}`}><div><span>自动方向</span><b>{autoDecision.status==="locked"?"风控锁定":autoDecision.mode??"等待确认"}</b></div><small>{autoDecision.reason}</small><em>{autoDecision.confirmed}/4</em></div>
           <div className="decision-label"><span>SMART-T 自动决策</span><em>{autoDecision.status==="ready"?"信号已确认":autoDecision.status==="locked"?"禁止开T":"1秒监控中"}</em></div>
           <div className={`stock-state ${stockState.level}`}>
