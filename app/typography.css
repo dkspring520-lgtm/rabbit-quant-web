@@ -1,6 +1,19 @@
-body{font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+:root{--font-ui:var(--font-geist-sans),"Segoe UI Variable","PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--font-data:var(--font-geist-mono),"Cascadia Mono","SFMono-Regular",Consolas,monospace}
+body{font-family:var(--font-ui);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit}
 .brand-lockup .brand-type strong{font-weight:700;letter-spacing:-.04em}
-.chart-badge{font-family:system-ui,"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",Arial,sans-serif}
+.chart-badge{font-family:var(--font-ui)}
 .chart-badge text{letter-spacing:0!important}
 .chart-badge .badge-copy{font-weight:600}
 svg text{font-synthesis:none}
+
+/* 操盘台使用更清晰的中文层级；行情数字固定等宽，切换报价时不跳动。 */
+.ticker,.stock-head,.workspace{font-family:var(--font-ui)}
+.stock-code,.quote strong,.quote span,.quote-metrics b,.auction small{font-variant-numeric:tabular-nums}
+.stock-identity h1{font-weight:600;letter-spacing:-.02em}
+.auction{min-width:320px;padding:9px 0 9px 17px;grid-template-columns:minmax(142px,auto) 1fr;column-gap:20px;row-gap:5px}
+.auction span{font-size:10px;font-weight:500;line-height:1.2;letter-spacing:.08em;text-transform:none}
+.auction b{font-size:16px;font-weight:600;line-height:1.35;letter-spacing:0}
+.auction small{font-size:13px;font-weight:400;line-height:1.45;letter-spacing:.005em;white-space:nowrap}
+
+@media(max-width:1250px) and (min-width:761px){.auction{min-width:290px;column-gap:14px}.auction b{font-size:15px}.auction small{font-size:12px}}
