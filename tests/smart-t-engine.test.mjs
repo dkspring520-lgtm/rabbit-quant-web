@@ -35,16 +35,16 @@ const options = {
 function openingRecoverySession(future = "rise") {
   return sessionTimes.map((time, index) => {
     let price;
-    if (index <= 15) price = 9.80 + index * 0.01;
-    else if (future === "rise") price = Math.min(10.08, 9.95 + (index - 15) * 0.012);
-    else price = Math.max(9.60, 9.95 - (index - 15) * 0.035);
+    if (index <= 15) price = 9.70 + index * 0.015;
+    else if (future === "rise") price = Math.min(10.08, 9.925 + (index - 15) * 0.012);
+    else price = Math.max(9.60, 9.925 - (index - 15) * 0.035);
     return { time, price: Number(price.toFixed(3)), volume: 10_000 };
   });
 }
 
 test("partial intraday data is not treated as the closing bell", () => {
   const partial = openingRecoverySession("rise").slice(0, 30).map((point, index) => (
-    index > 10 ? { ...point, price: 9.90 } : point
+    index > 15 ? { ...point, price: 9.925 } : point
   ));
   const result = runSmartTReplay(partial, options);
 
@@ -74,4 +74,16 @@ test("a completed profitable cycle reports net results after all costs", () => {
   assert.ok(result.executionCost > 0);
   assert.ok(result.net < result.gross);
   assert.ok(Math.abs(result.net - (result.gross - result.fees - result.executionCost)) < 0.01);
+});
+
+test("a low gap without sustained recovery remains a no-trade sample", () => {
+  const noise = sessionTimes.slice(0, 35).map((time, index) => ({
+    time,
+    price: Number((9.75 + (index % 2 ? 0.004 : -0.004)).toFixed(3)),
+    volume: 10_000,
+  }));
+  const result = runSmartTReplay(noise, options);
+
+  assert.equal(result.trades, 0);
+  assert.equal(result.actions.length, 0);
 });
