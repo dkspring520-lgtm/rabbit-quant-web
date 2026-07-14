@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyEvent, evaluateEventGate, stripEventMarkup } from "../lib/event-radar.mjs";
+import { classifyEvent, dedupeRelatedEvents, evaluateEventGate, stripEventMarkup } from "../lib/event-radar.mjs";
 
 const now = Date.parse("2026-07-14T08:00:00Z");
 const event = (overrides = {}) => ({ official:false, source:"公开资讯", publishedAt:"2026-07-14T07:00:00Z", ...overrides });
@@ -41,4 +41,27 @@ test("two independent negative sources pause instead of pretending certainty", (
   const gate = evaluateEventGate([one, two]);
   assert.equal(gate.level, "restricted");
   assert.equal(gate.hardLock, false);
+});
+
+test("rewritten reports of the same strategic cooperation are merged", () => {
+  const first = { ...event({ source:"新闽眼" }), id:"one", code:"601899", title:"携手优势互补，共拓全球市场｜建发集团与紫金矿业深化合作", summary:"", url:"https://example.com/one", sentiment:"positive" };
+  const second = { ...event({ source:"观点地产网" }), id:"two", code:"601899", title:"建发集团与紫金矿业签署战略合作协议", summary:"", url:"https://example.com/two", sentiment:"positive" };
+  const result = dedupeRelatedEvents([first, second]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].relatedCount, 2);
+  assert.deepEqual(result[0].sources, ["新闽眼", "观点地产网"]);
+});
+
+test("different positive events for the same stock remain separate", () => {
+  const cooperation = { ...event({ source:"来源甲" }), id:"one", code:"601899", title:"建发集团与紫金矿业签署战略合作协议", summary:"", url:"https://example.com/one", sentiment:"positive" };
+  const earnings = { ...event({ source:"来源乙" }), id:"two", code:"601899", title:"紫金矿业上半年业绩预增", summary:"", url:"https://example.com/two", sentiment:"positive" };
+  assert.equal(dedupeRelatedEvents([cooperation, earnings]).length, 2);
+});
+
+test("duplicate negative coverage counts once in the risk gate", () => {
+  const first = { ...event({ source:"来源甲" }), id:"one", code:"601899", title:"紫金矿业收到监管警示函", summary:"", url:"https://example.com/one", sentiment:"negative", severity:"warning", reason:"命中警示函风险词", ageHours:1 };
+  const second = { ...event({ source:"来源乙" }), id:"two", code:"601899", title:"监管部门向紫金矿业出具警示函", summary:"", url:"https://example.com/two", sentiment:"negative", severity:"warning", reason:"命中警示函风险词", ageHours:1 };
+  const result = dedupeRelatedEvents([first, second]);
+  assert.equal(result.length, 1);
+  assert.equal(evaluateEventGate(result).level, "caution");
 });
