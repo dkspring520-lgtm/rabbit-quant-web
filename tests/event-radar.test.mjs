@@ -25,6 +25,16 @@ test("a positive headline is displayed but never relaxes the execution gate", ()
   assert.match(gate.action, /不因利好自动放宽风控/);
 });
 
+test("a multi-company headline with a loss warning is not mislabelled as positive", () => {
+  const classified = classifyEvent({
+    title:"公告精选丨利通电子上半年预增最高近14倍 通威股份、隆基绿能继续巨亏",
+    publishedAt:"2026-07-14T07:00:00Z",
+    now,
+  });
+  assert.equal(classified.sentiment, "negative");
+  assert.match(classified.reason, /巨亏/);
+});
+
 test("two independent negative sources pause instead of pretending certainty", () => {
   const one = { ...event({ source:"来源甲" }), sentiment:"negative", severity:"warning", reason:"风险提示", ageHours:1 };
   const two = { ...event({ source:"来源乙" }), sentiment:"negative", severity:"warning", reason:"业绩下修", ageHours:2 };

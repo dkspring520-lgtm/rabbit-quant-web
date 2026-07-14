@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { runSmartTReplay } from "@/lib/smart-t-engine.mjs";
-import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX, isAShareTradingMinute } from "@/lib/intraday-axis.mjs";
+import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
@@ -89,6 +89,8 @@ function aShareSession(now:Date|null) {
   if(minute<=690) return {label:"上午交易中",live:true,tone:"live",detail:"1 秒监控与自动判断运行中"};
   if(minute<780) return {label:"午间休市",live:false,tone:"paused",detail:"13:00 恢复监控，不生成新执行信号"};
   if(minute<=900) return {label:"下午交易中",live:true,tone:"live",detail:"1 秒监控与自动判断运行中"};
+  if(minute<905) return {label:"收盘结算中",live:false,tone:"paused",detail:"连续竞价已结束，等待 15:05 盘后固定价格交易"};
+  if(minute<=930) return {label:"盘后固定价交易",live:false,tone:"postclose",detail:"15:05–15:30 按当日收盘价成交，不生成日内做 T 信号"};
   return {label:"今日已收盘",live:false,tone:"closed",detail:"保留收盘行情，可进入模拟回测复盘"};
 }
 
@@ -219,7 +221,16 @@ export default function Home() {
     });
   };
   const rawMinutePoints = useMemo(() => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [], [currentTrial, currentMarket]);
-  const minutePoints = useMemo(() => rawMinutePoints.filter(point=>isAShareTradingMinute(point.time)), [rawMinutePoints]);
+  const minutePoints = useMemo(() => rawMinutePoints.filter(point=>isAShareRegularTradingMinute(point.time)), [rawMinutePoints]);
+  const afterHoursPoints = useMemo(() => rawMinutePoints.filter(point=>isAShareAfterHoursFixedPriceMinute(point.time)), [rawMinutePoints]);
+  const afterHoursSummary = useMemo(() => {
+    if (!afterHoursPoints.length) return null;
+    return {
+      price:afterHoursPoints.at(-1)!.price,
+      totalVolume:afterHoursPoints.reduce((sum,point)=>sum+Math.max(0,point.volume||0),0),
+      points:afterHoursPoints.length,
+    };
+  },[afterHoursPoints]);
   const chartModel = useMemo(() => {
     if (minutePoints.length < 2) return null;
     const prices=minutePoints.map(point=>point.price); const min=Math.min(...prices); const max=Math.max(...prices); const range=max-min||Math.max(max*.002,0.01);
@@ -514,7 +525,7 @@ export default function Home() {
       </section>
 
       <div className={`session-ribbon ${marketSession.tone}`} role="status" aria-live="polite">
-        <span><i />{marketSession.live ? "实时监控模式" : marketSession.tone === "closed" ? "收盘复盘模式" : marketSession.label}</span>
+        <span><i />{marketSession.live ? "实时监控模式" : marketSession.tone === "closed" ? "收盘复盘模式" : marketSession.tone === "postclose" ? "盘后交易模式" : marketSession.label}</span>
         <strong>{marketSession.label}</strong>
         <small>{marketSession.detail}</small>
       </div>
@@ -525,7 +536,7 @@ export default function Home() {
         </div>
         <div className={`quote ${activeQuote?.changePercent != null && activeQuote.changePercent < 0 ? "down" : activeQuote?.changePercent === 0 ? "flat" : ""}`}><strong>{activeQuote?.price?.toFixed(2) ?? "--"}</strong><span>{activeQuote?.changePercent == null ? "--" : `${activeQuote.changePercent >= 0 ? "+" : ""}${activeQuote.changePercent.toFixed(2)}%`}</span></div>
         <div className="quote-metrics">
-          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{currentTrial ? "1 秒试用" : currentMarket ? "公开延迟" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? `${minutePoints.length} 点同步` : "等待数据"}</b></span>
+          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{currentTrial ? "1 秒试用" : currentMarket ? "公开延迟" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
         </div>
         <div className="auction"><span>开盘状态</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {openingAssessment.confirmation}</small></div>
       </section>
@@ -557,6 +568,10 @@ export default function Home() {
             <div className="price-flag">{chartModel?.last.price.toFixed(2) ?? '--'}</div>
             <div className="x-axis">{A_SHARE_INTRADAY_AXIS.map(tick=><span key={tick.label} style={{left:`${intradaySlotX(tick.slot)/9.2}%`}}>{tick.label}</span>)}</div>
           </div>
+          {afterHoursSummary&&<div className="after-hours-strip" role="status" aria-label="盘后固定价格交易数据">
+            <span><i/>盘后固定价</span><b>15:05–15:30</b><strong>¥{afterHoursSummary.price.toFixed(2)}</strong>
+            <small>{afterHoursSummary.points} 个成交点 · 成交量 {afterHoursSummary.totalVolume.toLocaleString("zh-CN")} · 仅展示，不触发做 T 信号</small>
+          </div>}
           <div className="signal-tape">
             <span className="tape-title">信号证据</span>
             <span><i className={openingAssessment.session==="低开"||openingAssessment.session==="高开"?"ok":"wait"}>{openingAssessment.session==="低开"||openingAssessment.session==="高开"?"✓":"·"}</i>{openingAssessment.gapText}</span>
