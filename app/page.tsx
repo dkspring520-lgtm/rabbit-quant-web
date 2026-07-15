@@ -41,7 +41,7 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 }
 
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string };
-type ReplayObservation = { time:string; direction:"正T"|"反T"; score:number; threshold:number; edge:number; executable:boolean; blockers:string[]; reason:string };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; edge:number; executable:boolean; stage?:"watch"|"candidate"; pairGap?:number|null; blockers:string[]; reason:string };
 type DeskHistoryRow = { time:string; direction:string; price:string; quantity:string; spread:string; status:string; tone?:"buy"|"sell"|"candidate" };
 type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
@@ -275,8 +275,9 @@ export default function Home() {
       const formalCycles=replay.trades;
       return [{code:item.code,name:snapshot.quote.name||item.name,observations,formalCycles}];
     });
-    const latest=rows.flatMap(row=>row.observations.map(observation=>({...observation,code:row.code,name:row.name}))).sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
-    return {scanned:rows.length,candidates:rows.reduce((sum,row)=>sum+row.observations.length,0),formal:rows.reduce((sum,row)=>sum+row.formalCycles,0),latest,currentCandidates:rows.find(row=>row.code===stock?.code)?.observations.length??0};
+    const qualified=rows.flatMap(row=>row.observations.filter(observation=>observation.stage!=="watch").map(observation=>({...observation,code:row.code,name:row.name})));
+    const latest=qualified.sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
+    return {scanned:rows.length,candidates:qualified.length,formal:rows.reduce((sum,row)=>sum+row.formalCycles,0),latest,currentCandidates:rows.find(row=>row.code===stock?.code)?.observations.filter(observation=>observation.stage!=="watch").length??0};
   },[stockList,stock?.code,currentTrial,currentMarket,marketSnapshots,liveEngine,preferences.baseShares,profile]);
   const personalStrategyStats = useMemo(() => {
     const sessions=(currentMarket?.intradaySessions ?? [])
@@ -383,7 +384,8 @@ export default function Home() {
     if(panel==="历史信号")return [...currentObservations].reverse().map(observation=>{
       const point=minutePoints.find(item=>item.time===observation.time);
       const time=`${observation.time.slice(0,2)}:${observation.time.slice(2)}`;
-      return {time,direction:observation.direction==="正T"?"候买":"候卖",price:point?point.price.toFixed(2):"—",quantity:"未下单",spread:`边际 ${observation.edge.toFixed(2)}%`,status:observation.executable?"正式条件通过":"候选观察",tone:observation.direction==="正T"?"buy":"sell"};
+      const qualified=observation.stage!=="watch";
+      return {time,direction:qualified?(observation.direction==="正T"?"候买":"候卖"):(observation.direction==="正T"?"转强观察":"转弱观察"),price:point?point.price.toFixed(2):"—",quantity:"未下单",spread:`预估 ${observation.edge.toFixed(2)}%`,status:observation.executable?"正式条件通过":qualified?"候选门槛通过":observation.blockers[0]??"尚未达到候选门槛",tone:qualified?(observation.direction==="正T"?"buy":"sell"):"candidate"};
     });
     return [...liveEngine.actions].reverse().map(action=>({time:`${action.time.slice(0,2)}:${action.time.slice(2)}`,direction:`${action.direction??"T"}${action.side}`,price:action.price.toFixed(2),quantity:`${action.quantity.toLocaleString("zh-CN")}股`,spread:"引擎模拟",status:action.reason??"正式过滤通过",tone:action.side==="卖出"?"sell":"buy"}));
   },[panel,confirmedCycleRows,currentObservations,minutePoints,liveEngine.actions]);
@@ -456,7 +458,7 @@ export default function Home() {
   useEffect(()=>{
     if(!marketSession.live)return;
     const latest=liveEngine.actions.at(-1);
-    const latestObservation=currentObservations.at(-1);
+    const latestObservation=[...currentObservations].reverse().find(observation=>observation.stage!=="watch");
     const isRisk=autoDecision.status==="locked";
     const isFormal=autoDecision.status==="ready"&&latest;
     const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
@@ -682,7 +684,7 @@ export default function Home() {
               {A_SHARE_INTRADAY_AXIS.map(tick => {const x=intradaySlotX(tick.slot);return <line key={tick.label} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>})}
               {chartModel&&<><path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
-              {currentObservations.filter(observation=>!observation.executable).map((observation,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===observation.time);if(minuteIndex<0)return null;const x=intradayChartX(minutePoints[minuteIndex].time);const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=observation.direction==="反T";return <g className={`candidate-signal-marker ${isSell?"sell":"buy"}`} key={`candidate-${observation.time}-${index}`}><circle cx={x} cy={y} r="4"/><text x={x} y={y-9} textAnchor="middle">{isSell?"候卖":"候买"}</text></g>})}
+              {currentObservations.filter(observation=>!observation.executable).map((observation,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===observation.time);if(minuteIndex<0)return null;const x=intradayChartX(minutePoints[minuteIndex].time);const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=observation.direction==="反T";const qualified=observation.stage!=="watch";return <g className={`candidate-signal-marker ${qualified?(isSell?"sell":"buy"):"watch"}`} key={`candidate-${observation.time}-${index}`}><circle cx={x} cy={y} r={qualified?4:3}/><text x={x} y={y-9} textAnchor="middle">{qualified?(isSell?"候卖":"候买"):(isSell?"转弱":"转强")}</text></g>})}
               {liveEngine.actions.map((action,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===action.time);if(minuteIndex<0)return null;const x=intradayChartX(minutePoints[minuteIndex].time);const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=action.side==="卖出";const label=action.direction==="反T"?(isSell?"反T卖":"反T回"):(isSell?"正T卖":"正T买");return <g className="live-signal-marker" key={`${action.time}-${action.side}-${index}`}><circle cx={x} cy={y} r="6" className={isSell?'sell':'buy'}/><text x={x} y={isSell?y-11:y+19} textAnchor="middle" className={isSell?'sell':'buy'}>{label}</text></g>})}
               <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx={chartModel.lastX} cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
