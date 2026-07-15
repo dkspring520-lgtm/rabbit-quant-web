@@ -191,6 +191,75 @@ test("a shallow fade after a long rising VWAP stays an observation instead of a 
   );
 });
 
+test("an already-confirmed local valley can clear a short regime label without reading future prices", () => {
+  const rows = sessionTimes.slice(0, 90).map((time, index) => {
+    let price;
+    if (index <= 49) price = 10;
+    else if (index <= 55) price = 10 - (index - 49) * 0.023333;
+    else if (index <= 60) price = 9.86 + (index - 55) * 0.01;
+    else if (index <= 75) price = 9.91 + (index - 60) * 0.012;
+    else price = 10.09 - (index - 75) * 0.012;
+    return { time, price: Number(price.toFixed(3)), volume: 10_000 };
+  });
+  const full = runSmartTReplay(rows, { ...options, previousClose: 10 });
+  const entry = full.actions[0];
+  const entryIndex = rows.findIndex((point) => point.time === entry?.time);
+  const prefix = runSmartTReplay(rows.slice(0, entryIndex + 1), { ...options, previousClose: 10 });
+
+  assert.equal(entry?.side, "买入");
+  assert.equal(entry?.direction, "正T");
+  assert.ok(entryIndex > 0);
+  assert.deepEqual(prefix.actions, [entry], "the entry must exist at the same minute before later prices are appended");
+  assert.equal(full.trades, 1);
+  assert.equal(full.wins, 1);
+  assert.match(full.actions[1].reason, /利润保护止盈/);
+});
+
+test("a 1.0%-1.35% one-way move keeps a small counter move observational in both directions", () => {
+  const makeRows = (direction) => sessionTimes.slice(0, 90).map((time, index) => {
+    let price = 10;
+    if (index > 49 && index <= 56) price = direction * (index - 49) * 0.02 + 10;
+    if (index > 56 && index <= 60) price = 10 + direction * (0.14 - (index - 56) * 0.0075);
+    if (index > 60) price = 10 + direction * 0.11;
+    return { time, price: Number(price.toFixed(3)), volume: 10_000 };
+  });
+  const rising = runSmartTReplay(makeRows(1), { ...options, previousClose: 10 });
+  const falling = runSmartTReplay(makeRows(-1), { ...options, previousClose: 10 });
+
+  assert.equal(rising.actions.length, 0, "a small fade in a medium uptrend must not become a low reverse-T sale");
+  assert.equal(falling.actions.length, 0, "a small rebound in a medium downtrend must not become a premature buy");
+  assert.ok(rising.observations.some((item) => item.direction === "反T"));
+  assert.ok(falling.observations.some((item) => item.direction === "正T"));
+  assert.ok(rising.diagnostics.regimeBlocked > 0);
+  assert.ok(falling.diagnostics.regimeBlocked > 0);
+});
+
+test("an already-confirmed local peak can clear a long regime label within the sell pullback boundary", () => {
+  const rows = sessionTimes.slice(0, 90).map((time, index) => {
+    let price;
+    if (index <= 49) price = 10;
+    else if (index <= 55) price = 10 + (index - 49) * (0.125 / 6);
+    else if (index <= 60) price = 10.125 - (index - 55) * 0.0066;
+    else if (index <= 75) price = 10.092 - (index - 60) * 0.012;
+    else price = 9.912 + (index - 75) * 0.012;
+    return { time, price: Number(price.toFixed(3)), volume: 10_000 };
+  });
+  const full = runSmartTReplay(rows, { ...options, previousClose: 10 });
+  const entry = full.actions[0];
+  const entryIndex = rows.findIndex((point) => point.time === entry?.time);
+  const prefix = runSmartTReplay(rows.slice(0, entryIndex + 1), { ...options, previousClose: 10 });
+  const observedPeak = Math.max(...rows.slice(Math.max(0, entryIndex - 8), entryIndex + 1).map((point) => point.price));
+  const pullback = (observedPeak - rows[entryIndex].price) / rows[entryIndex].price * 100;
+
+  assert.equal(entry?.side, "卖出");
+  assert.equal(entry?.direction, "反T");
+  assert.ok(entryIndex > 0);
+  assert.ok(pullback <= 0.36, "reverse-T must not chase a sell after the observed peak is already too far away");
+  assert.deepEqual(prefix.actions, [entry], "the peak confirmation must exist before later prices are appended");
+  assert.equal(full.trades, 1);
+  assert.equal(full.wins, 1);
+});
+
 test("full-day replay starts at the earliest causal window and keeps chart markers in time order", () => {
   const result = runSmartTReplay(openingRecoverySession("rise"), { ...options, randomValue: 0 });
   assert.equal(result.startTime, "0935");
