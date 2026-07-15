@@ -100,9 +100,31 @@ test("a low gap without sustained recovery remains a no-trade sample", () => {
   assert.equal(result.actions.length, 0);
 });
 
+test("flat-open reversals become visible candidates without hindsight promotion", () => {
+  const rows = [
+    ["0930", 29.06], ["0931", 28.83], ["0932", 28.67], ["0933", 28.81], ["0934", 28.90],
+    ["0935", 28.93], ["0936", 28.86], ["0937", 28.88], ["0938", 28.95], ["0939", 29.06],
+    ["0940", 29.11], ["0941", 29.13], ["0942", 29.23], ["0943", 29.22], ["0944", 29.26],
+    ["0945", 29.28], ["0946", 29.23], ["0947", 29.18], ["0948", 29.10], ["0949", 29.01],
+    ["0950", 28.94], ["0951", 28.92], ["0952", 28.88], ["0953", 28.86], ["0954", 29.05],
+    ["0955", 29.07], ["0956", 29.06], ["0957", 29.06], ["0958", 29.02], ["0959", 29.02],
+    ["1000", 29.09], ["1001", 29.07], ["1002", 29.13], ["1003", 29.16], ["1004", 29.07],
+    ["1005", 29.02], ["1006", 28.95], ["1007", 28.97], ["1008", 29.01], ["1009", 28.96],
+  ].map(([time, price], index) => ({ time, price, volume: 20_000 + index * 100 }));
+  const result = runSmartTReplay(rows, { ...options, previousClose: 29.06 });
+
+  const buyCandidate=result.observations.find(item => item.direction === "正T");
+  const sellCandidate=result.observations.find(item => item.direction === "反T");
+  assert.ok(buyCandidate);
+  assert.ok(sellCandidate);
+  assert.ok(buyCandidate.time <= "0940", "the recovery candidate should not wait until the local peak");
+  assert.ok(sellCandidate.time >= "0946" && sellCandidate.time <= "0955", "the fade candidate should appear after the observed reversal");
+  assert.equal(result.actions.length, 0, "flat-open swing observations must wait for formal confirmation");
+});
+
 test("full-day replay starts at the earliest causal window and keeps chart markers in time order", () => {
   const result = runSmartTReplay(openingRecoverySession("rise"), { ...options, randomValue: 0 });
-  assert.equal(result.startTime, "0940");
+  assert.equal(result.startTime, "0935");
   assert.equal(result.actions.length, 2);
   assert.ok(result.actions[0].time >= "0945");
   assert.ok(result.actions[0].time < result.actions[1].time);
