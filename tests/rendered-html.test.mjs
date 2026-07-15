@@ -42,6 +42,8 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /候卖/);
   assert.match(source, /!isCandidate&&alertSettings\.sound/);
   assert.match(source, /autoDecision\.status==="ready"/);
+  assert.match(source, /observation\.stage!=="watch"/);
+  assert.match(source, /"转弱":"转强"/);
 });
 
 test("desk history does not ship fixed fake cycles and minute volumes keep fixed width", async () => {

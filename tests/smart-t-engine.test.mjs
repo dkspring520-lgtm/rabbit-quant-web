@@ -117,9 +117,22 @@ test("flat-open reversals become visible candidates without hindsight promotion"
   const sellCandidate=result.observations.find(item => item.direction === "反T");
   assert.ok(buyCandidate);
   assert.ok(sellCandidate);
+  assert.equal(buyCandidate.stage, "watch", "a low-score rebound must remain a neutral watch point");
+  assert.equal(sellCandidate.stage, "watch", "a near-flat opposite turn must not be presented as an economic sell candidate");
   assert.ok(buyCandidate.time <= "0940", "the recovery candidate should not wait until the local peak");
   assert.ok(sellCandidate.time >= "0946" && sellCandidate.time <= "0955", "the fade candidate should appear after the observed reversal");
   assert.equal(result.actions.length, 0, "flat-open swing observations must wait for formal confirmation");
+});
+
+test("a local fade above a rising VWAP cannot open a counter-trend sell cycle", () => {
+  const rows = sessionTimes.slice(0, 70).map((time, index) => {
+    const price = index <= 35 ? 10 + index * 0.0115 : 10.4025 - (index - 35) * 0.012;
+    return { time, price: Number(price.toFixed(3)), volume: 10_000 };
+  });
+  const result = runSmartTReplay(rows, { ...options, previousClose: 10 });
+
+  assert.equal(result.actions.filter(action => action.direction === "反T").length, 0);
+  assert.ok(result.diagnostics.strongTrendBlocked > 0);
 });
 
 test("full-day replay starts at the earliest causal window and keeps chart markers in time order", () => {
