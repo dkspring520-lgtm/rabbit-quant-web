@@ -1141,12 +1141,26 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const [runMode, setRunMode] = useState<"single"|"batch"|null>(null);
   const [singleRunCount, setSingleRunCount] = useState(0);
   const [singleRunDate, setSingleRunDate] = useState("");
+  const [requestedSessionDate, setRequestedSessionDate] = useState("");
+  const [availableSessionDates, setAvailableSessionDates] = useState<string[]>([]);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [batch, setBatch] = useState<BatchBacktestResult | null>(null);
   const [source, setSource] = useState<MarketData | null>(null);
   const [error, setError] = useState("");
   const [runStatus, setRunStatus] = useState("等待运行");
   const [lastAction, setLastAction] = useState<"idle"|"single"|"batch">("idle");
+  const selectBacktestStock=(index:number)=>{
+    setRequestedSessionDate("");
+    setAvailableSessionDates([]);
+    setSingleRunDate("");
+    setResult(null);
+    setBatch(null);
+    setSource(null);
+    setError("");
+    setRunStatus("等待运行");
+    setLastAction("idle");
+    onSelectStock(index);
+  };
   const replay=(data:MarketData):BacktestResult=>runSmartTReplay(data.minutes ?? [],{
     capital,baseShares,sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,profile,
     previousClose:data.quote.previousClose ?? data.bars.at(-2)?.close ?? null,
@@ -1172,7 +1186,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
     setRunStatus(`第 ${attempt} 次：正在获取 ${stock.code} ${stock.name} 最新完整分时…`);
     try {
       const fetched=await fetchStock(stock.code);
-      const sessions=fetched.intradaySessions ?? [];
+      const sessions=[...(fetched.intradaySessions ?? [])].sort((left,right)=>right.date.localeCompare(left.date));
       if(!sessions.length) {
         setResult(null);
         setBatch(null);
@@ -1183,16 +1197,19 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
       // One click means one complete trading day. The engine still decides
       // causally minute by minute, but repeated clicks must not manufacture
       // extra samples by changing the reveal point inside the same day.
-      const selected=[...sessions].sort((left,right)=>right.date.localeCompare(left.date))[0];
+      setAvailableSessionDates(sessions.map(session=>session.date));
+      const selected=sessions.find(session=>session.date===requestedSessionDate) ?? sessions[0];
       const data=sessionData(fetched,selected);
       setSingleRunDate(selected.date);
       setSource(data);
       const calculated=replay(data);
       setResult(calculated);
       setBatch(null);
+      const candidateCount=calculated.diagnostics?.candidates ?? 0;
+      const observationCount=calculated.observations?.length ?? 0;
       setRunStatus(calculated.trades
-        ? `${selected.date} 全日回放完成：形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
-        : `${selected.date} 全日回放完成：未触发正/反 T，资金保持不变`);
+        ? `全日回放完成：形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
+        : `全日回放完成：出现 ${candidateCount} 次候选判定，展示 ${observationCount} 个关键拦截样本，0 个通过正式过滤`);
       setTimeout(()=>document.getElementById("single-backtest-result")?.scrollIntoView({behavior:"smooth",block:"start"}),0);
     } catch {
       setResult(null); setBatch(null); setSource(null);
@@ -1280,6 +1297,8 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
   const previousClose=source?.quote.previousClose ?? null;
   const previousCloseY=previousClose && previousClose>=chartMin && previousClose<=chartMax ? chartPoint(previousClose,0).y : null;
   const formatTime=(value:string|undefined)=>value && value.length>=4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : "--:--";
+  const formatDate=(value:string|undefined)=>value && value.length===8 ? `${value.slice(0,4)}-${value.slice(4,6)}-${value.slice(6,8)}` : value ?? "—";
+  const visibleBacktestObservations=selectVisibleChartObservations((result?.observations ?? []) as ReplayObservation[]);
   const cycles = (() => {
     const paired: { first: ReplayAction; second: ReplayAction }[] = [];
     let pending: ReplayAction | null = null;
@@ -1306,9 +1325,16 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
     <div className="backtest-grid">
       <aside className="backtest-config">
         <div className="config-title"><h2>回测参数</h2><span>{running ? "计算中" : runStatus}</span></div>
-        <label>回测股票<select className="backtest-stock-select" value={activeStock} onChange={event=>onSelectStock(Number(event.target.value))} aria-label="选择回测股票">{stocks.map((item,index)=><option key={item.code} value={index}>{item.code} {item.name}</option>)}</select></label>
+        <label>回测股票<select className="backtest-stock-select" value={activeStock} onChange={event=>selectBacktestStock(Number(event.target.value))} aria-label="选择回测股票">{stocks.map((item,index)=><option key={item.code} value={index}>{item.code} {item.name}</option>)}</select></label>
         <label>买卖逻辑<div className="field static-field"><b>Smart-T 融合策略 V4</b><span>正/反 T + 开盘试单 + 趋势量价 + 成本风控</span></div></label>
         <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "公开真实分时" : "运行后显示"}</b><span>{batch ? `${batch.uniqueSessions} 个不重复股票日` : source?.sampleDate ?? "完整交易日"}</span></div></label><label>决策方式<div className="field static-field date-display"><b>全日逐分钟因果判断</b><span>不读未来高低点/收盘价</span></div></label></div>
+        <label>回放交易日
+          <select value={requestedSessionDate} onChange={event=>setRequestedSessionDate(event.target.value)} disabled={!availableSessionDates.length}>
+            <option value="">最新完整交易日{availableSessionDates[0]?`（${formatDate(availableSessionDates[0])}）`:"（首次运行后列出）"}</option>
+            {availableSessionDates.slice(1).map(date=><option key={date} value={date}>{formatDate(date)}</option>)}
+          </select>
+          <small className="config-inline-help">首次运行会读取可用的完整交易日；随后可选择历史日期重新逐分钟回放。</small>
+        </label>
         <label>V4 策略档位<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；同一套 Smart-T 融合策略 V4，仅调整确认门槛与信号频率。</small></label>
         <div className="broker-account-box">
           <div className="broker-account-head"><b>模拟证券账户</b><span>仅用于回测撮合，不连接真实券商</span></div>
@@ -1321,7 +1347,7 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}<span>→</span></button>
         <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?'正在测试固定代表组…':'测试固定代表组（10股 × 1日）'}</button></div>
-        <div className={`single-run-status ${running?'running':error?'error':result||batch?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在测试固定代表组…':`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='batch'&&batch?`固定代表组 ${batch.stocks} 股测试完成`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：未触发做T条件`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${singleRunDate} 最新完整交易日`:''}</small></span></div>
+        <div className={`single-run-status ${running?'running':error?'error':result||batch?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在测试固定代表组…':`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='batch'&&batch?`固定代表组 ${batch.stocks} 股测试完成`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：${result.diagnostics?.candidates ?? 0} 次候选判定，0 个正式闭环`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${formatDate(singleRunDate)} 完整交易日`:''}</small></span></div>
         <p className="seed-note">不使用随机样本；手动单股与固定代表组均从开盘逐分钟运行到收盘</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
         <p className="config-note">状态：{runStatus}</p>
@@ -1333,8 +1359,70 @@ function BacktestView({ profile, setProfile, preferences, stock, stocks, activeS
           <div className="result-primary"><span>{batch?"代表样本净收益":"净收益"}</span><strong>{result ? money(result.net) : "—"}</strong><em>{result ? `${(result.net/capital*100).toFixed(3)}%` : "运行后显示"}</em></div>
           <div><span>理论毛收益</span><b>{result ? money(result.gross) : "—"}</b><small>未扣费用与滑点</small></div><div><span>费用与滑点</span><b>{result ? money(-(result.fees+result.executionCost)) : "—"}</b><small>佣金、印花税及双向滑点</small></div><div><span>最大回撤</span><b>{result ? `-${(result.maxDrawdown*100).toFixed(3)}%` : "—"}</b><small>{source ? "费用进入逐点资金曲线" : "运行后显示"}</small></div>
         </div>
-        <div className="equity-panel"><div className="panel-heading"><div><h2>{source?`完整交易日真实分时 · ${source.quote.code} ${source.quote.name}`:"完整交易日真实分时"}</h2><span>{result ? `${source?.sampleDate ?? "—"} · ${formatTime(fullDayMinutes[0]?.time)} 至 ${formatTime(fullDayMinutes.at(-1)?.time)} · 策略从 ${formatTime(result.startTime)} 起逐分钟判断` : "运行后显示"}</span></div><div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span></div></div><svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点"><defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".16"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>{chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toFixed(2)}</text></g>})}{previousCloseY!==null&&<line x1="65" x2="820" y1={previousCloseY} y2={previousCloseY} className="equity-base-line"/>}{points&&<><polyline points={`${points} 820,202 65,202`} fill="url(#equityFill)"/><polyline points={points} className="equity-line" fill="none"/>{result?.actions.map((action,index)=>{const minuteIndex=fullDayMinutes.findIndex(point=>point.time===action.time);if(minuteIndex<0)return null;const point=chartPoint(fullDayMinutes[minuteIndex].price,minuteIndex);const isSell=action.side==="卖出";const fill=isSell?"#ff6464":"#28d7c4";const label=action.direction==="反T"?(isSell?"反T先卖":"反T买回"):(action.side==="买入"?"正T买入":"正T卖出");return <g key={`${action.side}-${action.time}-${index}`}><title>{action.reason ?? label}</title><circle cx={point.x} cy={point.y} r="5" fill={fill} stroke="#071312" strokeWidth="2"/><text x={point.x} y={isSell?point.y-10:point.y+17} textAnchor="middle" fill={fill} fontSize="10" fontWeight="700">{label}</text></g>})}<text x="65" y="222" className="equity-time-label">{formatTime(fullDayMinutes[0]?.time)}</text><text x="442" y="222" textAnchor="middle" className="equity-time-label">{formatTime(fullDayMinutes[Math.floor(fullDayMinutes.length/2)]?.time)}</text><text x="820" y="222" textAnchor="end" className="equity-time-label">{formatTime(fullDayMinutes.at(-1)?.time)}</text></>}</svg><div className="chart-truth-note"><span>曲线展示整日真实 1 分钟价格；悬停买卖点可查看触发原因，决策不读取未来数据</span><b>开 {fullDayPrices[0]?.toFixed(2) ?? "—"} · 高 {observedMax.toFixed(2)} · 低 {observedMin.toFixed(2)} · 收 {fullDayPrices.at(-1)?.toFixed(2) ?? "—"}</b></div></div>
+        <div className="equity-panel">
+          <div className="panel-heading">
+            <div><h2>{source?`完整交易日真实分时 · ${source.quote.code} ${source.quote.name}`:"完整交易日真实分时"}</h2><span>{result ? `${formatDate(source?.sampleDate)} · ${formatTime(fullDayMinutes[0]?.time)} 至 ${formatTime(fullDayMinutes.at(-1)?.time)} · 策略从 ${formatTime(result.startTime)} 起逐分钟判断` : "运行后显示"}</span></div>
+            <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{result?.trades===0&&visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 未通过候选</span>}</div>
+          </div>
+          <svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点">
+            <defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".16"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>
+            {chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toFixed(2)}</text></g>})}
+            {previousCloseY!==null&&<line x1="65" x2="820" y1={previousCloseY} y2={previousCloseY} className="equity-base-line"/>}
+            {points&&<>
+              <polyline points={`${points} 820,202 65,202`} fill="url(#equityFill)"/>
+              <polyline points={points} className="equity-line" fill="none"/>
+              {result?.trades===0&&visibleBacktestObservations.map((observation,index)=>{
+                const minuteIndex=fullDayMinutes.findIndex(point=>point.time===observation.time);
+                if(minuteIndex<0)return null;
+                const price=observation.price ?? fullDayMinutes[minuteIndex].price;
+                const point=chartPoint(price,minuteIndex);
+                const isSell=observation.direction==="反T";
+                const fill=isSell?"#ffb44a":"#d6a63f";
+                const label=`${observation.stage==="candidate"?"候选":"观察"}${observation.direction}`;
+                return <g className="backtest-candidate-marker" key={`${observation.direction}-${observation.time}-${index}`}>
+                  <title>{`${observation.reason}${observation.blockers.length?`；未通过：${observation.blockers.join("；")}`:""}`}</title>
+                  <circle cx={point.x} cy={point.y} r="4" fill="#071312" stroke={fill} strokeWidth="1.7"/>
+                  <text x={point.x} y={isSell?point.y-9:point.y+15} textAnchor="middle" fill={fill}>{label}</text>
+                </g>;
+              })}
+              {result?.actions.map((action,index)=>{
+                const minuteIndex=fullDayMinutes.findIndex(point=>point.time===action.time);
+                if(minuteIndex<0)return null;
+                const point=chartPoint(fullDayMinutes[minuteIndex].price,minuteIndex);
+                const isSell=action.side==="卖出";
+                const fill=isSell?"#ff6464":"#28d7c4";
+                const label=action.direction==="反T"?(isSell?"反T先卖":"反T买回"):(action.side==="买入"?"正T买入":"正T卖出");
+                return <g key={`${action.side}-${action.time}-${index}`}><title>{action.reason ?? label}</title><circle cx={point.x} cy={point.y} r="5" fill={fill} stroke="#071312" strokeWidth="2"/><text x={point.x} y={isSell?point.y-10:point.y+17} textAnchor="middle" fill={fill} fontSize="10" fontWeight="700">{label}</text></g>;
+              })}
+              <text x="65" y="222" className="equity-time-label">{formatTime(fullDayMinutes[0]?.time)}</text>
+              <text x="442" y="222" textAnchor="middle" className="equity-time-label">{formatTime(fullDayMinutes[Math.floor(fullDayMinutes.length/2)]?.time)}</text>
+              <text x="820" y="222" textAnchor="end" className="equity-time-label">{formatTime(fullDayMinutes.at(-1)?.time)}</text>
+            </>}
+          </svg>
+          <div className="chart-truth-note"><span>曲线展示整日真实 1 分钟价格；悬停标记可查看触发或拦截原因，决策不读取未来数据</span><b>开 {fullDayPrices[0]?.toFixed(2) ?? "—"} · 高 {observedMax.toFixed(2)} · 低 {observedMin.toFixed(2)} · 收 {fullDayPrices.at(-1)?.toFixed(2) ?? "—"}</b></div>
+        </div>
         {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "每个闭环均列出开仓与平仓原因" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.first.time}-${cycle.second.time}`}><div><b>{cycle.direction} 循环 #{cycle.index}</b><span>{cycle.first.side} {cycle.first.time} ¥ {cycle.first.price.toFixed(2)} → {cycle.second.side} {cycle.second.time} ¥ {cycle.second.price.toFixed(2)}</span><p className="cycle-reason"><em>开仓依据</em>{cycle.first.reason ?? "趋势、量价与成本门槛同时通过"}</p><p className="cycle-reason"><em>平仓依据</em>{cycle.second.reason ?? "达到闭环或风控退出条件"}</p></div><div><small>数量</small><b>{cycle.first.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本完整交易日内没有形成同时满足成本、趋势和风控条件的正/反 T 循环，资金不变；整日真实分时仍保留用于复盘。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
+        {result&&<details className="candidate-audit" key={`candidate-audit-${singleRunDate}`} defaultOpen={result.trades===0}>
+          <summary><span><b>候选信号过滤审计</b><small>{result.trades===0?"没有正式闭环时自动展开，展示关键拦截样本":"展开查看关键候选及过滤原因"}</small></span><em>候选判定 {result.diagnostics?.candidates ?? 0} 次 · {result.trades} 个正式闭环</em></summary>
+          <div className="candidate-audit-metrics">
+            <span><small>候选判定次数</small><b>{result.diagnostics?.candidates ?? 0}</b></span>
+            <span><small>关键观察点</small><b>{result.observations?.length ?? 0}</b></span>
+            <span><small>趋势拦截（强趋势 {result.diagnostics?.strongTrendBlocked ?? 0}）</small><b>{result.diagnostics?.regimeBlocked ?? 0}</b></span>
+            <span><small>成本拦截</small><b>{result.diagnostics?.costBlocked ?? 0}</b></span>
+            <span><small>资金/仓位拦截</small><b>{result.diagnostics?.cashBlocked ?? 0}</b></span>
+            <span><small>正式闭环</small><b>{result.trades}</b></span>
+          </div>
+          {(result.observations?.length ?? 0)>0?<div className="candidate-audit-list">{result.observations?.map((observation,index)=>{
+            const pivotState=observation.pivotAssessment==="strong"?"强确认":observation.pivotAssessment==="confirmed"?"已确认":"未确认";
+            return <article key={`${observation.direction}-${observation.time}-${index}`} className={observation.executable?"passed":observation.stage==="candidate"?"candidate":"watch"}>
+              <header><span><i>{observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observation.direction}</b></span><em>{observation.score}/{observation.threshold} 分 · 预估价差 {observation.edge.toFixed(2)}%</em></header>
+              <p>{observation.reason}</p>
+              {observation.pivotTime&&<small>因果拐点：{formatTime(observation.pivotTime)} ¥{observation.pivotPrice?.toFixed(2) ?? "—"} · {observation.pivotLabel ?? pivotState} · {observation.confirmationLabel ?? pivotState}</small>}
+              <div className="candidate-audit-blockers">{observation.executable?<span className="passed">已通过正式过滤</span>:observation.blockers.map((blocker,blockerIndex)=><span key={`${blocker}-${blockerIndex}`}>{blocker}</span>)}</div>
+            </article>;
+          })}</div>:<p className="candidate-audit-empty">本交易日没有形成达到展示门槛的观察点；不是按钮失效，也不会虚构信号。</p>}
+          <p className="candidate-audit-foot">“候选判定次数”按触发条件的分钟累计，不等于独立信号；下方仅展示去重后的关键样本。只有同时通过趋势、成本、仓位和风控，才升级为正式买卖点。</p>
+        </details>}
         <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>{result?.days ?? "—"}</b></div><div><span>模拟循环</span><b>{result?.trades ?? "—"}</b></div><div><span>胜出循环</span><b>{result?.wins ?? "—"}</b></div><div><span>循环胜率</span><b className="teal">{result?.trades ? `${(result.wins/result.trades*100).toFixed(2)}%` : "—"}</b></div><div><span>底仓设定</span><b>{baseShares.toLocaleString()} 股</b></div><div><span>数据源</span><b>{source?.provider ?? "—"}</b></div></div><div className="failure-panel"><h3>计算说明</h3><p><span>样本证券</span><b>{source ? `${source.quote.code} ${source.quote.name}` : "未运行"}</b></p><p><span>样本交易日</span><b>{source?.sampleDate ?? "—"}</b></p><p><span>样本规模</span><b>{source ? `${source.minutes?.length ?? 0} 个分钟点` : "—"}</b></p><p><span>执行规则</span><b>逐点揭示，不看未来</b></p><p><span>费用模型</span><b>佣金 + 滑点 + 印花税</b></p><p><span>计算状态</span><b className="failure-alert">{result?.status ?? "等待运行"}</b></p></div></div>
       </div>
     </div>
