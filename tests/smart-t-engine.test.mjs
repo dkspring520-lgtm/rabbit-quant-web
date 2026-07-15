@@ -76,6 +76,20 @@ test("a completed profitable cycle reports net results after all costs", () => {
   assert.ok(Math.abs(result.net - (result.gross - result.fees - result.executionCost)) < 0.01);
 });
 
+test("an armed profitable buy-first cycle exits after a causal pullback instead of pretending to know the exact high", () => {
+  const rows = openingRecoverySession("rise").map((point, index) => {
+    if (index < 40) return point;
+    return { ...point, price: Number(Math.max(9.95, 10.08 - (index - 39) * 0.025).toFixed(3)) };
+  });
+  const result = runSmartTReplay(rows, options);
+  const exit = result.actions.find((action) => action.side === "卖出");
+
+  assert.ok(exit, "the protected profit should eventually close after the pullback");
+  assert.ok(exit.time > rows[39].time, "the exit must occur after the already observed rolling high");
+  assert.match(exit.reason, /利润保护止盈/);
+  assert.match(exit.reason, /滚动高点回撤/);
+});
+
 test("candidate observations are deduplicated and do not relax the execution gate", () => {
   const result = runSmartTReplay(openingRecoverySession("rise"), options);
   const minuteNumber = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(2, 4));
@@ -121,6 +135,10 @@ test("flat-open reversals become visible candidates without hindsight promotion"
   assert.equal(sellCandidate.stage, "watch", "a near-flat opposite turn must not be presented as an economic sell candidate");
   assert.ok(buyCandidate.time <= "0940", "the recovery candidate should not wait until the local peak");
   assert.ok(sellCandidate.time >= "0946" && sellCandidate.time <= "0955", "the fade candidate should appear after the observed reversal");
+  assert.ok(sellCandidate.pivotTime <= sellCandidate.time, "a peak reference must only use an already observed minute");
+  assert.ok(sellCandidate.pivotPrice >= sellCandidate.price, "a sell-side peak reference must not be below its confirmation minute");
+  assert.ok(["strong", "confirmed", "unconfirmed"].includes(sellCandidate.pivotAssessment));
+  assert.ok(["强势未破", "转弱确认", "回落观察"].includes(sellCandidate.confirmationLabel));
   assert.equal(result.actions.length, 0, "flat-open swing observations must wait for formal confirmation");
 });
 
