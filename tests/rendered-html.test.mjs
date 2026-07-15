@@ -45,7 +45,8 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /observation\.stage!=="watch"/);
   assert.match(source, /pivot-reference-marker/);
   assert.match(source, /pivot-confirmation-link/);
-  assert.match(source, /observation\.confirmationLabel/);
+  assert.match(source, /visibleChartObservations/);
+  assert.match(source, /空心峰谷 → 实心确认 · 不读未来/);
 });
 
 test("desk history does not ship fixed fake cycles and minute volumes keep fixed width", async () => {

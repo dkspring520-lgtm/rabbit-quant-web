@@ -64,6 +64,26 @@ test("future prices cannot rewrite an already emitted signal", () => {
   assert.equal(beforeCutoff(rising).length, 1);
 });
 
+test("every replay prefix matches the same moment inside a full-day replay", () => {
+  const rows = openingRecoverySession("rise");
+  const full = runSmartTReplay(rows, options);
+
+  for (const prefixLength of [21, 31, 46, 71, 101]) {
+    const partial = runSmartTReplay(rows.slice(0, prefixLength), options);
+    const cutoff = rows[prefixLength - 1].time;
+    assert.deepEqual(
+      partial.actions,
+      full.actions.filter((action) => action.time <= cutoff),
+      `actions changed after appending data beyond ${cutoff}`,
+    );
+    assert.deepEqual(
+      partial.observations,
+      full.observations.filter((observation) => observation.time <= cutoff),
+      `observations changed after appending data beyond ${cutoff}`,
+    );
+  }
+});
+
 test("a completed profitable cycle reports net results after all costs", () => {
   const result = runSmartTReplay(openingRecoverySession("rise"), options);
 
