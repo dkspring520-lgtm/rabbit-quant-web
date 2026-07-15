@@ -46,6 +46,10 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /pivot-reference-marker/);
   assert.match(source, /pivot-confirmation-link/);
   assert.match(source, /visibleChartObservations/);
+  assert.match(source, /openingValley/);
+  assert.match(source, /latestPeak/);
+  assert.match(source, /latestValley/);
+  assert.match(source, /const pivotLabelY=isSell\?Math\.max/);
   assert.match(source, /空心峰谷 → 实心确认 · 不读未来/);
 });
 

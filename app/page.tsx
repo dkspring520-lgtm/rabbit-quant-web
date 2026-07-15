@@ -48,6 +48,20 @@ type BatchMetrics = { samples:number; completed:number; wins:number; gross:numbe
 type StockBatchFeedback = { code:string; name:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; feedback:string };
 type BatchBacktestResult = BatchMetrics & { rounds:number; stocks:number; uniqueSessions:number; noTrade:number; averageNet:number; medianNet:number; providers:string[]; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
 
+function selectVisibleChartObservations(observations: ReplayObservation[]) {
+  const candidates=observations.filter(observation=>!observation.executable);
+  if(candidates.length<=3)return candidates;
+  const openingValley=candidates.find(observation=>observation.direction==="正T"&&(observation.pivotTime??observation.time)<="10:00");
+  const latestPeak=[...candidates].reverse().find(observation=>observation.direction==="反T");
+  const latestValley=[...candidates].reverse().find(observation=>observation.direction==="正T");
+  const selected=[openingValley,latestPeak,latestValley].filter((observation):observation is ReplayObservation=>Boolean(observation));
+  for(const observation of [...candidates].reverse()){
+    if(selected.length>=3)break;
+    if(!selected.includes(observation))selected.push(observation);
+  }
+  return selected.sort((left,right)=>candidates.indexOf(left)-candidates.indexOf(right));
+}
+
 function runDailyBacktestLegacy(bars: MarketBar[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number): BacktestResult {
   let cash = capital;
   let peak = capital;
@@ -264,8 +278,9 @@ export default function Home() {
     randomValue:0,
   }),[minutePoints,preferences.baseShares,profile,activeQuote?.previousClose]);
   const currentObservations=(liveEngine.observations ?? []) as ReplayObservation[];
-  // Keep the main chart readable: the complete causal history remains in the signal/history panels.
-  const visibleChartObservations=currentObservations.filter(observation=>!observation.executable).slice(-2);
+  // Keep one opening valley plus the latest peak and valley when available. This
+  // preserves the important morning structure without painting every candidate.
+  const visibleChartObservations=selectVisibleChartObservations(currentObservations);
   const signalFunnel = useMemo(() => {
     const rows=stockList.flatMap(item=>{
       const snapshot=item.code===stock?.code ? (currentTrial ?? currentMarket ?? marketSnapshots[item.code]) : marketSnapshots[item.code];
@@ -686,7 +701,7 @@ export default function Home() {
               {A_SHARE_INTRADAY_AXIS.map(tick => {const x=intradaySlotX(tick.slot);return <line key={tick.label} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>})}
               {chartModel&&<><path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
-              {visibleChartObservations.map((observation,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===observation.time);if(minuteIndex<0)return null;const x=intradayChartX(minutePoints[minuteIndex].time);const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=observation.direction==="反T";const qualified=observation.stage!=="watch";const pivotIndex=observation.pivotTime?minutePoints.findIndex(point=>point.time===observation.pivotTime):-1;const hasPivot=pivotIndex>=0&&observation.pivotTime!==observation.time&&Number.isFinite(observation.pivotPrice);const pivotX=hasPivot?intradayChartX(minutePoints[pivotIndex].time):x;const pivotY=hasPivot?20+(chartModel.max-(observation.pivotPrice??minutePoints[pivotIndex].price))/range*210:y;const assessment=observation.pivotAssessment??"unconfirmed";const sideClass=isSell?"sell":"buy";const pivotLabel=isSell?"峰":"谷";const currentLabel=assessment==="confirmed"?(isSell?"转弱":"转强"):assessment==="strong"?"趋势未破":"观察";const lane=index%2;const labelY=isSell?Math.max(14,y-15-lane*13):Math.min(242,y+20+lane*13);const labelWidth=currentLabel.length*9+13;return <g key={`candidate-${observation.time}-${index}`}>{hasPivot&&<><line x1={pivotX} y1={pivotY} x2={x} y2={y} className={`pivot-confirmation-link ${assessment} ${sideClass}`}/><g className={`pivot-reference-marker ${assessment} ${sideClass}`}><circle cx={pivotX} cy={pivotY} r="4"/><text x={pivotX} y={isSell?pivotY-8:pivotY+14} textAnchor="middle">{pivotLabel}</text></g></>}<g className={`candidate-signal-marker ${qualified?sideClass:"watch"} ${assessment}`}><circle cx={x} cy={y} r={qualified?5:4}/><rect x={x-labelWidth/2} y={labelY-11} width={labelWidth} height="16" rx="4"/><text x={x} y={labelY} textAnchor="middle">{currentLabel}</text></g></g>})}
+              {visibleChartObservations.map((observation,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===observation.time);if(minuteIndex<0)return null;const x=intradayChartX(minutePoints[minuteIndex].time);const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=observation.direction==="反T";const qualified=observation.stage!=="watch";const pivotIndex=observation.pivotTime?minutePoints.findIndex(point=>point.time===observation.pivotTime):-1;const hasPivot=pivotIndex>=0&&observation.pivotTime!==observation.time&&Number.isFinite(observation.pivotPrice);const pivotX=hasPivot?intradayChartX(minutePoints[pivotIndex].time):x;const pivotY=hasPivot?20+(chartModel.max-(observation.pivotPrice??minutePoints[pivotIndex].price))/range*210:y;const assessment=observation.pivotAssessment??"unconfirmed";const sideClass=isSell?"sell":"buy";const pivotLabel=isSell?"峰":"谷";const currentLabel=assessment==="confirmed"?(isSell?"转弱":"转强"):assessment==="strong"?"趋势未破":"观察";const lane=index%2;const labelY=isSell?Math.min(242,y+21+lane*13):Math.max(14,y-14-lane*13);const pivotLabelY=isSell?Math.max(10,pivotY-9):Math.min(246,pivotY+15);const labelWidth=currentLabel.length*9+13;return <g key={`candidate-${observation.time}-${index}`}>{hasPivot&&<><line x1={pivotX} y1={pivotY} x2={x} y2={y} className={`pivot-confirmation-link ${assessment} ${sideClass}`}/><g className={`pivot-reference-marker ${assessment} ${sideClass}`}><circle cx={pivotX} cy={pivotY} r="4"/><text x={pivotX} y={pivotLabelY} textAnchor="middle">{pivotLabel}</text></g></>}<g className={`candidate-signal-marker ${qualified?sideClass:"watch"} ${assessment}`}><circle cx={x} cy={y} r={qualified?5:4}/><rect x={x-labelWidth/2} y={labelY-11} width={labelWidth} height="16" rx="4"/><text x={x} y={labelY} textAnchor="middle">{currentLabel}</text></g></g>})}
               {liveEngine.actions.map((action,index)=>{const minuteIndex=minutePoints.findIndex(point=>point.time===action.time);if(minuteIndex<0)return null;const x=intradayChartX(minutePoints[minuteIndex].time);const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);const y=20+(chartModel.max-minutePoints[minuteIndex].price)/range*210;const isSell=action.side==="卖出";const label=action.direction==="反T"?(isSell?"反T卖":"反T回"):(isSell?"正T卖":"正T买");return <g className="live-signal-marker" key={`${action.time}-${action.side}-${index}`}><circle cx={x} cy={y} r="6" className={isSell?'sell':'buy'}/><text x={x} y={isSell?y-11:y+19} textAnchor="middle" className={isSell?'sell':'buy'}>{label}</text></g>})}
               <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx={chartModel.lastX} cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>

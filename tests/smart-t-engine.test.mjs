@@ -173,6 +173,24 @@ test("a local fade above a rising VWAP cannot open a counter-trend sell cycle", 
   assert.ok(result.diagnostics.strongTrendBlocked > 0);
 });
 
+test("a shallow fade after a long rising VWAP stays an observation instead of a reverse-T sale", () => {
+  const rows = sessionTimes.slice(0, 85).map((time, index) => {
+    let price;
+    if (index <= 20) price = 10 + index * 0.006;
+    else if (index <= 35) price = 10.12 + (index - 20) * 0.035;
+    else price = 10.645 - (index - 35) * 0.006;
+    return { time, price: Number(price.toFixed(3)), volume: 12_000 };
+  });
+  const result = runSmartTReplay(rows, { ...options, previousClose: 10 });
+
+  assert.equal(result.actions.filter(action => action.direction === "反T").length, 0);
+  assert.ok(result.diagnostics.strongTrendBlocked > 0, "the longer observed VWAP trend must veto the shallow local fade");
+  assert.ok(
+    result.observations.some(observation => observation.direction === "反T" && observation.pivotAssessment === "strong"),
+    "the peak may remain visible as a non-executable trend observation",
+  );
+});
+
 test("full-day replay starts at the earliest causal window and keeps chart markers in time order", () => {
   const result = runSmartTReplay(openingRecoverySession("rise"), { ...options, randomValue: 0 });
   assert.equal(result.startTime, "0935");
