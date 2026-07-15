@@ -35,6 +35,7 @@ test("does not render development preview metadata", async () => {
 
 test("formal alerts use branded rabbits and candidates stay non-executable", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /左兔 · 买入\/买回提醒/);
   assert.match(source, /右兔 · 卖出提醒/);
   assert.match(source, /候选仅弹出安静观察卡/);
@@ -49,8 +50,14 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /openingValley/);
   assert.match(source, /latestPeak/);
   assert.match(source, /latestValley/);
-  assert.match(source, /const pivotLabelY=isSell\?Math\.max/);
+  assert.match(source, /const reserveLabel=/);
+  assert.match(source, /const occupied:LabelBox\[\]=\[\]/);
+  assert.match(source, /intradayMarkerLayout\.actions/);
+  assert.match(source, /marker-label-leader/);
   assert.match(source, /空心峰谷 → 实心确认 · 不读未来/);
+  assert.match(styles, /candidate-signal-marker rect\{fill:rgba\(242,184,75,\.12\)/);
+  assert.match(styles, /live-signal-marker\.sell rect\{fill:rgba\(255,100,100,\.18\)/);
+  assert.match(styles, /live-signal-marker\.buy rect\{fill:rgba\(40,215,196,\.18\)/);
 });
 
 test("desk history does not ship fixed fake cycles and minute volumes keep fixed width", async () => {
@@ -68,4 +75,15 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   assert.match(source, /真实完整分时/);
   assert.doesNotMatch(source, /持续影子训练 · 每5分钟/);
   assert.doesNotMatch(source, /\+¥2,416/);
+});
+
+test("fixed-stock replay exposes auditable failures and intraday trade points", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /为什么没有交易？/);
+  assert.match(source, /亏损原因/);
+  assert.match(source, /风控硬拦截/);
+  assert.match(source, /强势交易日仍在 VWAP 上方/);
+  assert.match(source, /避免低位卖出后追高买回/);
+  assert.match(source, /BatchMiniChart/);
+  assert.match(source, /正式闭环 \{batch\.completed\} 个/);
 });
