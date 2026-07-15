@@ -191,6 +191,35 @@ test("a shallow fade after a long rising VWAP stays an observation instead of a 
   );
 });
 
+test("a fast session expansion above a lagging VWAP blocks a shallow reverse-T fade", () => {
+  const rows = sessionTimes.slice(0, 144).map((time, index) => {
+    let price;
+    let volume;
+    if (index < 121) {
+      price = 10 + index * 0.00065;
+      volume = 100_000;
+    } else {
+      const afternoonIndex = index - 121;
+      if (afternoonIndex <= 19) price = 10.08 + afternoonIndex * (0.19 / 19);
+      else if (afternoonIndex === 20) price = 10.255;
+      else if (afternoonIndex === 21) price = 10.245;
+      else price = 10.235;
+      volume = 10_000;
+    }
+    return { time, price: Number(price.toFixed(3)), volume };
+  });
+  const result = runSmartTReplay(rows, { ...options, previousClose: 10 });
+
+  assert.equal(result.actions.length, 0, "a +2% session still above VWAP must not sell a shallow local fade");
+  assert.ok(result.diagnostics.strongTrendBlocked > 0);
+  assert.ok(result.diagnostics.strongSellTrendBlocked > 0, "the audit trail must identify the blocked reverse-T direction");
+  assert.equal(result.diagnostics.strongBuyTrendBlocked, 0);
+  assert.ok(
+    result.observations.some(observation => observation.direction === "反T" && observation.pivotAssessment === "strong"),
+    "the peak remains visible as a strong-trend observation instead of disappearing",
+  );
+});
+
 test("an already-confirmed local valley can clear a short regime label without reading future prices", () => {
   const rows = sessionTimes.slice(0, 90).map((time, index) => {
     let price;
