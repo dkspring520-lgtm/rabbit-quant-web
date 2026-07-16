@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { PROFILES, runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import { PROFILES, minutesFromOpen, runSmartTReplay } from "../lib/smart-t-engine.mjs";
 
 const morningTimes = [];
 for (let hour = 9, minute = 30; hour < 11 || (hour === 11 && minute <= 30);) {
@@ -160,6 +160,13 @@ test("all V4 profiles keep their after-cost targets inside the promised 0.64%-0.
     Object.fromEntries(Object.entries(PROFILES).map(([name, profile]) => [name, profile.targetNetPct])),
     { "稳健档": 0.74, "平衡档": 0.69, "灵敏档": 0.64, "量化学习": 0.69 },
   );
+});
+
+test("the lunch break is excluded from causal holding minutes", () => {
+  assert.equal(minutesFromOpen("1130"), 120);
+  assert.equal(minutesFromOpen("1300"), 120);
+  assert.equal(minutesFromOpen("1301") - minutesFromOpen("1129"), 2);
+  assert.equal(minutesFromOpen("1400") - minutesFromOpen("1100"), 90);
 });
 
 test("candidate observations are deduplicated and do not relax the execution gate", () => {
