@@ -30,6 +30,12 @@ const options = {
   profile: "平衡档",
   previousClose: 10,
   randomValue: 0,
+  // Generic engine tests isolate ordering, costs and causality. Production-only
+  // quality gates are covered separately so they do not invalidate fixtures.
+  profileOverrides: {
+    maxOpeningChasePct: Number.POSITIVE_INFINITY,
+    trailActivationPct: Number.POSITIVE_INFINITY,
+  },
 };
 
 function openingRecoverySession(future = "rise") {
@@ -209,6 +215,44 @@ test("a low gap without sustained recovery remains a no-trade sample", () => {
 
   assert.equal(result.trades, 0);
   assert.equal(result.actions.length, 0);
+});
+
+test("the production opening-chase gate keeps an overextended repair visible without executing it", () => {
+  const result = runSmartTReplay(openingRecoverySession("rise"), {
+    ...options,
+    profileOverrides: { trailActivationPct: Number.POSITIVE_INFINITY },
+  });
+
+  assert.equal(result.actions.length, 0);
+  assert.equal(result.trades, 0);
+  assert.ok(result.diagnostics.candidates > 0, "the setup must remain available for review");
+  assert.ok(result.diagnostics.openingChaseBlocked > 0, "the audit trail must name the opening chase veto");
+  assert.ok(result.observations.length > 0, "the execution veto must not hide the candidate layer");
+});
+
+test("the production profit trail exits only after an observed pullback and stays causal", () => {
+  const prices = [9.70, 9.715, 9.73, 9.745, 9.76, 9.775, 9.79, 9.82, 9.84, 9.83, 9.82, 9.81, 9.81, 9.81];
+  const rows = prices.map((price, index) => ({
+    time: sessionTimes[index],
+    price,
+    volume: index === 8 ? 25_000 : 12_000,
+  }));
+  const replayOptions = {
+    ...options,
+    profileOverrides: { maxOpeningChasePct: Number.POSITIVE_INFINITY },
+  };
+  const full = runSmartTReplay(rows, replayOptions);
+  const exit = full.actions[1];
+  const exitIndex = rows.findIndex((point) => point.time === exit?.time);
+  const beforeExit = runSmartTReplay(rows.slice(0, exitIndex), replayOptions);
+  const atExit = runSmartTReplay(rows.slice(0, exitIndex + 1), replayOptions);
+
+  assert.equal(full.trades, 1);
+  assert.equal(full.wins, 1);
+  assert.equal(exit?.meta?.trailingProfit, true);
+  assert.ok(exit.meta.bestMove > exit.meta.move, "the exit requires a pullback from an already observed best move");
+  assert.equal(beforeExit.actions.length, 1, "the later pullback must not be known one minute early");
+  assert.deepEqual(atExit.actions, full.actions, "the exit must be reproducible at its confirmation minute");
 });
 
 test("flat-open reversals become visible candidates without hindsight promotion", () => {
