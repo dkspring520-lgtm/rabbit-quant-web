@@ -125,7 +125,7 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   assert.doesNotMatch(source, /\+¥2,416/);
 });
 
-test("seeded random 10-stock replay is reproducible and separates candidates from formal trades", async () => {
+test("random 10-stock replay is internally reproducible and separates candidates from formal trades", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const poolMatch = source.match(/const batchValidationUniverse = \[([\s\S]*?)\];/);
   assert.ok(poolMatch);
@@ -139,7 +139,10 @@ test("seeded random 10-stock replay is reproducible and separates candidates fro
   assert.match(source, /batchFetchProgress\.ready\}\/10/);
   assert.match(source, /replacementStocks=Math\.max\(0,attempted-sampledCodes\.length\)/);
   assert.match(source, /type BatchBacktestResult = BatchMetrics & \{ seed:string;/);
-  assert.match(source, /批次种子：\{batch\.seed\}/);
+  assert.doesNotMatch(source, /批次种子：\{batch\.seed\}/);
+  assert.doesNotMatch(source, /随机10股批次测试完成 · 种子/);
+  assert.match(source, /standardBacktestShares/);
+  assert.match(source, /每只股票每天最多展示 3 个去重后的关键样本/);
   assert.match(source, /随机10股真实分时批次/);
   assert.match(source, /候选覆盖只表示逐分钟出现过观察条件；正式触发才产生可执行闭环/);
   assert.match(source, /1\/10 不等于失败/);

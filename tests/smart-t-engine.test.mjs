@@ -181,6 +181,24 @@ test("candidate observations are deduplicated and do not relax the execution gat
   assert.equal(result.trades, 1, "formal cycles keep the original V4 execution threshold");
 });
 
+test("zero simulated inventory still exposes a few candidates without creating orders", () => {
+  const result = runSmartTReplay(openingRecoverySession("rise"), {
+    ...options,
+    baseShares: 0,
+    sellable: 0,
+  });
+
+  assert.equal(result.actions.length, 0);
+  assert.equal(result.trades, 0);
+  assert.ok(result.diagnostics.candidates > 0);
+  assert.ok(result.observations.length >= 1);
+  assert.ok(result.observations.length <= 3, "candidate markers must remain visually limited");
+  assert.ok(
+    result.observations.some((observation) => observation.blockers.includes("可用资金或股数不足")),
+    "the UI should explain that the setup exists but the simulated account cannot execute it",
+  );
+});
+
 test("a low gap without sustained recovery remains a no-trade sample", () => {
   const noise = sessionTimes.slice(0, 35).map((time, index) => ({
     time,
