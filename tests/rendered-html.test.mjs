@@ -30,7 +30,21 @@ test("does not render development preview metadata", async () => {
     response.headers.get("content-type") ?? "",
     /^text\/html\b/i,
   );
-  assert.doesNotMatch(await response.text(), developmentPreviewMeta);
+  const html = await response.text();
+  assert.doesNotMatch(html, developmentPreviewMeta);
+  assert.doesNotMatch(html, /做人神器/);
+});
+
+test("brand keeps a distinct ASCII T and never regresses to the wrong name", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/typography.css", import.meta.url), "utf8");
+  assert.match(source, /aria-label="做T神器 Rabbit Smart-T"/);
+  assert.match(source, /className="brand-ascii-t">T<\/span>/);
+  assert.match(source, /aria-label="做T神器"/);
+  assert.doesNotMatch(source, /<em>做T<\/em>/);
+  assert.doesNotMatch(source, /做人神器/);
+  assert.match(styles, /\.brand-lockup \.brand-type strong\{[^}]*letter-spacing:0!important/);
+  assert.match(styles, /\.brand-ascii-t\{[^}]*letter-spacing:0!important/);
 });
 
 test("formal alerts use branded rabbits and candidates stay non-executable", async () => {
@@ -39,8 +53,13 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /左兔 · 买入\/买回提醒/);
   assert.match(source, /右兔 · 卖出提醒/);
   assert.match(source, /候选仅弹出安静观察卡/);
-  assert.match(source, /候买/);
-  assert.match(source, /候卖/);
+  assert.match(source, /function observationConfirmationLabel/);
+  assert.match(source, /function observationDirectionNote/);
+  assert.match(source, /潜在\$\{observation\.direction\}方向 · 观察层不可执行/);
+  assert.match(source, /const label=observationConfirmationLabel\(observation\)/);
+  assert.match(source, /formatTime\(observation\.time\)\} · \{observationConfirmationLabel\(observation\)\}/);
+  assert.doesNotMatch(source, /observation\.direction==="正T"\?"候买":"候卖"/);
+  assert.doesNotMatch(source, /\$\{observation\.stage==="candidate"\?"候选":"观察"\}\$\{observation\.direction\}/);
   assert.match(source, /!isCandidate&&alertSettings\.sound/);
   assert.match(source, /autoDecision\.status==="ready"/);
   assert.match(source, /observation\.stage!=="watch"/);
@@ -106,8 +125,24 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   assert.doesNotMatch(source, /\+¥2,416/);
 });
 
-test("fixed-stock replay exposes auditable failures and intraday trade points", async () => {
+test("seeded random 10-stock replay is reproducible and separates candidates from formal trades", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const poolMatch = source.match(/const batchValidationUniverse = \[([\s\S]*?)\];/);
+  assert.ok(poolMatch);
+  const poolCodes = [...poolMatch[1].matchAll(/"(\d{6})"/g)].map((match) => match[1]);
+  assert.ok(poolCodes.length >= 30);
+  assert.equal(new Set(poolCodes).size, poolCodes.length);
+  assert.match(source, /sampleWithSeed\(batchValidationUniverse,10,seed\)/);
+  assert.match(source, /type BatchBacktestResult = BatchMetrics & \{ seed:string;/);
+  assert.match(source, /批次种子：\{batch\.seed\}/);
+  assert.match(source, /随机10股真实分时批次/);
+  assert.match(source, /候选覆盖只表示逐分钟出现过观察条件；正式触发才产生可执行闭环/);
+  assert.match(source, /1\/10 不等于失败/);
+  assert.match(source, /系统绝不为凑次数强行开仓/);
+  assert.doesNotMatch(source, /固定代表组/);
+  assert.match(source, /"600519": "贵州茅台"/);
+  assert.match(source, /"300750": "宁德时代"/);
+  assert.match(source, /"688981": "中芯国际"/);
   assert.match(source, /为什么没有交易？/);
   assert.match(source, /亏损原因/);
   assert.match(source, /风控硬拦截/);

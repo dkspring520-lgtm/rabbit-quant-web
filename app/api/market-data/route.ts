@@ -9,6 +9,35 @@ type IntradaySession = { date: string; previousClose: number | null; minutes: Mi
 type EastmoneyQuote = { f43?: number; f44?: number; f45?: number; f46?: number; f47?: number; f48?: number; f57?: string; f58?: string; f60?: number; f169?: number; f170?: number; };
 const quoteFields = "f43,f44,f45,f46,f47,f48,f57,f58,f60,f169,f170";
 
+const realtimeHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+  "CDN-Cache-Control": "no-store",
+  "Cloudflare-CDN-Cache-Control": "no-store",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+
+const closedMarketHeaders = {
+  "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+  "CDN-Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+  "Cloudflare-CDN-Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+};
+
+function isMainlandMarketRealtimeWindow(now = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Shanghai",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  if (parts.weekday === "Sat" || parts.weekday === "Sun") return false;
+  const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+  // Include call auction and Shenzhen after-hours fixed-price trading. A holiday
+  // may still enter this branch, which only disables caching and is harmless.
+  return minutes >= 9 * 60 + 15 && minutes <= 15 * 60 + 30;
+}
+
 function number(value: unknown, scale = 1) { return typeof value === "number" && Number.isFinite(value) ? value / scale : null; }
 function numeric(value: string | undefined) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; }
 function validCode(code: string) { if (!/^\d{6}$/.test(code)) throw new Error("股票代码必须是 6 位数字"); return code; }
@@ -17,7 +46,7 @@ function sourceTime(value: string | undefined) { return value && /^\d{14}$/.test
 function isUsable(quote: Quote) { return quote.price !== null && quote.name.length > 0 && !/[\u0080-\u009f\uFFFD]/.test(quote.name); }
 
 async function fromTencent(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: string | null }> {
-  const response = await fetch(`https://qt.gtimg.cn/q=${marketPrefix(code)}${code}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
+  const response = await fetch(`https://qt.gtimg.cn/q=${marketPrefix(code)}${code}`, { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
   if (!response.ok) throw new Error("腾讯行情不可用");
   const bytes = await response.arrayBuffer();
   // Tencent currently returns UTF-8 from some edges and GB18030 from others.
@@ -34,7 +63,7 @@ async function fromTencent(code: string): Promise<{ provider: string; quote: Quo
 }
 
 async function fromTencentMinutes(code: string): Promise<MinutePoint[]> {
-  const response = await fetch(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${marketPrefix(code)}${code}`, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
+  const response = await fetch(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${marketPrefix(code)}${code}`, { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
   if (!response.ok) throw new Error("腾讯分时不可用");
   const payload = await response.json() as { data?: Record<string, { data?: { data?: string[] } }> };
   const rows = payload.data?.[`${marketPrefix(code)}${code}`]?.data?.data ?? [];
@@ -75,7 +104,7 @@ async function fromTencentIntradaySessions(code: string): Promise<IntradaySessio
 
 async function fromEastmoneyMinutes(code: string): Promise<MinutePoint[]> {
   const secid = `${code.startsWith("6") ? "1" : "0"}.${code}`;
-  const response = await fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56&klt=1&fqt=0&beg=0&end=20500101&lmt=500`);
+  const response = await fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56&klt=1&fqt=0&beg=0&end=20500101&lmt=500`, { cache: "no-store" });
   const payload = await response.json() as { data?: { klines?: string[] } };
   const rows = payload.data?.klines ?? [];
   const datedPoints = rows.map((row) => {
@@ -127,7 +156,7 @@ async function fromTencentDailyBars(code: string) {
 }
 
 async function fromSina(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: string | null }> {
-  const response = await fetch(`https://hq.sinajs.cn/list=${marketPrefix(code)}${code}`, { headers: { Referer: "https://finance.sina.com.cn/" } });
+  const response = await fetch(`https://hq.sinajs.cn/list=${marketPrefix(code)}${code}`, { cache: "no-store", headers: { Referer: "https://finance.sina.com.cn/" } });
   if (!response.ok) throw new Error("新浪行情不可用");
   const fields = (await response.text()).match(/="([^"]*)"/)?.[1]?.split(",");
   if (!fields || fields.length < 33) throw new Error("新浪行情返回无效");
@@ -139,7 +168,7 @@ async function fromSina(code: string): Promise<{ provider: string; quote: Quote;
 
 async function fromEastmoneyQuote(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: null }> {
   const secid = `${code.startsWith("6") ? "1" : "0"}.${code}`;
-  const response = await fetch(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=${quoteFields}`);
+  const response = await fetch(`https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=${quoteFields}`, { cache: "no-store" });
   const data = (await response.json() as { data?: EastmoneyQuote }).data;
   if (!response.ok || !data) throw new Error("东方财富行情不可用");
   const quote = { code: data.f57 ?? code, name: data.f58 ?? "", price: number(data.f43, 100), previousClose: number(data.f60, 100), change: number(data.f169, 100), changePercent: number(data.f170, 100), open: number(data.f46, 100), high: number(data.f44, 100), low: number(data.f45, 100), volume: number(data.f47), amount: number(data.f48) };
@@ -155,11 +184,12 @@ export async function GET(request: Request) {
     validCode(code);
     if (mode === "trial-realtime") {
       const providers = [fromTencent, fromSina, fromEastmoneyQuote];
+      const minutesPromise = fromPublicMinutes(code).catch(() => []);
       let lastError: unknown;
       for (const provider of providers) {
         try {
-          const [data, minutes] = await Promise.all([provider(code), fromPublicMinutes(code).catch(() => [])]);
-          return Response.json({ ...data, minutes, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt: new Date().toISOString(), bars: [] }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+          const [data, minutes] = await Promise.all([provider(code), minutesPromise]);
+          return Response.json({ ...data, minutes, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt: new Date().toISOString(), bars: [] }, { headers: realtimeHeaders });
         } catch (error) { lastError = error; }
       }
       throw lastError instanceof Error ? lastError : new Error("所有试用行情源暂不可用");
@@ -173,6 +203,7 @@ export async function GET(request: Request) {
     const latest = bars.at(-1);
     if (!quoteResult && !latest) throw new Error("所有公开行情源暂不可用");
     const fallbackQuote: Quote = { code, name: code, price: latest?.close ?? null, previousClose: bars.at(-2)?.close ?? null, change: latest ? latest.close - (bars.at(-2)?.close ?? latest.close) : null, changePercent: latest && bars.at(-2)?.close ? (latest.close - bars.at(-2)!.close) / bars.at(-2)!.close * 100 : null, open: latest?.open ?? null, high: latest?.high ?? null, low: latest?.low ?? null, volume: latest?.volume ?? null, amount: latest?.amount ?? null };
-    return Response.json({ provider: quoteResult?.provider ?? "tencent-public", quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minutes, intradaySessions, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=30" } });
-  } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502 }); }
+    const headers = mode === "realtime" || isMainlandMarketRealtimeWindow() ? realtimeHeaders : closedMarketHeaders;
+    return Response.json({ provider: quoteResult?.provider ?? "tencent-public", quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minutes, intradaySessions, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers });
+  } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502, headers: realtimeHeaders }); }
 }
