@@ -1,0 +1,63 @@
+.position-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.position-setup-grid > label {
+  display: block;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  background: #0e1311;
+}
+
+.position-setup-grid > label > span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.position-setup-grid > label > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border: 1px solid #303936;
+  background: #080b0a;
+}
+
+.position-setup-grid input {
+  width: 100%;
+  min-width: 0;
+  height: 31px;
+  padding: 0 8px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: 10px var(--font-geist-mono);
+}
+
+.position-setup-grid em {
+  padding-right: 7px;
+  color: var(--dim);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.position-setup-grid > label > small {
+  margin-top: 6px !important;
+  line-height: 1.4;
+}
+
+@media (max-width: 620px) {
+  .position-setup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .onboarding-card {
+    max-height: 92vh;
+    overflow: auto;
+  }
+}

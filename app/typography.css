@@ -1,7 +1,9 @@
 :root{--font-ui:var(--font-geist-sans),"Segoe UI Variable","PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--font-data:var(--font-geist-mono),"Cascadia Mono","SFMono-Regular",Consolas,monospace}
 body{font-family:var(--font-ui);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font-family:inherit}
-.brand-lockup .brand-type strong{font-weight:700;letter-spacing:-.04em}
+.brand-lockup .brand-type strong{font-weight:700;letter-spacing:0!important}
+.brand-ascii-t{display:inline-block;margin:0 .05em;color:var(--teal);font-family:Arial,"Segoe UI",sans-serif;font-style:normal;font-weight:800;letter-spacing:0!important;transform:none}
+.auth-brand b{letter-spacing:0;white-space:nowrap}
 .chart-badge{font-family:var(--font-ui)}
 .chart-badge text{letter-spacing:0!important}
 .chart-badge .badge-copy{font-weight:600}

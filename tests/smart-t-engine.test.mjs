@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import { PROFILES, runSmartTReplay } from "../lib/smart-t-engine.mjs";
 
 const morningTimes = [];
 for (let hour = 9, minute = 30; hour < 11 || (hour === 11 && minute <= 30);) {
@@ -122,18 +122,44 @@ test("a completed profitable cycle reports net results after all costs", () => {
   assert.ok(Math.abs(result.net - (result.gross - result.fees - result.executionCost)) < 0.01);
 });
 
-test("an armed profitable buy-first cycle exits after a causal pullback instead of pretending to know the exact high", () => {
+test("a profitable buy-first cycle exits at the first causal minute that clears the after-cost target", () => {
   const rows = openingRecoverySession("rise").map((point, index) => {
     if (index < 40) return point;
     return { ...point, price: Number(Math.max(9.95, 10.08 - (index - 39) * 0.025).toFixed(3)) };
   });
   const result = runSmartTReplay(rows, options);
+  const entry = result.actions.find((action) => action.side === "买入");
   const exit = result.actions.find((action) => action.side === "卖出");
 
-  assert.ok(exit, "the protected profit should eventually close after the pullback");
-  assert.ok(exit.time > rows[39].time, "the exit must occur after the already observed rolling high");
-  assert.match(exit.reason, /利润保护止盈/);
-  assert.match(exit.reason, /滚动高点回撤/);
+  assert.ok(entry);
+  assert.ok(exit, "the cycle should close as soon as its after-cost target is visible");
+  assert.match(exit.reason, /扣费净止盈/);
+  assert.match(exit.reason, /按本分钟已出现价格执行/);
+  assert.ok(
+    result.cycleNets[0] / (entry.price * entry.quantity) * 100 >= PROFILES[options.profile].targetNetPct,
+    "the completed cycle must clear the selected profile's after-cost target",
+  );
+
+  const exitIndex = rows.findIndex((point) => point.time === exit.time);
+  const prefix = runSmartTReplay(rows.slice(0, exitIndex + 1), options);
+  assert.deepEqual(
+    prefix.actions,
+    result.actions.filter((action) => action.time <= exit.time),
+    "later prices must not create or relocate the target exit",
+  );
+});
+
+test("all V4 profiles keep their after-cost targets inside the promised 0.64%-0.74% range", () => {
+  const targets = Object.values(PROFILES).map((profile) => profile.targetNetPct);
+
+  assert.ok(targets.length > 0);
+  targets.forEach((target) => {
+    assert.ok(target >= 0.64 && target <= 0.74);
+  });
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(PROFILES).map(([name, profile]) => [name, profile.targetNetPct])),
+    { "稳健档": 0.74, "平衡档": 0.69, "灵敏档": 0.64, "量化学习": 0.69 },
+  );
 });
 
 test("candidate observations are deduplicated and do not relax the execution gate", () => {
@@ -180,6 +206,9 @@ test("flat-open reversals become visible candidates without hindsight promotion"
   assert.equal(buyCandidate.stage, "watch", "a low-score rebound must remain a neutral watch point");
   assert.equal(sellCandidate.stage, "watch", "a near-flat opposite turn must not be presented as an economic sell candidate");
   assert.ok(buyCandidate.time <= "0940", "the recovery candidate should not wait until the local peak");
+  assert.ok(buyCandidate.pivotTime <= buyCandidate.time, "a valley reference must only use an already observed minute");
+  assert.ok(buyCandidate.pivotPrice <= buyCandidate.price, "a buy-side valley reference must not be above its confirmation minute");
+  assert.ok(["弱势未破", "转强确认", "反弹观察"].includes(buyCandidate.confirmationLabel));
   assert.ok(sellCandidate.time >= "0946" && sellCandidate.time <= "0955", "the fade candidate should appear after the observed reversal");
   assert.ok(sellCandidate.pivotTime <= sellCandidate.time, "a peak reference must only use an already observed minute");
   assert.ok(sellCandidate.pivotPrice >= sellCandidate.price, "a sell-side peak reference must not be below its confirmation minute");
@@ -267,7 +296,7 @@ test("an already-confirmed local valley can clear a short regime label without r
   assert.deepEqual(prefix.actions, [entry], "the entry must exist at the same minute before later prices are appended");
   assert.equal(full.trades, 1);
   assert.equal(full.wins, 1);
-  assert.match(full.actions[1].reason, /利润保护止盈/);
+  assert.match(full.actions[1].reason, /扣费净止盈/);
 });
 
 test("a 1.0%-1.35% one-way move keeps a small counter move observational in both directions", () => {
