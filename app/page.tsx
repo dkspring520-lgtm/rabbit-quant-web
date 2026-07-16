@@ -51,17 +51,9 @@ type StockBatchFeedback = { code:string; name:string; date:string; sessions:numb
 type BatchBacktestResult = BatchMetrics & { rounds:number; stocks:number; uniqueSessions:number; noTrade:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
 
 function selectVisibleChartObservations(observations: ReplayObservation[]) {
-  const candidates=observations.filter(observation=>!observation.executable);
-  if(candidates.length<=3)return candidates;
-  const openingValley=candidates.find(observation=>observation.direction==="正T"&&(observation.pivotTime??observation.time)<="10:00");
-  const latestPeak=[...candidates].reverse().find(observation=>observation.direction==="反T");
-  const latestValley=[...candidates].reverse().find(observation=>observation.direction==="正T");
-  const selected=[openingValley,latestPeak,latestValley].filter((observation):observation is ReplayObservation=>Boolean(observation));
-  for(const observation of [...candidates].reverse()){
-    if(selected.length>=3)break;
-    if(!selected.includes(observation))selected.push(observation);
-  }
-  return selected.sort((left,right)=>candidates.indexOf(left)-candidates.indexOf(right));
+  // Every live marker stays on the minute when the engine could first know it.
+  // Never reselect an old pivot later or paint a confirmed turn back in time.
+  return observations.filter(observation=>!observation.executable);
 }
 
 function runDailyBacktestLegacy(bars: MarketBar[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number): BacktestResult {
@@ -282,6 +274,7 @@ export default function Home() {
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,...JSON.parse(saved)}:{sound:false,system:false};}catch{return {sound:false,system:false};}});
   const [alertToast, setAlertToast] = useState<{level:"candidate"|"signal"|"risk";rabbit:"buy"|"sell"|"both";title:string;message:string}|null>(null);
   const lastAlertKey = useRef("");
+  const alertedEventKeys = useRef<Set<string>>(new Set());
   const nextPreviewRabbit = useRef<"buy"|"sell">("buy");
   const alertTimeoutRef = useRef<number|null>(null);
   const [customStrategy, setCustomStrategy] = useState("09:35后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；预期净价差低于0.5%不执行。");
@@ -360,8 +353,8 @@ export default function Home() {
     randomValue:0,
   }),[minutePoints,preferences.baseShares,profile,activeQuote?.previousClose]);
   const currentObservations=(liveEngine.observations ?? []) as ReplayObservation[];
-  // Keep one opening valley plus the latest peak and valley when available. This
-  // preserves the important morning structure without painting every candidate.
+  // Observations are causal confirmation events. The live chart keeps every
+  // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(()=>selectVisibleChartObservations(currentObservations),[currentObservations]);
   const intradayMarkerLayout=useMemo(()=>{
     if(!chartModel)return {observations:[],actions:[]};
@@ -387,8 +380,8 @@ export default function Home() {
       occupied.push({left:labelX-width/2-4,right:labelX+width/2+4,top:fallback-height+1,bottom:fallback+6});
       return {labelX,labelY:fallback};
     };
-    // Formal orders get first choice of label space. Candidate and pivot labels
-    // then move around them without changing the signal's actual time or price.
+    // Formal orders get first choice of label space. Every other marker is
+    // stamped at its real confirmation minute; no historical pivot is backfilled.
     const actions=liveEngine.actions.flatMap((action,index)=>{
       const point=pointPosition(action.time);
       if(!point)return [];
@@ -405,15 +398,10 @@ export default function Home() {
       const qualified=observation.stage!=="watch";
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
-      const pivotLabel=isSell?"峰":"谷";
-      const currentLabel=assessment==="confirmed"?(isSell?"转弱":"转强"):assessment==="strong"?"趋势未破":"观察";
-      const pivot=observation.pivotTime&&observation.pivotTime!==observation.time&&Number.isFinite(observation.pivotPrice)
-        ? pointPosition(observation.pivotTime,observation.pivotPrice??undefined)
-        : null;
-      const pivotPlaced=pivot?reserveLabel(pivot.x,isSell?pivot.y-9:pivot.y+15,18,13,isSell?-1:1):null;
+      const currentLabel=observation.confirmationLabel??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?"趋势未破":"观察");
       const labelWidth=currentLabel.length*8+14;
       const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
-      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,pivotLabel,currentLabel,labelWidth,pivot,pivotPlaced,observation}];
+      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,observation}];
     });
     return {observations,actions};
   },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions]);
@@ -429,8 +417,19 @@ export default function Home() {
       return [{code:item.code,name:snapshot.quote.name||item.name,observations,formalCycles}];
     });
     const qualified=rows.flatMap(row=>row.observations.filter(observation=>observation.stage!=="watch").map(observation=>({...observation,code:row.code,name:row.name})));
-    const latest=qualified.sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
-    return {scanned:rows.length,candidates:qualified.length,formal:rows.reduce((sum,row)=>sum+row.formalCycles,0),latest,currentCandidates:rows.find(row=>row.code===stock?.code)?.observations.filter(observation=>observation.stage!=="watch").length??0};
+    const latest=[...qualified].sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
+    const currentRow=rows.find(row=>row.code===stock?.code);
+    const currentQualified=(currentRow?.observations??[]).filter(observation=>observation.stage!=="watch");
+    const currentLatest=[...currentQualified].sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
+    return {
+      scanned:rows.length,
+      candidates:qualified.length,
+      formal:rows.reduce((sum,row)=>sum+row.formalCycles,0),
+      latest,
+      currentCandidates:currentQualified.length,
+      currentFormal:currentRow?.formalCycles??0,
+      currentLatest,
+    };
   },[stockList,stock?.code,currentTrial,currentMarket,marketSnapshots,liveEngine,preferences.baseShares,profile]);
   const personalStrategyStats = useMemo(() => {
     const sessions=(currentMarket?.intradaySessions ?? [])
@@ -498,11 +497,9 @@ export default function Home() {
     if(!lowOpen&&!highOpen) return {status:"waiting" as const,mode:null,confirmed,reason:"平开或开盘数据不完整，等待形成明确方向。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:45 前只采样，过滤开盘噪声。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
     const latestAction=liveEngine.actions.at(-1);
-    const cycleActions=latestAction?liveEngine.actions.filter(action=>action.cycleId===latestAction.cycleId):[];
     const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
-    const fresh=Boolean(latestAction&&minuteNumber(lastTime)-minuteNumber(latestAction.time)>=0&&minuteNumber(lastTime)-minuteNumber(latestAction.time)<=2);
-    if(latestAction&&cycleActions.length%2===1&&fresh) return {status:"ready" as const,mode:(latestAction.direction??(lowOpen?"正T":"反T")) as "正T"|"反T",confirmed:4,reason:`融合引擎实时信号：${latestAction.time} ${latestAction.direction} ${latestAction.side}，成本、趋势、量价与风控均已通过。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
-    if(latestAction&&fresh) return {status:"waiting" as const,mode:null,confirmed,reason:`融合引擎已于 ${latestAction.time} 完成${latestAction.direction}闭环，等待下一次有效信号。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
+    const fresh=Boolean(latestAction&&minuteNumber(lastTime)===minuteNumber(latestAction.time));
+    if(latestAction&&fresh) return {status:"ready" as const,mode:(latestAction.direction??(lowOpen?"正T":"反T")) as "正T"|"反T",confirmed:4,reason:`融合引擎实时信号：${latestAction.time} ${latestAction.direction} ${latestAction.side}，成本、趋势、量价与风控均已通过。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
     return {status:"waiting" as const,mode:null,confirmed,reason:directionConfirmed?`基础方向已确认，但融合引擎仍在检查成本、量价和盈亏比。`:liveEngine.status,lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
   },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState,currentEvents,currentContext,liveEngine,marketSession]);
   const signalMode:"正T"|"反T"=autoDecision.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
@@ -612,16 +609,26 @@ export default function Home() {
     if(!marketSession.live)return;
     const latest=liveEngine.actions.at(-1);
     const latestObservation=[...currentObservations].reverse().find(observation=>observation.stage!=="watch");
-    const isRisk=autoDecision.status==="locked";
-    const isFormal=autoDecision.status==="ready"&&latest;
     const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
     const lastTime=(minutePoints.at(-1)?.time??"").replace(/\D/g,"").slice(0,4);
-    const candidateFresh=Boolean(latestObservation&&lastTime&&minuteNumber(lastTime)-minuteNumber(latestObservation.time)>=0&&minuteNumber(lastTime)-minuteNumber(latestObservation.time)<=2);
+    const formalFresh=Boolean(latest&&lastTime&&minuteNumber(lastTime)===minuteNumber(latest.time));
+    // The engine action is the source of truth for an executable reminder. Do not
+    // hide a closing leg (or a forced base-position recovery) behind the generic
+    // decision-card state: every action must alert in its confirmation minute.
+    const isFormal=Boolean(latest&&formalFresh);
+    const isRisk=!isFormal&&autoDecision.status==="locked";
+    const candidateFresh=Boolean(latestObservation&&lastTime&&minuteNumber(lastTime)===minuteNumber(latestObservation.time));
     const isCandidate=!isRisk&&!isFormal&&candidateFresh&&latestObservation&&!latestObservation.executable;
     if(!isRisk&&!isFormal&&!isCandidate)return;
     const key=isRisk?`${stock.code}:risk:${autoDecision.reason}`:isFormal?`${stock.code}:${latest!.time}:${latest!.side}`:`${stock.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
-    if(lastAlertKey.current===key)return;
-    lastAlertKey.current=key;
+    const eventDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??"unknown-date";
+    const persistedKey=`rabbit-alerted:${accountName.toLowerCase()}:${eventDate}:${key}`;
+    let alreadyAlerted=lastAlertKey.current===persistedKey||alertedEventKeys.current.has(persistedKey);
+    try{alreadyAlerted=alreadyAlerted||localStorage.getItem(persistedKey)==="1";}catch{}
+    if(alreadyAlerted)return;
+    lastAlertKey.current=persistedKey;
+    alertedEventKeys.current.add(persistedKey);
+    try{localStorage.setItem(persistedKey,"1");}catch{}
     const rabbit=isRisk?"both":isFormal?(latest!.side.includes("卖")?"sell":"buy"):(latestObservation!.direction==="反T"?"sell":"buy");
     const title=isRisk?`${stock.name} 风险锁定`:isFormal?`${stock.name} ${latest!.direction}${latest!.side}`:`${stock.name} ${latestObservation!.direction}候选观察`;
     const message=isRisk?autoDecision.reason:isFormal?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
@@ -630,7 +637,7 @@ export default function Home() {
     alertTimeoutRef.current=window.setTimeout(()=>{setAlertToast(null);alertTimeoutRef.current=null;},isRisk?12_000:8_000);
     if(!isCandidate&&alertSettings.sound)speakAlert(isRisk?`${stock.name}，风险锁定，暂停做T`:`${stock.name}，${latest!.direction}${latest!.side}提醒`,isRisk);
     if(!isCandidate&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`做T神器 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
-  },[autoDecision.status,autoDecision.reason,liveEngine.actions,currentObservations,minutePoints,marketSession.live,stock.code,stock.name,alertSettings]);
+  },[autoDecision.status,autoDecision.reason,liveEngine.actions,currentObservations,minutePoints,marketSession.live,stock.code,stock.name,alertSettings,currentTrial?.sampleDate,currentMarket?.sampleDate,clockNow,accountName]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
@@ -803,7 +810,7 @@ export default function Home() {
       </section>
 
       <div className={`session-ribbon ${marketSession.tone}`} role="status" aria-live="polite">
-        <span><i />{marketSession.live ? "实时监控模式" : marketSession.tone === "closed" ? "收盘复盘模式" : marketSession.tone === "postclose" ? "盘后交易模式" : marketSession.label}</span>
+        <span><i />{marketSession.live ? "实时监控模式" : marketSession.tone === "closed" ? "收盘复盘模式" : marketSession.tone === "postclose" ? "盘后交易模式" : marketSession.tone === "paused" ? "午间休市模式" : "开盘前模式"}</span>
         <strong>{marketSession.label}</strong>
         <small>{marketSession.detail}</small>
       </div>
@@ -816,13 +823,13 @@ export default function Home() {
         <div className="quote-metrics">
           <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{currentTrial ? "1 秒试用" : currentMarket ? "公开延迟" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
         </div>
-        <div className="auction"><span>开盘状态</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {openingAssessment.confirmation}</small></div>
+        <div className="opening-assessment"><span>开盘状态</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {openingAssessment.confirmation}</small></div>
       </section>
 
       <section className="workspace">
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="teal-line"/>均线参考</span>}<span className="causal-marker-legend"><i/>空心峰谷 → 实心确认 · 不读未来</span></div>
+            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="teal-line"/>均线参考</span>}<span className="causal-marker-legend"><i/>提醒按确认分钟实时落点 · 不回填峰谷</span></div>
             <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? `1 秒轮询试用 · ${currentTrial.provider}` : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):marketSession.detail}</span>
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
@@ -837,7 +844,7 @@ export default function Home() {
               {A_SHARE_INTRADAY_AXIS.map(tick => {const x=intradaySlotX(tick.slot);return <line key={tick.label} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>})}
               {chartModel&&<><path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
-              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`}>{marker.pivot&&marker.pivotPlaced&&<><line x1={marker.pivot.x} y1={marker.pivot.y} x2={marker.x} y2={marker.y} className={`pivot-confirmation-link ${marker.assessment} ${marker.sideClass}`}/><g className={`pivot-reference-marker ${marker.assessment} ${marker.sideClass}`}><circle cx={marker.pivot.x} cy={marker.pivot.y} r="4"/><text x={marker.pivotPlaced.labelX} y={marker.pivotPlaced.labelY} textAnchor="middle">{marker.pivotLabel}</text></g></>}<g className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></g></g>)}
+              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx={chartModel.lastX} cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
@@ -862,11 +869,11 @@ export default function Home() {
         <aside className="decision-zone">
           {alertToast&&<div className={`trade-alert-toast ${alertToast.level} rabbit-${alertToast.rabbit}`} role="alert"><span className={`rabbit-speaker ${alertToast.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{alertToast.level==="candidate"?`${alertToast.rabbit==="buy"?"左兔":"右兔"} · 候选观察`:alertToast.rabbit==="buy"?"左兔 · 买入/买回提醒":alertToast.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{alertToast.title}</b><span>{alertToast.message}</span></div><button onClick={()=>setAlertToast(null)} aria-label="关闭提醒">×</button></div>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
-            <div className="signal-layer candidate"><span>候选观察</span><b>{signalFunnel.candidates}<small> 个</small></b><em>{signalFunnel.scanned} 只已扫描 · 本股 {signalFunnel.currentCandidates}</em></div>
+            <div className="signal-layer candidate"><span>本股候选观察</span><b>{signalFunnel.currentCandidates}<small> 个</small></b><em>全部自选 {signalFunnel.candidates} · 已扫描 {signalFunnel.scanned} 只</em></div>
             <i>→</i>
-            <div className="signal-layer formal"><span>正式执行闭环</span><b>{signalFunnel.formal}<small> 个</small></b><em>V4 四重过滤后保留</em></div>
+            <div className="signal-layer formal"><span>本股正式闭环</span><b>{signalFunnel.currentFormal}<small> 个</small></b><em>全部自选 {signalFunnel.formal} · V4 过滤后保留</em></div>
           </div>
-          <div className="signal-funnel-note"><span>{signalFunnel.latest?`最新候选 ${signalFunnel.latest.time.slice(0,2)}:${signalFunnel.latest.time.slice(2)} · ${signalFunnel.latest.code} ${signalFunnel.latest.direction}`:"当前尚无候选观察"}</span><em>候选仅提醒；趋势、量价、成本和风控全部通过后才进入正式层</em></div>
+          <div className="signal-funnel-note"><span>{signalFunnel.currentLatest?`本股最新候选 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无候选观察"}</span><em>候选可以带拦截原因；趋势、量价、成本和风控全部通过后才进入正式层</em></div>
           <div className="alert-channel"><div><span>双兔买卖点提醒</span><small>左兔说买入/买回，右兔说卖出；候选仅弹出安静观察卡，正式信号才启用语音/系统通知</small></div><button onClick={previewRabbitAlert}>预览提醒</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>系统通知 {alertSettings.system?"已开":"关闭"}</button></div>
           <div className={`auto-direction ${autoDecision.status}`}><div><span>自动方向</span><b>{autoDecision.status==="locked"?"风控锁定":autoDecision.mode??"等待确认"}</b></div><small>{autoDecision.reason}</small><em>{autoDecision.confirmed}/4</em></div>
           <div className="decision-label"><span>SMART-T 自动决策</span><em>{autoDecision.status==="ready"?"信号已确认":autoDecision.status==="locked"?"禁止开T":"1秒监控中"}</em></div>

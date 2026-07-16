@@ -9,11 +9,11 @@ svg text{font-synthesis:none}
 
 /* 操盘台使用更清晰的中文层级；行情数字固定等宽，切换报价时不跳动。 */
 .ticker,.stock-head,.workspace{font-family:var(--font-ui)}
-.stock-code,.quote strong,.quote span,.quote-metrics b,.auction small{font-variant-numeric:tabular-nums}
+.stock-code,.quote strong,.quote span,.quote-metrics b,.opening-assessment small{font-variant-numeric:tabular-nums}
 .stock-identity h1{font-weight:600;letter-spacing:-.02em}
-.auction{min-width:320px;padding:9px 0 9px 17px;grid-template-columns:minmax(142px,auto) 1fr;column-gap:20px;row-gap:5px}
-.auction span{font-size:10px;font-weight:500;line-height:1.2;letter-spacing:.08em;text-transform:none}
-.auction b{font-size:16px;font-weight:600;line-height:1.35;letter-spacing:0}
-.auction small{font-size:13px;font-weight:400;line-height:1.45;letter-spacing:.005em;white-space:nowrap}
+.opening-assessment{min-width:320px;padding:9px 0 9px 17px;grid-template-columns:minmax(142px,auto) 1fr;column-gap:20px;row-gap:5px}
+.opening-assessment span{font-size:10px;font-weight:500;line-height:1.2;letter-spacing:.08em;text-transform:none}
+.opening-assessment b{font-size:16px;font-weight:600;line-height:1.35;letter-spacing:0}
+.opening-assessment small{font-size:13px;font-weight:400;line-height:1.45;letter-spacing:.005em;white-space:nowrap}
 
-@media(max-width:1250px) and (min-width:761px){.auction{min-width:290px;column-gap:14px}.auction b{font-size:15px}.auction small{font-size:12px}}
+@media(max-width:1250px) and (min-width:761px){.opening-assessment{min-width:290px;column-gap:14px}.opening-assessment b{font-size:15px}.opening-assessment small{font-size:12px}}
