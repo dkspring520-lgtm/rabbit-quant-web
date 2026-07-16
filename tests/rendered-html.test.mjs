@@ -114,5 +114,7 @@ test("fixed-stock replay exposes auditable failures and intraday trade points", 
   assert.match(source, /强势交易日仍在 VWAP 上方/);
   assert.match(source, /避免低位卖出后追高买回/);
   assert.match(source, /BatchMiniChart/);
+  assert.match(source, /pointAt\(observation\.time\)/);
+  assert.doesNotMatch(source, /pointAt\(observation\.pivotTime/);
   assert.match(source, /正式闭环 \{batch\.completed\} 个/);
 });

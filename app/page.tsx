@@ -146,7 +146,7 @@ function BatchMiniChart({minutes,actions,observations}:{minutes:ReplayMinute[];a
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="完整日内分时及买卖点">
       {[.25,.5,.75].map(ratio=><line key={ratio} x1={left} x2={width-right} y1={top+(height-top-bottom)*ratio} y2={top+(height-top-bottom)*ratio} className="mini-grid"/>)}
       <polyline points={points} className="mini-price-line"/>
-      {observations.slice(0,3).map((observation,index)=>{const point=pointAt(observation.pivotTime??observation.time);return <g key={`ob-${observation.time}-${index}`} className="mini-observation"><circle cx={point.x} cy={point.y} r="4"/><text x={point.x} y={Math.max(10,point.y-8)}>{observation.direction==="正T"?"候买":"候卖"}</text></g>})}
+      {observations.slice(0,3).map((observation,index)=>{const point=pointAt(observation.time);return <g key={`ob-${observation.time}-${index}`} className="mini-observation"><circle cx={point.x} cy={point.y} r="4"/><text x={point.x} y={Math.max(10,point.y-8)}>{observation.direction==="正T"?"候买":"候卖"}</text></g>})}
       {actions.map((action,index)=>{const point=pointAt(action.time);const selling=action.side==="卖出";return <g key={`action-${action.time}-${index}`} className={selling?"mini-action sell":"mini-action buy"}><circle cx={point.x} cy={point.y} r="5"/><text x={point.x} y={Math.max(10,point.y-9)}>{action.side==="买回"?"回":selling?"卖":"买"}</text></g>})}
       <text x={left} y={height-8} className="mini-axis">09:30</text><text x={width/2} y={height-8} textAnchor="middle" className="mini-axis">13:00</text><text x={width-right} y={height-8} textAnchor="end" className="mini-axis">15:00</text>
     </svg>
