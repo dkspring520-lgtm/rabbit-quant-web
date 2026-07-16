@@ -62,7 +62,7 @@ type BatchMetrics = { samples:number; completed:number; wins:number; gross:numbe
 type ReplayMinute = { time:string; price:number; volume:number };
 type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction; exit:ReplayAction; gross:number; fees:number; executionCost:number; net:number; outcome:"盈利"|"亏损"|"持平"; explanation:string };
 type StockBatchFeedback = { code:string; name:string; date:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; candidates:number; keyObservations:number; strongSellTrendBlocked:number; strongBuyTrendBlocked:number; feedback:string; minutes:ReplayMinute[]; actions:ReplayAction[]; observations:ReplayObservation[]; cycles:StockBatchCycle[] };
-type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; uniqueSessions:number; noTrade:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
+type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; attemptedStocks:number; replacementStocks:number; uniqueSessions:number; noTrade:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
 
 function selectVisibleChartObservations(observations: ReplayObservation[]) {
   // Every live marker stays on the minute when the engine could first know it.
@@ -179,7 +179,7 @@ function BatchMiniChart({minutes,actions,observations}:{minutes:ReplayMinute[];a
 function BatchReport({batch,representativeCode}:{batch:BatchBacktestResult;representativeCode?:string}) {
   const [expanded,setExpanded]=useState<string|null>(batch.stockFeedback.find(item=>item.net<0)?.code??null);
   return <section className="batch-report" aria-label="随机10股真实分时批次汇总">
-    <div className="batch-report-head"><div><span>SEEDED RANDOM 10-STOCK FULL-DAY CAUSAL A/B</span><h2>随机10股真实分时批次</h2></div><div className="batch-run-meta"><em>{batch.stocks} 股 × 最新完整交易日</em><code>批次种子：{batch.seed}</code></div></div>
+    <div className="batch-report-head"><div><span>SEEDED RANDOM 10-STOCK FULL-DAY CAUSAL A/B</span><h2>随机10股真实分时批次</h2></div><div className="batch-run-meta"><em>{batch.stocks} 股 × 最新完整交易日</em><code>批次种子：{batch.seed}</code>{batch.replacementStocks>0&&<small>行情缺失自动补抽 {batch.replacementStocks} 只（共尝试 {batch.attemptedStocks} 只）</small>}</div></div>
     <div className="batch-coverage"><b>正式触发 {batch.tradingRounds}/{batch.stocks} 股</b><span>候选覆盖 {batch.candidateStocks}/{batch.stocks} 股</span><span>正式闭环 {batch.completed} 个</span><span>{batch.wins} 盈 / {Math.max(0,batch.completed-batch.wins)} 亏</span><small>候选覆盖只表示逐分钟出现过观察条件；正式触发才产生可执行闭环。1/10 不等于失败，而是其余样本未通过趋势、量价、成本与风控过滤；系统绝不为凑次数强行开仓。</small></div>
     <div className="batch-metrics"><div><span>扣费后循环胜率</span><strong>{batch.completed?`${(batch.wins/batch.completed*100).toFixed(2)}%`:'—'}</strong><small>{batch.wins}/{batch.completed} 个闭环盈利</small></div><div><span>毛收益</span><b>{money(batch.gross)}</b><small>{batch.samples.toLocaleString()} 个随机股票日</small></div><div><span>交易费用 + 滑点</span><b>{money(-(batch.fees+batch.executionCost))}</b><small>费用 {money(-batch.fees)} · 滑点 {money(-batch.executionCost)}</small></div><div><span>总净收益</span><b>{money(batch.net)}</b><small>平均每股日 {money(batch.averageNet)}</small></div><div><span>有交易 / 盈利 / 亏损日</span><b>{batch.tradingRounds} / {batch.profitableRounds} / {batch.losingRounds}</b><small>共 {batch.rounds} 个随机股票日</small></div><div><span>盈利因子 / 最差回撤</span><b>{batch.profitFactor===null?'—':batch.profitFactor.toFixed(2)} / -{(batch.maxDrawdown*100).toFixed(2)}%</b><small>{batch.providers.join(' / ')}</small></div></div>
     <div className="ab-compare"><b>同样本旧版</b><span>闭环 {batch.legacy.completed}</span><span>胜率 {batch.legacy.completed?(batch.legacy.wins/batch.legacy.completed*100).toFixed(2):'—'}%</span><span>净收益 {money(batch.legacy.net)}</span><strong>新版差额 {money(batch.net-batch.legacy.net)}</strong></div>
@@ -1432,6 +1432,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
   const [source, setSource] = useState<MarketData | null>(null);
   const [error, setError] = useState("");
   const [runStatus, setRunStatus] = useState("等待运行");
+  const [batchFetchProgress, setBatchFetchProgress] = useState({ready:0,attempted:0});
   const [lastAction, setLastAction] = useState<"idle"|"single"|"batch">("idle");
   const batchRunSequence = useRef(0);
   const selectBacktestStock=(index:number)=>{
@@ -1506,13 +1507,27 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
     batchRunSequence.current += 1;
     const seed=`batch-${Date.now().toString(36)}-${batchRunSequence.current.toString(36)}`;
     setLastAction("batch");
-    setRunning(true); setRunMode("batch"); setError(""); setRunStatus(`正在获取随机10股真实分时批次 · 种子 ${seed}`);
+    setBatchFetchProgress({ready:0,attempted:0});
+    setRunning(true); setRunMode("batch"); setError(""); setRunStatus(`正在获取随机10股真实分时批次 · 0/10 · 种子 ${seed}`);
     try {
       const sampledCodes=sampleWithSeed(batchValidationUniverse,10,seed);
-      const universe=sampledCodes.map(code=>({code,name:stocks.find(item=>item.code===code)?.name ?? canonicalStockNames[code] ?? code}));
-      const fetched=await Promise.allSettled(universe.map(async item=>({item,data:await fetchStock(item.code)})));
-      const available=fetched.flatMap(entry=>entry.status==="fulfilled" && (entry.value.data.intradaySessions ?? []).length ? [entry.value] : []);
-      if(available.length!==universe.length) throw new Error("incomplete random batch minute data");
+      const replacementCodes=sampleWithSeed(batchValidationUniverse.filter(code=>!sampledCodes.includes(code)),batchValidationUniverse.length,`${seed}:replacement`);
+      const queue=[...sampledCodes,...replacementCodes];
+      const available:{item:{code:string;name:string};data:MarketData}[]=[];
+      let cursor=0;
+      let attempted=0;
+      while(available.length<10 && cursor<queue.length){
+        const waveCodes=queue.slice(cursor,cursor+(10-available.length));
+        cursor+=waveCodes.length;
+        const wave=waveCodes.map(code=>({code,name:stocks.find(item=>item.code===code)?.name ?? canonicalStockNames[code] ?? code}));
+        setRunStatus(`正在获取随机10股真实分时 · 已取得 ${available.length}/10 · 已尝试 ${attempted}/${queue.length}`);
+        const fetched=await Promise.allSettled(wave.map(async item=>({item,data:await fetchStock(item.code)})));
+        attempted+=wave.length;
+        available.push(...fetched.flatMap(entry=>entry.status==="fulfilled" && (entry.value.data.intradaySessions ?? []).length ? [entry.value] : []));
+        setBatchFetchProgress({ready:available.length,attempted});
+        setRunStatus(`真实分时已取得 ${available.length}/10 · 已尝试 ${attempted} 只${available.length<10?"，正在自动补抽":"，开始逐股因果回放"}`);
+      }
+      if(!available.length) throw new Error("no random batch minute data");
       const trials=available.flatMap(selected=>[...selected.data.intradaySessions!]
         .sort((left,right)=>right.date.localeCompare(left.date))
         .slice(0,1)
@@ -1609,11 +1624,12 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
       const candidateStocks=results.filter(item=>(item.diagnostics?.candidates ?? 0)>0).length;
       const candidateDecisions=results.reduce((sum,item)=>sum+(item.diagnostics?.candidates ?? 0),0);
       const keyObservations=results.reduce((sum,item)=>sum+(item.observations?.length ?? 0),0);
-      setBatch({...metrics,seed,rounds:trials.length,stocks:available.length,uniqueSessions,noTrade:results.filter(item=>item.trades===0).length,candidateStocks,candidateDecisions,keyObservations,averageNet:metrics.net/Math.max(1,trials.length),medianNet,providers:[...new Set(available.map(item=>item.data.provider))],legacy,stockFeedback});
-      setRunStatus(`随机10股批次完成：候选覆盖 ${candidateStocks}/${available.length} 股，正式触发 ${metrics.tradingRounds}/${available.length} 股，${metrics.completed} 个闭环；种子 ${seed}`);
+      const replacementStocks=Math.max(0,attempted-sampledCodes.length);
+      setBatch({...metrics,seed,rounds:trials.length,stocks:available.length,attemptedStocks:attempted,replacementStocks,uniqueSessions,noTrade:results.filter(item=>item.trades===0).length,candidateStocks,candidateDecisions,keyObservations,averageNet:metrics.net/Math.max(1,trials.length),medianNet,providers:[...new Set(available.map(item=>item.data.provider))],legacy,stockFeedback});
+      setRunStatus(`随机${available.length}股批次完成：候选覆盖 ${candidateStocks}/${available.length} 股，正式触发 ${metrics.tradingRounds}/${available.length} 股，${metrics.completed} 个闭环；种子 ${seed}`);
     } catch {
       setResult(null); setBatch(null); setSource(null);
-      setError("本批随机抽取的 10 只股票未全部取得真实 1 分钟分时数据，未生成不完整统计；请点击重试生成新批次。");
+      setError("公开行情池当前没有取得任何可用的完整 1 分钟分时；本次没有伪造或补齐数据，请稍后重试。");
       setRunStatus(`随机10股批次未完成 · 种子 ${seed}`);
     } finally { setRunning(false); setRunMode(null); }
   };
@@ -1678,7 +1694,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}<span>→</span></button>
-        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?'正在测试随机10股批次…':'随机10股真实分时批次'}</button></div>
+        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`正在获取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:'随机10股真实分时批次'}</button></div>
         <div className={`single-run-status ${running?'running':error?'error':result||batch?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在测试随机10股批次…':`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='batch'&&batch?`随机10股批次测试完成 · 种子 ${batch.seed}`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：${result.diagnostics?.candidates ?? 0} 次候选判定，0 个正式闭环`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${formatDate(singleRunDate)} 完整交易日`:''}</small></span></div>
         <p className="seed-note">单股测试按所选股票回放；批量测试每次生成新种子，从 36 只跨行业真实 A 股中无放回抽取 10 只。保留种子可复现股票组合。</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>

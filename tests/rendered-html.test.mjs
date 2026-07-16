@@ -133,6 +133,11 @@ test("seeded random 10-stock replay is reproducible and separates candidates fro
   assert.ok(poolCodes.length >= 30);
   assert.equal(new Set(poolCodes).size, poolCodes.length);
   assert.match(source, /sampleWithSeed\(batchValidationUniverse,10,seed\)/);
+  assert.match(source, /const replacementCodes=sampleWithSeed\(/);
+  assert.match(source, /while\(available\.length<10 && cursor<queue\.length\)/);
+  assert.match(source, /setBatchFetchProgress\(\{ready:available\.length,attempted\}\)/);
+  assert.match(source, /batchFetchProgress\.ready\}\/10/);
+  assert.match(source, /replacementStocks=Math\.max\(0,attempted-sampledCodes\.length\)/);
   assert.match(source, /type BatchBacktestResult = BatchMetrics & \{ seed:string;/);
   assert.match(source, /批次种子：\{batch\.seed\}/);
   assert.match(source, /随机10股真实分时批次/);
