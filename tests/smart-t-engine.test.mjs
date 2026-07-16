@@ -44,7 +44,7 @@ function openingRecoverySession(future = "rise") {
 
 test("partial intraday data is not treated as the closing bell", () => {
   const partial = openingRecoverySession("rise").slice(0, 30).map((point, index) => (
-    index > 15 ? { ...point, price: 9.925 } : point
+    index > 6 ? { ...point, price: 9.79 } : point
   ));
   const result = runSmartTReplay(partial, options);
 
@@ -54,7 +54,7 @@ test("partial intraday data is not treated as the closing bell", () => {
 });
 
 test("future prices cannot rewrite an already emitted signal", () => {
-  const prefixLength = 16;
+  const prefixLength = 8;
   const rising = runSmartTReplay(openingRecoverySession("rise"), options);
   const falling = runSmartTReplay(openingRecoverySession("fall"), options);
   const cutoff = sessionTimes[prefixLength - 1];
@@ -373,10 +373,24 @@ test("full-day replay starts at the earliest causal window and keeps chart marke
   const result = runSmartTReplay(openingRecoverySession("rise"), { ...options, randomValue: 0 });
   assert.equal(result.startTime, "0935");
   assert.equal(result.actions.length, 2);
-  assert.ok(result.actions[0].time >= "0945");
+  assert.ok(result.actions[0].time >= "0936");
+  assert.ok(result.actions[0].time < "0945", "a confirmed early opening repair should not be forced to wait until 09:45");
   assert.ok(result.actions[0].time < result.actions[1].time);
   assert.equal(result.actions[0].direction, "正T");
   assert.deepEqual(result.actions.map(action => action.side), ["买入", "卖出"]);
+});
+
+test("an early opening order appears only after its own causal confirmation minute", () => {
+  const rows = openingRecoverySession("rise");
+  const full = runSmartTReplay(rows, options);
+  const entry = full.actions[0];
+  const entryIndex = rows.findIndex((point) => point.time === entry?.time);
+  const before = runSmartTReplay(rows.slice(0, entryIndex), options);
+  const atConfirmation = runSmartTReplay(rows.slice(0, entryIndex + 1), options);
+
+  assert.ok(entry?.time >= "0936" && entry.time < "0945");
+  assert.equal(before.actions.length, 0, "no order may exist before the confirmation minute");
+  assert.deepEqual(atConfirmation.actions, [entry], "the order must be reproducible from the exact live prefix");
 });
 
 test("buy-first orders are reduced to the cash available in the simulated account", () => {
