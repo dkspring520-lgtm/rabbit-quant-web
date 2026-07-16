@@ -8,6 +8,7 @@ export type SmartTAction = {
   direction: "正T" | "反T";
   cycleId: number;
   reason: string;
+  meta?: Record<string, number | string | boolean>;
 };
 export type SmartTObservation = {
   time: string;
@@ -55,6 +56,7 @@ export type SmartTOptions = {
   slippageMode: "percent" | "tick";
   forceCloseTime: string;
   profile?: string;
+  profileOverrides?: Record<string, number>;
   previousClose?: number | null;
   randomValue?: number;
 };
@@ -68,4 +70,16 @@ export const PROFILES: Record<string, {
   deviation: number;
   reversal: number;
   maxSellPullback: number;
+  hardStopPct?: number;
+  softStopPct?: number;
+  softStopMinutes?: number;
+  timeExitMinutes?: number;
+  trailActivationPct?: number;
+  trailRetracePct?: number;
+  trailMinNetPct?: number;
+  maxOpeningChasePct?: number;
+  strongBuySessionMove?: number;
+  strongBuyVwap30?: number;
+  strongSellSessionMove?: number;
+  strongSellVwap30?: number;
 }>;
