@@ -1,0 +1,11 @@
+.git
+.next
+node_modules
+dist
+renders
+videos
+marketing
+*.log
+*.tar.gz
+tsconfig.tsbuildinfo
+
