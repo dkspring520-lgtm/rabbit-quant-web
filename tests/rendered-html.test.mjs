@@ -161,3 +161,11 @@ test("random 10-stock replay is internally reproducible and separates candidates
   assert.doesNotMatch(source, /pointAt\(observation\.pivotTime/);
   assert.match(source, /正式闭环 \{batch\.completed\} 个/);
 });
+
+test("the 09:25 auction result creates a plan instead of an executable order", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /09:25 集合竞价初判/);
+  assert.match(source, /这不是买卖点/);
+  assert.match(source, /09:36 起才允许小仓正式信号/);
+});

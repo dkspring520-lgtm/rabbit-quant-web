@@ -10,10 +10,11 @@ import { normalizeTradeLedgerRows, summarizeTradeLedger, tradeLedgerDate, tradeL
 import type { TradeLedgerRow } from "@/lib/trade-ledger.mjs";
 import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { sampleWithSeed } from "@/lib/batch-sampler.mjs";
+import { aShareSession } from "@/lib/a-share-session.mjs";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
-type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[]; intradaySessions?:IntradaySession[] };
+type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[]; intradaySessions?:IntradaySession[] };
 type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string; details:string[] };
 type MarketContextItem = { id:string; label:string; group:"market"|"sector"|"related"|"cross"|"currency"; price:number|null; changePercent:number|null; sourceTimestamp:string|null; provider:string; inverse?:boolean };
 type MarketContext = { code:string; profile:string; fetchedAt:string; items:MarketContextItem[]; gate:{ score:number; level:"normal"|"caution"|"restricted"|"locked"|"degraded"; label:string; action:string; positionFraction:number; hardLock:boolean; reasons:string[] }; availableSources:string[]; errors:string[]; events:{ status:string; label:string; participatesInGate:boolean } };
@@ -198,24 +199,6 @@ function BatchReport({batch,representativeCode}:{batch:BatchBacktestResult;repre
     <div className="stock-feedback"><div className="stock-feedback-head"><div><b>随机股票逐股反馈</b><span>每只股票只回放最新完整交易日；点“复盘”查看买卖点、费用及失败原因</span></div><em>正T / 反T 为完整日内的闭环数</em></div><div className="stock-feedback-scroll"><table><thead><tr><th>股票</th><th>交易日</th><th>关键观察 / 判定</th><th>闭环</th><th>扣费胜率</th><th>正T / 反T</th><th>净收益</th><th>无正式闭环日</th><th>反馈</th><th>详情</th></tr></thead><tbody>{batch.stockFeedback.map(item=><Fragment key={item.code}><tr className={item.code===representativeCode?'representative':''}><td><b>{item.code}</b><span>{item.name}</span></td><td>{item.date.slice(4,6)}-{item.date.slice(6,8)}</td><td>{item.keyObservations} / {item.candidates}</td><td>{item.completed}</td><td>{item.winRate===null?'—':`${(item.winRate*100).toFixed(2)}%`}</td><td>{item.positiveT} / {item.reverseT}</td><td className={pnlClass(item.net)}>{money(item.net)}</td><td>{item.noTrade} / {item.samples}</td><td>{item.feedback}</td><td><button type="button" className="batch-detail-toggle" aria-expanded={expanded===item.code} onClick={()=>setExpanded(current=>current===item.code?null:item.code)}>{expanded===item.code?'收起':'复盘'}</button></td></tr>{expanded===item.code&&<tr className="batch-detail-row"><td colSpan={10}><div className="batch-stock-detail"><div><div className="batch-detail-title"><b>{item.code} {item.name} · {item.date.slice(0,4)}-{item.date.slice(4,6)}-{item.date.slice(6,8)}</b><span>{item.completed?`${item.completed} 个正式闭环`:`${item.keyObservations} 个关键观察点，0 个正式闭环`}</span></div><BatchMiniChart minutes={item.minutes} actions={item.actions} observations={item.observations}/></div><div className="batch-cycle-details">{item.cycles.length?item.cycles.map(cycle=><article key={cycle.id} className={cycle.net<0?'cycle-loss':'cycle-profit'}><header><b>第 {cycle.id} 轮 · {cycle.direction} · {cycle.outcome}</b><strong>{money(cycle.net)}</strong></header><div className="cycle-route"><span>{replayTime(cycle.entry.time)} {cycle.entry.side} ¥{cycle.entry.price.toFixed(3)}</span><i>→</i><span>{replayTime(cycle.exit.time)} {cycle.exit.side} ¥{cycle.exit.price.toFixed(3)}</span><em>{cycle.entry.quantity.toLocaleString()} 股</em></div><dl><div><dt>理论毛收益</dt><dd>{money(cycle.gross)}</dd></div><div><dt>手续费</dt><dd>{money(-cycle.fees)}</dd></div><div><dt>双向滑点</dt><dd>{money(-cycle.executionCost)}</dd></div></dl><p className="cycle-explanation"><b>{cycle.net<0?'亏损原因':'结果说明'}：</b>{cycle.explanation}</p><p><b>入场依据：</b>{cycle.entry.reason??'由当分钟量价与趋势条件共同触发。'}</p><p><b>退出依据：</b>{cycle.exit.reason??'由止盈、止损或时间纪律触发。'}</p></article>):<article className="cycle-no-trade"><header><b>为什么没有交易？</b></header><p>{item.feedback}。候选只用于观察，未通过正式门槛不会生成买卖点。</p>{item.strongSellTrendBlocked>0&&<div className="hard-risk-block"><b>风控硬拦截</b><span>强势交易日仍在 VWAP 上方，拦截 {item.strongSellTrendBlocked} 次逆势反T判定，避免低位卖出后追高买回。</span></div>}{item.strongBuyTrendBlocked>0&&<div className="hard-risk-block"><b>风控硬拦截</b><span>弱势交易日仍在 VWAP 下方，拦截 {item.strongBuyTrendBlocked} 次逆势正T判定，避免下跌中补仓后继续承压。</span></div>}{item.observations.map((observation,index)=><div key={`${observation.time}-${index}`}><b>{replayTime(observation.time)} {observationConfirmationLabel(observation)}</b><span>{observationDirectionNote(observation)}；{observation.blockers.length?observation.blockers.join('；'):'量价确认不足'}</span></div>)}</article>}</div></div></td></tr>}</Fragment>)}</tbody></table></div></div>
     <p>每次点击都会从跨行业真实股票池无放回抽取 10 只，并使用统一的标准模拟账户逐股回放。每只股票最多展示 3 个去重后的关键候选，正式闭环单独标注；其余分钟只累计数量，避免图表被信号淹没。</p>
   </section>;
-}
-
-function aShareSession(now:Date|null) {
-  if (!now) return { label:"交易状态校准中", live:false, tone:"pending", detail:"正在按北京时间校准" };
-  const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Shanghai",weekday:"short",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(now);
-  const read=(type:string)=>parts.find(part=>part.type===type)?.value??"";
-  const weekday=read("weekday");
-  const minute=Number(read("hour"))*60+Number(read("minute"));
-  if(!["Mon","Tue","Wed","Thu","Fri"].includes(weekday)) return {label:"周末休市",live:false,tone:"closed",detail:"保留最近行情，不生成实时执行信号"};
-  if(minute<555) return {label:"盘前准备",live:false,tone:"pending",detail:"09:15 集合竞价开始"};
-  if(minute<565) return {label:"集合竞价",live:false,tone:"auction",detail:"只观察开盘方向，暂不执行"};
-  if(minute<570) return {label:"开盘准备",live:false,tone:"auction",detail:"等待 09:30 连续竞价"};
-  if(minute<=690) return {label:"上午交易中",live:true,tone:"live",detail:"前台 1 秒监控 · 切回页面立即追平"};
-  if(minute<780) return {label:"午间休市",live:false,tone:"paused",detail:"13:00 恢复监控，不生成新执行信号"};
-  if(minute<=900) return {label:"下午交易中",live:true,tone:"live",detail:"前台 1 秒监控 · 切回页面立即追平"};
-  if(minute<905) return {label:"收盘结算中",live:false,tone:"paused",detail:"连续竞价已结束，等待 15:05 盘后固定价格交易"};
-  if(minute<=930) return {label:"盘后固定价交易",live:false,tone:"postclose",detail:"15:05–15:30 按当日收盘价成交，不生成日内做 T 信号"};
-  return {label:"今日已收盘",live:false,tone:"closed",detail:"保留收盘行情，可进入模拟回测复盘"};
 }
 
 function runIntradayBlindReplayLegacy(minutes: {time:string;price:number;volume:number}[], capital:number, baseShares:number, sellable:number, feeRate:number, slippage:number, minCommission:boolean, slippageMode:"percent"|"tick", forceCloseTime:string, randomValue=0): BacktestResult {
@@ -528,12 +511,14 @@ export default function Home() {
     value:index===0?`${personalStrategyStats.sessions}/20`:index===1?`${personalStrategyStats.cycles}/20`:index===2?"V4":`${(personalStrategyStats.maxDrawdown*100).toFixed(2)}%`,
   })),[personalStrategyStats]);
   const openingAssessment = useMemo(() => {
-    const price=activeQuote?.price; const open=activeQuote?.open;
-    const previousClose=price != null && activeQuote?.change != null
+    const price=activeQuote?.price;
+    const quotedOpen=activeQuote?.open;
+    const open=marketSession.phase==="auction-result" ? (quotedOpen&&quotedOpen>0?quotedOpen:price) : quotedOpen;
+    const previousClose=activeQuote?.previousClose ?? (price != null && activeQuote?.change != null
       ? price-activeQuote.change
       : price != null && activeQuote?.changePercent != null && activeQuote.changePercent!==-100
         ? price/(1+activeQuote.changePercent/100)
-        : null;
+        : null);
     if(!price || !open || !previousClose) return {session:"等待昨收",gapText:"开盘方向待确认",auction:"开盘方向待确认",confirmation:"0/4 条件确认",suggested:"反T",positiveTitle:"正T条件待确认",positiveCopy:"昨收、今开或实时价格不完整，暂不判断高低开。",negativeTitle:"反T条件待确认",negativeCopy:"昨收、今开或实时价格不完整，暂不判断高低开。"};
     const gap=(open-previousClose)/previousClose; const vwap=chartModel?.lastVwap ?? open;
     const aboveReference=price>=open && price>=vwap; const belowReference=price<=open && price<=vwap;
@@ -541,11 +526,11 @@ export default function Home() {
     if(gap<=-.001) return {session:"低开",gapText,auction:aboveReference?"低开转强 · 正T观察":"低开承压 · 等待修复",confirmation:aboveReference?"3/4 条件确认":"2/4 条件确认",suggested:"正T",positiveTitle:aboveReference?"低开转强":"低开修复观察",positiveCopy:aboveReference?"价格已回到开盘价与 VWAP 上方，仍需二次确认。":"价格尚未同时站回开盘价与 VWAP，不急于补仓。",negativeTitle:"低开反弹观察",negativeCopy:"低开股票不能套用高开转弱逻辑；只有反弹到压力位并确认滞涨后才考虑反 T。"};
     if(gap>=.001) return {session:"高开",gapText,auction:belowReference?"高开转弱 · 反T观察":"高开偏强 · 等待回落",confirmation:belowReference?"3/4 条件确认":"2/4 条件确认",suggested:"反T",positiveTitle:"高开回踩观察",positiveCopy:"高开股票需等待回踩企稳，不能把高开直接当成正 T 买点。",negativeTitle:belowReference?"高开转弱":"高开滞涨观察",negativeCopy:belowReference?"价格跌回开盘价与 VWAP 下方，仍需回抽失败确认。":"价格尚未同时跌破开盘价与 VWAP，不急于卖出。"};
     return {session:"平开",gapText:`平开 ${(gap*100).toFixed(2)}%`,auction:"平开震荡 · 区间观察",confirmation:"2/4 条件确认",suggested:"正T",positiveTitle:"平开正T观察",positiveCopy:"等待价格回踩后重新站上 VWAP，再判断正 T。",negativeTitle:"平开反T观察",negativeCopy:"等待价格冲高后跌回 VWAP，再判断反 T。"};
-  },[activeQuote,chartModel?.lastVwap]);
+  },[activeQuote,chartModel?.lastVwap,marketSession.phase]);
   const autoDecision = useMemo(() => {
     const price=activeQuote?.price ?? 0; const open=activeQuote?.open ?? 0; const vwap=chartModel?.lastVwap ?? 0;
     const lastTime=(minutePoints.at(-1)?.time ?? "").replace(/\D/g,"").slice(0,4);
-    const inDecisionWindow=lastTime>="0945" && lastTime<="1430";
+    const inDecisionWindow=lastTime>="0936" && lastTime<="1430";
     const recent=minutePoints.slice(-4).map(point=>point.price);
     const rising=recent.length>=4 && recent.at(-1)!>=recent[0]*1.001;
     const falling=recent.length>=4 && recent.at(-1)!<=recent[0]*.999;
@@ -554,18 +539,28 @@ export default function Home() {
     const belowReference=Boolean(price && open && vwap && price<=open && price<=vwap);
     const directionConfirmed=(lowOpen&&aboveReference&&rising)||(highOpen&&belowReference&&falling);
     const confirmed=[lowOpen||highOpen,inDecisionWindow,lowOpen?aboveReference:highOpen?belowReference:false,lowOpen?rising:highOpen?falling:false].filter(Boolean).length;
-    if(!marketSession.live) return {status:"waiting" as const,mode:null,confirmed,reason:`${marketSession.label}：${marketSession.detail}`,lastTime,inDecisionWindow:false,referenceConfirmed:false,trendConfirmed:false};
+    if(!marketSession.live) {
+      const auctionBias=openingAssessment.session==="低开"
+        ? "低开修复型正T预案：09:30 后等待站回竞价价与 VWAP"
+        : openingAssessment.session==="高开"
+          ? "高开回落型反T预案：09:30 后等待跌回竞价价与 VWAP"
+          : "平开双向预案：等待连续竞价形成明确方向";
+      const auctionReason=marketSession.phase==="auction-result"
+        ? `09:25 集合竞价初判：${openingAssessment.gapText}；${auctionBias}。这不是买卖点，09:36 起才允许小仓正式信号。`
+        : `${marketSession.label}：${marketSession.detail}`;
+      return {status:"waiting" as const,mode:null,confirmed:marketSession.phase==="auction-result"?1:confirmed,reason:auctionReason,lastTime,inDecisionWindow:false,referenceConfirmed:false,trendConfirmed:false};
+    }
     if(stockState.level==="risk") return {status:"locked" as const,mode:null,confirmed,reason:`股票状态风控：${stockState.details.join("；")}`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentEvents?.gate.hardLock) return {status:"locked" as const,mode:null,confirmed,reason:`事件雷达：${currentEvents.gate.label}，${currentEvents.gate.reason}。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentEvents?.gate.level==="restricted") return {status:"waiting" as const,mode:null,confirmed,reason:`事件雷达：${currentEvents.gate.label}，请先核实原文。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentContext?.gate.hardLock) return {status:"locked" as const,mode:null,confirmed,reason:`外部环境雷达：${currentContext.gate.label}，只允许恢复底仓。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentContext?.gate.level==="restricted") return {status:"waiting" as const,mode:null,confirmed,reason:`外部环境雷达：${currentContext.gate.label}，暂停新开循环。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
-    if(!lowOpen&&!highOpen) return {status:"waiting" as const,mode:null,confirmed,reason:"平开或开盘数据不完整，等待形成明确方向。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
-    if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:45 前只采样，过滤开盘噪声。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
     const latestAction=liveEngine.actions.at(-1);
     const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
     const fresh=Boolean(latestAction&&minuteNumber(lastTime)===minuteNumber(latestAction.time));
     if(latestAction&&fresh) return {status:"ready" as const,mode:(latestAction.direction??(lowOpen?"正T":"反T")) as "正T"|"反T",confirmed:4,reason:`融合引擎实时信号：${latestAction.time} ${latestAction.direction} ${latestAction.side}，成本、趋势、量价与风控均已通过。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
+    if(!lowOpen&&!highOpen) return {status:"waiting" as const,mode:null,confirmed,reason:"平开或开盘数据不完整，等待形成明确方向。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
+    if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:36 前只采样；09:36 起可在连续走势与 VWAP 确认后小仓试单。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
     return {status:"waiting" as const,mode:null,confirmed,reason:directionConfirmed?`基础方向已确认，但融合引擎仍在检查成本、量价和盈亏比。`:liveEngine.status,lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
   },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState,currentEvents,currentContext,liveEngine,marketSession]);
   const signalMode:"正T"|"反T"=autoDecision.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
@@ -997,7 +992,7 @@ export default function Home() {
             {Boolean(currentEvents?.items.length)&&<div className="event-radar-list">{currentEvents!.items.slice(0,3).map(item=><a href={item.url} target="_blank" rel="noreferrer" key={item.id} className={item.sentiment}><i>{item.sentiment==="negative"?"利空":item.sentiment==="positive"?"利好":"中性"}</i><span><b>{item.title}</b><small>{item.relatedCount&&item.relatedCount>1?`合并 ${item.relatedCount} 个来源 · `:""}{item.source} · {new Date(item.publishedAt).toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})} · {item.reason}</small></span></a>)}</div>}
             <div className="context-radar-foot"><span>{currentContext?.gate.reasons.join(" · ") || "公开行情仅供人工研判"}</span><em>{eventRadar?.sources.join(" + ") || eventRadarError || "多源事件扫描加载中"}</em></div>
           </div>
-          <div className="opening-causal"><span>09:45 后自动判断</span><b>仅使用已出现数据 · 无需手动切换</b><small>低开站回VWAP并连续走强才生成正T；高开跌破VWAP并连续走弱才生成反T。</small></div>
+          <div className="opening-causal"><span>09:36 起分阶段判断</span><b>仅使用已出现数据 · 无需手动切换</b><small>09:36–09:44 连续走势与 VWAP 确认后仅小仓试单；09:45 后恢复完整过滤。低开修复看正T，高开回落看反T。</small></div>
           <h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2>
           <p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p>
           <button disabled={cycleQuantity<100||(cycleStage==='ready'&&autoDecision.status!=="ready")} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
@@ -1271,7 +1266,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSamples.length} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
     <div className="research-grid">
       <div className="research-column research-primary"><article className="research-card research-summary"><span>这只股票当前的研究结论</span><h2>{candidate}</h2><p>{stats.trend}；近20日平均振幅 {stats.range?`${stats.range.toFixed(2)}%`:'待计算'}。系统已自动回放 {autoSamples.length} 个完整交易日，形成 {autoCycles} 个闭环，扣费后净收益 {autoSamples.length?money(autoNet):'等待样本'}。</p><div><b>这不是自动买卖指令</b><small>自动研究只负责形成证据；正式买卖点仍由操盘台 V4 逐分钟过滤，风险规则拥有一票否决权。</small></div></article><article className="research-card feedback-card"><span>确认系统判断是否正确</span><p>系统已经自动收集客观数据。只有主观结论需要你确认；选择标签、写一句原因再保存。</p><div className="feedback-control"><small>判断类型</small><div>{['观察','正T','反T'].map(item=><button key={item} className={mode===item?'active':''} onClick={()=>{setMode(item);setSaveMessage('')}}>{item}{mode===item?' ✓':''}</button>)}</div></div><div className="feedback-control"><small>实际结果</small><div>{['待验证','有效','无效'].map(item=><button key={item} className={outcome===item?'active':''} onClick={()=>{setOutcome(item);setSaveMessage('')}}>{item}{outcome===item?' ✓':''}</button>)}</div></div><textarea value={feedback} onChange={event=>{setFeedback(event.target.value);setSaveMessage('')}} placeholder="例如：10:15 回踩后量能未跟上，因此没有执行；等待是正确的。"/><button onClick={saveNote} disabled={!feedback.trim()}>{saveMessage||'保存本次人工确认'}</button></article></div>
-      <div className="research-column research-secondary"><article className="research-card"><span>股性指纹 · 日线</span><div className="fingerprint"><p><small>平均振幅</small><b>{stats.range?`${stats.range.toFixed(2)}%`:'--'}</b></p><p><small>阳线天数</small><b>{bars.length?`${stats.upDays}/20`:'--'}</b></p><p><small>20日均价</small><b>{stats.ma20?stats.ma20.toFixed(2):'--'}</b></p><p><small>量能比</small><b>{stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'--'}</b></p></div><small className="data-note">日线用于股性背景；盘中信号仍使用已出现的分钟数据。</small></article><article className="research-card"><span>待验证规律</span><ul className="candidate-list">{zijinOpeningEvidence&&<li><b>紫金早盘高波动观察</b><small>09:35–10:30 只用当时已出现的振幅、VWAP、三分钟动量与量比；近 {zijinOpeningEvidence.sessions} 个完整样本中 {zijinOpeningEvidence.candidateDays} 日形成候选（正T {zijinOpeningEvidence.positiveDays} / 反T {zijinOpeningEvidence.reverseDays}），尚不直接执行。</small><em>{zijinOpeningEvidence.sessions>=10?'验证中':'收集中'}</em></li>}<li><b>{candidate}</b><small>{stats.range<3.5?'振幅偏小时，提高确认门槛，避免费用吃掉价差。':'波动偏大时，缩小单次仓位并限制连续试错。'}</small><em>{autoSamples.length>=10?'验证中':'收集中'}</em></li><li><b>{stats.trend.includes('上方')?'趋势内回撤观察':'均值回归观察'}</b><small>{autoCycles?`真实分时已形成 ${autoCycles} 个闭环，盈利 ${autoWins} 个。`:'还没有足够正式闭环，不输出胜率。'}</small><em>{autoCycles>=20?'可评审':'待样本'}</em></li><li><b>开盘噪声规避</b><small>09:45 前正式执行层只采样；紫金专属候选层可从 09:35 开始观察，仍须通过 VWAP、连续走势、成本与风控过滤。</small><em>V4硬规则</em></li></ul><small className="candidate-explain">这里是研究假设，不是可点击启用的另一套策略。</small></article></div>
+      <div className="research-column research-secondary"><article className="research-card"><span>股性指纹 · 日线</span><div className="fingerprint"><p><small>平均振幅</small><b>{stats.range?`${stats.range.toFixed(2)}%`:'--'}</b></p><p><small>阳线天数</small><b>{bars.length?`${stats.upDays}/20`:'--'}</b></p><p><small>20日均价</small><b>{stats.ma20?stats.ma20.toFixed(2):'--'}</b></p><p><small>量能比</small><b>{stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'--'}</b></p></div><small className="data-note">日线用于股性背景；盘中信号仍使用已出现的分钟数据。</small></article><article className="research-card"><span>待验证规律</span><ul className="candidate-list">{zijinOpeningEvidence&&<li><b>紫金早盘高波动观察</b><small>09:35–10:30 只用当时已出现的振幅、VWAP、三分钟动量与量比；近 {zijinOpeningEvidence.sessions} 个完整样本中 {zijinOpeningEvidence.candidateDays} 日形成候选（正T {zijinOpeningEvidence.positiveDays} / 反T {zijinOpeningEvidence.reverseDays}），尚不直接执行。</small><em>{zijinOpeningEvidence.sessions>=10?'验证中':'收集中'}</em></li>}<li><b>{candidate}</b><small>{stats.range<3.5?'振幅偏小时，提高确认门槛，避免费用吃掉价差。':'波动偏大时，缩小单次仓位并限制连续试错。'}</small><em>{autoSamples.length>=10?'验证中':'收集中'}</em></li><li><b>{stats.trend.includes('上方')?'趋势内回撤观察':'均值回归观察'}</b><small>{autoCycles?`真实分时已形成 ${autoCycles} 个闭环，盈利 ${autoWins} 个。`:'还没有足够正式闭环，不输出胜率。'}</small><em>{autoCycles>=20?'可评审':'待样本'}</em></li><li><b>开盘分阶段确认</b><small>09:36–09:44 允许 1/6 底仓小仓试单；仍须通过连续走势、VWAP、成本与风控过滤，09:45 后恢复完整确认。</small><em>V4硬规则</em></li></ul><small className="candidate-explain">这里是研究假设，不是可点击启用的另一套策略。</small></article></div>
     </div>
     <div className="research-bottom"><div><span>自动分时研究</span><b>{autoSamples.length} 个完整交易日</b>{autoSamples.length?<div className="auto-sample-list">{autoSamples.slice(0,3).map(item=><p key={item.date}><b>{item.date}</b><em className={item.net>=0?'valid':'invalid'}>{item.status}</em></p>)}</div>:<small>公开源尚未提供可用的完整历史分时，系统不会伪造样本。</small>}</div><div><span>最近人工确认</span>{notes.length?notes.slice(0,3).map(note=><p key={note.id}><b>{note.date} · {note.mode}</b><em className={note.outcome==='有效'?'valid':note.outcome==='无效'?'invalid':''}>{note.outcome}</em><small>{note.note}</small></p>):<p className="empty-note">尚无人工确认；这不会阻止系统自动计算客观分时样本。</p>}</div><aside><span>升级规则</span><b>自动收集 → 样本外验证 → 人工评审</b><small>达到 30 条只代表可以评审，不代表自动启用。正式策略与真实下单始终保持人工控制。</small></aside></div>
   </section>;
@@ -1286,8 +1281,8 @@ const marketStrategies = [
 ];
 
 const builtInStrategies = [
-  {id:'steady-pullback',name:'稳健回踩观察',tag:'低频 · 低回撤优先',fit:'适合先建立纪律：仅在趋势背景与回踩确认同时满足时观察。',rules:['09:45 前不触发','价格结构与量能同时确认','单日最多 2 次候选'],risk:'连续两次无效后，当日暂停'},
-  {id:'opening-reversal',name:'开盘反转确认',tag:'开盘 · 正反T候选',fit:'观察高开转弱或低开转强，不用第一根波动直接下结论。',rules:['仅记录 09:45 后信号','回抽失败/站回需二次确认','不追逐快速拉升或跳水'],risk:'开盘异常放量时只观察'},
+  {id:'steady-pullback',name:'稳健回踩观察',tag:'低频 · 低回撤优先',fit:'适合先建立纪律：仅在趋势背景与回踩确认同时满足时观察。',rules:['09:36 前只采样','价格结构与量能同时确认','单日最多 2 次候选'],risk:'连续两次无效后，当日暂停'},
+  {id:'opening-reversal',name:'开盘反转确认',tag:'开盘 · 正反T候选',fit:'观察高开转弱或低开转强，不用第一根波动直接下结论。',rules:['09:36 起分阶段确认','回抽失败/站回需二次确认','不追逐快速拉升或跳水'],risk:'09:45 前仅用 1/6 底仓试单'},
   {id:'afternoon-vwap',name:'午后均值回归',tag:'午后 · VWAP参考',fit:'用于震荡日午后偏离后的收敛观察，先处理未闭环仓位。',rules:['仅在 13:30–14:30 观察','量价收敛后才形成候选','已有未闭环时不新增'],risk:'14:50 前停止新候选'},
   {id:'position-guard',name:'底仓闭环卫士',tag:'风控 · 始终生效',fit:'不是交易策略，而是每个策略都应遵守的仓位与尾盘检查。',rules:['T+1 可卖数量检查','未配对时冻结新候选','收盘前核对计划底仓'],risk:'不满足闭环条件即转人工核对'},
 ];
