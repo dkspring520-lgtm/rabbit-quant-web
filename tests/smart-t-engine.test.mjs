@@ -402,3 +402,56 @@ test("buy-first orders are reduced to the cash available in the simulated accoun
   assert.equal(blocked.actions.length, 0);
   assert.ok(blocked.diagnostics.cashBlocked > 0);
 });
+
+test("missing QMT fields preserve the public-minute V4 baseline", () => {
+  const rows = openingRecoverySession("rise");
+  const baseline = runSmartTReplay(rows, options);
+  const explicitMissing = runSmartTReplay(rows.map((point) => ({
+    ...point,
+    activeBuyVolume: null,
+    activeSellVolume: null,
+    ddx: null,
+    bid1Volume: null,
+    ask1Volume: null,
+  })), options);
+
+  assert.deepEqual(explicitMissing.actions, baseline.actions);
+  assert.deepEqual(explicitMissing.cycleNets, baseline.cycleNets);
+  assert.equal(explicitMissing.diagnostics.orderFlowAvailablePoints, 0);
+  assert.equal(explicitMissing.diagnostics.orderFlowBlocked, 0);
+});
+
+test("supportive QMT order flow confirms rather than invents a V4 entry", () => {
+  const rows = openingRecoverySession("rise").map((point, index) => ({
+    ...point,
+    activeBuyVolume: 70,
+    activeSellVolume: 30,
+    ddx: index,
+    bid1Volume: 140,
+    ask1Volume: 80,
+  }));
+  const result = runSmartTReplay(rows, options);
+
+  assert.equal(result.trades, 1);
+  assert.ok(result.diagnostics.orderFlowAvailablePoints > 0);
+  assert.equal(result.diagnostics.orderFlowBlocked, 0);
+  assert.match(result.actions[0].reason, /QMT/);
+});
+
+test("adverse QMT order flow blocks a formal buy without hiding the candidate", () => {
+  const rows = openingRecoverySession("rise").map((point, index) => ({
+    ...point,
+    activeBuyVolume: 20,
+    activeSellVolume: 80,
+    ddx: -index,
+    bid1Volume: 50,
+    ask1Volume: 150,
+  }));
+  const result = runSmartTReplay(rows, options);
+
+  assert.equal(result.actions.length, 0);
+  assert.equal(result.trades, 0);
+  assert.ok(result.observations.length > 0, "the setup must remain auditable");
+  assert.ok(result.observations.some((item) => item.blockers.some((blocker) => blocker.includes("QMT order flow"))));
+  assert.ok(result.diagnostics.orderFlowBlocked > 0);
+});
