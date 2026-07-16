@@ -84,6 +84,32 @@ test("every replay prefix matches the same moment inside a full-day replay", () 
   }
 });
 
+test("a live reminder first appears at its confirmation minute and is never rewritten", () => {
+  const rows = openingRecoverySession("rise");
+  const full = runSmartTReplay(rows, options);
+  const observation = full.observations[0];
+  assert.ok(observation, "the fixture must emit a causal observation");
+  const confirmationIndex = rows.findIndex((point) => point.time === observation.time);
+  assert.ok(confirmationIndex > 0);
+
+  const before = runSmartTReplay(rows.slice(0, confirmationIndex), options);
+  const atConfirmation = runSmartTReplay(rows.slice(0, confirmationIndex + 1), options);
+  assert.equal(
+    before.observations.some((item) => item.time === observation.time),
+    false,
+    "the reminder must not exist before its confirmation minute",
+  );
+  assert.deepEqual(
+    atConfirmation.observations.find((item) => item.time === observation.time),
+    observation,
+    "the reminder payload must be complete at the minute it first appears",
+  );
+  assert.ok(
+    !observation.pivotTime || observation.pivotTime <= observation.time,
+    "an audit pivot may only reference an already observed minute",
+  );
+});
+
 test("a completed profitable cycle reports net results after all costs", () => {
   const result = runSmartTReplay(openingRecoverySession("rise"), options);
 
@@ -186,8 +212,8 @@ test("a shallow fade after a long rising VWAP stays an observation instead of a 
   assert.equal(result.actions.filter(action => action.direction === "反T").length, 0);
   assert.ok(result.diagnostics.strongTrendBlocked > 0, "the longer observed VWAP trend must veto the shallow local fade");
   assert.ok(
-    result.observations.some(observation => observation.direction === "反T" && observation.pivotAssessment === "strong"),
-    "the peak may remain visible as a non-executable trend observation",
+    result.observations.some(observation => observation.direction === "反T" && observation.pivotAssessment === "strong" && observation.stage === "candidate"),
+    "an economic peak blocked only by the prevailing trend remains visible in the candidate layer",
   );
 });
 
@@ -215,8 +241,8 @@ test("a fast session expansion above a lagging VWAP blocks a shallow reverse-T f
   assert.ok(result.diagnostics.strongSellTrendBlocked > 0, "the audit trail must identify the blocked reverse-T direction");
   assert.equal(result.diagnostics.strongBuyTrendBlocked, 0);
   assert.ok(
-    result.observations.some(observation => observation.direction === "反T" && observation.pivotAssessment === "strong"),
-    "the peak remains visible as a strong-trend observation instead of disappearing",
+    result.observations.some(observation => observation.direction === "反T" && observation.pivotAssessment === "strong" && observation.stage === "candidate"),
+    "the peak remains visible as a blocked candidate instead of disappearing",
   );
 });
 
