@@ -55,7 +55,7 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /候选仅弹出安静观察卡/);
   assert.match(source, /function observationConfirmationLabel/);
   assert.match(source, /function observationDirectionNote/);
-  assert.match(source, /潜在\$\{observation\.direction\}方向 · 观察层不可执行/);
+  assert.match(source, /候补\$\{observation\.direction\}方向 · 不可执行/);
   assert.match(source, /const label=observationConfirmationLabel\(observation\)/);
   assert.match(source, /formatTime\(observation\.time\)\} · \{observationConfirmationLabel\(observation\)\}/);
   assert.doesNotMatch(source, /observation\.direction==="正T"\?"候买":"候卖"/);
@@ -125,7 +125,7 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   assert.doesNotMatch(source, /\+¥2,416/);
 });
 
-test("random 10-stock replay is internally reproducible and separates candidates from formal trades", async () => {
+test("random 10-stock replay randomizes stock-days and separates references from formal trades", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const poolMatch = source.match(/const batchValidationUniverse = \[([\s\S]*?)\];/);
   assert.ok(poolMatch);
@@ -142,11 +142,13 @@ test("random 10-stock replay is internally reproducible and separates candidates
   assert.doesNotMatch(source, /批次种子：\{batch\.seed\}/);
   assert.doesNotMatch(source, /随机10股批次测试完成 · 种子/);
   assert.match(source, /standardBacktestShares/);
-  assert.match(source, /每只股票每天最多展示 3 个去重后的关键样本/);
+  assert.match(source, /buildCausalReferencePoints/);
+  assert.match(source, /slice\(0,5\)/);
+  assert.match(source, /random完整交易日|随机完整交易日/);
   assert.match(source, /随机10股真实分时批次/);
-  assert.match(source, /候选覆盖只表示逐分钟出现过观察条件；正式触发才产生可执行闭环/);
-  assert.match(source, /1\/10 不等于失败/);
-  assert.match(source, /系统绝不为凑次数强行开仓/);
+  assert.match(source, /每股最多展示 2 个候补买点和 2 个候补卖点/);
+  assert.match(source, /候补点不可执行/);
+  assert.match(source, /才升级为正式候选或正式交易/);
   assert.doesNotMatch(source, /固定代表组/);
   assert.match(source, /"600519": "贵州茅台"/);
   assert.match(source, /"300750": "宁德时代"/);
