@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "marketCode": "601899.SH",
+    "name": "紫金矿业"
+  },
+  "mode": "research-only",
+  "affectsV4": false,
+  "dataset": {
+    "firstDate": "20220104",
+    "lastDate": "20260417",
+    "tradingDays": 1037,
+    "minuteRows": 249917,
+    "completeDays": 1037,
+    "missingAfter": "2026-04-17"
+  },
+  "methodology": {
+    "training": "2022-2024",
+    "validation": "2025",
+    "blindTest": "2026-01-05..2026-04-17",
+    "causal": true,
+    "earliestFill": "下一分钟开盘价",
+    "sameBarConflict": "止损优先（保守）",
+    "roundTripCostPct": 0.12,
+    "netProfitZonePct": [
+      0.64,
+      1.0
+    ],
+    "trailingRetracePct": 0.18,
+    "stopGrossPct": 0.45,
+    "maxHoldMinutes": 20,
+    "maxTradesPerDay": 2
+  },
+  "selectedModel": {
+    "selectedOn": "training-only",
+    "vwapBiasPct": 0.6,
+    "turn3Pct": 0.12,
+    "volumeRatio": 0.8,
+    "trainingScore": 0.048111,
+    "passedTrainingGate": false,
+    "passedValidationGate": false,
+    "status": "未通过研究门槛"
+  },
+  "results": {
+    "training": {
+      "trades": 820,
+      "wins": 317,
+      "losses": 503,
+      "winRate": 0.3866,
+      "averageNetPct": -0.1234,
+      "totalNetPct": -101.2096,
+      "maxDrawdownPct": 101.2096,
+      "positiveTrades": 388,
+      "reverseTrades": 432,
+      "averageHoldMinutes": 15.97,
+      "annual": [
+        {
+          "year": "2022",
+          "trades": 262,
+          "wins": 101,
+          "losses": 161,
+          "winRate": 0.3855,
+          "averageNetPct": -0.1481,
+          "totalNetPct": -38.7901,
+          "maxDrawdownPct": 38.8687,
+          "positiveTrades": 115,
+          "reverseTrades": 147,
+          "averageHoldMinutes": 15.19
+        },
+        {
+          "year": "2023",
+          "trades": 225,
+          "wins": 86,
+          "losses": 139,
+          "winRate": 0.3822,
+          "averageNetPct": -0.1228,
+          "totalNetPct": -27.6407,
+          "maxDrawdownPct": 28.3018,
+          "positiveTrades": 106,
+          "reverseTrades": 119,
+          "averageHoldMinutes": 17.32
+        },
+        {
+          "year": "2024",
+          "trades": 333,
+          "wins": 130,
+          "losses": 203,
+          "winRate": 0.3904,
+          "averageNetPct": -0.1044,
+          "totalNetPct": -34.7788,
+          "maxDrawdownPct": 35.655,
+          "positiveTrades": 167,
+          "reverseTrades": 166,
+          "averageHoldMinutes": 15.68
+        }
+      ]
+    },
+    "validation": {
+      "trades": 297,
+      "wins": 120,
+      "losses": 177,
+      "winRate": 0.404,
+      "averageNetPct": -0.0826,
+      "totalNetPct": -24.5229,
+      "maxDrawdownPct": 26.7061,
+      "positiveTrades": 127,
+      "reverseTrades": 170,
+      "averageHoldMinutes": 16.66
+    },
+    "blindTest": {
+      "trades": 99,
+      "wins": 40,
+      "losses": 59,
+      "winRate": 0.404,
+      "averageNetPct": -0.1038,
+      "totalNetPct": -10.2754,
+      "maxDrawdownPct": 10.6022,
+      "positiveTrades": 50,
+      "reverseTrades": 49,
+      "averageHoldMinutes": 13.66
+    }
+  },
+  "fourRabbits": {
+    "trainingRabbit": "仅使用 2022-2024 网格寻找候选阈值",
+    "challengeRabbit": "使用未参与选参的 2025 样本外验证",
+    "formalRabbit": "通过训练与验证门槛后仍需人工评审；当前未进入正式 V4",
+    "riskRabbit": "2026 盲测、费用、止损、回撤与同K冲突保守处理"
+  },
+  "topTrainingCandidates": [
+    {
+      "vwapBiasPct": 0.6,
+      "turn3Pct": 0.12,
+      "volumeRatio": 0.8,
+      "score": 0.048111,
+      "trades": 820,
+      "winRate": 0.3866,
+      "averageNetPct": -0.1234
+    },
+    {
+      "vwapBiasPct": 0.5,
+      "turn3Pct": 0.12,
+      "volumeRatio": 0.8,
+      "score": 0.036675,
+      "trades": 994,
+      "winRate": 0.3783,
+      "averageNetPct": -0.1246
+    },
+    {
+      "vwapBiasPct": 0.4,
+      "turn3Pct": 0.12,
+      "volumeRatio": 0.95,
+      "score": 0.030676,
+      "trades": 1019,
+      "winRate": 0.368,
+      "averageNetPct": -0.1249
+    },
+    {
+      "vwapBiasPct": 0.4,
+      "turn3Pct": 0.12,
+      "volumeRatio": 1.25,
+      "score": 0.022681,
+      "trades": 698,
+      "winRate": 0.3825,
+      "averageNetPct": -0.1181
+    },
+    {
+      "vwapBiasPct": 0.6,
+      "turn3Pct": 0.03,
+      "volumeRatio": 0.95,
+      "score": 0.021726,
+      "trades": 940,
+      "winRate": 0.384,
+      "averageNetPct": -0.134
+    }
+  ],
+  "generatedAt": "2026-07-17T22:55:24+0800",
+  "elapsedSeconds": 22.29
+}
