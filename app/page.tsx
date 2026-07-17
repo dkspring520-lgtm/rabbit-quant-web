@@ -10,6 +10,7 @@ import { normalizeTradeLedgerRows, summarizeTradeLedger, tradeLedgerDate, tradeL
 import type { TradeLedgerRow } from "@/lib/trade-ledger.mjs";
 import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { analyzeZijinFactorResearch } from "@/lib/zijin-factor-research.mjs";
+import zijinHistoricalEvidence from "@/public/research/zijin-factor-evidence.json";
 import { sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
@@ -27,6 +28,25 @@ type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; count
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean };
 type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
+type ZijinTrainingProgress = {
+  schemaVersion:number;
+  stock:{code:string;name:string};
+  runId:string;
+  status:"idle"|"running"|"completed"|"failed";
+  stage:"loading"|"features"|"training"|"validation"|"blind-test"|"completed"|"failed";
+  progress:number;
+  processedCandidates:number;
+  totalCandidates:number;
+  message:string;
+  updatedAt:string;
+  latest:{
+    tradingDays?:number;
+    trainingTrades?:number; trainingWinRate?:number|null; trainingAverageNetPct?:number;
+    validationTrades?:number; validationWinRate?:number|null; validationAverageNetPct?:number;
+    blindTrades?:number; blindWinRate?:number|null; blindAverageNetPct?:number;
+    passedTrainingGate?:boolean; passedValidationGate?:boolean; elapsedSeconds?:number;
+  };
+};
 type AccountPreferences = { stock:string; baseShares:number; risk:string };
 type StockPositionMap = Record<string, StockPosition>;
 const DEFAULT_PREFERENCES:AccountPreferences={stock:"601899 紫金矿业",baseShares:0,risk:"稳健"};
@@ -1273,6 +1293,22 @@ type StockResearchNote = { id:string; date:string; mode:string; outcome:string; 
 type AutoResearchSample = { date:string; cycles:number; wins:number; net:number; status:string };
 
 function SingleStockResearchView({accountName,stock,quote,marketData,profile,position,manualCount,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;profile:string;position:StockPosition;manualCount:number;onOpenConsole:()=>void}) {
+  const [zijinTrainingProgress,setZijinTrainingProgress]=useState<ZijinTrainingProgress|null>(null);
+  useEffect(()=>{
+    if(stock.code!=="601899"){setZijinTrainingProgress(null);return;}
+    let active=true;
+    const load=async()=>{
+      try{
+        const response=await fetch(`/research/zijin-training-progress.json?t=${Date.now()}`,{cache:"no-store"});
+        if(!response.ok)throw new Error(`HTTP ${response.status}`);
+        const payload=await response.json() as ZijinTrainingProgress;
+        if(active&&payload.stock?.code==="601899")setZijinTrainingProgress(payload);
+      }catch{/* 保留上一份真实状态；没有文件时不伪造训练进度。 */}
+    };
+    void load();
+    const timer=window.setInterval(()=>void load(),2000);
+    return()=>{active=false;window.clearInterval(timer)};
+  },[stock.code]);
   const storageKey=`rabbit-stock-research:${accountName.toLowerCase()}:${stock.code}`;
   const [notes,setNotes]=useState<StockResearchNote[]>(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];return Array.isArray(parsed)?parsed:[]}catch{return [];}});
   const [feedback,setFeedback]=useState('');
@@ -1344,6 +1380,17 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     {zijinFactorResearch&&<section className="zijin-factor-lab">
       <div className="zijin-factor-head"><div><span>ZIJIN FACTOR RESEARCH · 独立实验区</span><h2>紫金矿业专属因子研究</h2><p>只研究 VWAP 偏离、三分钟动量、量比和日内振幅；历史未来数据仅用于完整交易日的结果标签，盘中快照只读取当前分钟及之前的数据。</p></div><em>{zijinFactorResearch.live.status==="candidate"?"出现待验证组合":zijinFactorResearch.live.status==="watch"?"在线观察中":"等待分钟样本"}</em></div>
       <div className="zijin-factor-grid"><div><span>VWAP 偏离</span><b>{zijinFactorResearch.live.vwap===null?'--':`${zijinFactorResearch.live.vwapBiasPct>=0?'+':''}${zijinFactorResearch.live.vwapBiasPct.toFixed(2)}%`}</b><small>{zijinFactorResearch.live.vwap===null?'等待数据':`VWAP ${zijinFactorResearch.live.vwap.toFixed(2)}`}</small></div><div><span>3 分钟动量</span><b>{zijinFactorResearch.live.points?`${zijinFactorResearch.live.momentum3Pct>=0?'+':''}${zijinFactorResearch.live.momentum3Pct.toFixed(2)}%`:'--'}</b><small>只使用已出现分钟</small></div><div><span>短量比</span><b>{zijinFactorResearch.live.volumeRatio===null?'--':`${zijinFactorResearch.live.volumeRatio.toFixed(2)}×`}</b><small>最近 3 分钟 / 前序均量</small></div><div><span>研究方向</span><b>{zijinFactorResearch.live.directionLabel??'等待'}</b><small>{zijinFactorResearch.live.label} · {zijinFactorResearch.live.score}/100</small></div></div>
+      {zijinTrainingProgress&&<div className={`zijin-training-live ${zijinTrainingProgress.status}`}>
+        <div className="zijin-training-title"><div><span><i/>四兔真实训练进度</span><b>{zijinTrainingProgress.message}</b></div><strong>{zijinTrainingProgress.progress}%</strong></div>
+        <div className="zijin-training-track"><i style={{width:`${zijinTrainingProgress.progress}%`}}/></div>
+        <div className="zijin-training-stats"><p><span>当前阶段</span><b>{zijinTrainingProgress.stage==="training"?"训练集选参":zijinTrainingProgress.stage==="validation"?"2025 样本外":zijinTrainingProgress.stage==="blind-test"?"2026 盲测":zijinTrainingProgress.stage==="completed"?"本轮完成":"数据准备"}</b><small>{zijinTrainingProgress.totalCandidates?`${zijinTrainingProgress.processedCandidates}/${zijinTrainingProgress.totalCandidates} 组参数`:"读取历史库"}</small></p><p><span>训练集</span><b>{zijinTrainingProgress.latest.trainingWinRate==null?'--':`${(zijinTrainingProgress.latest.trainingWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.trainingTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.trainingAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>样本外</span><b>{zijinTrainingProgress.latest.validationWinRate==null?'--':`${(zijinTrainingProgress.latest.validationWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.validationTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.validationAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>最终盲测</span><b>{zijinTrainingProgress.latest.blindWinRate==null?'--':`${(zijinTrainingProgress.latest.blindWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.blindTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.blindAverageNetPct?.toFixed(3)??'--'}%</small></p></div>
+        <footer><span>任务 {zijinTrainingProgress.runId} · 更新 {new Date(zijinTrainingProgress.updatedAt).toLocaleString('zh-CN')}</span><b>{zijinTrainingProgress.status==="running"?"训练中":zijinTrainingProgress.latest.passedValidationGate?"通过验证，等待人工评审":"未通过门槛，不进入 V4"}</b></footer>
+      </div>}
+      <div className="zijin-history-audit">
+        <div className="zijin-history-head"><div><span>四兔历史审计 · 4.3 年 1 分钟库</span><h3>首轮因子组合未通过研究门槛</h3><p>训练兔只看 2022–2024，挑战兔只看 2025，风控兔最后盲审 2026；最早按下一分钟开盘价成交，同一分钟同时触发止盈止损时按止损优先。</p></div><em>未进入 V4</em></div>
+        <div className="zijin-history-metrics"><p><span>完整交易日</span><b>{zijinHistoricalEvidence.dataset.tradingDays.toLocaleString()}</b><small>{zijinHistoricalEvidence.dataset.firstDate}—{zijinHistoricalEvidence.dataset.lastDate}</small></p><p><span>训练期胜率</span><b className="negative">{(zijinHistoricalEvidence.results.training.winRate*100).toFixed(1)}%</b><small>{zijinHistoricalEvidence.results.training.trades} 次 · 平均 {zijinHistoricalEvidence.results.training.averageNetPct.toFixed(3)}%</small></p><p><span>2025 样本外</span><b className="negative">{(zijinHistoricalEvidence.results.validation.winRate*100).toFixed(1)}%</b><small>{zijinHistoricalEvidence.results.validation.trades} 次 · 平均 {zijinHistoricalEvidence.results.validation.averageNetPct.toFixed(3)}%</small></p><p><span>2026 盲测</span><b className="negative">{(zijinHistoricalEvidence.results.blindTest.winRate*100).toFixed(1)}%</b><small>{zijinHistoricalEvidence.results.blindTest.trades} 次 · 平均 {zijinHistoricalEvidence.results.blindTest.averageNetPct.toFixed(3)}%</small></p></div>
+        <div className="zijin-history-verdict"><b>为什么拒绝</b><span>扣除 {zijinHistoricalEvidence.methodology.roundTripCostPct.toFixed(2)}% 往返成本后，训练、验证和盲测均为负期望。该组合只保留为失败证据，后续研究会加入开盘阶段、板块相对强弱和量价衰竭因子，不会为了显示高胜率放宽结果标签。</span></div>
+      </div>
       <div className="zijin-evidence"><p><span>完整分时</span><b>{zijinFactorResearch.evidence.sessions} 日</b></p><p><span>历史候选样本</span><b>{zijinFactorResearch.evidence.samples} 条</b></p><p><span>样本外验证</span><b>{zijinFactorResearch.evidence.validationSamples} 条</b></p><p><span>验证胜率</span><b>{zijinFactorResearch.evidence.ready&&zijinFactorResearch.evidence.validationWinRate!==null?`${(zijinFactorResearch.evidence.validationWinRate*100).toFixed(1)}%`:'暂不展示'}</b></p><strong>{zijinFactorResearch.evidence.label}；当前仅在页面打开时自动更新，尚未冒充 24 小时服务器训练。</strong></div>
       <footer><b>与 Smart‑T V4 隔离</b><span>不会修改档位、买卖点或风控阈值；通过样本外验证和人工评审后，才允许进入模拟观察。</span></footer>
     </section>}
