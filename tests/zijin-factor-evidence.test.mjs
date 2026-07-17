@@ -4,6 +4,7 @@ import test from "node:test";
 
 const evidenceUrl = new URL("../public/research/zijin-factor-evidence.json", import.meta.url);
 const progressUrl = new URL("../public/research/zijin-training-progress.json", import.meta.url);
+const patternUrl = new URL("../public/research/zijin-pattern-discovery.json", import.meta.url);
 
 test("Zijin historical evidence is causal, isolated and split before blind testing", async () => {
   const evidence = JSON.parse(await readFile(evidenceUrl, "utf8"));
@@ -16,6 +17,7 @@ test("Zijin historical evidence is causal, isolated and split before blind testi
   assert.equal(evidence.selectedModel.selectedOn, "training-only");
   assert.equal(evidence.dataset.tradingDays, 1037);
   assert.equal(evidence.dataset.minuteRows, 249917);
+  assert.equal(evidence.methodology.searchProfile, "full");
   assert.ok(evidence.results.training.trades > 0);
   assert.ok(evidence.results.validation.trades > 0);
   assert.ok(evidence.results.blindTest.trades > 0);
@@ -42,4 +44,27 @@ test("Zijin training progress reports real completed work and all audit stages",
   assert.ok(progress.latest.validationTrades > 0);
   assert.ok(progress.latest.blindTrades > 0);
   assert.equal(progress.latest.passedValidationGate, false);
+});
+
+test("Zijin pattern discovery rejects unstable price-volume rules without future leakage", async () => {
+  const pattern = JSON.parse(await readFile(patternUrl, "utf8"));
+  assert.equal(pattern.stock.marketCode, "601899.SH");
+  assert.equal(pattern.affectsV4, false);
+  assert.equal(pattern.dataset.minuteRows, 249917);
+  assert.equal(pattern.dataset.tradingDays, 1037);
+  assert.equal(pattern.dataset.labeledScenarios, 31567);
+  assert.equal(pattern.methodology.causalFeatures, true);
+  assert.equal(pattern.methodology.futureUse, "仅作为结果标签");
+  assert.equal(pattern.methodology.training, "2022-2024");
+  assert.equal(pattern.methodology.validation, "2025");
+  assert.match(pattern.methodology.blindTest, /^2026/);
+  assert.equal(pattern.methodology.candidateCooldownMinutes, 5);
+  assert.equal(pattern.methodology.maxTradesPerDay, 2);
+  assert.equal(pattern.acceptedRuleCount.positive, 0);
+  assert.equal(pattern.acceptedRuleCount.reverse, 0);
+  assert.equal(pattern.conclusion.status, "no-stable-price-volume-rule");
+  assert.equal(pattern.conclusion.deployment, "研究结果不自动进入Smart-T V4");
+  assert.ok(pattern.conclusion.nextRequiredFactors.includes("国际金价与铜价"));
+  assert.equal(pattern.sequenceAudit.validation.trades, 0);
+  assert.equal(pattern.sequenceAudit.blindTest.trades, 0);
 });

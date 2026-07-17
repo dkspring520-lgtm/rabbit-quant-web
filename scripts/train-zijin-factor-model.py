@@ -33,11 +33,25 @@ STOP_GROSS_PCT = 0.45
 MAX_HOLD_MINUTES = 20
 MIN_FEATURE_POINTS = 20
 MAX_TRADES_PER_DAY = 2
-GRID = {
+QUICK_GRID = {
     "vwapBiasPct": (0.20, 0.30, 0.40, 0.50, 0.60),
     "turn3Pct": (0.03, 0.06, 0.09, 0.12),
     "volumeRatio": (0.80, 0.95, 1.10, 1.25),
 }
+
+
+def inclusive_range(start: float, stop: float, step: float) -> tuple[float, ...]:
+    count = round((stop - start) / step)
+    return tuple(round(start + index * step, 4) for index in range(count + 1))
+
+
+FULL_GRID = {
+    # 23 × 18 × 31 = 12,834 causal parameter combinations.
+    "vwapBiasPct": inclusive_range(0.10, 1.20, 0.05),
+    "turn3Pct": tuple(sorted(set(inclusive_range(0.00, 0.30, 0.02) + QUICK_GRID["turn3Pct"]))),
+    "volumeRatio": inclusive_range(0.50, 2.00, 0.05),
+}
+SEARCH_GRIDS = {"quick": QUICK_GRID, "full": FULL_GRID}
 
 
 def atomic_write_json(path: Path, payload: dict[str, object]) -> None:
@@ -334,6 +348,19 @@ def selection_score(summary: dict[str, object], annual: list[dict[str, object]])
     )
 
 
+def annual_summaries(
+    trades: list[dict[str, object]], years: set[str]
+) -> list[dict[str, object]]:
+    """Reuse the causal training pass instead of simulating each year again."""
+    return [
+        {
+            "year": year,
+            **summarize([trade for trade in trades if str(trade["date"]).startswith(year)]),
+        }
+        for year in sorted(years)
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="紫金矿业独立因子研究：训练/验证/盲测")
     parser.add_argument("input", type=Path, help="紫金矿业 1 分钟 Parquet")
@@ -348,6 +375,12 @@ def main() -> None:
         type=Path,
         default=Path("public/research/zijin-training-progress.json"),
         help="训练过程状态 JSON；网站只读取真实进度，不推算动画进度",
+    )
+    parser.add_argument(
+        "--search-profile",
+        choices=sorted(SEARCH_GRIDS),
+        default="quick",
+        help="quick=80 组回归检查；full=12,834 组全量阈值搜索",
     )
     args = parser.parse_args()
 
@@ -369,23 +402,30 @@ def main() -> None:
     validation_years = {"2025"}
     blind_years = {"2026"}
 
+    grid = SEARCH_GRIDS[args.search_profile]
     leaderboard: list[tuple[float, dict[str, float], dict[str, object]]] = []
     combinations = list(itertools.product(
-        GRID["vwapBiasPct"], GRID["turn3Pct"], GRID["volumeRatio"]
+        grid["vwapBiasPct"], grid["turn3Pct"], grid["volumeRatio"]
     ))
+    progress_interval = max(1, len(combinations) // 200)
     for candidate_index, (bias, turn, volume) in enumerate(combinations, start=1):
         config = {"vwapBiasPct": bias, "turn3Pct": turn, "volumeRatio": volume}
         train_trades = collect_trades(sessions, feature_map, config, train_years)
         train_summary = summarize(train_trades)
-        annual = [
-            {"year": year, **summarize(collect_trades(sessions, feature_map, config, {year}))}
-            for year in sorted(train_years)
-        ]
+        annual = annual_summaries(train_trades, train_years)
         score = selection_score(train_summary, annual)
         if math.isfinite(score):
             leaderboard.append((score, config, {**train_summary, "annual": annual}))
-        if candidate_index == 1 or candidate_index % 4 == 0 or candidate_index == len(combinations):
+        if (
+            candidate_index == 1
+            or candidate_index % progress_interval == 0
+            or candidate_index == len(combinations)
+        ):
             best_summary = max(leaderboard, key=lambda item: item[0])[2] if leaderboard else train_summary
+            elapsed = max(0.001, time.time() - started)
+            estimated_remaining = round(
+                max(0.0, elapsed / candidate_index * (len(combinations) - candidate_index)), 1
+            )
             atomic_write_json(progress_path, progress_payload(
                 run_id, "running", "training", 10 + round(candidate_index / len(combinations) * 66),
                 processed=candidate_index,
@@ -395,6 +435,8 @@ def main() -> None:
                     "trainingTrades": int(best_summary["trades"]),
                     "trainingWinRate": best_summary["winRate"],
                     "trainingAverageNetPct": best_summary["averageNetPct"],
+                    "searchProfile": args.search_profile,
+                    "estimatedRemainingSeconds": estimated_remaining,
                 },
             ))
 
@@ -467,6 +509,9 @@ def main() -> None:
             "stopGrossPct": STOP_GROSS_PCT,
             "maxHoldMinutes": MAX_HOLD_MINUTES,
             "maxTradesPerDay": MAX_TRADES_PER_DAY,
+            "searchProfile": args.search_profile,
+            "candidateCount": len(combinations),
+            "searchGrid": {key: list(values) for key, values in grid.items()},
         },
         "selectedModel": {
             "selectedOn": "training-only",
