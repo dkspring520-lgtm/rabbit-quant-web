@@ -5,19 +5,30 @@ import { evaluateZijinOpeningPlaybook } from "../lib/zijin-opening-playbook.mjs"
 
 const points = (rows) => rows.map(([time, price, volume = 100]) => ({ time, price, volume }));
 
-test("09:35 before only waits and never assigns a direction", () => {
+test("09:30 starts scanning but fewer than four points never assigns a direction", () => {
   const result = evaluateZijinOpeningPlaybook(points([
     ["09:30", 29.00, 100],
     ["09:31", 28.92, 110],
     ["09:32", 28.86, 120],
-    ["09:33", 28.91, 130],
-    ["09:34", 28.96, 140],
   ]), { previousClose: 29 });
 
   assert.equal(result.status, "waiting");
   assert.equal(result.direction, null);
-  assert.equal(result.asOfTime, "09:34");
-  assert.match(result.reasons.join(" "), /09:35 前/);
+  assert.equal(result.asOfTime, "09:32");
+  assert.match(result.reasons.join(" "), /09:30 已开始实时扫描/);
+});
+
+test("an opening candidate can appear at 09:33 without reading later minutes", () => {
+  const result = evaluateZijinOpeningPlaybook(points([
+    ["09:30", 29.00, 100],
+    ["09:31", 28.70, 100],
+    ["09:32", 28.84, 150],
+    ["09:33", 29.05, 230],
+  ]), { previousClose: 29 });
+
+  assert.equal(result.asOfTime, "09:33");
+  assert.equal(result.status, "candidate");
+  assert.equal(result.direction, "正T");
 });
 
 test("a low-recovery plus VWAP and volume confirmation forms a positive-T candidate", () => {

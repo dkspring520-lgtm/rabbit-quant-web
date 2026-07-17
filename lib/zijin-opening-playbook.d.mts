@@ -25,7 +25,7 @@ export type ZijinOpeningResult = {
 export const ZIJIN_OPENING_PLAYBOOK:Readonly<{
   code:"601899";
   name:string;
-  evaluationStart:"09:35";
+  evaluationStart:"09:30";
   evaluationEnd:"10:30";
   minimumPoints:number;
   rangeThresholdPct:number;
@@ -40,4 +40,3 @@ export function evaluateZijinOpeningPlaybook(
   minutePrefix:ZijinOpeningMinute[],
   options?:{previousClose?:number|null},
 ):ZijinOpeningResult;
-

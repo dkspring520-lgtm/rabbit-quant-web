@@ -1,4 +1,4 @@
-:root{--font-ui:var(--font-geist-sans),"Segoe UI Variable","PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--font-data:var(--font-geist-mono),"Cascadia Mono","SFMono-Regular",Consolas,monospace}
+:root{--font-geist-sans:"Segoe UI Variable","PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--font-geist-mono:"Cascadia Mono","SFMono-Regular",Consolas,monospace;--font-ui:var(--font-geist-sans);--font-data:var(--font-geist-mono)}
 body{font-family:var(--font-ui);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font-family:inherit}
 .brand-lockup .brand-type strong{font-weight:700;letter-spacing:0!important}

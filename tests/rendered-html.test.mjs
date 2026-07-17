@@ -169,5 +169,35 @@ test("the 09:25 auction result creates a plan instead of an executable order", a
 
   assert.match(source, /09:25 集合竞价初判/);
   assert.match(source, /这不是买卖点/);
-  assert.match(source, /09:36 起才允许小仓正式信号/);
+  assert.match(source, /09:30 开始扫描，最早 09:33 显示候选，09:36 后才允许经确认的小仓正式信号/);
+});
+
+test("public beta has an honest no-registration entry and legal disclosure", async () => {
+  const landing = await readFile(new URL("../app/public-landing.tsx", import.meta.url), "utf8");
+  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+
+  assert.match(landing, /免注册进入演示/);
+  assert.match(landing, /创建本机测试账户/);
+  assert.match(landing, /公开测试版/);
+  assert.match(landing, /href="\/terms"/);
+  assert.match(landing, /href="\/privacy"/);
+  assert.doesNotMatch(layout, /next\/font\/google/);
+});
+
+test("every monitored stock shows an explicit event-radar state", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /暂无新增/);
+  assert.match(source, /雷达待更新/);
+  assert.match(source, /扫描中/);
+  assert.match(source, /ticker-event quiet/);
+  assert.match(source, /ticker-event pending/);
+});
+
+test("a market risk lock explains its score and concrete triggers", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /currentContext\.gate\.reasons\.join\("、"\)/);
+  assert.match(source, /外部环境雷达 \$\{currentContext\.gate\.score\}\/100/);
+  assert.match(source, /禁止新开 T，只允许恢复底仓/);
 });
