@@ -13,15 +13,19 @@ const productFeatures = [
 ];
 
 export default function PublicLanding({onDemo,onAccount}:PublicLandingProps) {
+  const openZijinExperiment=()=>{
+    window.history.replaceState({},"","/?view=zijin-lab");
+    onDemo();
+  };
   return <main className="public-site">
     <header className="public-nav">
       <a className="public-brand" href="#top" aria-label="做T神器首页"><img src="/rabbit-logo-compact.png" alt="做T神器双兔标志"/><span><b>做<span>T</span>神器</b><small>SMART INTRADAY SYSTEM</small></span></a>
-      <nav aria-label="产品导航"><a href="#features">核心功能</a><a href="#workflow">使用流程</a><a href="#safety">安全边界</a></nav>
+      <nav aria-label="产品导航"><a href="#features">核心功能</a><a href="#workflow">使用流程</a><a href="#safety">安全边界</a><a href="/?view=zijin-lab" onClick={event=>{event.preventDefault();openZijinExperiment()}}>紫金实验进度</a></nav>
       <button onClick={onAccount}>登录 / 注册</button>
     </header>
 
     <section className="public-hero" id="top">
-      <div className="public-hero-copy"><span className="public-kicker"><i/>A 股日内策略研究终端 · 公开测试</span><h1>把复杂盘面，<br/>变成<strong>有依据的提醒。</strong></h1><p>围绕单只股票的日内走势、VWAP、量价、底仓与风险做因果判断。系统只提示，不连接券商，不替用户下单。</p><div className="public-cta"><button onClick={onDemo}>免注册进入演示 <span>→</span></button><button onClick={onAccount}>创建本机测试账户</button></div><small>演示无需密码 · 公开行情非交易级 · 不构成投资建议</small></div>
+      <div className="public-hero-copy"><span className="public-kicker"><i/>A 股日内策略研究终端 · 公开测试</span><h1>把复杂盘面，<br/>变成<strong>有依据的提醒。</strong></h1><p>围绕单只股票的日内走势、VWAP、量价、底仓与风险做因果判断。系统只提示，不连接券商，不替用户下单。</p><div className="public-cta"><button onClick={onDemo}>免注册进入演示 <span>→</span></button><button onClick={openZijinExperiment}>查看紫金实验进度</button><button onClick={onAccount}>创建本机测试账户</button></div><small>演示无需密码 · 公开行情非交易级 · 不构成投资建议</small></div>
       <div className="public-terminal" aria-label="操盘台产品预览">
         <header><span><i/>实时监控结构预览</span><em>下单接口关闭</em></header>
         <div className="public-quote"><span><small>601899</small><b>紫金矿业</b></span><strong>--<small>等待行情</small></strong></div>
