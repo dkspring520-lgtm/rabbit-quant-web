@@ -5,6 +5,7 @@ import test from "node:test";
 const evidenceUrl = new URL("../public/research/zijin-factor-evidence.json", import.meta.url);
 const progressUrl = new URL("../public/research/zijin-training-progress.json", import.meta.url);
 const patternUrl = new URL("../public/research/zijin-pattern-discovery.json", import.meta.url);
+const peerPatternUrl = new URL("../public/research/zijin-peer-pattern-discovery.json", import.meta.url);
 
 test("Zijin historical evidence is causal, isolated and split before blind testing", async () => {
   const evidence = JSON.parse(await readFile(evidenceUrl, "utf8"));
@@ -67,4 +68,21 @@ test("Zijin pattern discovery rejects unstable price-volume rules without future
   assert.ok(pattern.conclusion.nextRequiredFactors.includes("国际金价与铜价"));
   assert.equal(pattern.sequenceAudit.validation.trades, 0);
   assert.equal(pattern.sequenceAudit.blindTest.trades, 0);
+});
+
+test("Zijin peer and prior-day research stays causal and isolated from V4", async () => {
+  const pattern = JSON.parse(await readFile(peerPatternUrl, "utf8"));
+  assert.equal(pattern.stock.marketCode, "601899.SH");
+  assert.equal(pattern.affectsV4, false);
+  assert.equal(pattern.dataset.stockCount, 7);
+  assert.equal(pattern.dataset.minuteRows, 1749419);
+  assert.equal(pattern.dataset.tradingDays, 1037);
+  assert.equal(pattern.dataset.meanPeerCoverage, 1);
+  assert.equal(pattern.methodology.causalFeatures, true);
+  assert.equal(pattern.methodology.earliestFill, "下一分钟开盘价");
+  assert.equal(pattern.methodology.futureUse, "仅作为结果标签");
+  assert.equal(pattern.methodology.selectionUsesBlindTest, false);
+  assert.ok(pattern.methodology.peerFeatures.includes("zijinAlphaVwapPct"));
+  assert.ok(pattern.methodology.dailyContextFeatures.includes("rolling20ReturnPct"));
+  assert.equal(pattern.conclusion.deployment, "研究结果不自动进入Smart-T V4");
 });

@@ -1,0 +1,5863 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "marketCode": "601899.SH",
+    "name": "紫金矿业"
+  },
+  "mode": "research-only",
+  "affectsV4": false,
+  "dataset": {
+    "firstDate": "20220104",
+    "lastDate": "20260417",
+    "minuteRows": 1749419,
+    "stockCount": 7,
+    "tradingDays": 1037,
+    "labeledScenarios": 31567,
+    "completeTargetDays": 1037,
+    "meanPeerCoverage": 1.0,
+    "minimumPeerCoverage": 1.0,
+    "securities": [
+      {
+        "code": "601899",
+        "name": "紫金矿业",
+        "group": "target"
+      },
+      {
+        "code": "603993",
+        "name": "洛阳钼业",
+        "group": "copper"
+      },
+      {
+        "code": "600362",
+        "name": "江西铜业",
+        "group": "copper"
+      },
+      {
+        "code": "000630",
+        "name": "铜陵有色",
+        "group": "copper"
+      },
+      {
+        "code": "600547",
+        "name": "山东黄金",
+        "group": "gold"
+      },
+      {
+        "code": "600489",
+        "name": "中金黄金",
+        "group": "gold"
+      },
+      {
+        "code": "601600",
+        "name": "中国铝业",
+        "group": "nonferrous"
+      }
+    ]
+  },
+  "methodology": {
+    "training": "2022-2024",
+    "validation": "2025",
+    "blindTest": "2026-01-05..2026-04-17",
+    "causalFeatures": true,
+    "earliestFill": "下一分钟开盘价",
+    "futureUse": "仅作为结果标签",
+    "selectionUsesBlindTest": false,
+    "modelConfigCountPerDirection": 20,
+    "features": [
+      "minuteOfDay",
+      "gapPct",
+      "openDeviationPct",
+      "vwapBiasPct",
+      "vwapSlope5Pct",
+      "return3Pct",
+      "return5Pct",
+      "ma5SlopePct",
+      "ma10SlopePct",
+      "volumeRatio",
+      "pullbackVolumeRatio",
+      "priceZscore",
+      "atrPct",
+      "intradayPosition",
+      "rangePct",
+      "drawdownFromHighPct",
+      "reboundFromLowPct",
+      "peerReturn3Pct",
+      "peerReturn5Pct",
+      "peerVwapBiasPct",
+      "peerOpenDeviationPct",
+      "peerVolumeRatio",
+      "peerBreadth3",
+      "peerBreadthVwap",
+      "goldReturn3Pct",
+      "goldReturn5Pct",
+      "copperReturn3Pct",
+      "copperReturn5Pct",
+      "zijinAlpha3Pct",
+      "zijinAlpha5Pct",
+      "zijinAlphaVwapPct",
+      "zijinAlphaOpenPct",
+      "peerCoverage",
+      "priorDayReturnPct",
+      "priorDayRangePct",
+      "priorDayClosePosition",
+      "rolling5ReturnPct",
+      "rolling20ReturnPct",
+      "rolling5RangePct",
+      "rolling20RangePct",
+      "priorDayVolumeRatio5",
+      "priorPeerReturnPct",
+      "priorGoldReturnPct",
+      "priorCopperReturnPct",
+      "priorZijinPeerAlphaPct"
+    ],
+    "peerFeatures": [
+      "peerReturn3Pct",
+      "peerReturn5Pct",
+      "peerVwapBiasPct",
+      "peerOpenDeviationPct",
+      "peerVolumeRatio",
+      "peerBreadth3",
+      "peerBreadthVwap",
+      "goldReturn3Pct",
+      "goldReturn5Pct",
+      "copperReturn3Pct",
+      "copperReturn5Pct",
+      "zijinAlpha3Pct",
+      "zijinAlpha5Pct",
+      "zijinAlphaVwapPct",
+      "zijinAlphaOpenPct",
+      "peerCoverage"
+    ],
+    "dailyContextFeatures": [
+      "priorDayReturnPct",
+      "priorDayRangePct",
+      "priorDayClosePosition",
+      "rolling5ReturnPct",
+      "rolling20ReturnPct",
+      "rolling5RangePct",
+      "rolling20RangePct",
+      "priorDayVolumeRatio5",
+      "priorPeerReturnPct",
+      "priorGoldReturnPct",
+      "priorCopperReturnPct",
+      "priorZijinPeerAlphaPct"
+    ],
+    "roundTripCostPct": 0.12,
+    "netProfitZonePct": [
+      0.64,
+      1.0
+    ],
+    "maxHoldMinutes": 60,
+    "maxTradesPerDay": 2
+  },
+  "baseline": {
+    "positive": {
+      "training": {
+        "trades": 1403,
+        "wins": 513,
+        "winRate": 0.3656,
+        "averageNetPct": -0.1235,
+        "totalNetPct": -173.231,
+        "targetRate": 0.2937,
+        "averageHoldMinutes": 24.34
+      },
+      "validation": {
+        "trades": 474,
+        "wins": 189,
+        "winRate": 0.3987,
+        "averageNetPct": -0.0892,
+        "totalNetPct": -42.2905,
+        "targetRate": 0.2932,
+        "averageHoldMinutes": 26.59
+      },
+      "blindTest": {
+        "trades": 136,
+        "wins": 42,
+        "winRate": 0.3088,
+        "averageNetPct": -0.1792,
+        "totalNetPct": -24.3683,
+        "targetRate": 0.2794,
+        "averageHoldMinutes": 15.17
+      }
+    },
+    "reverse": {
+      "training": {
+        "trades": 1358,
+        "wins": 513,
+        "winRate": 0.3778,
+        "averageNetPct": -0.1221,
+        "totalNetPct": -165.7506,
+        "targetRate": 0.2857,
+        "averageHoldMinutes": 23.49
+      },
+      "validation": {
+        "trades": 461,
+        "wins": 146,
+        "winRate": 0.3167,
+        "averageNetPct": -0.1693,
+        "totalNetPct": -78.025,
+        "targetRate": 0.243,
+        "averageHoldMinutes": 23.54
+      },
+      "blindTest": {
+        "trades": 131,
+        "wins": 49,
+        "winRate": 0.374,
+        "averageNetPct": -0.0932,
+        "totalNetPct": -12.2105,
+        "targetRate": 0.3282,
+        "averageHoldMinutes": 16.5
+      }
+    }
+  },
+  "selectedWithoutBlind": {
+    "positive": null,
+    "reverse": null
+  },
+  "blindAuditPassed": {
+    "positive": false,
+    "reverse": false
+  },
+  "stableRuleCount": 0,
+  "searchSummary": {
+    "positive": [
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 40,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 11,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR > +0.21%"
+            ],
+            "training": {
+              "trades": 57,
+              "wins": 21,
+              "winRate": 0.3684,
+              "averageNetPct": -0.079,
+              "totalNetPct": -4.5054,
+              "targetRate": 0.3158,
+              "averageHoldMinutes": 26.84
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 20,
+                "wins": 8,
+                "winRate": 0.4,
+                "averageNetPct": -0.0473,
+                "totalNetPct": -0.9451,
+                "targetRate": 0.3,
+                "averageHoldMinutes": 32.9
+              },
+              "2023": {
+                "trades": 29,
+                "wins": 11,
+                "winRate": 0.3793,
+                "averageNetPct": -0.0893,
+                "totalNetPct": -2.5903,
+                "targetRate": 0.3448,
+                "averageHoldMinutes": 24.24
+              },
+              "2024": {
+                "trades": 8,
+                "wins": 2,
+                "winRate": 0.25,
+                "averageNetPct": -0.1213,
+                "totalNetPct": -0.97,
+                "targetRate": 0.25,
+                "averageHoldMinutes": 21.12
+              }
+            },
+            "validation": {
+              "trades": 11,
+              "wins": 5,
+              "winRate": 0.4545,
+              "averageNetPct": 0.058,
+              "totalNetPct": 0.6381,
+              "targetRate": 0.4545,
+              "averageHoldMinutes": 26.27
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.57,
+              "totalNetPct": -1.14,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 12.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 4,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 > +1.74%"
+            ],
+            "training": {
+              "trades": 331,
+              "wins": 147,
+              "winRate": 0.4441,
+              "averageNetPct": -0.0731,
+              "totalNetPct": -24.2044,
+              "targetRate": 0.3051,
+              "averageHoldMinutes": 27.83
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 132,
+                "wins": 51,
+                "winRate": 0.3864,
+                "averageNetPct": -0.1335,
+                "totalNetPct": -17.6168,
+                "targetRate": 0.2727,
+                "averageHoldMinutes": 25.52
+              },
+              "2023": {
+                "trades": 102,
+                "wins": 52,
+                "winRate": 0.5098,
+                "averageNetPct": -0.0143,
+                "totalNetPct": -1.4627,
+                "targetRate": 0.2941,
+                "averageHoldMinutes": 34.01
+              },
+              "2024": {
+                "trades": 97,
+                "wins": 44,
+                "winRate": 0.4536,
+                "averageNetPct": -0.0528,
+                "totalNetPct": -5.1249,
+                "targetRate": 0.3608,
+                "averageHoldMinutes": 24.49
+              }
+            },
+            "validation": {
+              "trades": 88,
+              "wins": 40,
+              "winRate": 0.4545,
+              "averageNetPct": -0.0337,
+              "totalNetPct": -2.9638,
+              "targetRate": 0.3182,
+              "averageHoldMinutes": 27.97
+            },
+            "blindTest": {
+              "trades": 38,
+              "wins": 16,
+              "winRate": 0.4211,
+              "averageNetPct": -0.0669,
+              "totalNetPct": -2.5413,
+              "targetRate": 0.3421,
+              "averageHoldMinutes": 19.61
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 <= 0.54"
+            ],
+            "training": {
+              "trades": 33,
+              "wins": 20,
+              "winRate": 0.6061,
+              "averageNetPct": 0.1621,
+              "totalNetPct": 5.3489,
+              "targetRate": 0.4242,
+              "averageHoldMinutes": 33.24
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 15,
+                "wins": 10,
+                "winRate": 0.6667,
+                "averageNetPct": 0.177,
+                "totalNetPct": 2.6546,
+                "targetRate": 0.4667,
+                "averageHoldMinutes": 31.87
+              },
+              "2023": {
+                "trades": 12,
+                "wins": 8,
+                "winRate": 0.6667,
+                "averageNetPct": 0.2884,
+                "totalNetPct": 3.4603,
+                "targetRate": 0.5,
+                "averageHoldMinutes": 40.33
+              },
+              "2024": {
+                "trades": 6,
+                "wins": 2,
+                "winRate": 0.3333,
+                "averageNetPct": -0.1277,
+                "totalNetPct": -0.766,
+                "targetRate": 0.1667,
+                "averageHoldMinutes": 22.5
+              }
+            },
+            "validation": {
+              "trades": 13,
+              "wins": 5,
+              "winRate": 0.3846,
+              "averageNetPct": -0.0645,
+              "totalNetPct": -0.8385,
+              "targetRate": 0.3077,
+              "averageHoldMinutes": 35.77
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 <= +1.46%"
+            ],
+            "training": {
+              "trades": 959,
+              "wins": 332,
+              "winRate": 0.3462,
+              "averageNetPct": -0.1508,
+              "totalNetPct": -144.6648,
+              "targetRate": 0.2586,
+              "averageHoldMinutes": 27.57
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 312,
+                "wins": 98,
+                "winRate": 0.3141,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -60.3515,
+                "targetRate": 0.2276,
+                "averageHoldMinutes": 25.36
+              },
+              "2023": {
+                "trades": 298,
+                "wins": 120,
+                "winRate": 0.4027,
+                "averageNetPct": -0.0902,
+                "totalNetPct": -26.8921,
+                "targetRate": 0.2819,
+                "averageHoldMinutes": 32.53
+              },
+              "2024": {
+                "trades": 349,
+                "wins": 114,
+                "winRate": 0.3266,
+                "averageNetPct": -0.1645,
+                "totalNetPct": -57.4212,
+                "targetRate": 0.2665,
+                "averageHoldMinutes": 25.31
+              }
+            },
+            "validation": {
+              "trades": 322,
+              "wins": 130,
+              "winRate": 0.4037,
+              "averageNetPct": -0.0858,
+              "totalNetPct": -27.6238,
+              "targetRate": 0.2826,
+              "averageHoldMinutes": 29.56
+            },
+            "blindTest": {
+              "trades": 79,
+              "wins": 28,
+              "winRate": 0.3544,
+              "averageNetPct": -0.0957,
+              "totalNetPct": -7.5635,
+              "targetRate": 0.3418,
+              "averageHoldMinutes": 17.52
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 7,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 > 0.54"
+            ],
+            "training": {
+              "trades": 745,
+              "wins": 290,
+              "winRate": 0.3893,
+              "averageNetPct": -0.0931,
+              "totalNetPct": -69.3687,
+              "targetRate": 0.3034,
+              "averageHoldMinutes": 26.52
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 217,
+                "wins": 72,
+                "winRate": 0.3318,
+                "averageNetPct": -0.1429,
+                "totalNetPct": -31.0064,
+                "targetRate": 0.2765,
+                "averageHoldMinutes": 25.07
+              },
+              "2023": {
+                "trades": 257,
+                "wins": 98,
+                "winRate": 0.3813,
+                "averageNetPct": -0.134,
+                "totalNetPct": -34.4434,
+                "targetRate": 0.249,
+                "averageHoldMinutes": 30.0
+              },
+              "2024": {
+                "trades": 271,
+                "wins": 120,
+                "winRate": 0.4428,
+                "averageNetPct": -0.0145,
+                "totalNetPct": -3.919,
+                "targetRate": 0.3764,
+                "averageHoldMinutes": 24.39
+              }
+            },
+            "validation": {
+              "trades": 262,
+              "wins": 108,
+              "winRate": 0.4122,
+              "averageNetPct": -0.0892,
+              "totalNetPct": -23.3657,
+              "targetRate": 0.2748,
+              "averageHoldMinutes": 30.03
+            },
+            "blindTest": {
+              "trades": 66,
+              "wins": 19,
+              "winRate": 0.2879,
+              "averageNetPct": -0.2074,
+              "totalNetPct": -13.6862,
+              "targetRate": 0.2576,
+              "averageHoldMinutes": 19.94
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR <= +0.21%"
+            ],
+            "training": {
+              "trades": 131,
+              "wins": 31,
+              "winRate": 0.2366,
+              "averageNetPct": -0.2195,
+              "totalNetPct": -28.7556,
+              "targetRate": 0.0992,
+              "averageHoldMinutes": 41.85
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 48,
+                "wins": 12,
+                "winRate": 0.25,
+                "averageNetPct": -0.2242,
+                "totalNetPct": -10.763,
+                "targetRate": 0.0625,
+                "averageHoldMinutes": 43.19
+              },
+              "2023": {
+                "trades": 59,
+                "wins": 14,
+                "winRate": 0.2373,
+                "averageNetPct": -0.2167,
+                "totalNetPct": -12.7867,
+                "targetRate": 0.1186,
+                "averageHoldMinutes": 40.97
+              },
+              "2024": {
+                "trades": 24,
+                "wins": 5,
+                "winRate": 0.2083,
+                "averageNetPct": -0.2169,
+                "totalNetPct": -5.2058,
+                "targetRate": 0.125,
+                "averageHoldMinutes": 41.33
+              }
+            },
+            "validation": {
+              "trades": 42,
+              "wins": 9,
+              "winRate": 0.2143,
+              "averageNetPct": -0.2431,
+              "totalNetPct": -10.2119,
+              "targetRate": 0.0952,
+              "averageHoldMinutes": 40.93
+            },
+            "blindTest": {
+              "trades": 8,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.3562,
+              "totalNetPct": -2.8498,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 34.38
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 > +1.46%"
+            ],
+            "training": {
+              "trades": 110,
+              "wins": 32,
+              "winRate": 0.2909,
+              "averageNetPct": -0.2072,
+              "totalNetPct": -22.7957,
+              "targetRate": 0.2455,
+              "averageHoldMinutes": 19.42
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 34,
+                "wins": 11,
+                "winRate": 0.3235,
+                "averageNetPct": -0.1651,
+                "totalNetPct": -5.6123,
+                "targetRate": 0.2647,
+                "averageHoldMinutes": 20.0
+              },
+              "2023": {
+                "trades": 29,
+                "wins": 8,
+                "winRate": 0.2759,
+                "averageNetPct": -0.2195,
+                "totalNetPct": -6.3669,
+                "targetRate": 0.1724,
+                "averageHoldMinutes": 26.69
+              },
+              "2024": {
+                "trades": 47,
+                "wins": 13,
+                "winRate": 0.2766,
+                "averageNetPct": -0.2301,
+                "totalNetPct": -10.8165,
+                "targetRate": 0.2766,
+                "averageHoldMinutes": 14.51
+              }
+            },
+            "validation": {
+              "trades": 51,
+              "wins": 12,
+              "winRate": 0.2353,
+              "averageNetPct": -0.3178,
+              "totalNetPct": -16.2054,
+              "targetRate": 0.1569,
+              "averageHoldMinutes": 20.8
+            },
+            "blindTest": {
+              "trades": 36,
+              "wins": 7,
+              "winRate": 0.1944,
+              "averageNetPct": -0.287,
+              "totalNetPct": -10.3326,
+              "targetRate": 0.1944,
+              "averageHoldMinutes": 18.06
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 <= +1.74%"
+            ],
+            "training": {
+              "trades": 9,
+              "wins": 3,
+              "winRate": 0.3333,
+              "averageNetPct": -0.1841,
+              "totalNetPct": -1.657,
+              "targetRate": 0.2222,
+              "averageHoldMinutes": 27.22
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 4,
+                "wins": 2,
+                "winRate": 0.5,
+                "averageNetPct": 0.0125,
+                "totalNetPct": 0.0499,
+                "targetRate": 0.25,
+                "averageHoldMinutes": 30.75
+              },
+              "2023": {
+                "trades": 0,
+                "wins": 0,
+                "winRate": null,
+                "averageNetPct": 0.0,
+                "totalNetPct": 0.0,
+                "targetRate": null,
+                "averageHoldMinutes": 0.0
+              },
+              "2024": {
+                "trades": 5,
+                "wins": 1,
+                "winRate": 0.2,
+                "averageNetPct": -0.3414,
+                "totalNetPct": -1.7069,
+                "targetRate": 0.2,
+                "averageHoldMinutes": 24.4
+              }
+            },
+            "validation": {
+              "trades": 3,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.57,
+              "totalNetPct": -1.71,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 31.33
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 60,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 4,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 > +3.94%"
+            ],
+            "training": {
+              "trades": 55,
+              "wins": 19,
+              "winRate": 0.3455,
+              "averageNetPct": -0.1596,
+              "totalNetPct": -8.7758,
+              "targetRate": 0.3273,
+              "averageHoldMinutes": 16.85
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 27,
+                "wins": 6,
+                "winRate": 0.2222,
+                "averageNetPct": -0.3092,
+                "totalNetPct": -8.3484,
+                "targetRate": 0.2222,
+                "averageHoldMinutes": 11.7
+              },
+              "2023": {
+                "trades": 10,
+                "wins": 5,
+                "winRate": 0.5,
+                "averageNetPct": -0.0575,
+                "totalNetPct": -0.5752,
+                "targetRate": 0.4,
+                "averageHoldMinutes": 28.0
+              },
+              "2024": {
+                "trades": 18,
+                "wins": 8,
+                "winRate": 0.4444,
+                "averageNetPct": 0.0082,
+                "totalNetPct": 0.1478,
+                "targetRate": 0.4444,
+                "averageHoldMinutes": 18.39
+              }
+            },
+            "validation": {
+              "trades": 10,
+              "wins": 5,
+              "winRate": 0.5,
+              "averageNetPct": 0.1098,
+              "totalNetPct": 1.0976,
+              "targetRate": 0.5,
+              "averageHoldMinutes": 9.8
+            },
+            "blindTest": {
+              "trades": 16,
+              "wins": 6,
+              "winRate": 0.375,
+              "averageNetPct": -0.1279,
+              "totalNetPct": -2.046,
+              "targetRate": 0.3125,
+              "averageHoldMinutes": 18.19
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR > +0.21%"
+            ],
+            "training": {
+              "trades": 57,
+              "wins": 21,
+              "winRate": 0.3684,
+              "averageNetPct": -0.079,
+              "totalNetPct": -4.5054,
+              "targetRate": 0.3158,
+              "averageHoldMinutes": 26.84
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 20,
+                "wins": 8,
+                "winRate": 0.4,
+                "averageNetPct": -0.0473,
+                "totalNetPct": -0.9451,
+                "targetRate": 0.3,
+                "averageHoldMinutes": 32.9
+              },
+              "2023": {
+                "trades": 29,
+                "wins": 11,
+                "winRate": 0.3793,
+                "averageNetPct": -0.0893,
+                "totalNetPct": -2.5903,
+                "targetRate": 0.3448,
+                "averageHoldMinutes": 24.24
+              },
+              "2024": {
+                "trades": 8,
+                "wins": 2,
+                "winRate": 0.25,
+                "averageNetPct": -0.1213,
+                "totalNetPct": -0.97,
+                "targetRate": 0.25,
+                "averageHoldMinutes": 21.12
+              }
+            },
+            "validation": {
+              "trades": 11,
+              "wins": 5,
+              "winRate": 0.4545,
+              "averageNetPct": 0.058,
+              "totalNetPct": 0.6381,
+              "targetRate": 0.4545,
+              "averageHoldMinutes": 26.27
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.57,
+              "totalNetPct": -1.14,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 12.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 <= 0.54"
+            ],
+            "training": {
+              "trades": 33,
+              "wins": 20,
+              "winRate": 0.6061,
+              "averageNetPct": 0.1621,
+              "totalNetPct": 5.3489,
+              "targetRate": 0.4242,
+              "averageHoldMinutes": 33.24
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 15,
+                "wins": 10,
+                "winRate": 0.6667,
+                "averageNetPct": 0.177,
+                "totalNetPct": 2.6546,
+                "targetRate": 0.4667,
+                "averageHoldMinutes": 31.87
+              },
+              "2023": {
+                "trades": 12,
+                "wins": 8,
+                "winRate": 0.6667,
+                "averageNetPct": 0.2884,
+                "totalNetPct": 3.4603,
+                "targetRate": 0.5,
+                "averageHoldMinutes": 40.33
+              },
+              "2024": {
+                "trades": 6,
+                "wins": 2,
+                "winRate": 0.3333,
+                "averageNetPct": -0.1277,
+                "totalNetPct": -0.766,
+                "targetRate": 0.1667,
+                "averageHoldMinutes": 22.5
+              }
+            },
+            "validation": {
+              "trades": 13,
+              "wins": 5,
+              "winRate": 0.3846,
+              "averageNetPct": -0.0645,
+              "totalNetPct": -0.8385,
+              "targetRate": 0.3077,
+              "averageHoldMinutes": 35.77
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 <= +3.94%"
+            ],
+            "training": {
+              "trades": 285,
+              "wins": 131,
+              "winRate": 0.4596,
+              "averageNetPct": -0.0599,
+              "totalNetPct": -17.0856,
+              "targetRate": 0.2982,
+              "averageHoldMinutes": 29.93
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 109,
+                "wins": 47,
+                "winRate": 0.4312,
+                "averageNetPct": -0.0846,
+                "totalNetPct": -9.2185,
+                "targetRate": 0.2844,
+                "averageHoldMinutes": 29.13
+              },
+              "2023": {
+                "trades": 92,
+                "wins": 47,
+                "winRate": 0.5109,
+                "averageNetPct": -0.0096,
+                "totalNetPct": -0.8876,
+                "targetRate": 0.2826,
+                "averageHoldMinutes": 34.66
+              },
+              "2024": {
+                "trades": 84,
+                "wins": 37,
+                "winRate": 0.4405,
+                "averageNetPct": -0.0831,
+                "totalNetPct": -6.9796,
+                "targetRate": 0.3333,
+                "averageHoldMinutes": 25.8
+              }
+            },
+            "validation": {
+              "trades": 81,
+              "wins": 35,
+              "winRate": 0.4321,
+              "averageNetPct": -0.0713,
+              "totalNetPct": -5.7715,
+              "targetRate": 0.284,
+              "averageHoldMinutes": 30.33
+            },
+            "blindTest": {
+              "trades": 22,
+              "wins": 10,
+              "winRate": 0.4545,
+              "averageNetPct": -0.0225,
+              "totalNetPct": -0.4952,
+              "targetRate": 0.3636,
+              "averageHoldMinutes": 20.64
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 <= +1.46%"
+            ],
+            "training": {
+              "trades": 959,
+              "wins": 332,
+              "winRate": 0.3462,
+              "averageNetPct": -0.1508,
+              "totalNetPct": -144.6648,
+              "targetRate": 0.2586,
+              "averageHoldMinutes": 27.57
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 312,
+                "wins": 98,
+                "winRate": 0.3141,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -60.3515,
+                "targetRate": 0.2276,
+                "averageHoldMinutes": 25.36
+              },
+              "2023": {
+                "trades": 298,
+                "wins": 120,
+                "winRate": 0.4027,
+                "averageNetPct": -0.0902,
+                "totalNetPct": -26.8921,
+                "targetRate": 0.2819,
+                "averageHoldMinutes": 32.53
+              },
+              "2024": {
+                "trades": 349,
+                "wins": 114,
+                "winRate": 0.3266,
+                "averageNetPct": -0.1645,
+                "totalNetPct": -57.4212,
+                "targetRate": 0.2665,
+                "averageHoldMinutes": 25.31
+              }
+            },
+            "validation": {
+              "trades": 322,
+              "wins": 130,
+              "winRate": 0.4037,
+              "averageNetPct": -0.0858,
+              "totalNetPct": -27.6238,
+              "targetRate": 0.2826,
+              "averageHoldMinutes": 29.56
+            },
+            "blindTest": {
+              "trades": 79,
+              "wins": 28,
+              "winRate": 0.3544,
+              "averageNetPct": -0.0957,
+              "totalNetPct": -7.5635,
+              "targetRate": 0.3418,
+              "averageHoldMinutes": 17.52
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 7,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 > 0.54"
+            ],
+            "training": {
+              "trades": 745,
+              "wins": 290,
+              "winRate": 0.3893,
+              "averageNetPct": -0.0931,
+              "totalNetPct": -69.3687,
+              "targetRate": 0.3034,
+              "averageHoldMinutes": 26.52
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 217,
+                "wins": 72,
+                "winRate": 0.3318,
+                "averageNetPct": -0.1429,
+                "totalNetPct": -31.0064,
+                "targetRate": 0.2765,
+                "averageHoldMinutes": 25.07
+              },
+              "2023": {
+                "trades": 257,
+                "wins": 98,
+                "winRate": 0.3813,
+                "averageNetPct": -0.134,
+                "totalNetPct": -34.4434,
+                "targetRate": 0.249,
+                "averageHoldMinutes": 30.0
+              },
+              "2024": {
+                "trades": 271,
+                "wins": 120,
+                "winRate": 0.4428,
+                "averageNetPct": -0.0145,
+                "totalNetPct": -3.919,
+                "targetRate": 0.3764,
+                "averageHoldMinutes": 24.39
+              }
+            },
+            "validation": {
+              "trades": 262,
+              "wins": 108,
+              "winRate": 0.4122,
+              "averageNetPct": -0.0892,
+              "totalNetPct": -23.3657,
+              "targetRate": 0.2748,
+              "averageHoldMinutes": 30.03
+            },
+            "blindTest": {
+              "trades": 66,
+              "wins": 19,
+              "winRate": 0.2879,
+              "averageNetPct": -0.2074,
+              "totalNetPct": -13.6862,
+              "targetRate": 0.2576,
+              "averageHoldMinutes": 19.94
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR <= +0.21%"
+            ],
+            "training": {
+              "trades": 131,
+              "wins": 31,
+              "winRate": 0.2366,
+              "averageNetPct": -0.2195,
+              "totalNetPct": -28.7556,
+              "targetRate": 0.0992,
+              "averageHoldMinutes": 41.85
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 48,
+                "wins": 12,
+                "winRate": 0.25,
+                "averageNetPct": -0.2242,
+                "totalNetPct": -10.763,
+                "targetRate": 0.0625,
+                "averageHoldMinutes": 43.19
+              },
+              "2023": {
+                "trades": 59,
+                "wins": 14,
+                "winRate": 0.2373,
+                "averageNetPct": -0.2167,
+                "totalNetPct": -12.7867,
+                "targetRate": 0.1186,
+                "averageHoldMinutes": 40.97
+              },
+              "2024": {
+                "trades": 24,
+                "wins": 5,
+                "winRate": 0.2083,
+                "averageNetPct": -0.2169,
+                "totalNetPct": -5.2058,
+                "targetRate": 0.125,
+                "averageHoldMinutes": 41.33
+              }
+            },
+            "validation": {
+              "trades": 42,
+              "wins": 9,
+              "winRate": 0.2143,
+              "averageNetPct": -0.2431,
+              "totalNetPct": -10.2119,
+              "targetRate": 0.0952,
+              "averageHoldMinutes": 40.93
+            },
+            "blindTest": {
+              "trades": 8,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.3562,
+              "totalNetPct": -2.8498,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 34.38
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 > +1.46%"
+            ],
+            "training": {
+              "trades": 110,
+              "wins": 32,
+              "winRate": 0.2909,
+              "averageNetPct": -0.2072,
+              "totalNetPct": -22.7957,
+              "targetRate": 0.2455,
+              "averageHoldMinutes": 19.42
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 34,
+                "wins": 11,
+                "winRate": 0.3235,
+                "averageNetPct": -0.1651,
+                "totalNetPct": -5.6123,
+                "targetRate": 0.2647,
+                "averageHoldMinutes": 20.0
+              },
+              "2023": {
+                "trades": 29,
+                "wins": 8,
+                "winRate": 0.2759,
+                "averageNetPct": -0.2195,
+                "totalNetPct": -6.3669,
+                "targetRate": 0.1724,
+                "averageHoldMinutes": 26.69
+              },
+              "2024": {
+                "trades": 47,
+                "wins": 13,
+                "winRate": 0.2766,
+                "averageNetPct": -0.2301,
+                "totalNetPct": -10.8165,
+                "targetRate": 0.2766,
+                "averageHoldMinutes": 14.51
+              }
+            },
+            "validation": {
+              "trades": 51,
+              "wins": 12,
+              "winRate": 0.2353,
+              "averageNetPct": -0.3178,
+              "totalNetPct": -16.2054,
+              "targetRate": 0.1569,
+              "averageHoldMinutes": 20.8
+            },
+            "blindTest": {
+              "trades": 36,
+              "wins": 7,
+              "winRate": 0.1944,
+              "averageNetPct": -0.287,
+              "totalNetPct": -10.3326,
+              "targetRate": 0.1944,
+              "averageHoldMinutes": 18.06
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 80,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 4,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 > +3.94%"
+            ],
+            "training": {
+              "trades": 55,
+              "wins": 19,
+              "winRate": 0.3455,
+              "averageNetPct": -0.1596,
+              "totalNetPct": -8.7758,
+              "targetRate": 0.3273,
+              "averageHoldMinutes": 16.85
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 27,
+                "wins": 6,
+                "winRate": 0.2222,
+                "averageNetPct": -0.3092,
+                "totalNetPct": -8.3484,
+                "targetRate": 0.2222,
+                "averageHoldMinutes": 11.7
+              },
+              "2023": {
+                "trades": 10,
+                "wins": 5,
+                "winRate": 0.5,
+                "averageNetPct": -0.0575,
+                "totalNetPct": -0.5752,
+                "targetRate": 0.4,
+                "averageHoldMinutes": 28.0
+              },
+              "2024": {
+                "trades": 18,
+                "wins": 8,
+                "winRate": 0.4444,
+                "averageNetPct": 0.0082,
+                "totalNetPct": 0.1478,
+                "targetRate": 0.4444,
+                "averageHoldMinutes": 18.39
+              }
+            },
+            "validation": {
+              "trades": 10,
+              "wins": 5,
+              "winRate": 0.5,
+              "averageNetPct": 0.1098,
+              "totalNetPct": 1.0976,
+              "targetRate": 0.5,
+              "averageHoldMinutes": 9.8
+            },
+            "blindTest": {
+              "trades": 16,
+              "wins": 6,
+              "winRate": 0.375,
+              "averageNetPct": -0.1279,
+              "totalNetPct": -2.046,
+              "targetRate": 0.3125,
+              "averageHoldMinutes": 18.19
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR > +0.21%"
+            ],
+            "training": {
+              "trades": 57,
+              "wins": 21,
+              "winRate": 0.3684,
+              "averageNetPct": -0.079,
+              "totalNetPct": -4.5054,
+              "targetRate": 0.3158,
+              "averageHoldMinutes": 26.84
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 20,
+                "wins": 8,
+                "winRate": 0.4,
+                "averageNetPct": -0.0473,
+                "totalNetPct": -0.9451,
+                "targetRate": 0.3,
+                "averageHoldMinutes": 32.9
+              },
+              "2023": {
+                "trades": 29,
+                "wins": 11,
+                "winRate": 0.3793,
+                "averageNetPct": -0.0893,
+                "totalNetPct": -2.5903,
+                "targetRate": 0.3448,
+                "averageHoldMinutes": 24.24
+              },
+              "2024": {
+                "trades": 8,
+                "wins": 2,
+                "winRate": 0.25,
+                "averageNetPct": -0.1213,
+                "totalNetPct": -0.97,
+                "targetRate": 0.25,
+                "averageHoldMinutes": 21.12
+              }
+            },
+            "validation": {
+              "trades": 11,
+              "wins": 5,
+              "winRate": 0.4545,
+              "averageNetPct": 0.058,
+              "totalNetPct": 0.6381,
+              "targetRate": 0.4545,
+              "averageHoldMinutes": 26.27
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.57,
+              "totalNetPct": -1.14,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 12.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 <= 0.54"
+            ],
+            "training": {
+              "trades": 33,
+              "wins": 20,
+              "winRate": 0.6061,
+              "averageNetPct": 0.1621,
+              "totalNetPct": 5.3489,
+              "targetRate": 0.4242,
+              "averageHoldMinutes": 33.24
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 15,
+                "wins": 10,
+                "winRate": 0.6667,
+                "averageNetPct": 0.177,
+                "totalNetPct": 2.6546,
+                "targetRate": 0.4667,
+                "averageHoldMinutes": 31.87
+              },
+              "2023": {
+                "trades": 12,
+                "wins": 8,
+                "winRate": 0.6667,
+                "averageNetPct": 0.2884,
+                "totalNetPct": 3.4603,
+                "targetRate": 0.5,
+                "averageHoldMinutes": 40.33
+              },
+              "2024": {
+                "trades": 6,
+                "wins": 2,
+                "winRate": 0.3333,
+                "averageNetPct": -0.1277,
+                "totalNetPct": -0.766,
+                "targetRate": 0.1667,
+                "averageHoldMinutes": 22.5
+              }
+            },
+            "validation": {
+              "trades": 13,
+              "wins": 5,
+              "winRate": 0.3846,
+              "averageNetPct": -0.0645,
+              "totalNetPct": -0.8385,
+              "targetRate": 0.3077,
+              "averageHoldMinutes": 35.77
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 <= +3.94%"
+            ],
+            "training": {
+              "trades": 285,
+              "wins": 131,
+              "winRate": 0.4596,
+              "averageNetPct": -0.0599,
+              "totalNetPct": -17.0856,
+              "targetRate": 0.2982,
+              "averageHoldMinutes": 29.93
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 109,
+                "wins": 47,
+                "winRate": 0.4312,
+                "averageNetPct": -0.0846,
+                "totalNetPct": -9.2185,
+                "targetRate": 0.2844,
+                "averageHoldMinutes": 29.13
+              },
+              "2023": {
+                "trades": 92,
+                "wins": 47,
+                "winRate": 0.5109,
+                "averageNetPct": -0.0096,
+                "totalNetPct": -0.8876,
+                "targetRate": 0.2826,
+                "averageHoldMinutes": 34.66
+              },
+              "2024": {
+                "trades": 84,
+                "wins": 37,
+                "winRate": 0.4405,
+                "averageNetPct": -0.0831,
+                "totalNetPct": -6.9796,
+                "targetRate": 0.3333,
+                "averageHoldMinutes": 25.8
+              }
+            },
+            "validation": {
+              "trades": 81,
+              "wins": 35,
+              "winRate": 0.4321,
+              "averageNetPct": -0.0713,
+              "totalNetPct": -5.7715,
+              "targetRate": 0.284,
+              "averageHoldMinutes": 30.33
+            },
+            "blindTest": {
+              "trades": 22,
+              "wins": 10,
+              "winRate": 0.4545,
+              "averageNetPct": -0.0225,
+              "totalNetPct": -0.4952,
+              "targetRate": 0.3636,
+              "averageHoldMinutes": 20.64
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 <= +1.46%"
+            ],
+            "training": {
+              "trades": 959,
+              "wins": 332,
+              "winRate": 0.3462,
+              "averageNetPct": -0.1508,
+              "totalNetPct": -144.6648,
+              "targetRate": 0.2586,
+              "averageHoldMinutes": 27.57
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 312,
+                "wins": 98,
+                "winRate": 0.3141,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -60.3515,
+                "targetRate": 0.2276,
+                "averageHoldMinutes": 25.36
+              },
+              "2023": {
+                "trades": 298,
+                "wins": 120,
+                "winRate": 0.4027,
+                "averageNetPct": -0.0902,
+                "totalNetPct": -26.8921,
+                "targetRate": 0.2819,
+                "averageHoldMinutes": 32.53
+              },
+              "2024": {
+                "trades": 349,
+                "wins": 114,
+                "winRate": 0.3266,
+                "averageNetPct": -0.1645,
+                "totalNetPct": -57.4212,
+                "targetRate": 0.2665,
+                "averageHoldMinutes": 25.31
+              }
+            },
+            "validation": {
+              "trades": 322,
+              "wins": 130,
+              "winRate": 0.4037,
+              "averageNetPct": -0.0858,
+              "totalNetPct": -27.6238,
+              "targetRate": 0.2826,
+              "averageHoldMinutes": 29.56
+            },
+            "blindTest": {
+              "trades": 79,
+              "wins": 28,
+              "winRate": 0.3544,
+              "averageNetPct": -0.0957,
+              "totalNetPct": -7.5635,
+              "targetRate": 0.3418,
+              "averageHoldMinutes": 17.52
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 7,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 > 0.54"
+            ],
+            "training": {
+              "trades": 745,
+              "wins": 290,
+              "winRate": 0.3893,
+              "averageNetPct": -0.0931,
+              "totalNetPct": -69.3687,
+              "targetRate": 0.3034,
+              "averageHoldMinutes": 26.52
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 217,
+                "wins": 72,
+                "winRate": 0.3318,
+                "averageNetPct": -0.1429,
+                "totalNetPct": -31.0064,
+                "targetRate": 0.2765,
+                "averageHoldMinutes": 25.07
+              },
+              "2023": {
+                "trades": 257,
+                "wins": 98,
+                "winRate": 0.3813,
+                "averageNetPct": -0.134,
+                "totalNetPct": -34.4434,
+                "targetRate": 0.249,
+                "averageHoldMinutes": 30.0
+              },
+              "2024": {
+                "trades": 271,
+                "wins": 120,
+                "winRate": 0.4428,
+                "averageNetPct": -0.0145,
+                "totalNetPct": -3.919,
+                "targetRate": 0.3764,
+                "averageHoldMinutes": 24.39
+              }
+            },
+            "validation": {
+              "trades": 262,
+              "wins": 108,
+              "winRate": 0.4122,
+              "averageNetPct": -0.0892,
+              "totalNetPct": -23.3657,
+              "targetRate": 0.2748,
+              "averageHoldMinutes": 30.03
+            },
+            "blindTest": {
+              "trades": 66,
+              "wins": 19,
+              "winRate": 0.2879,
+              "averageNetPct": -0.2074,
+              "totalNetPct": -13.6862,
+              "targetRate": 0.2576,
+              "averageHoldMinutes": 19.94
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR <= +0.21%"
+            ],
+            "training": {
+              "trades": 131,
+              "wins": 31,
+              "winRate": 0.2366,
+              "averageNetPct": -0.2195,
+              "totalNetPct": -28.7556,
+              "targetRate": 0.0992,
+              "averageHoldMinutes": 41.85
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 48,
+                "wins": 12,
+                "winRate": 0.25,
+                "averageNetPct": -0.2242,
+                "totalNetPct": -10.763,
+                "targetRate": 0.0625,
+                "averageHoldMinutes": 43.19
+              },
+              "2023": {
+                "trades": 59,
+                "wins": 14,
+                "winRate": 0.2373,
+                "averageNetPct": -0.2167,
+                "totalNetPct": -12.7867,
+                "targetRate": 0.1186,
+                "averageHoldMinutes": 40.97
+              },
+              "2024": {
+                "trades": 24,
+                "wins": 5,
+                "winRate": 0.2083,
+                "averageNetPct": -0.2169,
+                "totalNetPct": -5.2058,
+                "targetRate": 0.125,
+                "averageHoldMinutes": 41.33
+              }
+            },
+            "validation": {
+              "trades": 42,
+              "wins": 9,
+              "winRate": 0.2143,
+              "averageNetPct": -0.2431,
+              "totalNetPct": -10.2119,
+              "targetRate": 0.0952,
+              "averageHoldMinutes": 40.93
+            },
+            "blindTest": {
+              "trades": 8,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.3562,
+              "totalNetPct": -2.8498,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 34.38
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 > +1.46%"
+            ],
+            "training": {
+              "trades": 110,
+              "wins": 32,
+              "winRate": 0.2909,
+              "averageNetPct": -0.2072,
+              "totalNetPct": -22.7957,
+              "targetRate": 0.2455,
+              "averageHoldMinutes": 19.42
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 34,
+                "wins": 11,
+                "winRate": 0.3235,
+                "averageNetPct": -0.1651,
+                "totalNetPct": -5.6123,
+                "targetRate": 0.2647,
+                "averageHoldMinutes": 20.0
+              },
+              "2023": {
+                "trades": 29,
+                "wins": 8,
+                "winRate": 0.2759,
+                "averageNetPct": -0.2195,
+                "totalNetPct": -6.3669,
+                "targetRate": 0.1724,
+                "averageHoldMinutes": 26.69
+              },
+              "2024": {
+                "trades": 47,
+                "wins": 13,
+                "winRate": 0.2766,
+                "averageNetPct": -0.2301,
+                "totalNetPct": -10.8165,
+                "targetRate": 0.2766,
+                "averageHoldMinutes": 14.51
+              }
+            },
+            "validation": {
+              "trades": 51,
+              "wins": 12,
+              "winRate": 0.2353,
+              "averageNetPct": -0.3178,
+              "totalNetPct": -16.2054,
+              "targetRate": 0.1569,
+              "averageHoldMinutes": 20.8
+            },
+            "blindTest": {
+              "trades": 36,
+              "wins": 7,
+              "winRate": 0.1944,
+              "averageNetPct": -0.287,
+              "totalNetPct": -10.3326,
+              "targetRate": 0.1944,
+              "averageHoldMinutes": 18.06
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 100,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 4,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 > +3.94%"
+            ],
+            "training": {
+              "trades": 55,
+              "wins": 19,
+              "winRate": 0.3455,
+              "averageNetPct": -0.1596,
+              "totalNetPct": -8.7758,
+              "targetRate": 0.3273,
+              "averageHoldMinutes": 16.85
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 27,
+                "wins": 6,
+                "winRate": 0.2222,
+                "averageNetPct": -0.3092,
+                "totalNetPct": -8.3484,
+                "targetRate": 0.2222,
+                "averageHoldMinutes": 11.7
+              },
+              "2023": {
+                "trades": 10,
+                "wins": 5,
+                "winRate": 0.5,
+                "averageNetPct": -0.0575,
+                "totalNetPct": -0.5752,
+                "targetRate": 0.4,
+                "averageHoldMinutes": 28.0
+              },
+              "2024": {
+                "trades": 18,
+                "wins": 8,
+                "winRate": 0.4444,
+                "averageNetPct": 0.0082,
+                "totalNetPct": 0.1478,
+                "targetRate": 0.4444,
+                "averageHoldMinutes": 18.39
+              }
+            },
+            "validation": {
+              "trades": 10,
+              "wins": 5,
+              "winRate": 0.5,
+              "averageNetPct": 0.1098,
+              "totalNetPct": 1.0976,
+              "targetRate": 0.5,
+              "averageHoldMinutes": 9.8
+            },
+            "blindTest": {
+              "trades": 16,
+              "wins": 6,
+              "winRate": 0.375,
+              "averageNetPct": -0.1279,
+              "totalNetPct": -2.046,
+              "targetRate": 0.3125,
+              "averageHoldMinutes": 18.19
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR > +0.17%"
+            ],
+            "training": {
+              "trades": 103,
+              "wins": 32,
+              "winRate": 0.3107,
+              "averageNetPct": -0.1575,
+              "totalNetPct": -16.2207,
+              "targetRate": 0.2039,
+              "averageHoldMinutes": 31.94
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 38,
+                "wins": 13,
+                "winRate": 0.3421,
+                "averageNetPct": -0.157,
+                "totalNetPct": -5.9653,
+                "targetRate": 0.1579,
+                "averageHoldMinutes": 35.79
+              },
+              "2023": {
+                "trades": 47,
+                "wins": 15,
+                "winRate": 0.3191,
+                "averageNetPct": -0.1259,
+                "totalNetPct": -5.9194,
+                "targetRate": 0.2553,
+                "averageHoldMinutes": 30.17
+              },
+              "2024": {
+                "trades": 18,
+                "wins": 4,
+                "winRate": 0.2222,
+                "averageNetPct": -0.2409,
+                "totalNetPct": -4.3359,
+                "targetRate": 0.1667,
+                "averageHoldMinutes": 28.44
+              }
+            },
+            "validation": {
+              "trades": 18,
+              "wins": 8,
+              "winRate": 0.4444,
+              "averageNetPct": 0.0584,
+              "totalNetPct": 1.0516,
+              "targetRate": 0.4444,
+              "averageHoldMinutes": 26.56
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.57,
+              "totalNetPct": -1.14,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 12.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 <= 0.54"
+            ],
+            "training": {
+              "trades": 33,
+              "wins": 20,
+              "winRate": 0.6061,
+              "averageNetPct": 0.1621,
+              "totalNetPct": 5.3489,
+              "targetRate": 0.4242,
+              "averageHoldMinutes": 33.24
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 15,
+                "wins": 10,
+                "winRate": 0.6667,
+                "averageNetPct": 0.177,
+                "totalNetPct": 2.6546,
+                "targetRate": 0.4667,
+                "averageHoldMinutes": 31.87
+              },
+              "2023": {
+                "trades": 12,
+                "wins": 8,
+                "winRate": 0.6667,
+                "averageNetPct": 0.2884,
+                "totalNetPct": 3.4603,
+                "targetRate": 0.5,
+                "averageHoldMinutes": 40.33
+              },
+              "2024": {
+                "trades": 6,
+                "wins": 2,
+                "winRate": 0.3333,
+                "averageNetPct": -0.1277,
+                "totalNetPct": -0.766,
+                "targetRate": 0.1667,
+                "averageHoldMinutes": 22.5
+              }
+            },
+            "validation": {
+              "trades": 13,
+              "wins": 5,
+              "winRate": 0.3846,
+              "averageNetPct": -0.0645,
+              "totalNetPct": -0.8385,
+              "targetRate": 0.3077,
+              "averageHoldMinutes": 35.77
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 <= +3.94%"
+            ],
+            "training": {
+              "trades": 285,
+              "wins": 131,
+              "winRate": 0.4596,
+              "averageNetPct": -0.0599,
+              "totalNetPct": -17.0856,
+              "targetRate": 0.2982,
+              "averageHoldMinutes": 29.93
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 109,
+                "wins": 47,
+                "winRate": 0.4312,
+                "averageNetPct": -0.0846,
+                "totalNetPct": -9.2185,
+                "targetRate": 0.2844,
+                "averageHoldMinutes": 29.13
+              },
+              "2023": {
+                "trades": 92,
+                "wins": 47,
+                "winRate": 0.5109,
+                "averageNetPct": -0.0096,
+                "totalNetPct": -0.8876,
+                "targetRate": 0.2826,
+                "averageHoldMinutes": 34.66
+              },
+              "2024": {
+                "trades": 84,
+                "wins": 37,
+                "winRate": 0.4405,
+                "averageNetPct": -0.0831,
+                "totalNetPct": -6.9796,
+                "targetRate": 0.3333,
+                "averageHoldMinutes": 25.8
+              }
+            },
+            "validation": {
+              "trades": 81,
+              "wins": 35,
+              "winRate": 0.4321,
+              "averageNetPct": -0.0713,
+              "totalNetPct": -5.7715,
+              "targetRate": 0.284,
+              "averageHoldMinutes": 30.33
+            },
+            "blindTest": {
+              "trades": 22,
+              "wins": 10,
+              "winRate": 0.4545,
+              "averageNetPct": -0.0225,
+              "totalNetPct": -0.4952,
+              "targetRate": 0.3636,
+              "averageHoldMinutes": 20.64
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 <= +1.46%"
+            ],
+            "training": {
+              "trades": 959,
+              "wins": 332,
+              "winRate": 0.3462,
+              "averageNetPct": -0.1508,
+              "totalNetPct": -144.6648,
+              "targetRate": 0.2586,
+              "averageHoldMinutes": 27.57
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 312,
+                "wins": 98,
+                "winRate": 0.3141,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -60.3515,
+                "targetRate": 0.2276,
+                "averageHoldMinutes": 25.36
+              },
+              "2023": {
+                "trades": 298,
+                "wins": 120,
+                "winRate": 0.4027,
+                "averageNetPct": -0.0902,
+                "totalNetPct": -26.8921,
+                "targetRate": 0.2819,
+                "averageHoldMinutes": 32.53
+              },
+              "2024": {
+                "trades": 349,
+                "wins": 114,
+                "winRate": 0.3266,
+                "averageNetPct": -0.1645,
+                "totalNetPct": -57.4212,
+                "targetRate": 0.2665,
+                "averageHoldMinutes": 25.31
+              }
+            },
+            "validation": {
+              "trades": 322,
+              "wins": 130,
+              "winRate": 0.4037,
+              "averageNetPct": -0.0858,
+              "totalNetPct": -27.6238,
+              "targetRate": 0.2826,
+              "averageHoldMinutes": 29.56
+            },
+            "blindTest": {
+              "trades": 79,
+              "wins": 28,
+              "winRate": 0.3544,
+              "averageNetPct": -0.0957,
+              "totalNetPct": -7.5635,
+              "targetRate": 0.3418,
+              "averageHoldMinutes": 17.52
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 7,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 > 0.54"
+            ],
+            "training": {
+              "trades": 745,
+              "wins": 290,
+              "winRate": 0.3893,
+              "averageNetPct": -0.0931,
+              "totalNetPct": -69.3687,
+              "targetRate": 0.3034,
+              "averageHoldMinutes": 26.52
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 217,
+                "wins": 72,
+                "winRate": 0.3318,
+                "averageNetPct": -0.1429,
+                "totalNetPct": -31.0064,
+                "targetRate": 0.2765,
+                "averageHoldMinutes": 25.07
+              },
+              "2023": {
+                "trades": 257,
+                "wins": 98,
+                "winRate": 0.3813,
+                "averageNetPct": -0.134,
+                "totalNetPct": -34.4434,
+                "targetRate": 0.249,
+                "averageHoldMinutes": 30.0
+              },
+              "2024": {
+                "trades": 271,
+                "wins": 120,
+                "winRate": 0.4428,
+                "averageNetPct": -0.0145,
+                "totalNetPct": -3.919,
+                "targetRate": 0.3764,
+                "averageHoldMinutes": 24.39
+              }
+            },
+            "validation": {
+              "trades": 262,
+              "wins": 108,
+              "winRate": 0.4122,
+              "averageNetPct": -0.0892,
+              "totalNetPct": -23.3657,
+              "targetRate": 0.2748,
+              "averageHoldMinutes": 30.03
+            },
+            "blindTest": {
+              "trades": 66,
+              "wins": 19,
+              "winRate": 0.2879,
+              "averageNetPct": -0.2074,
+              "totalNetPct": -13.6862,
+              "targetRate": 0.2576,
+              "averageHoldMinutes": 19.94
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR <= +0.17%"
+            ],
+            "training": {
+              "trades": 122,
+              "wins": 25,
+              "winRate": 0.2049,
+              "averageNetPct": -0.231,
+              "totalNetPct": -28.1761,
+              "targetRate": 0.082,
+              "averageHoldMinutes": 42.61
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 47,
+                "wins": 10,
+                "winRate": 0.2128,
+                "averageNetPct": -0.221,
+                "totalNetPct": -10.3858,
+                "targetRate": 0.0426,
+                "averageHoldMinutes": 44.3
+              },
+              "2023": {
+                "trades": 52,
+                "wins": 11,
+                "winRate": 0.2115,
+                "averageNetPct": -0.2248,
+                "totalNetPct": -11.6876,
+                "targetRate": 0.0962,
+                "averageHoldMinutes": 41.98
+              },
+              "2024": {
+                "trades": 23,
+                "wins": 4,
+                "winRate": 0.1739,
+                "averageNetPct": -0.2653,
+                "totalNetPct": -6.1027,
+                "targetRate": 0.1304,
+                "averageHoldMinutes": 40.57
+              }
+            },
+            "validation": {
+              "trades": 39,
+              "wins": 8,
+              "winRate": 0.2051,
+              "averageNetPct": -0.2833,
+              "totalNetPct": -11.0499,
+              "targetRate": 0.0256,
+              "averageHoldMinutes": 44.64
+            },
+            "blindTest": {
+              "trades": 8,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.3562,
+              "totalNetPct": -2.8498,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 34.38
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 > +1.46%"
+            ],
+            "training": {
+              "trades": 110,
+              "wins": 32,
+              "winRate": 0.2909,
+              "averageNetPct": -0.2072,
+              "totalNetPct": -22.7957,
+              "targetRate": 0.2455,
+              "averageHoldMinutes": 19.42
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 34,
+                "wins": 11,
+                "winRate": 0.3235,
+                "averageNetPct": -0.1651,
+                "totalNetPct": -5.6123,
+                "targetRate": 0.2647,
+                "averageHoldMinutes": 20.0
+              },
+              "2023": {
+                "trades": 29,
+                "wins": 8,
+                "winRate": 0.2759,
+                "averageNetPct": -0.2195,
+                "totalNetPct": -6.3669,
+                "targetRate": 0.1724,
+                "averageHoldMinutes": 26.69
+              },
+              "2024": {
+                "trades": 47,
+                "wins": 13,
+                "winRate": 0.2766,
+                "averageNetPct": -0.2301,
+                "totalNetPct": -10.8165,
+                "targetRate": 0.2766,
+                "averageHoldMinutes": 14.51
+              }
+            },
+            "validation": {
+              "trades": 51,
+              "wins": 12,
+              "winRate": 0.2353,
+              "averageNetPct": -0.3178,
+              "totalNetPct": -16.2054,
+              "targetRate": 0.1569,
+              "averageHoldMinutes": 20.8
+            },
+            "blindTest": {
+              "trades": 36,
+              "wins": 7,
+              "winRate": 0.1944,
+              "averageNetPct": -0.287,
+              "totalNetPct": -10.3326,
+              "targetRate": 0.1944,
+              "averageHoldMinutes": 18.06
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 120,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 4,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 > +3.94%"
+            ],
+            "training": {
+              "trades": 55,
+              "wins": 19,
+              "winRate": 0.3455,
+              "averageNetPct": -0.1596,
+              "totalNetPct": -8.7758,
+              "targetRate": 0.3273,
+              "averageHoldMinutes": 16.85
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 27,
+                "wins": 6,
+                "winRate": 0.2222,
+                "averageNetPct": -0.3092,
+                "totalNetPct": -8.3484,
+                "targetRate": 0.2222,
+                "averageHoldMinutes": 11.7
+              },
+              "2023": {
+                "trades": 10,
+                "wins": 5,
+                "winRate": 0.5,
+                "averageNetPct": -0.0575,
+                "totalNetPct": -0.5752,
+                "targetRate": 0.4,
+                "averageHoldMinutes": 28.0
+              },
+              "2024": {
+                "trades": 18,
+                "wins": 8,
+                "winRate": 0.4444,
+                "averageNetPct": 0.0082,
+                "totalNetPct": 0.1478,
+                "targetRate": 0.4444,
+                "averageHoldMinutes": 18.39
+              }
+            },
+            "validation": {
+              "trades": 10,
+              "wins": 5,
+              "winRate": 0.5,
+              "averageNetPct": 0.1098,
+              "totalNetPct": 1.0976,
+              "targetRate": 0.5,
+              "averageHoldMinutes": 9.8
+            },
+            "blindTest": {
+              "trades": 16,
+              "wins": 6,
+              "winRate": 0.375,
+              "averageNetPct": -0.1279,
+              "totalNetPct": -2.046,
+              "targetRate": 0.3125,
+              "averageHoldMinutes": 18.19
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR > +0.17%"
+            ],
+            "training": {
+              "trades": 103,
+              "wins": 32,
+              "winRate": 0.3107,
+              "averageNetPct": -0.1575,
+              "totalNetPct": -16.2207,
+              "targetRate": 0.2039,
+              "averageHoldMinutes": 31.94
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 38,
+                "wins": 13,
+                "winRate": 0.3421,
+                "averageNetPct": -0.157,
+                "totalNetPct": -5.9653,
+                "targetRate": 0.1579,
+                "averageHoldMinutes": 35.79
+              },
+              "2023": {
+                "trades": 47,
+                "wins": 15,
+                "winRate": 0.3191,
+                "averageNetPct": -0.1259,
+                "totalNetPct": -5.9194,
+                "targetRate": 0.2553,
+                "averageHoldMinutes": 30.17
+              },
+              "2024": {
+                "trades": 18,
+                "wins": 4,
+                "winRate": 0.2222,
+                "averageNetPct": -0.2409,
+                "totalNetPct": -4.3359,
+                "targetRate": 0.1667,
+                "averageHoldMinutes": 28.44
+              }
+            },
+            "validation": {
+              "trades": 18,
+              "wins": 8,
+              "winRate": 0.4444,
+              "averageNetPct": 0.0584,
+              "totalNetPct": 1.0516,
+              "targetRate": 0.4444,
+              "averageHoldMinutes": 26.56
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.57,
+              "totalNetPct": -1.14,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 12.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 <= 0.54"
+            ],
+            "training": {
+              "trades": 33,
+              "wins": 20,
+              "winRate": 0.6061,
+              "averageNetPct": 0.1621,
+              "totalNetPct": 5.3489,
+              "targetRate": 0.4242,
+              "averageHoldMinutes": 33.24
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 15,
+                "wins": 10,
+                "winRate": 0.6667,
+                "averageNetPct": 0.177,
+                "totalNetPct": 2.6546,
+                "targetRate": 0.4667,
+                "averageHoldMinutes": 31.87
+              },
+              "2023": {
+                "trades": 12,
+                "wins": 8,
+                "winRate": 0.6667,
+                "averageNetPct": 0.2884,
+                "totalNetPct": 3.4603,
+                "targetRate": 0.5,
+                "averageHoldMinutes": 40.33
+              },
+              "2024": {
+                "trades": 6,
+                "wins": 2,
+                "winRate": 0.3333,
+                "averageNetPct": -0.1277,
+                "totalNetPct": -0.766,
+                "targetRate": 0.1667,
+                "averageHoldMinutes": 22.5
+              }
+            },
+            "validation": {
+              "trades": 13,
+              "wins": 5,
+              "winRate": 0.3846,
+              "averageNetPct": -0.0645,
+              "totalNetPct": -0.8385,
+              "targetRate": 0.3077,
+              "averageHoldMinutes": 35.77
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 <= -0.45%",
+              "紫金前5日平均振幅 <= +3.94%"
+            ],
+            "training": {
+              "trades": 285,
+              "wins": 131,
+              "winRate": 0.4596,
+              "averageNetPct": -0.0599,
+              "totalNetPct": -17.0856,
+              "targetRate": 0.2982,
+              "averageHoldMinutes": 29.93
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 109,
+                "wins": 47,
+                "winRate": 0.4312,
+                "averageNetPct": -0.0846,
+                "totalNetPct": -9.2185,
+                "targetRate": 0.2844,
+                "averageHoldMinutes": 29.13
+              },
+              "2023": {
+                "trades": 92,
+                "wins": 47,
+                "winRate": 0.5109,
+                "averageNetPct": -0.0096,
+                "totalNetPct": -0.8876,
+                "targetRate": 0.2826,
+                "averageHoldMinutes": 34.66
+              },
+              "2024": {
+                "trades": 84,
+                "wins": 37,
+                "winRate": 0.4405,
+                "averageNetPct": -0.0831,
+                "totalNetPct": -6.9796,
+                "targetRate": 0.3333,
+                "averageHoldMinutes": 25.8
+              }
+            },
+            "validation": {
+              "trades": 81,
+              "wins": 35,
+              "winRate": 0.4321,
+              "averageNetPct": -0.0713,
+              "totalNetPct": -5.7715,
+              "targetRate": 0.284,
+              "averageHoldMinutes": 30.33
+            },
+            "blindTest": {
+              "trades": 22,
+              "wins": 10,
+              "winRate": 0.4545,
+              "averageNetPct": -0.0225,
+              "totalNetPct": -0.4952,
+              "targetRate": 0.3636,
+              "averageHoldMinutes": 20.64
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 <= +1.46%"
+            ],
+            "training": {
+              "trades": 959,
+              "wins": 332,
+              "winRate": 0.3462,
+              "averageNetPct": -0.1508,
+              "totalNetPct": -144.6648,
+              "targetRate": 0.2586,
+              "averageHoldMinutes": 27.57
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 312,
+                "wins": 98,
+                "winRate": 0.3141,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -60.3515,
+                "targetRate": 0.2276,
+                "averageHoldMinutes": 25.36
+              },
+              "2023": {
+                "trades": 298,
+                "wins": 120,
+                "winRate": 0.4027,
+                "averageNetPct": -0.0902,
+                "totalNetPct": -26.8921,
+                "targetRate": 0.2819,
+                "averageHoldMinutes": 32.53
+              },
+              "2024": {
+                "trades": 349,
+                "wins": 114,
+                "winRate": 0.3266,
+                "averageNetPct": -0.1645,
+                "totalNetPct": -57.4212,
+                "targetRate": 0.2665,
+                "averageHoldMinutes": 25.31
+              }
+            },
+            "validation": {
+              "trades": 322,
+              "wins": 130,
+              "winRate": 0.4037,
+              "averageNetPct": -0.0858,
+              "totalNetPct": -27.6238,
+              "targetRate": 0.2826,
+              "averageHoldMinutes": 29.56
+            },
+            "blindTest": {
+              "trades": 79,
+              "wins": 28,
+              "winRate": 0.3544,
+              "averageNetPct": -0.0957,
+              "totalNetPct": -7.5635,
+              "targetRate": 0.3418,
+              "averageHoldMinutes": 17.52
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 7,
+            "conditions": [
+              "紫金VWAP相对偏离 <= -0.08%",
+              "开盘缺口 > -0.45%",
+              "紫金昨日量能/前5日 > 0.54"
+            ],
+            "training": {
+              "trades": 745,
+              "wins": 290,
+              "winRate": 0.3893,
+              "averageNetPct": -0.0931,
+              "totalNetPct": -69.3687,
+              "targetRate": 0.3034,
+              "averageHoldMinutes": 26.52
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 217,
+                "wins": 72,
+                "winRate": 0.3318,
+                "averageNetPct": -0.1429,
+                "totalNetPct": -31.0064,
+                "targetRate": 0.2765,
+                "averageHoldMinutes": 25.07
+              },
+              "2023": {
+                "trades": 257,
+                "wins": 98,
+                "winRate": 0.3813,
+                "averageNetPct": -0.134,
+                "totalNetPct": -34.4434,
+                "targetRate": 0.249,
+                "averageHoldMinutes": 30.0
+              },
+              "2024": {
+                "trades": 271,
+                "wins": 120,
+                "winRate": 0.4428,
+                "averageNetPct": -0.0145,
+                "totalNetPct": -3.919,
+                "targetRate": 0.3764,
+                "averageHoldMinutes": 24.39
+              }
+            },
+            "validation": {
+              "trades": 262,
+              "wins": 108,
+              "winRate": 0.4122,
+              "averageNetPct": -0.0892,
+              "totalNetPct": -23.3657,
+              "targetRate": 0.2748,
+              "averageHoldMinutes": 30.03
+            },
+            "blindTest": {
+              "trades": 66,
+              "wins": 19,
+              "winRate": 0.2879,
+              "averageNetPct": -0.2074,
+              "totalNetPct": -13.6862,
+              "targetRate": 0.2576,
+              "averageHoldMinutes": 19.94
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 <= +1.66%",
+              "短ATR <= +0.17%"
+            ],
+            "training": {
+              "trades": 122,
+              "wins": 25,
+              "winRate": 0.2049,
+              "averageNetPct": -0.231,
+              "totalNetPct": -28.1761,
+              "targetRate": 0.082,
+              "averageHoldMinutes": 42.61
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 47,
+                "wins": 10,
+                "winRate": 0.2128,
+                "averageNetPct": -0.221,
+                "totalNetPct": -10.3858,
+                "targetRate": 0.0426,
+                "averageHoldMinutes": 44.3
+              },
+              "2023": {
+                "trades": 52,
+                "wins": 11,
+                "winRate": 0.2115,
+                "averageNetPct": -0.2248,
+                "totalNetPct": -11.6876,
+                "targetRate": 0.0962,
+                "averageHoldMinutes": 41.98
+              },
+              "2024": {
+                "trades": 23,
+                "wins": 4,
+                "winRate": 0.1739,
+                "averageNetPct": -0.2653,
+                "totalNetPct": -6.1027,
+                "targetRate": 0.1304,
+                "averageHoldMinutes": 40.57
+              }
+            },
+            "validation": {
+              "trades": 39,
+              "wins": 8,
+              "winRate": 0.2051,
+              "averageNetPct": -0.2833,
+              "totalNetPct": -11.0499,
+              "targetRate": 0.0256,
+              "averageHoldMinutes": 44.64
+            },
+            "blindTest": {
+              "trades": 8,
+              "wins": 0,
+              "winRate": 0.0,
+              "averageNetPct": -0.3562,
+              "totalNetPct": -2.8498,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 34.38
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "紫金VWAP相对偏离 > -0.08%",
+              "紫金昨日振幅 > +1.66%",
+              "开盘缺口 > +1.46%"
+            ],
+            "training": {
+              "trades": 110,
+              "wins": 32,
+              "winRate": 0.2909,
+              "averageNetPct": -0.2072,
+              "totalNetPct": -22.7957,
+              "targetRate": 0.2455,
+              "averageHoldMinutes": 19.42
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 34,
+                "wins": 11,
+                "winRate": 0.3235,
+                "averageNetPct": -0.1651,
+                "totalNetPct": -5.6123,
+                "targetRate": 0.2647,
+                "averageHoldMinutes": 20.0
+              },
+              "2023": {
+                "trades": 29,
+                "wins": 8,
+                "winRate": 0.2759,
+                "averageNetPct": -0.2195,
+                "totalNetPct": -6.3669,
+                "targetRate": 0.1724,
+                "averageHoldMinutes": 26.69
+              },
+              "2024": {
+                "trades": 47,
+                "wins": 13,
+                "winRate": 0.2766,
+                "averageNetPct": -0.2301,
+                "totalNetPct": -10.8165,
+                "targetRate": 0.2766,
+                "averageHoldMinutes": 14.51
+              }
+            },
+            "validation": {
+              "trades": 51,
+              "wins": 12,
+              "winRate": 0.2353,
+              "averageNetPct": -0.3178,
+              "totalNetPct": -16.2054,
+              "targetRate": 0.1569,
+              "averageHoldMinutes": 20.8
+            },
+            "blindTest": {
+              "trades": 36,
+              "wins": 7,
+              "winRate": 0.1944,
+              "averageNetPct": -0.287,
+              "totalNetPct": -10.3326,
+              "targetRate": 0.1944,
+              "averageHoldMinutes": 18.06
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      }
+    ],
+    "reverse": [
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 40,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 7,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 > -0.68%"
+            ],
+            "training": {
+              "trades": 124,
+              "wins": 34,
+              "winRate": 0.2742,
+              "averageNetPct": -0.1974,
+              "totalNetPct": -24.4827,
+              "targetRate": 0.0968,
+              "averageHoldMinutes": 39.56
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 38,
+                "wins": 10,
+                "winRate": 0.2632,
+                "averageNetPct": -0.1741,
+                "totalNetPct": -6.6164,
+                "targetRate": 0.0263,
+                "averageHoldMinutes": 43.87
+              },
+              "2023": {
+                "trades": 60,
+                "wins": 17,
+                "winRate": 0.2833,
+                "averageNetPct": -0.252,
+                "totalNetPct": -15.1219,
+                "targetRate": 0.0833,
+                "averageHoldMinutes": 39.28
+              },
+              "2024": {
+                "trades": 26,
+                "wins": 7,
+                "winRate": 0.2692,
+                "averageNetPct": -0.1056,
+                "totalNetPct": -2.7444,
+                "targetRate": 0.2308,
+                "averageHoldMinutes": 33.92
+              }
+            },
+            "validation": {
+              "trades": 34,
+              "wins": 14,
+              "winRate": 0.4118,
+              "averageNetPct": -0.0457,
+              "totalNetPct": -1.5555,
+              "targetRate": 0.0882,
+              "averageHoldMinutes": 50.97
+            },
+            "blindTest": {
+              "trades": 6,
+              "wins": 3,
+              "winRate": 0.5,
+              "averageNetPct": -0.0365,
+              "totalNetPct": -0.2192,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 52.33
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 <= -0.68%"
+            ],
+            "training": {
+              "trades": 41,
+              "wins": 4,
+              "winRate": 0.0976,
+              "averageNetPct": -0.3158,
+              "totalNetPct": -12.9483,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 42.68
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 16,
+                "wins": 3,
+                "winRate": 0.1875,
+                "averageNetPct": -0.2547,
+                "totalNetPct": -4.0759,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 43.12
+              },
+              "2023": {
+                "trades": 9,
+                "wins": 0,
+                "winRate": 0.0,
+                "averageNetPct": -0.333,
+                "totalNetPct": -2.9968,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 47.44
+              },
+              "2024": {
+                "trades": 16,
+                "wins": 1,
+                "winRate": 0.0625,
+                "averageNetPct": -0.3672,
+                "totalNetPct": -5.8756,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 39.56
+              }
+            },
+            "validation": {
+              "trades": 12,
+              "wins": 6,
+              "winRate": 0.5,
+              "averageNetPct": -0.0734,
+              "totalNetPct": -0.8803,
+              "targetRate": 0.1667,
+              "averageHoldMinutes": 32.42
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 2,
+              "winRate": 1.0,
+              "averageNetPct": 0.6011,
+              "totalNetPct": 1.2022,
+              "targetRate": 1.0,
+              "averageHoldMinutes": 9.5
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 <= +2.69%"
+            ],
+            "training": {
+              "trades": 137,
+              "wins": 54,
+              "winRate": 0.3942,
+              "averageNetPct": -0.07,
+              "totalNetPct": -9.5882,
+              "targetRate": 0.2263,
+              "averageHoldMinutes": 36.09
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 48,
+                "wins": 19,
+                "winRate": 0.3958,
+                "averageNetPct": -0.0475,
+                "totalNetPct": -2.2817,
+                "targetRate": 0.2292,
+                "averageHoldMinutes": 38.65
+              },
+              "2023": {
+                "trades": 51,
+                "wins": 21,
+                "winRate": 0.4118,
+                "averageNetPct": -0.0551,
+                "totalNetPct": -2.8109,
+                "targetRate": 0.2353,
+                "averageHoldMinutes": 38.31
+              },
+              "2024": {
+                "trades": 38,
+                "wins": 14,
+                "winRate": 0.3684,
+                "averageNetPct": -0.1183,
+                "totalNetPct": -4.4957,
+                "targetRate": 0.2105,
+                "averageHoldMinutes": 29.87
+              }
+            },
+            "validation": {
+              "trades": 58,
+              "wins": 23,
+              "winRate": 0.3966,
+              "averageNetPct": -0.1003,
+              "totalNetPct": -5.8189,
+              "targetRate": 0.1724,
+              "averageHoldMinutes": 35.48
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 <= +0.04%"
+            ],
+            "training": {
+              "trades": 316,
+              "wins": 93,
+              "winRate": 0.2943,
+              "averageNetPct": -0.2071,
+              "totalNetPct": -65.4454,
+              "targetRate": 0.1994,
+              "averageHoldMinutes": 25.14
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 101,
+                "wins": 28,
+                "winRate": 0.2772,
+                "averageNetPct": -0.2226,
+                "totalNetPct": -22.4824,
+                "targetRate": 0.1485,
+                "averageHoldMinutes": 28.74
+              },
+              "2023": {
+                "trades": 118,
+                "wins": 32,
+                "winRate": 0.2712,
+                "averageNetPct": -0.2409,
+                "totalNetPct": -28.4246,
+                "targetRate": 0.178,
+                "averageHoldMinutes": 24.7
+              },
+              "2024": {
+                "trades": 97,
+                "wins": 33,
+                "winRate": 0.3402,
+                "averageNetPct": -0.1499,
+                "totalNetPct": -14.5384,
+                "targetRate": 0.2784,
+                "averageHoldMinutes": 21.92
+              }
+            },
+            "validation": {
+              "trades": 90,
+              "wins": 34,
+              "winRate": 0.3778,
+              "averageNetPct": -0.1196,
+              "totalNetPct": -10.7664,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.02
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 4,
+              "winRate": 0.2,
+              "averageNetPct": -0.3037,
+              "totalNetPct": -6.0744,
+              "targetRate": 0.15,
+              "averageHoldMinutes": 14.95
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 4,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 > +0.04%"
+            ],
+            "training": {
+              "trades": 252,
+              "wins": 106,
+              "winRate": 0.4206,
+              "averageNetPct": -0.0974,
+              "totalNetPct": -24.535,
+              "targetRate": 0.2976,
+              "averageHoldMinutes": 26.05
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 76,
+                "wins": 29,
+                "winRate": 0.3816,
+                "averageNetPct": -0.1443,
+                "totalNetPct": -10.9695,
+                "targetRate": 0.2632,
+                "averageHoldMinutes": 29.18
+              },
+              "2023": {
+                "trades": 91,
+                "wins": 40,
+                "winRate": 0.4396,
+                "averageNetPct": -0.1103,
+                "totalNetPct": -10.0365,
+                "targetRate": 0.2857,
+                "averageHoldMinutes": 29.64
+              },
+              "2024": {
+                "trades": 85,
+                "wins": 37,
+                "winRate": 0.4353,
+                "averageNetPct": -0.0415,
+                "totalNetPct": -3.529,
+                "targetRate": 0.3412,
+                "averageHoldMinutes": 19.41
+              }
+            },
+            "validation": {
+              "trades": 108,
+              "wins": 38,
+              "winRate": 0.3519,
+              "averageNetPct": -0.1263,
+              "totalNetPct": -13.6413,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.77
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 9,
+              "winRate": 0.45,
+              "averageNetPct": 0.0241,
+              "totalNetPct": 0.4822,
+              "targetRate": 0.4,
+              "averageHoldMinutes": 19.45
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 > +2.69%"
+            ],
+            "training": {
+              "trades": 179,
+              "wins": 86,
+              "winRate": 0.4804,
+              "averageNetPct": -0.0317,
+              "totalNetPct": -5.6691,
+              "targetRate": 0.352,
+              "averageHoldMinutes": 24.71
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 51,
+                "wins": 27,
+                "winRate": 0.5294,
+                "averageNetPct": 0.0425,
+                "totalNetPct": 2.1661,
+                "targetRate": 0.4118,
+                "averageHoldMinutes": 22.59
+              },
+              "2023": {
+                "trades": 63,
+                "wins": 28,
+                "winRate": 0.4444,
+                "averageNetPct": -0.1081,
+                "totalNetPct": -6.8134,
+                "targetRate": 0.2698,
+                "averageHoldMinutes": 26.84
+              },
+              "2024": {
+                "trades": 65,
+                "wins": 31,
+                "winRate": 0.4769,
+                "averageNetPct": -0.0157,
+                "totalNetPct": -1.0218,
+                "targetRate": 0.3846,
+                "averageHoldMinutes": 24.31
+              }
+            },
+            "validation": {
+              "trades": 47,
+              "wins": 17,
+              "winRate": 0.3617,
+              "averageNetPct": -0.1393,
+              "totalNetPct": -6.5464,
+              "targetRate": 0.2766,
+              "averageHoldMinutes": 25.98
+            },
+            "blindTest": {
+              "trades": 18,
+              "wins": 6,
+              "winRate": 0.3333,
+              "averageNetPct": -0.1808,
+              "totalNetPct": -3.2552,
+              "targetRate": 0.2222,
+              "averageHoldMinutes": 20.72
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 > +0.18%"
+            ],
+            "training": {
+              "trades": 679,
+              "wins": 287,
+              "winRate": 0.4227,
+              "averageNetPct": -0.0743,
+              "totalNetPct": -50.4751,
+              "targetRate": 0.3093,
+              "averageHoldMinutes": 27.41
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 224,
+                "wins": 91,
+                "winRate": 0.4062,
+                "averageNetPct": -0.0869,
+                "totalNetPct": -19.4593,
+                "targetRate": 0.3214,
+                "averageHoldMinutes": 24.83
+              },
+              "2023": {
+                "trades": 204,
+                "wins": 85,
+                "winRate": 0.4167,
+                "averageNetPct": -0.1011,
+                "totalNetPct": -20.6266,
+                "targetRate": 0.2892,
+                "averageHoldMinutes": 29.74
+              },
+              "2024": {
+                "trades": 251,
+                "wins": 111,
+                "winRate": 0.4422,
+                "averageNetPct": -0.0414,
+                "totalNetPct": -10.3891,
+                "targetRate": 0.3147,
+                "averageHoldMinutes": 27.84
+              }
+            },
+            "validation": {
+              "trades": 218,
+              "wins": 79,
+              "winRate": 0.3624,
+              "averageNetPct": -0.1472,
+              "totalNetPct": -32.0879,
+              "targetRate": 0.2294,
+              "averageHoldMinutes": 28.94
+            },
+            "blindTest": {
+              "trades": 65,
+              "wins": 24,
+              "winRate": 0.3692,
+              "averageNetPct": -0.0915,
+              "totalNetPct": -5.9497,
+              "targetRate": 0.3538,
+              "averageHoldMinutes": 21.82
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 <= +0.18%"
+            ],
+            "training": {
+              "trades": 835,
+              "wins": 292,
+              "winRate": 0.3497,
+              "averageNetPct": -0.1588,
+              "totalNetPct": -132.6075,
+              "targetRate": 0.2443,
+              "averageHoldMinutes": 26.59
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 283,
+                "wins": 98,
+                "winRate": 0.3463,
+                "averageNetPct": -0.1546,
+                "totalNetPct": -43.7565,
+                "targetRate": 0.265,
+                "averageHoldMinutes": 26.17
+              },
+              "2023": {
+                "trades": 222,
+                "wins": 87,
+                "winRate": 0.3919,
+                "averageNetPct": -0.1127,
+                "totalNetPct": -25.0206,
+                "targetRate": 0.2523,
+                "averageHoldMinutes": 30.2
+              },
+              "2024": {
+                "trades": 330,
+                "wins": 107,
+                "winRate": 0.3242,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -63.8304,
+                "targetRate": 0.2212,
+                "averageHoldMinutes": 24.51
+              }
+            },
+            "validation": {
+              "trades": 278,
+              "wins": 85,
+              "winRate": 0.3058,
+              "averageNetPct": -0.1952,
+              "totalNetPct": -54.255,
+              "targetRate": 0.2014,
+              "averageHoldMinutes": 27.36
+            },
+            "blindTest": {
+              "trades": 101,
+              "wins": 40,
+              "winRate": 0.396,
+              "averageNetPct": -0.0706,
+              "totalNetPct": -7.1288,
+              "targetRate": 0.3564,
+              "averageHoldMinutes": 18.54
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 60,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 7,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 > -0.68%"
+            ],
+            "training": {
+              "trades": 124,
+              "wins": 34,
+              "winRate": 0.2742,
+              "averageNetPct": -0.1974,
+              "totalNetPct": -24.4827,
+              "targetRate": 0.0968,
+              "averageHoldMinutes": 39.56
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 38,
+                "wins": 10,
+                "winRate": 0.2632,
+                "averageNetPct": -0.1741,
+                "totalNetPct": -6.6164,
+                "targetRate": 0.0263,
+                "averageHoldMinutes": 43.87
+              },
+              "2023": {
+                "trades": 60,
+                "wins": 17,
+                "winRate": 0.2833,
+                "averageNetPct": -0.252,
+                "totalNetPct": -15.1219,
+                "targetRate": 0.0833,
+                "averageHoldMinutes": 39.28
+              },
+              "2024": {
+                "trades": 26,
+                "wins": 7,
+                "winRate": 0.2692,
+                "averageNetPct": -0.1056,
+                "totalNetPct": -2.7444,
+                "targetRate": 0.2308,
+                "averageHoldMinutes": 33.92
+              }
+            },
+            "validation": {
+              "trades": 34,
+              "wins": 14,
+              "winRate": 0.4118,
+              "averageNetPct": -0.0457,
+              "totalNetPct": -1.5555,
+              "targetRate": 0.0882,
+              "averageHoldMinutes": 50.97
+            },
+            "blindTest": {
+              "trades": 6,
+              "wins": 3,
+              "winRate": 0.5,
+              "averageNetPct": -0.0365,
+              "totalNetPct": -0.2192,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 52.33
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 <= -0.68%"
+            ],
+            "training": {
+              "trades": 41,
+              "wins": 4,
+              "winRate": 0.0976,
+              "averageNetPct": -0.3158,
+              "totalNetPct": -12.9483,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 42.68
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 16,
+                "wins": 3,
+                "winRate": 0.1875,
+                "averageNetPct": -0.2547,
+                "totalNetPct": -4.0759,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 43.12
+              },
+              "2023": {
+                "trades": 9,
+                "wins": 0,
+                "winRate": 0.0,
+                "averageNetPct": -0.333,
+                "totalNetPct": -2.9968,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 47.44
+              },
+              "2024": {
+                "trades": 16,
+                "wins": 1,
+                "winRate": 0.0625,
+                "averageNetPct": -0.3672,
+                "totalNetPct": -5.8756,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 39.56
+              }
+            },
+            "validation": {
+              "trades": 12,
+              "wins": 6,
+              "winRate": 0.5,
+              "averageNetPct": -0.0734,
+              "totalNetPct": -0.8803,
+              "targetRate": 0.1667,
+              "averageHoldMinutes": 32.42
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 2,
+              "winRate": 1.0,
+              "averageNetPct": 0.6011,
+              "totalNetPct": 1.2022,
+              "targetRate": 1.0,
+              "averageHoldMinutes": 9.5
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 <= +2.69%"
+            ],
+            "training": {
+              "trades": 137,
+              "wins": 54,
+              "winRate": 0.3942,
+              "averageNetPct": -0.07,
+              "totalNetPct": -9.5882,
+              "targetRate": 0.2263,
+              "averageHoldMinutes": 36.09
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 48,
+                "wins": 19,
+                "winRate": 0.3958,
+                "averageNetPct": -0.0475,
+                "totalNetPct": -2.2817,
+                "targetRate": 0.2292,
+                "averageHoldMinutes": 38.65
+              },
+              "2023": {
+                "trades": 51,
+                "wins": 21,
+                "winRate": 0.4118,
+                "averageNetPct": -0.0551,
+                "totalNetPct": -2.8109,
+                "targetRate": 0.2353,
+                "averageHoldMinutes": 38.31
+              },
+              "2024": {
+                "trades": 38,
+                "wins": 14,
+                "winRate": 0.3684,
+                "averageNetPct": -0.1183,
+                "totalNetPct": -4.4957,
+                "targetRate": 0.2105,
+                "averageHoldMinutes": 29.87
+              }
+            },
+            "validation": {
+              "trades": 58,
+              "wins": 23,
+              "winRate": 0.3966,
+              "averageNetPct": -0.1003,
+              "totalNetPct": -5.8189,
+              "targetRate": 0.1724,
+              "averageHoldMinutes": 35.48
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 <= +0.04%"
+            ],
+            "training": {
+              "trades": 316,
+              "wins": 93,
+              "winRate": 0.2943,
+              "averageNetPct": -0.2071,
+              "totalNetPct": -65.4454,
+              "targetRate": 0.1994,
+              "averageHoldMinutes": 25.14
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 101,
+                "wins": 28,
+                "winRate": 0.2772,
+                "averageNetPct": -0.2226,
+                "totalNetPct": -22.4824,
+                "targetRate": 0.1485,
+                "averageHoldMinutes": 28.74
+              },
+              "2023": {
+                "trades": 118,
+                "wins": 32,
+                "winRate": 0.2712,
+                "averageNetPct": -0.2409,
+                "totalNetPct": -28.4246,
+                "targetRate": 0.178,
+                "averageHoldMinutes": 24.7
+              },
+              "2024": {
+                "trades": 97,
+                "wins": 33,
+                "winRate": 0.3402,
+                "averageNetPct": -0.1499,
+                "totalNetPct": -14.5384,
+                "targetRate": 0.2784,
+                "averageHoldMinutes": 21.92
+              }
+            },
+            "validation": {
+              "trades": 90,
+              "wins": 34,
+              "winRate": 0.3778,
+              "averageNetPct": -0.1196,
+              "totalNetPct": -10.7664,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.02
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 4,
+              "winRate": 0.2,
+              "averageNetPct": -0.3037,
+              "totalNetPct": -6.0744,
+              "targetRate": 0.15,
+              "averageHoldMinutes": 14.95
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 4,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 > +0.04%"
+            ],
+            "training": {
+              "trades": 252,
+              "wins": 106,
+              "winRate": 0.4206,
+              "averageNetPct": -0.0974,
+              "totalNetPct": -24.535,
+              "targetRate": 0.2976,
+              "averageHoldMinutes": 26.05
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 76,
+                "wins": 29,
+                "winRate": 0.3816,
+                "averageNetPct": -0.1443,
+                "totalNetPct": -10.9695,
+                "targetRate": 0.2632,
+                "averageHoldMinutes": 29.18
+              },
+              "2023": {
+                "trades": 91,
+                "wins": 40,
+                "winRate": 0.4396,
+                "averageNetPct": -0.1103,
+                "totalNetPct": -10.0365,
+                "targetRate": 0.2857,
+                "averageHoldMinutes": 29.64
+              },
+              "2024": {
+                "trades": 85,
+                "wins": 37,
+                "winRate": 0.4353,
+                "averageNetPct": -0.0415,
+                "totalNetPct": -3.529,
+                "targetRate": 0.3412,
+                "averageHoldMinutes": 19.41
+              }
+            },
+            "validation": {
+              "trades": 108,
+              "wins": 38,
+              "winRate": 0.3519,
+              "averageNetPct": -0.1263,
+              "totalNetPct": -13.6413,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.77
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 9,
+              "winRate": 0.45,
+              "averageNetPct": 0.0241,
+              "totalNetPct": 0.4822,
+              "targetRate": 0.4,
+              "averageHoldMinutes": 19.45
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 > +2.69%"
+            ],
+            "training": {
+              "trades": 179,
+              "wins": 86,
+              "winRate": 0.4804,
+              "averageNetPct": -0.0317,
+              "totalNetPct": -5.6691,
+              "targetRate": 0.352,
+              "averageHoldMinutes": 24.71
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 51,
+                "wins": 27,
+                "winRate": 0.5294,
+                "averageNetPct": 0.0425,
+                "totalNetPct": 2.1661,
+                "targetRate": 0.4118,
+                "averageHoldMinutes": 22.59
+              },
+              "2023": {
+                "trades": 63,
+                "wins": 28,
+                "winRate": 0.4444,
+                "averageNetPct": -0.1081,
+                "totalNetPct": -6.8134,
+                "targetRate": 0.2698,
+                "averageHoldMinutes": 26.84
+              },
+              "2024": {
+                "trades": 65,
+                "wins": 31,
+                "winRate": 0.4769,
+                "averageNetPct": -0.0157,
+                "totalNetPct": -1.0218,
+                "targetRate": 0.3846,
+                "averageHoldMinutes": 24.31
+              }
+            },
+            "validation": {
+              "trades": 47,
+              "wins": 17,
+              "winRate": 0.3617,
+              "averageNetPct": -0.1393,
+              "totalNetPct": -6.5464,
+              "targetRate": 0.2766,
+              "averageHoldMinutes": 25.98
+            },
+            "blindTest": {
+              "trades": 18,
+              "wins": 6,
+              "winRate": 0.3333,
+              "averageNetPct": -0.1808,
+              "totalNetPct": -3.2552,
+              "targetRate": 0.2222,
+              "averageHoldMinutes": 20.72
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 > +0.18%"
+            ],
+            "training": {
+              "trades": 679,
+              "wins": 287,
+              "winRate": 0.4227,
+              "averageNetPct": -0.0743,
+              "totalNetPct": -50.4751,
+              "targetRate": 0.3093,
+              "averageHoldMinutes": 27.41
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 224,
+                "wins": 91,
+                "winRate": 0.4062,
+                "averageNetPct": -0.0869,
+                "totalNetPct": -19.4593,
+                "targetRate": 0.3214,
+                "averageHoldMinutes": 24.83
+              },
+              "2023": {
+                "trades": 204,
+                "wins": 85,
+                "winRate": 0.4167,
+                "averageNetPct": -0.1011,
+                "totalNetPct": -20.6266,
+                "targetRate": 0.2892,
+                "averageHoldMinutes": 29.74
+              },
+              "2024": {
+                "trades": 251,
+                "wins": 111,
+                "winRate": 0.4422,
+                "averageNetPct": -0.0414,
+                "totalNetPct": -10.3891,
+                "targetRate": 0.3147,
+                "averageHoldMinutes": 27.84
+              }
+            },
+            "validation": {
+              "trades": 218,
+              "wins": 79,
+              "winRate": 0.3624,
+              "averageNetPct": -0.1472,
+              "totalNetPct": -32.0879,
+              "targetRate": 0.2294,
+              "averageHoldMinutes": 28.94
+            },
+            "blindTest": {
+              "trades": 65,
+              "wins": 24,
+              "winRate": 0.3692,
+              "averageNetPct": -0.0915,
+              "totalNetPct": -5.9497,
+              "targetRate": 0.3538,
+              "averageHoldMinutes": 21.82
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 <= +0.18%"
+            ],
+            "training": {
+              "trades": 835,
+              "wins": 292,
+              "winRate": 0.3497,
+              "averageNetPct": -0.1588,
+              "totalNetPct": -132.6075,
+              "targetRate": 0.2443,
+              "averageHoldMinutes": 26.59
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 283,
+                "wins": 98,
+                "winRate": 0.3463,
+                "averageNetPct": -0.1546,
+                "totalNetPct": -43.7565,
+                "targetRate": 0.265,
+                "averageHoldMinutes": 26.17
+              },
+              "2023": {
+                "trades": 222,
+                "wins": 87,
+                "winRate": 0.3919,
+                "averageNetPct": -0.1127,
+                "totalNetPct": -25.0206,
+                "targetRate": 0.2523,
+                "averageHoldMinutes": 30.2
+              },
+              "2024": {
+                "trades": 330,
+                "wins": 107,
+                "winRate": 0.3242,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -63.8304,
+                "targetRate": 0.2212,
+                "averageHoldMinutes": 24.51
+              }
+            },
+            "validation": {
+              "trades": 278,
+              "wins": 85,
+              "winRate": 0.3058,
+              "averageNetPct": -0.1952,
+              "totalNetPct": -54.255,
+              "targetRate": 0.2014,
+              "averageHoldMinutes": 27.36
+            },
+            "blindTest": {
+              "trades": 101,
+              "wins": 40,
+              "winRate": 0.396,
+              "averageNetPct": -0.0706,
+              "totalNetPct": -7.1288,
+              "targetRate": 0.3564,
+              "averageHoldMinutes": 18.54
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 80,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 7,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 > -0.68%"
+            ],
+            "training": {
+              "trades": 124,
+              "wins": 34,
+              "winRate": 0.2742,
+              "averageNetPct": -0.1974,
+              "totalNetPct": -24.4827,
+              "targetRate": 0.0968,
+              "averageHoldMinutes": 39.56
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 38,
+                "wins": 10,
+                "winRate": 0.2632,
+                "averageNetPct": -0.1741,
+                "totalNetPct": -6.6164,
+                "targetRate": 0.0263,
+                "averageHoldMinutes": 43.87
+              },
+              "2023": {
+                "trades": 60,
+                "wins": 17,
+                "winRate": 0.2833,
+                "averageNetPct": -0.252,
+                "totalNetPct": -15.1219,
+                "targetRate": 0.0833,
+                "averageHoldMinutes": 39.28
+              },
+              "2024": {
+                "trades": 26,
+                "wins": 7,
+                "winRate": 0.2692,
+                "averageNetPct": -0.1056,
+                "totalNetPct": -2.7444,
+                "targetRate": 0.2308,
+                "averageHoldMinutes": 33.92
+              }
+            },
+            "validation": {
+              "trades": 34,
+              "wins": 14,
+              "winRate": 0.4118,
+              "averageNetPct": -0.0457,
+              "totalNetPct": -1.5555,
+              "targetRate": 0.0882,
+              "averageHoldMinutes": 50.97
+            },
+            "blindTest": {
+              "trades": 6,
+              "wins": 3,
+              "winRate": 0.5,
+              "averageNetPct": -0.0365,
+              "totalNetPct": -0.2192,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 52.33
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 <= -0.68%"
+            ],
+            "training": {
+              "trades": 41,
+              "wins": 4,
+              "winRate": 0.0976,
+              "averageNetPct": -0.3158,
+              "totalNetPct": -12.9483,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 42.68
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 16,
+                "wins": 3,
+                "winRate": 0.1875,
+                "averageNetPct": -0.2547,
+                "totalNetPct": -4.0759,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 43.12
+              },
+              "2023": {
+                "trades": 9,
+                "wins": 0,
+                "winRate": 0.0,
+                "averageNetPct": -0.333,
+                "totalNetPct": -2.9968,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 47.44
+              },
+              "2024": {
+                "trades": 16,
+                "wins": 1,
+                "winRate": 0.0625,
+                "averageNetPct": -0.3672,
+                "totalNetPct": -5.8756,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 39.56
+              }
+            },
+            "validation": {
+              "trades": 12,
+              "wins": 6,
+              "winRate": 0.5,
+              "averageNetPct": -0.0734,
+              "totalNetPct": -0.8803,
+              "targetRate": 0.1667,
+              "averageHoldMinutes": 32.42
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 2,
+              "winRate": 1.0,
+              "averageNetPct": 0.6011,
+              "totalNetPct": 1.2022,
+              "targetRate": 1.0,
+              "averageHoldMinutes": 9.5
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 <= +2.69%"
+            ],
+            "training": {
+              "trades": 137,
+              "wins": 54,
+              "winRate": 0.3942,
+              "averageNetPct": -0.07,
+              "totalNetPct": -9.5882,
+              "targetRate": 0.2263,
+              "averageHoldMinutes": 36.09
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 48,
+                "wins": 19,
+                "winRate": 0.3958,
+                "averageNetPct": -0.0475,
+                "totalNetPct": -2.2817,
+                "targetRate": 0.2292,
+                "averageHoldMinutes": 38.65
+              },
+              "2023": {
+                "trades": 51,
+                "wins": 21,
+                "winRate": 0.4118,
+                "averageNetPct": -0.0551,
+                "totalNetPct": -2.8109,
+                "targetRate": 0.2353,
+                "averageHoldMinutes": 38.31
+              },
+              "2024": {
+                "trades": 38,
+                "wins": 14,
+                "winRate": 0.3684,
+                "averageNetPct": -0.1183,
+                "totalNetPct": -4.4957,
+                "targetRate": 0.2105,
+                "averageHoldMinutes": 29.87
+              }
+            },
+            "validation": {
+              "trades": 58,
+              "wins": 23,
+              "winRate": 0.3966,
+              "averageNetPct": -0.1003,
+              "totalNetPct": -5.8189,
+              "targetRate": 0.1724,
+              "averageHoldMinutes": 35.48
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 <= +0.04%"
+            ],
+            "training": {
+              "trades": 316,
+              "wins": 93,
+              "winRate": 0.2943,
+              "averageNetPct": -0.2071,
+              "totalNetPct": -65.4454,
+              "targetRate": 0.1994,
+              "averageHoldMinutes": 25.14
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 101,
+                "wins": 28,
+                "winRate": 0.2772,
+                "averageNetPct": -0.2226,
+                "totalNetPct": -22.4824,
+                "targetRate": 0.1485,
+                "averageHoldMinutes": 28.74
+              },
+              "2023": {
+                "trades": 118,
+                "wins": 32,
+                "winRate": 0.2712,
+                "averageNetPct": -0.2409,
+                "totalNetPct": -28.4246,
+                "targetRate": 0.178,
+                "averageHoldMinutes": 24.7
+              },
+              "2024": {
+                "trades": 97,
+                "wins": 33,
+                "winRate": 0.3402,
+                "averageNetPct": -0.1499,
+                "totalNetPct": -14.5384,
+                "targetRate": 0.2784,
+                "averageHoldMinutes": 21.92
+              }
+            },
+            "validation": {
+              "trades": 90,
+              "wins": 34,
+              "winRate": 0.3778,
+              "averageNetPct": -0.1196,
+              "totalNetPct": -10.7664,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.02
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 4,
+              "winRate": 0.2,
+              "averageNetPct": -0.3037,
+              "totalNetPct": -6.0744,
+              "targetRate": 0.15,
+              "averageHoldMinutes": 14.95
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 4,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 > +0.04%"
+            ],
+            "training": {
+              "trades": 252,
+              "wins": 106,
+              "winRate": 0.4206,
+              "averageNetPct": -0.0974,
+              "totalNetPct": -24.535,
+              "targetRate": 0.2976,
+              "averageHoldMinutes": 26.05
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 76,
+                "wins": 29,
+                "winRate": 0.3816,
+                "averageNetPct": -0.1443,
+                "totalNetPct": -10.9695,
+                "targetRate": 0.2632,
+                "averageHoldMinutes": 29.18
+              },
+              "2023": {
+                "trades": 91,
+                "wins": 40,
+                "winRate": 0.4396,
+                "averageNetPct": -0.1103,
+                "totalNetPct": -10.0365,
+                "targetRate": 0.2857,
+                "averageHoldMinutes": 29.64
+              },
+              "2024": {
+                "trades": 85,
+                "wins": 37,
+                "winRate": 0.4353,
+                "averageNetPct": -0.0415,
+                "totalNetPct": -3.529,
+                "targetRate": 0.3412,
+                "averageHoldMinutes": 19.41
+              }
+            },
+            "validation": {
+              "trades": 108,
+              "wins": 38,
+              "winRate": 0.3519,
+              "averageNetPct": -0.1263,
+              "totalNetPct": -13.6413,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.77
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 9,
+              "winRate": 0.45,
+              "averageNetPct": 0.0241,
+              "totalNetPct": 0.4822,
+              "targetRate": 0.4,
+              "averageHoldMinutes": 19.45
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 > +2.69%"
+            ],
+            "training": {
+              "trades": 179,
+              "wins": 86,
+              "winRate": 0.4804,
+              "averageNetPct": -0.0317,
+              "totalNetPct": -5.6691,
+              "targetRate": 0.352,
+              "averageHoldMinutes": 24.71
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 51,
+                "wins": 27,
+                "winRate": 0.5294,
+                "averageNetPct": 0.0425,
+                "totalNetPct": 2.1661,
+                "targetRate": 0.4118,
+                "averageHoldMinutes": 22.59
+              },
+              "2023": {
+                "trades": 63,
+                "wins": 28,
+                "winRate": 0.4444,
+                "averageNetPct": -0.1081,
+                "totalNetPct": -6.8134,
+                "targetRate": 0.2698,
+                "averageHoldMinutes": 26.84
+              },
+              "2024": {
+                "trades": 65,
+                "wins": 31,
+                "winRate": 0.4769,
+                "averageNetPct": -0.0157,
+                "totalNetPct": -1.0218,
+                "targetRate": 0.3846,
+                "averageHoldMinutes": 24.31
+              }
+            },
+            "validation": {
+              "trades": 47,
+              "wins": 17,
+              "winRate": 0.3617,
+              "averageNetPct": -0.1393,
+              "totalNetPct": -6.5464,
+              "targetRate": 0.2766,
+              "averageHoldMinutes": 25.98
+            },
+            "blindTest": {
+              "trades": 18,
+              "wins": 6,
+              "winRate": 0.3333,
+              "averageNetPct": -0.1808,
+              "totalNetPct": -3.2552,
+              "targetRate": 0.2222,
+              "averageHoldMinutes": 20.72
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 > +0.18%"
+            ],
+            "training": {
+              "trades": 679,
+              "wins": 287,
+              "winRate": 0.4227,
+              "averageNetPct": -0.0743,
+              "totalNetPct": -50.4751,
+              "targetRate": 0.3093,
+              "averageHoldMinutes": 27.41
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 224,
+                "wins": 91,
+                "winRate": 0.4062,
+                "averageNetPct": -0.0869,
+                "totalNetPct": -19.4593,
+                "targetRate": 0.3214,
+                "averageHoldMinutes": 24.83
+              },
+              "2023": {
+                "trades": 204,
+                "wins": 85,
+                "winRate": 0.4167,
+                "averageNetPct": -0.1011,
+                "totalNetPct": -20.6266,
+                "targetRate": 0.2892,
+                "averageHoldMinutes": 29.74
+              },
+              "2024": {
+                "trades": 251,
+                "wins": 111,
+                "winRate": 0.4422,
+                "averageNetPct": -0.0414,
+                "totalNetPct": -10.3891,
+                "targetRate": 0.3147,
+                "averageHoldMinutes": 27.84
+              }
+            },
+            "validation": {
+              "trades": 218,
+              "wins": 79,
+              "winRate": 0.3624,
+              "averageNetPct": -0.1472,
+              "totalNetPct": -32.0879,
+              "targetRate": 0.2294,
+              "averageHoldMinutes": 28.94
+            },
+            "blindTest": {
+              "trades": 65,
+              "wins": 24,
+              "winRate": 0.3692,
+              "averageNetPct": -0.0915,
+              "totalNetPct": -5.9497,
+              "targetRate": 0.3538,
+              "averageHoldMinutes": 21.82
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 <= +0.18%"
+            ],
+            "training": {
+              "trades": 835,
+              "wins": 292,
+              "winRate": 0.3497,
+              "averageNetPct": -0.1588,
+              "totalNetPct": -132.6075,
+              "targetRate": 0.2443,
+              "averageHoldMinutes": 26.59
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 283,
+                "wins": 98,
+                "winRate": 0.3463,
+                "averageNetPct": -0.1546,
+                "totalNetPct": -43.7565,
+                "targetRate": 0.265,
+                "averageHoldMinutes": 26.17
+              },
+              "2023": {
+                "trades": 222,
+                "wins": 87,
+                "winRate": 0.3919,
+                "averageNetPct": -0.1127,
+                "totalNetPct": -25.0206,
+                "targetRate": 0.2523,
+                "averageHoldMinutes": 30.2
+              },
+              "2024": {
+                "trades": 330,
+                "wins": 107,
+                "winRate": 0.3242,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -63.8304,
+                "targetRate": 0.2212,
+                "averageHoldMinutes": 24.51
+              }
+            },
+            "validation": {
+              "trades": 278,
+              "wins": 85,
+              "winRate": 0.3058,
+              "averageNetPct": -0.1952,
+              "totalNetPct": -54.255,
+              "targetRate": 0.2014,
+              "averageHoldMinutes": 27.36
+            },
+            "blindTest": {
+              "trades": 101,
+              "wins": 40,
+              "winRate": 0.396,
+              "averageNetPct": -0.0706,
+              "totalNetPct": -7.1288,
+              "targetRate": 0.3564,
+              "averageHoldMinutes": 18.54
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 100,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 7,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 > -0.68%"
+            ],
+            "training": {
+              "trades": 124,
+              "wins": 34,
+              "winRate": 0.2742,
+              "averageNetPct": -0.1974,
+              "totalNetPct": -24.4827,
+              "targetRate": 0.0968,
+              "averageHoldMinutes": 39.56
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 38,
+                "wins": 10,
+                "winRate": 0.2632,
+                "averageNetPct": -0.1741,
+                "totalNetPct": -6.6164,
+                "targetRate": 0.0263,
+                "averageHoldMinutes": 43.87
+              },
+              "2023": {
+                "trades": 60,
+                "wins": 17,
+                "winRate": 0.2833,
+                "averageNetPct": -0.252,
+                "totalNetPct": -15.1219,
+                "targetRate": 0.0833,
+                "averageHoldMinutes": 39.28
+              },
+              "2024": {
+                "trades": 26,
+                "wins": 7,
+                "winRate": 0.2692,
+                "averageNetPct": -0.1056,
+                "totalNetPct": -2.7444,
+                "targetRate": 0.2308,
+                "averageHoldMinutes": 33.92
+              }
+            },
+            "validation": {
+              "trades": 34,
+              "wins": 14,
+              "winRate": 0.4118,
+              "averageNetPct": -0.0457,
+              "totalNetPct": -1.5555,
+              "targetRate": 0.0882,
+              "averageHoldMinutes": 50.97
+            },
+            "blindTest": {
+              "trades": 6,
+              "wins": 3,
+              "winRate": 0.5,
+              "averageNetPct": -0.0365,
+              "totalNetPct": -0.2192,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 52.33
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 <= -0.68%"
+            ],
+            "training": {
+              "trades": 41,
+              "wins": 4,
+              "winRate": 0.0976,
+              "averageNetPct": -0.3158,
+              "totalNetPct": -12.9483,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 42.68
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 16,
+                "wins": 3,
+                "winRate": 0.1875,
+                "averageNetPct": -0.2547,
+                "totalNetPct": -4.0759,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 43.12
+              },
+              "2023": {
+                "trades": 9,
+                "wins": 0,
+                "winRate": 0.0,
+                "averageNetPct": -0.333,
+                "totalNetPct": -2.9968,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 47.44
+              },
+              "2024": {
+                "trades": 16,
+                "wins": 1,
+                "winRate": 0.0625,
+                "averageNetPct": -0.3672,
+                "totalNetPct": -5.8756,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 39.56
+              }
+            },
+            "validation": {
+              "trades": 12,
+              "wins": 6,
+              "winRate": 0.5,
+              "averageNetPct": -0.0734,
+              "totalNetPct": -0.8803,
+              "targetRate": 0.1667,
+              "averageHoldMinutes": 32.42
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 2,
+              "winRate": 1.0,
+              "averageNetPct": 0.6011,
+              "totalNetPct": 1.2022,
+              "targetRate": 1.0,
+              "averageHoldMinutes": 9.5
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 <= +2.69%"
+            ],
+            "training": {
+              "trades": 137,
+              "wins": 54,
+              "winRate": 0.3942,
+              "averageNetPct": -0.07,
+              "totalNetPct": -9.5882,
+              "targetRate": 0.2263,
+              "averageHoldMinutes": 36.09
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 48,
+                "wins": 19,
+                "winRate": 0.3958,
+                "averageNetPct": -0.0475,
+                "totalNetPct": -2.2817,
+                "targetRate": 0.2292,
+                "averageHoldMinutes": 38.65
+              },
+              "2023": {
+                "trades": 51,
+                "wins": 21,
+                "winRate": 0.4118,
+                "averageNetPct": -0.0551,
+                "totalNetPct": -2.8109,
+                "targetRate": 0.2353,
+                "averageHoldMinutes": 38.31
+              },
+              "2024": {
+                "trades": 38,
+                "wins": 14,
+                "winRate": 0.3684,
+                "averageNetPct": -0.1183,
+                "totalNetPct": -4.4957,
+                "targetRate": 0.2105,
+                "averageHoldMinutes": 29.87
+              }
+            },
+            "validation": {
+              "trades": 58,
+              "wins": 23,
+              "winRate": 0.3966,
+              "averageNetPct": -0.1003,
+              "totalNetPct": -5.8189,
+              "targetRate": 0.1724,
+              "averageHoldMinutes": 35.48
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 <= +0.04%"
+            ],
+            "training": {
+              "trades": 316,
+              "wins": 93,
+              "winRate": 0.2943,
+              "averageNetPct": -0.2071,
+              "totalNetPct": -65.4454,
+              "targetRate": 0.1994,
+              "averageHoldMinutes": 25.14
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 101,
+                "wins": 28,
+                "winRate": 0.2772,
+                "averageNetPct": -0.2226,
+                "totalNetPct": -22.4824,
+                "targetRate": 0.1485,
+                "averageHoldMinutes": 28.74
+              },
+              "2023": {
+                "trades": 118,
+                "wins": 32,
+                "winRate": 0.2712,
+                "averageNetPct": -0.2409,
+                "totalNetPct": -28.4246,
+                "targetRate": 0.178,
+                "averageHoldMinutes": 24.7
+              },
+              "2024": {
+                "trades": 97,
+                "wins": 33,
+                "winRate": 0.3402,
+                "averageNetPct": -0.1499,
+                "totalNetPct": -14.5384,
+                "targetRate": 0.2784,
+                "averageHoldMinutes": 21.92
+              }
+            },
+            "validation": {
+              "trades": 90,
+              "wins": 34,
+              "winRate": 0.3778,
+              "averageNetPct": -0.1196,
+              "totalNetPct": -10.7664,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.02
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 4,
+              "winRate": 0.2,
+              "averageNetPct": -0.3037,
+              "totalNetPct": -6.0744,
+              "targetRate": 0.15,
+              "averageHoldMinutes": 14.95
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 4,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 > +0.04%"
+            ],
+            "training": {
+              "trades": 252,
+              "wins": 106,
+              "winRate": 0.4206,
+              "averageNetPct": -0.0974,
+              "totalNetPct": -24.535,
+              "targetRate": 0.2976,
+              "averageHoldMinutes": 26.05
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 76,
+                "wins": 29,
+                "winRate": 0.3816,
+                "averageNetPct": -0.1443,
+                "totalNetPct": -10.9695,
+                "targetRate": 0.2632,
+                "averageHoldMinutes": 29.18
+              },
+              "2023": {
+                "trades": 91,
+                "wins": 40,
+                "winRate": 0.4396,
+                "averageNetPct": -0.1103,
+                "totalNetPct": -10.0365,
+                "targetRate": 0.2857,
+                "averageHoldMinutes": 29.64
+              },
+              "2024": {
+                "trades": 85,
+                "wins": 37,
+                "winRate": 0.4353,
+                "averageNetPct": -0.0415,
+                "totalNetPct": -3.529,
+                "targetRate": 0.3412,
+                "averageHoldMinutes": 19.41
+              }
+            },
+            "validation": {
+              "trades": 108,
+              "wins": 38,
+              "winRate": 0.3519,
+              "averageNetPct": -0.1263,
+              "totalNetPct": -13.6413,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.77
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 9,
+              "winRate": 0.45,
+              "averageNetPct": 0.0241,
+              "totalNetPct": 0.4822,
+              "targetRate": 0.4,
+              "averageHoldMinutes": 19.45
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 > +2.69%"
+            ],
+            "training": {
+              "trades": 179,
+              "wins": 86,
+              "winRate": 0.4804,
+              "averageNetPct": -0.0317,
+              "totalNetPct": -5.6691,
+              "targetRate": 0.352,
+              "averageHoldMinutes": 24.71
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 51,
+                "wins": 27,
+                "winRate": 0.5294,
+                "averageNetPct": 0.0425,
+                "totalNetPct": 2.1661,
+                "targetRate": 0.4118,
+                "averageHoldMinutes": 22.59
+              },
+              "2023": {
+                "trades": 63,
+                "wins": 28,
+                "winRate": 0.4444,
+                "averageNetPct": -0.1081,
+                "totalNetPct": -6.8134,
+                "targetRate": 0.2698,
+                "averageHoldMinutes": 26.84
+              },
+              "2024": {
+                "trades": 65,
+                "wins": 31,
+                "winRate": 0.4769,
+                "averageNetPct": -0.0157,
+                "totalNetPct": -1.0218,
+                "targetRate": 0.3846,
+                "averageHoldMinutes": 24.31
+              }
+            },
+            "validation": {
+              "trades": 47,
+              "wins": 17,
+              "winRate": 0.3617,
+              "averageNetPct": -0.1393,
+              "totalNetPct": -6.5464,
+              "targetRate": 0.2766,
+              "averageHoldMinutes": 25.98
+            },
+            "blindTest": {
+              "trades": 18,
+              "wins": 6,
+              "winRate": 0.3333,
+              "averageNetPct": -0.1808,
+              "totalNetPct": -3.2552,
+              "targetRate": 0.2222,
+              "averageHoldMinutes": 20.72
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 > +0.18%"
+            ],
+            "training": {
+              "trades": 679,
+              "wins": 287,
+              "winRate": 0.4227,
+              "averageNetPct": -0.0743,
+              "totalNetPct": -50.4751,
+              "targetRate": 0.3093,
+              "averageHoldMinutes": 27.41
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 224,
+                "wins": 91,
+                "winRate": 0.4062,
+                "averageNetPct": -0.0869,
+                "totalNetPct": -19.4593,
+                "targetRate": 0.3214,
+                "averageHoldMinutes": 24.83
+              },
+              "2023": {
+                "trades": 204,
+                "wins": 85,
+                "winRate": 0.4167,
+                "averageNetPct": -0.1011,
+                "totalNetPct": -20.6266,
+                "targetRate": 0.2892,
+                "averageHoldMinutes": 29.74
+              },
+              "2024": {
+                "trades": 251,
+                "wins": 111,
+                "winRate": 0.4422,
+                "averageNetPct": -0.0414,
+                "totalNetPct": -10.3891,
+                "targetRate": 0.3147,
+                "averageHoldMinutes": 27.84
+              }
+            },
+            "validation": {
+              "trades": 218,
+              "wins": 79,
+              "winRate": 0.3624,
+              "averageNetPct": -0.1472,
+              "totalNetPct": -32.0879,
+              "targetRate": 0.2294,
+              "averageHoldMinutes": 28.94
+            },
+            "blindTest": {
+              "trades": 65,
+              "wins": 24,
+              "winRate": 0.3692,
+              "averageNetPct": -0.0915,
+              "totalNetPct": -5.9497,
+              "targetRate": 0.3538,
+              "averageHoldMinutes": 21.82
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 <= +0.18%"
+            ],
+            "training": {
+              "trades": 835,
+              "wins": 292,
+              "winRate": 0.3497,
+              "averageNetPct": -0.1588,
+              "totalNetPct": -132.6075,
+              "targetRate": 0.2443,
+              "averageHoldMinutes": 26.59
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 283,
+                "wins": 98,
+                "winRate": 0.3463,
+                "averageNetPct": -0.1546,
+                "totalNetPct": -43.7565,
+                "targetRate": 0.265,
+                "averageHoldMinutes": 26.17
+              },
+              "2023": {
+                "trades": 222,
+                "wins": 87,
+                "winRate": 0.3919,
+                "averageNetPct": -0.1127,
+                "totalNetPct": -25.0206,
+                "targetRate": 0.2523,
+                "averageHoldMinutes": 30.2
+              },
+              "2024": {
+                "trades": 330,
+                "wins": 107,
+                "winRate": 0.3242,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -63.8304,
+                "targetRate": 0.2212,
+                "averageHoldMinutes": 24.51
+              }
+            },
+            "validation": {
+              "trades": 278,
+              "wins": 85,
+              "winRate": 0.3058,
+              "averageNetPct": -0.1952,
+              "totalNetPct": -54.255,
+              "targetRate": 0.2014,
+              "averageHoldMinutes": 27.36
+            },
+            "blindTest": {
+              "trades": 101,
+              "wins": 40,
+              "winRate": 0.396,
+              "averageNetPct": -0.0706,
+              "totalNetPct": -7.1288,
+              "targetRate": 0.3564,
+              "averageHoldMinutes": 18.54
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 120,
+        "acceptedLeafCount": 0,
+        "training": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "validation": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "topRules": [
+          {
+            "leaf": 7,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 > -0.68%"
+            ],
+            "training": {
+              "trades": 124,
+              "wins": 34,
+              "winRate": 0.2742,
+              "averageNetPct": -0.1974,
+              "totalNetPct": -24.4827,
+              "targetRate": 0.0968,
+              "averageHoldMinutes": 39.56
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 38,
+                "wins": 10,
+                "winRate": 0.2632,
+                "averageNetPct": -0.1741,
+                "totalNetPct": -6.6164,
+                "targetRate": 0.0263,
+                "averageHoldMinutes": 43.87
+              },
+              "2023": {
+                "trades": 60,
+                "wins": 17,
+                "winRate": 0.2833,
+                "averageNetPct": -0.252,
+                "totalNetPct": -15.1219,
+                "targetRate": 0.0833,
+                "averageHoldMinutes": 39.28
+              },
+              "2024": {
+                "trades": 26,
+                "wins": 7,
+                "winRate": 0.2692,
+                "averageNetPct": -0.1056,
+                "totalNetPct": -2.7444,
+                "targetRate": 0.2308,
+                "averageHoldMinutes": 33.92
+              }
+            },
+            "validation": {
+              "trades": 34,
+              "wins": 14,
+              "winRate": 0.4118,
+              "averageNetPct": -0.0457,
+              "totalNetPct": -1.5555,
+              "targetRate": 0.0882,
+              "averageHoldMinutes": 50.97
+            },
+            "blindTest": {
+              "trades": 6,
+              "wins": 3,
+              "winRate": 0.5,
+              "averageNetPct": -0.0365,
+              "totalNetPct": -0.2192,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 52.33
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 6,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 > 11:28",
+              "紫金昨日同业超额 <= -0.68%"
+            ],
+            "training": {
+              "trades": 41,
+              "wins": 4,
+              "winRate": 0.0976,
+              "averageNetPct": -0.3158,
+              "totalNetPct": -12.9483,
+              "targetRate": 0.0,
+              "averageHoldMinutes": 42.68
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 16,
+                "wins": 3,
+                "winRate": 0.1875,
+                "averageNetPct": -0.2547,
+                "totalNetPct": -4.0759,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 43.12
+              },
+              "2023": {
+                "trades": 9,
+                "wins": 0,
+                "winRate": 0.0,
+                "averageNetPct": -0.333,
+                "totalNetPct": -2.9968,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 47.44
+              },
+              "2024": {
+                "trades": 16,
+                "wins": 1,
+                "winRate": 0.0625,
+                "averageNetPct": -0.3672,
+                "totalNetPct": -5.8756,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 39.56
+              }
+            },
+            "validation": {
+              "trades": 12,
+              "wins": 6,
+              "winRate": 0.5,
+              "averageNetPct": -0.0734,
+              "totalNetPct": -0.8803,
+              "targetRate": 0.1667,
+              "averageHoldMinutes": 32.42
+            },
+            "blindTest": {
+              "trades": 2,
+              "wins": 2,
+              "winRate": 1.0,
+              "averageNetPct": 0.6011,
+              "totalNetPct": 1.2022,
+              "targetRate": 1.0,
+              "averageHoldMinutes": 9.5
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 10,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 <= +2.69%"
+            ],
+            "training": {
+              "trades": 137,
+              "wins": 54,
+              "winRate": 0.3942,
+              "averageNetPct": -0.07,
+              "totalNetPct": -9.5882,
+              "targetRate": 0.2263,
+              "averageHoldMinutes": 36.09
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 48,
+                "wins": 19,
+                "winRate": 0.3958,
+                "averageNetPct": -0.0475,
+                "totalNetPct": -2.2817,
+                "targetRate": 0.2292,
+                "averageHoldMinutes": 38.65
+              },
+              "2023": {
+                "trades": 51,
+                "wins": 21,
+                "winRate": 0.4118,
+                "averageNetPct": -0.0551,
+                "totalNetPct": -2.8109,
+                "targetRate": 0.2353,
+                "averageHoldMinutes": 38.31
+              },
+              "2024": {
+                "trades": 38,
+                "wins": 14,
+                "winRate": 0.3684,
+                "averageNetPct": -0.1183,
+                "totalNetPct": -4.4957,
+                "targetRate": 0.2105,
+                "averageHoldMinutes": 29.87
+              }
+            },
+            "validation": {
+              "trades": 58,
+              "wins": 23,
+              "winRate": 0.3966,
+              "averageNetPct": -0.1003,
+              "totalNetPct": -5.8189,
+              "targetRate": 0.1724,
+              "averageHoldMinutes": 35.48
+            },
+            "blindTest": {
+              "trades": 0,
+              "wins": 0,
+              "winRate": null,
+              "averageNetPct": 0.0,
+              "totalNetPct": 0.0,
+              "targetRate": null,
+              "averageHoldMinutes": 0.0
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 3,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 <= +0.04%"
+            ],
+            "training": {
+              "trades": 316,
+              "wins": 93,
+              "winRate": 0.2943,
+              "averageNetPct": -0.2071,
+              "totalNetPct": -65.4454,
+              "targetRate": 0.1994,
+              "averageHoldMinutes": 25.14
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 101,
+                "wins": 28,
+                "winRate": 0.2772,
+                "averageNetPct": -0.2226,
+                "totalNetPct": -22.4824,
+                "targetRate": 0.1485,
+                "averageHoldMinutes": 28.74
+              },
+              "2023": {
+                "trades": 118,
+                "wins": 32,
+                "winRate": 0.2712,
+                "averageNetPct": -0.2409,
+                "totalNetPct": -28.4246,
+                "targetRate": 0.178,
+                "averageHoldMinutes": 24.7
+              },
+              "2024": {
+                "trades": 97,
+                "wins": 33,
+                "winRate": 0.3402,
+                "averageNetPct": -0.1499,
+                "totalNetPct": -14.5384,
+                "targetRate": 0.2784,
+                "averageHoldMinutes": 21.92
+              }
+            },
+            "validation": {
+              "trades": 90,
+              "wins": 34,
+              "winRate": 0.3778,
+              "averageNetPct": -0.1196,
+              "totalNetPct": -10.7664,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.02
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 4,
+              "winRate": 0.2,
+              "averageNetPct": -0.3037,
+              "totalNetPct": -6.0744,
+              "targetRate": 0.15,
+              "averageHoldMinutes": 14.95
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 4,
+            "conditions": [
+              "已出现振幅 <= +1.58%",
+              "时刻 <= 11:28",
+              "紫金昨日同业超额 > +0.04%"
+            ],
+            "training": {
+              "trades": 252,
+              "wins": 106,
+              "winRate": 0.4206,
+              "averageNetPct": -0.0974,
+              "totalNetPct": -24.535,
+              "targetRate": 0.2976,
+              "averageHoldMinutes": 26.05
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 76,
+                "wins": 29,
+                "winRate": 0.3816,
+                "averageNetPct": -0.1443,
+                "totalNetPct": -10.9695,
+                "targetRate": 0.2632,
+                "averageHoldMinutes": 29.18
+              },
+              "2023": {
+                "trades": 91,
+                "wins": 40,
+                "winRate": 0.4396,
+                "averageNetPct": -0.1103,
+                "totalNetPct": -10.0365,
+                "targetRate": 0.2857,
+                "averageHoldMinutes": 29.64
+              },
+              "2024": {
+                "trades": 85,
+                "wins": 37,
+                "winRate": 0.4353,
+                "averageNetPct": -0.0415,
+                "totalNetPct": -3.529,
+                "targetRate": 0.3412,
+                "averageHoldMinutes": 19.41
+              }
+            },
+            "validation": {
+              "trades": 108,
+              "wins": 38,
+              "winRate": 0.3519,
+              "averageNetPct": -0.1263,
+              "totalNetPct": -13.6413,
+              "targetRate": 0.2778,
+              "averageHoldMinutes": 25.77
+            },
+            "blindTest": {
+              "trades": 20,
+              "wins": 9,
+              "winRate": 0.45,
+              "averageNetPct": 0.0241,
+              "totalNetPct": 0.4822,
+              "targetRate": 0.4,
+              "averageHoldMinutes": 19.45
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 11,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 <= +1.84%",
+              "紫金前20日平均振幅 > +2.69%"
+            ],
+            "training": {
+              "trades": 179,
+              "wins": 86,
+              "winRate": 0.4804,
+              "averageNetPct": -0.0317,
+              "totalNetPct": -5.6691,
+              "targetRate": 0.352,
+              "averageHoldMinutes": 24.71
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 51,
+                "wins": 27,
+                "winRate": 0.5294,
+                "averageNetPct": 0.0425,
+                "totalNetPct": 2.1661,
+                "targetRate": 0.4118,
+                "averageHoldMinutes": 22.59
+              },
+              "2023": {
+                "trades": 63,
+                "wins": 28,
+                "winRate": 0.4444,
+                "averageNetPct": -0.1081,
+                "totalNetPct": -6.8134,
+                "targetRate": 0.2698,
+                "averageHoldMinutes": 26.84
+              },
+              "2024": {
+                "trades": 65,
+                "wins": 31,
+                "winRate": 0.4769,
+                "averageNetPct": -0.0157,
+                "totalNetPct": -1.0218,
+                "targetRate": 0.3846,
+                "averageHoldMinutes": 24.31
+              }
+            },
+            "validation": {
+              "trades": 47,
+              "wins": 17,
+              "winRate": 0.3617,
+              "averageNetPct": -0.1393,
+              "totalNetPct": -6.5464,
+              "targetRate": 0.2766,
+              "averageHoldMinutes": 25.98
+            },
+            "blindTest": {
+              "trades": 18,
+              "wins": 6,
+              "winRate": 0.3333,
+              "averageNetPct": -0.1808,
+              "totalNetPct": -3.2552,
+              "targetRate": 0.2222,
+              "averageHoldMinutes": 20.72
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 14,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 > +0.18%"
+            ],
+            "training": {
+              "trades": 679,
+              "wins": 287,
+              "winRate": 0.4227,
+              "averageNetPct": -0.0743,
+              "totalNetPct": -50.4751,
+              "targetRate": 0.3093,
+              "averageHoldMinutes": 27.41
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 224,
+                "wins": 91,
+                "winRate": 0.4062,
+                "averageNetPct": -0.0869,
+                "totalNetPct": -19.4593,
+                "targetRate": 0.3214,
+                "averageHoldMinutes": 24.83
+              },
+              "2023": {
+                "trades": 204,
+                "wins": 85,
+                "winRate": 0.4167,
+                "averageNetPct": -0.1011,
+                "totalNetPct": -20.6266,
+                "targetRate": 0.2892,
+                "averageHoldMinutes": 29.74
+              },
+              "2024": {
+                "trades": 251,
+                "wins": 111,
+                "winRate": 0.4422,
+                "averageNetPct": -0.0414,
+                "totalNetPct": -10.3891,
+                "targetRate": 0.3147,
+                "averageHoldMinutes": 27.84
+              }
+            },
+            "validation": {
+              "trades": 218,
+              "wins": 79,
+              "winRate": 0.3624,
+              "averageNetPct": -0.1472,
+              "totalNetPct": -32.0879,
+              "targetRate": 0.2294,
+              "averageHoldMinutes": 28.94
+            },
+            "blindTest": {
+              "trades": 65,
+              "wins": 24,
+              "winRate": 0.3692,
+              "averageNetPct": -0.0915,
+              "totalNetPct": -5.9497,
+              "targetRate": 0.3538,
+              "averageHoldMinutes": 21.82
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          },
+          {
+            "leaf": 13,
+            "conditions": [
+              "已出现振幅 > +1.58%",
+              "已出现振幅 > +1.84%",
+              "紫金VWAP相对偏离 <= +0.18%"
+            ],
+            "training": {
+              "trades": 835,
+              "wins": 292,
+              "winRate": 0.3497,
+              "averageNetPct": -0.1588,
+              "totalNetPct": -132.6075,
+              "targetRate": 0.2443,
+              "averageHoldMinutes": 26.59
+            },
+            "trainingByYear": {
+              "2022": {
+                "trades": 283,
+                "wins": 98,
+                "winRate": 0.3463,
+                "averageNetPct": -0.1546,
+                "totalNetPct": -43.7565,
+                "targetRate": 0.265,
+                "averageHoldMinutes": 26.17
+              },
+              "2023": {
+                "trades": 222,
+                "wins": 87,
+                "winRate": 0.3919,
+                "averageNetPct": -0.1127,
+                "totalNetPct": -25.0206,
+                "targetRate": 0.2523,
+                "averageHoldMinutes": 30.2
+              },
+              "2024": {
+                "trades": 330,
+                "wins": 107,
+                "winRate": 0.3242,
+                "averageNetPct": -0.1934,
+                "totalNetPct": -63.8304,
+                "targetRate": 0.2212,
+                "averageHoldMinutes": 24.51
+              }
+            },
+            "validation": {
+              "trades": 278,
+              "wins": 85,
+              "winRate": 0.3058,
+              "averageNetPct": -0.1952,
+              "totalNetPct": -54.255,
+              "targetRate": 0.2014,
+              "averageHoldMinutes": 27.36
+            },
+            "blindTest": {
+              "trades": 101,
+              "wins": 40,
+              "winRate": 0.396,
+              "averageNetPct": -0.0706,
+              "totalNetPct": -7.1288,
+              "targetRate": 0.3564,
+              "averageHoldMinutes": 18.54
+            },
+            "passedTrainingGate": false,
+            "passedValidationGate": false
+          }
+        ]
+      }
+    ]
+  },
+  "conclusion": {
+    "status": "no-stable-peer-pattern",
+    "message": "同业与前序日结构因子已完成严格样本外扫描；未通过盲测的规则不会为了达到65%而启用。",
+    "winRateTarget": 0.65,
+    "nextRequiredFactors": [
+      "国际金价与铜价",
+      "沪深300与上证指数",
+      "港股紫金矿业",
+      "公告与突发事件时钟"
+    ],
+    "deployment": "研究结果不自动进入Smart-T V4"
+  },
+  "generatedAt": "2026-07-18T04:36:28+0800",
+  "elapsedSeconds": 183.15
+}
