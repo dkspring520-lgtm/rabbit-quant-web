@@ -103,6 +103,14 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(styles, /live-signal-marker\.buy rect\{fill:rgba\(40,215,196,\.18\)/);
 });
 
+test("Zijin factor research is visibly isolated from the execution strategy", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /紫金矿业专属因子研究/);
+  assert.match(source, /与 Smart‑T V4 隔离/);
+  assert.match(source, /尚未冒充 24 小时服务器训练/);
+  assert.match(source, /analyzeZijinFactorResearch/);
+});
+
 test("pre-open status keeps readable labels without global auction layout leakage", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
