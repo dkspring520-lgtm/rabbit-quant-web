@@ -1,0 +1,3440 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "marketCode": "601899.SH",
+    "name": "紫金矿业"
+  },
+  "mode": "research-only",
+  "affectsV4": false,
+  "dataset": {
+    "firstDate": "20220104",
+    "lastDate": "20260417",
+    "minuteRows": 249917,
+    "tradingDays": 1037,
+    "labeledScenarios": 31567
+  },
+  "methodology": {
+    "training": "2022-2024",
+    "validation": "2025",
+    "blindTest": "2026-01-05..2026-04-17",
+    "causalFeatures": true,
+    "earliestFill": "下一分钟开盘价",
+    "futureUse": "仅作为结果标签",
+    "features": [
+      "minuteOfDay",
+      "gapPct",
+      "openDeviationPct",
+      "vwapBiasPct",
+      "vwapSlope5Pct",
+      "return3Pct",
+      "return5Pct",
+      "ma5SlopePct",
+      "ma10SlopePct",
+      "volumeRatio",
+      "pullbackVolumeRatio",
+      "priceZscore",
+      "atrPct",
+      "intradayPosition",
+      "rangePct",
+      "drawdownFromHighPct",
+      "reboundFromLowPct"
+    ],
+    "roundTripCostPct": 0.12,
+    "netProfitZonePct": [
+      0.64,
+      1.0
+    ],
+    "maxHoldMinutes": 60,
+    "maxTradesPerDay": 2,
+    "candidateCooldownMinutes": 5,
+    "candidateAnchor": "相对高低位或VWAP偏离后，三分钟动量/MA5斜率发生实时转向"
+  },
+  "discoveredRules": {
+    "positive": [
+      {
+        "leaf": 45,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 > +0.00%",
+          "开盘缺口 <= +0.45%",
+          "已出现振幅 > +3.20%",
+          "开盘缺口 <= -0.60%"
+        ],
+        "rawScenarioCount": {
+          "training": 235,
+          "validation": 51,
+          "blindTest": 73
+        },
+        "training": {
+          "trades": 70,
+          "wins": 17,
+          "winRate": 0.2429,
+          "averageNetPct": -0.2809,
+          "totalNetPct": -19.6635,
+          "targetRate": 0.1571,
+          "averageHoldMinutes": 28.54
+        },
+        "validation": {
+          "trades": 15,
+          "wins": 9,
+          "winRate": 0.6,
+          "averageNetPct": 0.2025,
+          "totalNetPct": 3.0379,
+          "targetRate": 0.5333,
+          "averageHoldMinutes": 32.8
+        },
+        "blindTest": {
+          "trades": 17,
+          "wins": 7,
+          "winRate": 0.4118,
+          "averageNetPct": -0.0909,
+          "totalNetPct": -1.5455,
+          "targetRate": 0.3529,
+          "averageHoldMinutes": 21.76
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 27,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 > +1.77%",
+          "开盘缺口 > -0.62%",
+          "相对开盘价 <= +0.10%",
+          "距已出现低点 > +0.33%"
+        ],
+        "rawScenarioCount": {
+          "training": 318,
+          "validation": 123,
+          "blindTest": 8
+        },
+        "training": {
+          "trades": 93,
+          "wins": 15,
+          "winRate": 0.1613,
+          "averageNetPct": -0.3459,
+          "totalNetPct": -32.1701,
+          "targetRate": 0.086,
+          "averageHoldMinutes": 32.16
+        },
+        "validation": {
+          "trades": 27,
+          "wins": 17,
+          "winRate": 0.6296,
+          "averageNetPct": 0.1323,
+          "totalNetPct": 3.5709,
+          "targetRate": 0.3704,
+          "averageHoldMinutes": 44.33
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": 0.1185,
+          "totalNetPct": 0.237,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 42.5
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 70,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR > +0.19%",
+          "开盘缺口 > +1.57%",
+          "开盘缺口 <= +2.54%",
+          "开盘缺口 <= +2.01%"
+        ],
+        "rawScenarioCount": {
+          "training": 125,
+          "validation": 53,
+          "blindTest": 47
+        },
+        "training": {
+          "trades": 46,
+          "wins": 20,
+          "winRate": 0.4348,
+          "averageNetPct": -0.033,
+          "totalNetPct": -1.5167,
+          "targetRate": 0.413,
+          "averageHoldMinutes": 15.02
+        },
+        "validation": {
+          "trades": 17,
+          "wins": 9,
+          "winRate": 0.5294,
+          "averageNetPct": 0.1158,
+          "totalNetPct": 1.9682,
+          "targetRate": 0.4706,
+          "averageHoldMinutes": 17.24
+        },
+        "blindTest": {
+          "trades": 10,
+          "wins": 4,
+          "winRate": 0.4,
+          "averageNetPct": -0.058,
+          "totalNetPct": -0.5801,
+          "targetRate": 0.4,
+          "averageHoldMinutes": 9.6
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 22,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 > +1.77%",
+          "开盘缺口 <= -0.62%",
+          "已出现振幅 <= +1.85%",
+          "距VWAP > -0.09%"
+        ],
+        "rawScenarioCount": {
+          "training": 95,
+          "validation": 3,
+          "blindTest": 0
+        },
+        "training": {
+          "trades": 20,
+          "wins": 4,
+          "winRate": 0.2,
+          "averageNetPct": -0.2806,
+          "totalNetPct": -5.6119,
+          "targetRate": 0.15,
+          "averageHoldMinutes": 32.95
+        },
+        "validation": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": 0.0597,
+          "totalNetPct": 0.1194,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 12.0
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 65,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR <= +0.19%",
+          "时刻 > 14:16"
+        ],
+        "rawScenarioCount": {
+          "training": 83,
+          "validation": 42,
+          "blindTest": 20
+        },
+        "training": {
+          "trades": 54,
+          "wins": 19,
+          "winRate": 0.3519,
+          "averageNetPct": -0.1014,
+          "totalNetPct": -5.4729,
+          "targetRate": 0.0556,
+          "averageHoldMinutes": 34.24
+        },
+        "validation": {
+          "trades": 27,
+          "wins": 14,
+          "winRate": 0.5185,
+          "averageNetPct": 0.0425,
+          "totalNetPct": 1.1487,
+          "targetRate": 0.1111,
+          "averageHoldMinutes": 34.56
+        },
+        "blindTest": {
+          "trades": 15,
+          "wins": 11,
+          "winRate": 0.7333,
+          "averageNetPct": 0.1447,
+          "totalNetPct": 2.1706,
+          "targetRate": 0.2,
+          "averageHoldMinutes": 29.67
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 23,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 > +1.77%",
+          "开盘缺口 <= -0.62%",
+          "已出现振幅 > +1.85%"
+        ],
+        "rawScenarioCount": {
+          "training": 82,
+          "validation": 39,
+          "blindTest": 3
+        },
+        "training": {
+          "trades": 26,
+          "wins": 15,
+          "winRate": 0.5769,
+          "averageNetPct": 0.0586,
+          "totalNetPct": 1.5234,
+          "targetRate": 0.4615,
+          "averageHoldMinutes": 25.58
+        },
+        "validation": {
+          "trades": 14,
+          "wins": 7,
+          "winRate": 0.5,
+          "averageNetPct": 0.0239,
+          "totalNetPct": 0.3347,
+          "targetRate": 0.3571,
+          "averageHoldMinutes": 32.79
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": 0.0846,
+          "totalNetPct": 0.1693,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 28.5
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 36,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 <= +0.00%",
+          "开盘缺口 <= +1.26%",
+          "距已出现高点 > -2.13%",
+          "相对开盘价 <= -1.77%"
+        ],
+        "rawScenarioCount": {
+          "training": 187,
+          "validation": 26,
+          "blindTest": 22
+        },
+        "training": {
+          "trades": 87,
+          "wins": 43,
+          "winRate": 0.4943,
+          "averageNetPct": 0.0349,
+          "totalNetPct": 3.0343,
+          "targetRate": 0.3448,
+          "averageHoldMinutes": 29.71
+        },
+        "validation": {
+          "trades": 10,
+          "wins": 4,
+          "winRate": 0.4,
+          "averageNetPct": 0.0229,
+          "totalNetPct": 0.229,
+          "targetRate": 0.3,
+          "averageHoldMinutes": 25.6
+        },
+        "blindTest": {
+          "trades": 7,
+          "wins": 4,
+          "winRate": 0.5714,
+          "averageNetPct": -0.0257,
+          "totalNetPct": -0.18,
+          "targetRate": 0.2857,
+          "averageHoldMinutes": 37.71
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 17,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 <= +1.77%",
+          "VWAP五分钟斜率 > -0.02%",
+          "已出现振幅 > +1.00%",
+          "已出现振幅 > +1.58%"
+        ],
+        "rawScenarioCount": {
+          "training": 760,
+          "validation": 186,
+          "blindTest": 25
+        },
+        "training": {
+          "trades": 173,
+          "wins": 58,
+          "winRate": 0.3353,
+          "averageNetPct": -0.1749,
+          "totalNetPct": -30.2516,
+          "targetRate": 0.1734,
+          "averageHoldMinutes": 34.13
+        },
+        "validation": {
+          "trades": 53,
+          "wins": 26,
+          "winRate": 0.4906,
+          "averageNetPct": -0.0317,
+          "totalNetPct": -1.6788,
+          "targetRate": 0.283,
+          "averageHoldMinutes": 34.26
+        },
+        "blindTest": {
+          "trades": 7,
+          "wins": 3,
+          "winRate": 0.4286,
+          "averageNetPct": -0.0629,
+          "totalNetPct": -0.4403,
+          "targetRate": 0.2857,
+          "averageHoldMinutes": 19.57
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 26,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 > +1.77%",
+          "开盘缺口 > -0.62%",
+          "相对开盘价 <= +0.10%",
+          "距已出现低点 <= +0.33%"
+        ],
+        "rawScenarioCount": {
+          "training": 153,
+          "validation": 26,
+          "blindTest": 5
+        },
+        "training": {
+          "trades": 79,
+          "wins": 24,
+          "winRate": 0.3038,
+          "averageNetPct": -0.1795,
+          "totalNetPct": -14.1779,
+          "targetRate": 0.1519,
+          "averageHoldMinutes": 37.82
+        },
+        "validation": {
+          "trades": 17,
+          "wins": 7,
+          "winRate": 0.4118,
+          "averageNetPct": -0.032,
+          "totalNetPct": -0.5435,
+          "targetRate": 0.2353,
+          "averageHoldMinutes": 40.41
+        },
+        "blindTest": {
+          "trades": 4,
+          "wins": 1,
+          "winRate": 0.25,
+          "averageNetPct": -0.2169,
+          "totalNetPct": -0.8674,
+          "targetRate": 0.25,
+          "averageHoldMinutes": 45.25
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 64,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR <= +0.19%",
+          "时刻 <= 14:16",
+          "回调量/上涨量 > 0.95",
+          "时刻 > 10:56",
+          "价格Z分数 > 0.24"
+        ],
+        "rawScenarioCount": {
+          "training": 85,
+          "validation": 44,
+          "blindTest": 34
+        },
+        "training": {
+          "trades": 60,
+          "wins": 22,
+          "winRate": 0.3667,
+          "averageNetPct": -0.1533,
+          "totalNetPct": -9.197,
+          "targetRate": 0.2167,
+          "averageHoldMinutes": 35.75
+        },
+        "validation": {
+          "trades": 31,
+          "wins": 16,
+          "winRate": 0.5161,
+          "averageNetPct": -0.034,
+          "totalNetPct": -1.0541,
+          "targetRate": 0.1613,
+          "averageHoldMinutes": 41.03
+        },
+        "blindTest": {
+          "trades": 21,
+          "wins": 10,
+          "winRate": 0.4762,
+          "averageNetPct": -0.0629,
+          "totalNetPct": -1.3211,
+          "targetRate": 0.2857,
+          "averageHoldMinutes": 34.1
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 42,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 > +0.00%",
+          "开盘缺口 <= +0.45%",
+          "已出现振幅 <= +3.20%",
+          "开盘缺口 <= -1.60%"
+        ],
+        "rawScenarioCount": {
+          "training": 95,
+          "validation": 50,
+          "blindTest": 17
+        },
+        "training": {
+          "trades": 36,
+          "wins": 15,
+          "winRate": 0.4167,
+          "averageNetPct": -0.0497,
+          "totalNetPct": -1.7887,
+          "targetRate": 0.3889,
+          "averageHoldMinutes": 23.03
+        },
+        "validation": {
+          "trades": 14,
+          "wins": 7,
+          "winRate": 0.5,
+          "averageNetPct": -0.0373,
+          "totalNetPct": -0.5222,
+          "targetRate": 0.3571,
+          "averageHoldMinutes": 17.29
+        },
+        "blindTest": {
+          "trades": 10,
+          "wins": 6,
+          "winRate": 0.6,
+          "averageNetPct": 0.1404,
+          "totalNetPct": 1.4044,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 14.8
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 58,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR <= +0.19%",
+          "时刻 <= 14:16",
+          "回调量/上涨量 <= 0.95",
+          "日内位置 <= 0.58",
+          "时刻 > 13:12"
+        ],
+        "rawScenarioCount": {
+          "training": 134,
+          "validation": 77,
+          "blindTest": 28
+        },
+        "training": {
+          "trades": 60,
+          "wins": 14,
+          "winRate": 0.2333,
+          "averageNetPct": -0.2052,
+          "totalNetPct": -12.3131,
+          "targetRate": 0.1667,
+          "averageHoldMinutes": 38.97
+        },
+        "validation": {
+          "trades": 32,
+          "wins": 13,
+          "winRate": 0.4062,
+          "averageNetPct": -0.038,
+          "totalNetPct": -1.2154,
+          "targetRate": 0.2188,
+          "averageHoldMinutes": 40.12
+        },
+        "blindTest": {
+          "trades": 13,
+          "wins": 5,
+          "winRate": 0.3846,
+          "averageNetPct": -0.1377,
+          "totalNetPct": -1.7907,
+          "targetRate": 0.1538,
+          "averageHoldMinutes": 38.54
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 7,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 <= +1.77%",
+          "VWAP五分钟斜率 <= -0.02%",
+          "相对开盘价 <= -1.02%",
+          "距已出现低点 > +0.31%"
+        ],
+        "rawScenarioCount": {
+          "training": 83,
+          "validation": 9,
+          "blindTest": 2
+        },
+        "training": {
+          "trades": 51,
+          "wins": 23,
+          "winRate": 0.451,
+          "averageNetPct": -0.0371,
+          "totalNetPct": -1.8946,
+          "targetRate": 0.3333,
+          "averageHoldMinutes": 29.51
+        },
+        "validation": {
+          "trades": 7,
+          "wins": 3,
+          "winRate": 0.4286,
+          "averageNetPct": -0.0447,
+          "totalNetPct": -0.313,
+          "targetRate": 0.2857,
+          "averageHoldMinutes": 27.0
+        },
+        "blindTest": {
+          "trades": 1,
+          "wins": 0,
+          "winRate": 0.0,
+          "averageNetPct": -0.57,
+          "totalNetPct": -0.57,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 8.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 6,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 <= +1.77%",
+          "VWAP五分钟斜率 <= -0.02%",
+          "相对开盘价 <= -1.02%",
+          "距已出现低点 <= +0.31%"
+        ],
+        "rawScenarioCount": {
+          "training": 101,
+          "validation": 48,
+          "blindTest": 9
+        },
+        "training": {
+          "trades": 67,
+          "wins": 40,
+          "winRate": 0.597,
+          "averageNetPct": 0.0188,
+          "totalNetPct": 1.2625,
+          "targetRate": 0.2537,
+          "averageHoldMinutes": 39.51
+        },
+        "validation": {
+          "trades": 24,
+          "wins": 12,
+          "winRate": 0.5,
+          "averageNetPct": -0.0664,
+          "totalNetPct": -1.5936,
+          "targetRate": 0.2083,
+          "averageHoldMinutes": 44.67
+        },
+        "blindTest": {
+          "trades": 7,
+          "wins": 5,
+          "winRate": 0.7143,
+          "averageNetPct": 0.1404,
+          "totalNetPct": 0.9827,
+          "targetRate": 0.5714,
+          "averageHoldMinutes": 30.29
+        },
+        "passedTrainingGate": true,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 43,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 > +0.00%",
+          "开盘缺口 <= +0.45%",
+          "已出现振幅 <= +3.20%",
+          "开盘缺口 > -1.60%"
+        ],
+        "rawScenarioCount": {
+          "training": 545,
+          "validation": 188,
+          "blindTest": 36
+        },
+        "training": {
+          "trades": 207,
+          "wins": 72,
+          "winRate": 0.3478,
+          "averageNetPct": -0.1637,
+          "totalNetPct": -33.8961,
+          "targetRate": 0.2319,
+          "averageHoldMinutes": 31.6
+        },
+        "validation": {
+          "trades": 57,
+          "wins": 23,
+          "winRate": 0.4035,
+          "averageNetPct": -0.0862,
+          "totalNetPct": -4.9149,
+          "targetRate": 0.2632,
+          "averageHoldMinutes": 34.54
+        },
+        "blindTest": {
+          "trades": 14,
+          "wins": 4,
+          "winRate": 0.2857,
+          "averageNetPct": -0.2165,
+          "totalNetPct": -3.0307,
+          "targetRate": 0.2857,
+          "averageHoldMinutes": 28.57
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 16,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 <= +1.77%",
+          "VWAP五分钟斜率 > -0.02%",
+          "已出现振幅 > +1.00%",
+          "已出现振幅 <= +1.58%"
+        ],
+        "rawScenarioCount": {
+          "training": 1210,
+          "validation": 373,
+          "blindTest": 41
+        },
+        "training": {
+          "trades": 312,
+          "wins": 114,
+          "winRate": 0.3654,
+          "averageNetPct": -0.0952,
+          "totalNetPct": -29.6959,
+          "targetRate": 0.2564,
+          "averageHoldMinutes": 34.04
+        },
+        "validation": {
+          "trades": 103,
+          "wins": 36,
+          "winRate": 0.3495,
+          "averageNetPct": -0.0886,
+          "totalNetPct": -9.1266,
+          "targetRate": 0.233,
+          "averageHoldMinutes": 37.09
+        },
+        "blindTest": {
+          "trades": 16,
+          "wins": 5,
+          "winRate": 0.3125,
+          "averageNetPct": -0.2351,
+          "totalNetPct": -3.7613,
+          "targetRate": 0.25,
+          "averageHoldMinutes": 18.19
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 34,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 <= +0.00%",
+          "开盘缺口 <= +1.26%",
+          "距已出现高点 <= -2.13%",
+          "已出现振幅 > +3.11%"
+        ],
+        "rawScenarioCount": {
+          "training": 827,
+          "validation": 209,
+          "blindTest": 161
+        },
+        "training": {
+          "trades": 152,
+          "wins": 64,
+          "winRate": 0.4211,
+          "averageNetPct": -0.085,
+          "totalNetPct": -12.9204,
+          "targetRate": 0.3355,
+          "averageHoldMinutes": 21.28
+        },
+        "validation": {
+          "trades": 41,
+          "wins": 17,
+          "winRate": 0.4146,
+          "averageNetPct": -0.0971,
+          "totalNetPct": -3.981,
+          "targetRate": 0.2683,
+          "averageHoldMinutes": 24.54
+        },
+        "blindTest": {
+          "trades": 32,
+          "wins": 11,
+          "winRate": 0.3438,
+          "averageNetPct": -0.1563,
+          "totalNetPct": -5.002,
+          "targetRate": 0.2812,
+          "averageHoldMinutes": 22.5
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 61,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR <= +0.19%",
+          "时刻 <= 14:16",
+          "回调量/上涨量 > 0.95",
+          "时刻 <= 10:56"
+        ],
+        "rawScenarioCount": {
+          "training": 96,
+          "validation": 62,
+          "blindTest": 31
+        },
+        "training": {
+          "trades": 63,
+          "wins": 25,
+          "winRate": 0.3968,
+          "averageNetPct": -0.0645,
+          "totalNetPct": -4.0643,
+          "targetRate": 0.3016,
+          "averageHoldMinutes": 30.33
+        },
+        "validation": {
+          "trades": 30,
+          "wins": 13,
+          "winRate": 0.4333,
+          "averageNetPct": -0.0982,
+          "totalNetPct": -2.9457,
+          "targetRate": 0.2667,
+          "averageHoldMinutes": 35.57
+        },
+        "blindTest": {
+          "trades": 18,
+          "wins": 5,
+          "winRate": 0.2778,
+          "averageNetPct": -0.1787,
+          "totalNetPct": -3.217,
+          "targetRate": 0.2222,
+          "averageHoldMinutes": 31.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 49,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 > +0.00%",
+          "开盘缺口 > +0.45%",
+          "相对开盘价 <= +2.07%",
+          "日内位置 <= 0.65"
+        ],
+        "rawScenarioCount": {
+          "training": 103,
+          "validation": 34,
+          "blindTest": 9
+        },
+        "training": {
+          "trades": 53,
+          "wins": 22,
+          "winRate": 0.4151,
+          "averageNetPct": -0.1162,
+          "totalNetPct": -6.1611,
+          "targetRate": 0.1887,
+          "averageHoldMinutes": 31.38
+        },
+        "validation": {
+          "trades": 16,
+          "wins": 6,
+          "winRate": 0.375,
+          "averageNetPct": -0.0993,
+          "totalNetPct": -1.5893,
+          "targetRate": 0.125,
+          "averageHoldMinutes": 38.19
+        },
+        "blindTest": {
+          "trades": 7,
+          "wins": 2,
+          "winRate": 0.2857,
+          "averageNetPct": -0.2401,
+          "totalNetPct": -1.6807,
+          "targetRate": 0.1429,
+          "averageHoldMinutes": 14.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 9,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 <= +1.77%",
+          "VWAP五分钟斜率 <= -0.02%",
+          "相对开盘价 > -1.02%",
+          "相对开盘价 <= -0.13%"
+        ],
+        "rawScenarioCount": {
+          "training": 643,
+          "validation": 231,
+          "blindTest": 34
+        },
+        "training": {
+          "trades": 398,
+          "wins": 144,
+          "winRate": 0.3618,
+          "averageNetPct": -0.1381,
+          "totalNetPct": -54.9542,
+          "targetRate": 0.2663,
+          "averageHoldMinutes": 28.25
+        },
+        "validation": {
+          "trades": 139,
+          "wins": 54,
+          "winRate": 0.3885,
+          "averageNetPct": -0.1017,
+          "totalNetPct": -14.1355,
+          "targetRate": 0.2734,
+          "averageHoldMinutes": 28.83
+        },
+        "blindTest": {
+          "trades": 23,
+          "wins": 4,
+          "winRate": 0.1739,
+          "averageNetPct": -0.3824,
+          "totalNetPct": -8.796,
+          "targetRate": 0.087,
+          "averageHoldMinutes": 22.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 37,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 <= +0.00%",
+          "开盘缺口 <= +1.26%",
+          "距已出现高点 > -2.13%",
+          "相对开盘价 > -1.77%"
+        ],
+        "rawScenarioCount": {
+          "training": 2634,
+          "validation": 783,
+          "blindTest": 242
+        },
+        "training": {
+          "trades": 608,
+          "wins": 233,
+          "winRate": 0.3832,
+          "averageNetPct": -0.1021,
+          "totalNetPct": -62.1008,
+          "targetRate": 0.2664,
+          "averageHoldMinutes": 28.56
+        },
+        "validation": {
+          "trades": 184,
+          "wins": 75,
+          "winRate": 0.4076,
+          "averageNetPct": -0.111,
+          "totalNetPct": -20.4189,
+          "targetRate": 0.2011,
+          "averageHoldMinutes": 32.56
+        },
+        "blindTest": {
+          "trades": 55,
+          "wins": 15,
+          "winRate": 0.2727,
+          "averageNetPct": -0.1938,
+          "totalNetPct": -10.6588,
+          "targetRate": 0.2182,
+          "averageHoldMinutes": 21.38
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 33,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 <= +0.00%",
+          "开盘缺口 <= +1.26%",
+          "距已出现高点 <= -2.13%",
+          "已出现振幅 <= +3.11%"
+        ],
+        "rawScenarioCount": {
+          "training": 498,
+          "validation": 134,
+          "blindTest": 61
+        },
+        "training": {
+          "trades": 183,
+          "wins": 62,
+          "winRate": 0.3388,
+          "averageNetPct": -0.1513,
+          "totalNetPct": -27.6836,
+          "targetRate": 0.2623,
+          "averageHoldMinutes": 26.42
+        },
+        "validation": {
+          "trades": 59,
+          "wins": 22,
+          "winRate": 0.3729,
+          "averageNetPct": -0.1177,
+          "totalNetPct": -6.9447,
+          "targetRate": 0.2203,
+          "averageHoldMinutes": 29.53
+        },
+        "blindTest": {
+          "trades": 26,
+          "wins": 7,
+          "winRate": 0.2692,
+          "averageNetPct": -0.2978,
+          "totalNetPct": -7.743,
+          "targetRate": 0.1923,
+          "averageHoldMinutes": 23.04
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 57,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR <= +0.19%",
+          "时刻 <= 14:16",
+          "回调量/上涨量 <= 0.95",
+          "日内位置 <= 0.58",
+          "时刻 <= 13:12"
+        ],
+        "rawScenarioCount": {
+          "training": 162,
+          "validation": 60,
+          "blindTest": 24
+        },
+        "training": {
+          "trades": 72,
+          "wins": 10,
+          "winRate": 0.1389,
+          "averageNetPct": -0.3306,
+          "totalNetPct": -23.8038,
+          "targetRate": 0.1111,
+          "averageHoldMinutes": 33.08
+        },
+        "validation": {
+          "trades": 31,
+          "wins": 11,
+          "winRate": 0.3548,
+          "averageNetPct": -0.1443,
+          "totalNetPct": -4.4718,
+          "targetRate": 0.3226,
+          "averageHoldMinutes": 27.9
+        },
+        "blindTest": {
+          "trades": 13,
+          "wins": 4,
+          "winRate": 0.3077,
+          "averageNetPct": -0.2717,
+          "totalNetPct": -3.5317,
+          "targetRate": 0.1538,
+          "averageHoldMinutes": 27.69
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 73,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR > +0.19%",
+          "开盘缺口 > +1.57%",
+          "开盘缺口 > +2.54%",
+          "价格Z分数 <= -0.14"
+        ],
+        "rawScenarioCount": {
+          "training": 85,
+          "validation": 35,
+          "blindTest": 34
+        },
+        "training": {
+          "trades": 36,
+          "wins": 15,
+          "winRate": 0.4167,
+          "averageNetPct": -0.0595,
+          "totalNetPct": -2.1419,
+          "targetRate": 0.4167,
+          "averageHoldMinutes": 13.31
+        },
+        "validation": {
+          "trades": 17,
+          "wins": 7,
+          "winRate": 0.4118,
+          "averageNetPct": -0.156,
+          "totalNetPct": -2.6515,
+          "targetRate": 0.3529,
+          "averageHoldMinutes": 13.88
+        },
+        "blindTest": {
+          "trades": 16,
+          "wins": 5,
+          "winRate": 0.3125,
+          "averageNetPct": -0.1954,
+          "totalNetPct": -3.127,
+          "targetRate": 0.3125,
+          "averageHoldMinutes": 16.75
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 51,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 > +0.00%",
+          "开盘缺口 > +0.45%",
+          "相对开盘价 > +2.07%"
+        ],
+        "rawScenarioCount": {
+          "training": 157,
+          "validation": 65,
+          "blindTest": 1
+        },
+        "training": {
+          "trades": 47,
+          "wins": 28,
+          "winRate": 0.5957,
+          "averageNetPct": 0.0564,
+          "totalNetPct": 2.652,
+          "targetRate": 0.4043,
+          "averageHoldMinutes": 29.79
+        },
+        "validation": {
+          "trades": 19,
+          "wins": 6,
+          "winRate": 0.3158,
+          "averageNetPct": -0.1591,
+          "totalNetPct": -3.0224,
+          "targetRate": 0.2632,
+          "averageHoldMinutes": 27.63
+        },
+        "blindTest": {
+          "trades": 1,
+          "wins": 0,
+          "winRate": 0.0,
+          "averageNetPct": -0.57,
+          "totalNetPct": -0.57,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 10.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 13,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 <= +1.77%",
+          "VWAP五分钟斜率 > -0.02%",
+          "已出现振幅 <= +1.00%",
+          "价格Z分数 <= 0.54"
+        ],
+        "rawScenarioCount": {
+          "training": 219,
+          "validation": 79,
+          "blindTest": 26
+        },
+        "training": {
+          "trades": 93,
+          "wins": 31,
+          "winRate": 0.3333,
+          "averageNetPct": -0.1259,
+          "totalNetPct": -11.7086,
+          "targetRate": 0.2473,
+          "averageHoldMinutes": 30.16
+        },
+        "validation": {
+          "trades": 36,
+          "wins": 12,
+          "winRate": 0.3333,
+          "averageNetPct": -0.1611,
+          "totalNetPct": -5.7991,
+          "targetRate": 0.2222,
+          "averageHoldMinutes": 33.06
+        },
+        "blindTest": {
+          "trades": 8,
+          "wins": 5,
+          "winRate": 0.625,
+          "averageNetPct": 0.2575,
+          "totalNetPct": 2.0598,
+          "targetRate": 0.375,
+          "averageHoldMinutes": 35.62
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 63,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR <= +0.19%",
+          "时刻 <= 14:16",
+          "回调量/上涨量 > 0.95",
+          "时刻 > 10:56",
+          "价格Z分数 <= 0.24"
+        ],
+        "rawScenarioCount": {
+          "training": 203,
+          "validation": 130,
+          "blindTest": 72
+        },
+        "training": {
+          "trades": 110,
+          "wins": 19,
+          "winRate": 0.1727,
+          "averageNetPct": -0.3134,
+          "totalNetPct": -34.4699,
+          "targetRate": 0.0818,
+          "averageHoldMinutes": 35.53
+        },
+        "validation": {
+          "trades": 59,
+          "wins": 20,
+          "winRate": 0.339,
+          "averageNetPct": -0.1747,
+          "totalNetPct": -10.309,
+          "targetRate": 0.1525,
+          "averageHoldMinutes": 35.17
+        },
+        "blindTest": {
+          "trades": 33,
+          "wins": 17,
+          "winRate": 0.5152,
+          "averageNetPct": 0.0158,
+          "totalNetPct": 0.5216,
+          "targetRate": 0.3333,
+          "averageHoldMinutes": 31.88
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 67,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR > +0.19%",
+          "开盘缺口 <= +1.57%"
+        ],
+        "rawScenarioCount": {
+          "training": 89,
+          "validation": 20,
+          "blindTest": 0
+        },
+        "training": {
+          "trades": 24,
+          "wins": 6,
+          "winRate": 0.25,
+          "averageNetPct": -0.183,
+          "totalNetPct": -4.3928,
+          "targetRate": 0.25,
+          "averageHoldMinutes": 16.29
+        },
+        "validation": {
+          "trades": 6,
+          "wins": 2,
+          "winRate": 0.3333,
+          "averageNetPct": -0.1831,
+          "totalNetPct": -1.0987,
+          "targetRate": 0.3333,
+          "averageHoldMinutes": 7.17
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 28,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 > +1.77%",
+          "开盘缺口 > -0.62%",
+          "相对开盘价 > +0.10%"
+        ],
+        "rawScenarioCount": {
+          "training": 80,
+          "validation": 57,
+          "blindTest": 0
+        },
+        "training": {
+          "trades": 25,
+          "wins": 9,
+          "winRate": 0.36,
+          "averageNetPct": -0.1817,
+          "totalNetPct": -4.5432,
+          "targetRate": 0.2,
+          "averageHoldMinutes": 26.12
+        },
+        "validation": {
+          "trades": 14,
+          "wins": 3,
+          "winRate": 0.2143,
+          "averageNetPct": -0.2057,
+          "totalNetPct": -2.8798,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 47.93
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 10,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 <= +1.77%",
+          "VWAP五分钟斜率 <= -0.02%",
+          "相对开盘价 > -1.02%",
+          "相对开盘价 > -0.13%"
+        ],
+        "rawScenarioCount": {
+          "training": 181,
+          "validation": 80,
+          "blindTest": 13
+        },
+        "training": {
+          "trades": 129,
+          "wins": 63,
+          "winRate": 0.4884,
+          "averageNetPct": 0.0047,
+          "totalNetPct": 0.6087,
+          "targetRate": 0.3566,
+          "averageHoldMinutes": 30.36
+        },
+        "validation": {
+          "trades": 51,
+          "wins": 14,
+          "winRate": 0.2745,
+          "averageNetPct": -0.2384,
+          "totalNetPct": -12.1564,
+          "targetRate": 0.2157,
+          "averageHoldMinutes": 24.98
+        },
+        "blindTest": {
+          "trades": 11,
+          "wins": 2,
+          "winRate": 0.1818,
+          "averageNetPct": -0.2411,
+          "totalNetPct": -2.6516,
+          "targetRate": 0.1818,
+          "averageHoldMinutes": 16.36
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 38,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 <= +0.00%",
+          "开盘缺口 > +1.26%"
+        ],
+        "rawScenarioCount": {
+          "training": 84,
+          "validation": 105,
+          "blindTest": 16
+        },
+        "training": {
+          "trades": 13,
+          "wins": 5,
+          "winRate": 0.3846,
+          "averageNetPct": -0.1683,
+          "totalNetPct": -2.1882,
+          "targetRate": 0.3077,
+          "averageHoldMinutes": 18.31
+        },
+        "validation": {
+          "trades": 14,
+          "wins": 4,
+          "winRate": 0.2857,
+          "averageNetPct": -0.2473,
+          "totalNetPct": -3.4625,
+          "targetRate": 0.1429,
+          "averageHoldMinutes": 19.64
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": 0.0526,
+          "totalNetPct": 0.1051,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 15.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 14,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 <= +1.77%",
+          "VWAP五分钟斜率 > -0.02%",
+          "已出现振幅 <= +1.00%",
+          "价格Z分数 > 0.54"
+        ],
+        "rawScenarioCount": {
+          "training": 117,
+          "validation": 41,
+          "blindTest": 11
+        },
+        "training": {
+          "trades": 37,
+          "wins": 5,
+          "winRate": 0.1351,
+          "averageNetPct": -0.2985,
+          "totalNetPct": -11.0455,
+          "targetRate": 0.1081,
+          "averageHoldMinutes": 38.43
+        },
+        "validation": {
+          "trades": 17,
+          "wins": 4,
+          "winRate": 0.2353,
+          "averageNetPct": -0.2652,
+          "totalNetPct": -4.5078,
+          "targetRate": 0.1176,
+          "averageHoldMinutes": 42.47
+        },
+        "blindTest": {
+          "trades": 4,
+          "wins": 2,
+          "winRate": 0.5,
+          "averageNetPct": -0.0179,
+          "totalNetPct": -0.0716,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 44.25
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 71,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR > +0.19%",
+          "开盘缺口 > +1.57%",
+          "开盘缺口 <= +2.54%",
+          "开盘缺口 > +2.01%"
+        ],
+        "rawScenarioCount": {
+          "training": 102,
+          "validation": 45,
+          "blindTest": 21
+        },
+        "training": {
+          "trades": 27,
+          "wins": 14,
+          "winRate": 0.5185,
+          "averageNetPct": 0.0854,
+          "totalNetPct": 2.3059,
+          "targetRate": 0.4444,
+          "averageHoldMinutes": 14.89
+        },
+        "validation": {
+          "trades": 16,
+          "wins": 4,
+          "winRate": 0.25,
+          "averageNetPct": -0.2719,
+          "totalNetPct": -4.3504,
+          "targetRate": 0.1875,
+          "averageHoldMinutes": 14.62
+        },
+        "blindTest": {
+          "trades": 6,
+          "wins": 1,
+          "winRate": 0.1667,
+          "averageNetPct": -0.3698,
+          "totalNetPct": -2.219,
+          "targetRate": 0.1667,
+          "averageHoldMinutes": 9.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 59,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR <= +0.19%",
+          "时刻 <= 14:16",
+          "回调量/上涨量 <= 0.95",
+          "日内位置 > 0.58"
+        ],
+        "rawScenarioCount": {
+          "training": 80,
+          "validation": 32,
+          "blindTest": 23
+        },
+        "training": {
+          "trades": 42,
+          "wins": 12,
+          "winRate": 0.2857,
+          "averageNetPct": -0.1415,
+          "totalNetPct": -5.9417,
+          "targetRate": 0.2143,
+          "averageHoldMinutes": 33.95
+        },
+        "validation": {
+          "trades": 19,
+          "wins": 4,
+          "winRate": 0.2105,
+          "averageNetPct": -0.2784,
+          "totalNetPct": -5.2902,
+          "targetRate": 0.1053,
+          "averageHoldMinutes": 25.47
+        },
+        "blindTest": {
+          "trades": 15,
+          "wins": 7,
+          "winRate": 0.4667,
+          "averageNetPct": -0.048,
+          "totalNetPct": -0.7194,
+          "targetRate": 0.4,
+          "averageHoldMinutes": 25.93
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 50,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 > +0.00%",
+          "开盘缺口 > +0.45%",
+          "相对开盘价 <= +2.07%",
+          "日内位置 > 0.65"
+        ],
+        "rawScenarioCount": {
+          "training": 169,
+          "validation": 79,
+          "blindTest": 2
+        },
+        "training": {
+          "trades": 82,
+          "wins": 21,
+          "winRate": 0.2561,
+          "averageNetPct": -0.2537,
+          "totalNetPct": -20.8027,
+          "targetRate": 0.1341,
+          "averageHoldMinutes": 27.72
+        },
+        "validation": {
+          "trades": 26,
+          "wins": 7,
+          "winRate": 0.2692,
+          "averageNetPct": -0.2991,
+          "totalNetPct": -7.7763,
+          "targetRate": 0.1538,
+          "averageHoldMinutes": 29.23
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": 0.4925,
+          "totalNetPct": 0.985,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 31.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 46,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 > +1.92%",
+          "VWAP五分钟斜率 > +0.00%",
+          "开盘缺口 <= +0.45%",
+          "已出现振幅 > +3.20%",
+          "开盘缺口 > -0.60%"
+        ],
+        "rawScenarioCount": {
+          "training": 262,
+          "validation": 71,
+          "blindTest": 31
+        },
+        "training": {
+          "trades": 72,
+          "wins": 15,
+          "winRate": 0.2083,
+          "averageNetPct": -0.3298,
+          "totalNetPct": -23.7458,
+          "targetRate": 0.1111,
+          "averageHoldMinutes": 28.32
+        },
+        "validation": {
+          "trades": 16,
+          "wins": 3,
+          "winRate": 0.1875,
+          "averageNetPct": -0.3075,
+          "totalNetPct": -4.9199,
+          "targetRate": 0.1875,
+          "averageHoldMinutes": 26.31
+        },
+        "blindTest": {
+          "trades": 8,
+          "wins": 2,
+          "winRate": 0.25,
+          "averageNetPct": -0.2983,
+          "totalNetPct": -2.3861,
+          "targetRate": 0.25,
+          "averageHoldMinutes": 11.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 74,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 > +1.44%",
+          "短ATR > +0.19%",
+          "开盘缺口 > +1.57%",
+          "开盘缺口 > +2.54%",
+          "价格Z分数 > -0.14"
+        ],
+        "rawScenarioCount": {
+          "training": 83,
+          "validation": 41,
+          "blindTest": 31
+        },
+        "training": {
+          "trades": 32,
+          "wins": 7,
+          "winRate": 0.2188,
+          "averageNetPct": -0.2675,
+          "totalNetPct": -8.5595,
+          "targetRate": 0.2188,
+          "averageHoldMinutes": 11.28
+        },
+        "validation": {
+          "trades": 13,
+          "wins": 2,
+          "winRate": 0.1538,
+          "averageNetPct": -0.3879,
+          "totalNetPct": -5.0428,
+          "targetRate": 0.2308,
+          "averageHoldMinutes": 6.23
+        },
+        "blindTest": {
+          "trades": 11,
+          "wins": 3,
+          "winRate": 0.2727,
+          "averageNetPct": -0.2598,
+          "totalNetPct": -2.858,
+          "targetRate": 0.1818,
+          "averageHoldMinutes": 15.09
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 21,
+        "direction": "positive",
+        "conditions": [
+          "开盘缺口 <= +1.44%",
+          "已出现振幅 <= +1.92%",
+          "已出现振幅 > +1.77%",
+          "开盘缺口 <= -0.62%",
+          "已出现振幅 <= +1.85%",
+          "距VWAP <= -0.09%"
+        ],
+        "rawScenarioCount": {
+          "training": 80,
+          "validation": 6,
+          "blindTest": 1
+        },
+        "training": {
+          "trades": 29,
+          "wins": 11,
+          "winRate": 0.3793,
+          "averageNetPct": -0.1195,
+          "totalNetPct": -3.4658,
+          "targetRate": 0.2069,
+          "averageHoldMinutes": 36.48
+        },
+        "validation": {
+          "trades": 5,
+          "wins": 0,
+          "winRate": 0.0,
+          "averageNetPct": -0.5029,
+          "totalNetPct": -2.5145,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 35.8
+        },
+        "blindTest": {
+          "trades": 1,
+          "wins": 0,
+          "winRate": 0.0,
+          "averageNetPct": -0.57,
+          "totalNetPct": -0.57,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 11.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      }
+    ],
+    "reverse": [
+      {
+        "leaf": 16,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 <= 11:28",
+          "已出现振幅 > +0.82%",
+          "已出现振幅 > +1.51%",
+          "时刻 > 10:35"
+        ],
+        "rawScenarioCount": {
+          "training": 80,
+          "validation": 16,
+          "blindTest": 5
+        },
+        "training": {
+          "trades": 27,
+          "wins": 4,
+          "winRate": 0.1481,
+          "averageNetPct": -0.3801,
+          "totalNetPct": -10.2627,
+          "targetRate": 0.037,
+          "averageHoldMinutes": 35.26
+        },
+        "validation": {
+          "trades": 6,
+          "wins": 4,
+          "winRate": 0.6667,
+          "averageNetPct": 0.1666,
+          "totalNetPct": 0.9998,
+          "targetRate": 0.3333,
+          "averageHoldMinutes": 58.83
+        },
+        "blindTest": {
+          "trades": 1,
+          "wins": 1,
+          "winRate": 1.0,
+          "averageNetPct": 0.6353,
+          "totalNetPct": 0.6353,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 61.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 66,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 > +2.21%",
+          "已出现振幅 > +3.68%",
+          "相对开盘价 > +0.08%"
+        ],
+        "rawScenarioCount": {
+          "training": 80,
+          "validation": 50,
+          "blindTest": 20
+        },
+        "training": {
+          "trades": 8,
+          "wins": 3,
+          "winRate": 0.375,
+          "averageNetPct": -0.135,
+          "totalNetPct": -1.0801,
+          "targetRate": 0.375,
+          "averageHoldMinutes": 14.25
+        },
+        "validation": {
+          "trades": 6,
+          "wins": 3,
+          "winRate": 0.5,
+          "averageNetPct": 0.0908,
+          "totalNetPct": 0.5445,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 12.83
+        },
+        "blindTest": {
+          "trades": 5,
+          "wins": 4,
+          "winRate": 0.8,
+          "averageNetPct": 0.6059,
+          "totalNetPct": 3.0296,
+          "targetRate": 0.8,
+          "averageHoldMinutes": 7.4
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 23,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 > 11:28",
+          "开盘缺口 <= +0.20%",
+          "短ATR <= +0.16%",
+          "时刻 > 14:02"
+        ],
+        "rawScenarioCount": {
+          "training": 137,
+          "validation": 38,
+          "blindTest": 9
+        },
+        "training": {
+          "trades": 60,
+          "wins": 15,
+          "winRate": 0.25,
+          "averageNetPct": -0.2178,
+          "totalNetPct": -13.0693,
+          "targetRate": 0.0333,
+          "averageHoldMinutes": 41.2
+        },
+        "validation": {
+          "trades": 13,
+          "wins": 7,
+          "winRate": 0.5385,
+          "averageNetPct": 0.0888,
+          "totalNetPct": 1.1538,
+          "targetRate": 0.1538,
+          "averageHoldMinutes": 50.0
+        },
+        "blindTest": {
+          "trades": 4,
+          "wins": 1,
+          "winRate": 0.25,
+          "averageNetPct": -0.2866,
+          "totalNetPct": -1.1463,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 37.75
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 61,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 > +2.21%",
+          "已出现振幅 <= +3.68%",
+          "三分钟动量 <= -0.10%",
+          "距已出现低点 <= +1.51%"
+        ],
+        "rawScenarioCount": {
+          "training": 114,
+          "validation": 29,
+          "blindTest": 19
+        },
+        "training": {
+          "trades": 34,
+          "wins": 16,
+          "winRate": 0.4706,
+          "averageNetPct": 0.0375,
+          "totalNetPct": 1.2749,
+          "targetRate": 0.3824,
+          "averageHoldMinutes": 22.79
+        },
+        "validation": {
+          "trades": 14,
+          "wins": 7,
+          "winRate": 0.5,
+          "averageNetPct": 0.0362,
+          "totalNetPct": 0.5075,
+          "targetRate": 0.3571,
+          "averageHoldMinutes": 19.36
+        },
+        "blindTest": {
+          "trades": 12,
+          "wins": 9,
+          "winRate": 0.75,
+          "averageNetPct": 0.3034,
+          "totalNetPct": 3.6405,
+          "targetRate": 0.5833,
+          "averageHoldMinutes": 27.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 41,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 <= +1.84%",
+          "日内位置 > 0.65",
+          "开盘缺口 > +0.11%",
+          "已出现振幅 > +1.69%"
+        ],
+        "rawScenarioCount": {
+          "training": 84,
+          "validation": 42,
+          "blindTest": 14
+        },
+        "training": {
+          "trades": 30,
+          "wins": 7,
+          "winRate": 0.2333,
+          "averageNetPct": -0.2774,
+          "totalNetPct": -8.3224,
+          "targetRate": 0.1667,
+          "averageHoldMinutes": 25.9
+        },
+        "validation": {
+          "trades": 22,
+          "wins": 11,
+          "winRate": 0.5,
+          "averageNetPct": 0.0174,
+          "totalNetPct": 0.3833,
+          "targetRate": 0.2727,
+          "averageHoldMinutes": 30.27
+        },
+        "blindTest": {
+          "trades": 7,
+          "wins": 4,
+          "winRate": 0.5714,
+          "averageNetPct": -0.0433,
+          "totalNetPct": -0.3032,
+          "targetRate": 0.2857,
+          "averageHoldMinutes": 24.57
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 40,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 <= +1.84%",
+          "日内位置 > 0.65",
+          "开盘缺口 > +0.11%",
+          "已出现振幅 <= +1.69%"
+        ],
+        "rawScenarioCount": {
+          "training": 87,
+          "validation": 20,
+          "blindTest": 1
+        },
+        "training": {
+          "trades": 39,
+          "wins": 12,
+          "winRate": 0.3077,
+          "averageNetPct": -0.1908,
+          "totalNetPct": -7.4431,
+          "targetRate": 0.2051,
+          "averageHoldMinutes": 31.82
+        },
+        "validation": {
+          "trades": 8,
+          "wins": 3,
+          "winRate": 0.375,
+          "averageNetPct": -0.0078,
+          "totalNetPct": -0.0625,
+          "targetRate": 0.25,
+          "averageHoldMinutes": 37.62
+        },
+        "blindTest": {
+          "trades": 1,
+          "wins": 1,
+          "winRate": 1.0,
+          "averageNetPct": 0.224,
+          "totalNetPct": 0.224,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 61.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 22,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 > 11:28",
+          "开盘缺口 <= +0.20%",
+          "短ATR <= +0.16%",
+          "时刻 <= 14:02",
+          "开盘缺口 > -0.56%"
+        ],
+        "rawScenarioCount": {
+          "training": 168,
+          "validation": 71,
+          "blindTest": 4
+        },
+        "training": {
+          "trades": 53,
+          "wins": 8,
+          "winRate": 0.1509,
+          "averageNetPct": -0.3215,
+          "totalNetPct": -17.0372,
+          "targetRate": 0.0377,
+          "averageHoldMinutes": 41.89
+        },
+        "validation": {
+          "trades": 19,
+          "wins": 9,
+          "winRate": 0.4737,
+          "averageNetPct": -0.0156,
+          "totalNetPct": -0.2955,
+          "targetRate": 0.2105,
+          "averageHoldMinutes": 47.05
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": 0.0594,
+          "totalNetPct": 0.1187,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 36.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 63,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 > +2.21%",
+          "已出现振幅 <= +3.68%",
+          "三分钟动量 > -0.10%"
+        ],
+        "rawScenarioCount": {
+          "training": 103,
+          "validation": 40,
+          "blindTest": 69
+        },
+        "training": {
+          "trades": 28,
+          "wins": 19,
+          "winRate": 0.6786,
+          "averageNetPct": 0.2255,
+          "totalNetPct": 6.3135,
+          "targetRate": 0.6071,
+          "averageHoldMinutes": 27.29
+        },
+        "validation": {
+          "trades": 16,
+          "wins": 7,
+          "winRate": 0.4375,
+          "averageNetPct": -0.0411,
+          "totalNetPct": -0.6574,
+          "targetRate": 0.3125,
+          "averageHoldMinutes": 27.06
+        },
+        "blindTest": {
+          "trades": 15,
+          "wins": 7,
+          "winRate": 0.4667,
+          "averageNetPct": -0.0292,
+          "totalNetPct": -0.438,
+          "targetRate": 0.3333,
+          "averageHoldMinutes": 28.27
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 34,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 <= +1.84%",
+          "日内位置 <= 0.65",
+          "开盘缺口 > -0.96%",
+          "时刻 > 13:40"
+        ],
+        "rawScenarioCount": {
+          "training": 101,
+          "validation": 56,
+          "blindTest": 11
+        },
+        "training": {
+          "trades": 37,
+          "wins": 14,
+          "winRate": 0.3784,
+          "averageNetPct": -0.1289,
+          "totalNetPct": -4.7688,
+          "targetRate": 0.0811,
+          "averageHoldMinutes": 44.43
+        },
+        "validation": {
+          "trades": 20,
+          "wins": 7,
+          "winRate": 0.35,
+          "averageNetPct": -0.0844,
+          "totalNetPct": -1.6871,
+          "targetRate": 0.1,
+          "averageHoldMinutes": 46.05
+        },
+        "blindTest": {
+          "trades": 3,
+          "wins": 1,
+          "winRate": 0.3333,
+          "averageNetPct": -0.2347,
+          "totalNetPct": -0.7042,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 60.33
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 33,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 <= +1.84%",
+          "日内位置 <= 0.65",
+          "开盘缺口 > -0.96%",
+          "时刻 <= 13:40",
+          "MA10斜率 > +0.14%"
+        ],
+        "rawScenarioCount": {
+          "training": 81,
+          "validation": 21,
+          "blindTest": 7
+        },
+        "training": {
+          "trades": 70,
+          "wins": 32,
+          "winRate": 0.4571,
+          "averageNetPct": -0.0618,
+          "totalNetPct": -4.3242,
+          "targetRate": 0.2714,
+          "averageHoldMinutes": 32.09
+        },
+        "validation": {
+          "trades": 17,
+          "wins": 7,
+          "winRate": 0.4118,
+          "averageNetPct": -0.0921,
+          "totalNetPct": -1.5655,
+          "targetRate": 0.2353,
+          "averageHoldMinutes": 30.18
+        },
+        "blindTest": {
+          "trades": 6,
+          "wins": 3,
+          "winRate": 0.5,
+          "averageNetPct": 0.0773,
+          "totalNetPct": 0.4639,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 18.67
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 12,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 <= 11:28",
+          "已出现振幅 > +0.82%",
+          "已出现振幅 <= +1.51%",
+          "已出现振幅 > +1.40%",
+          "已出现振幅 <= +1.45%"
+        ],
+        "rawScenarioCount": {
+          "training": 90,
+          "validation": 55,
+          "blindTest": 5
+        },
+        "training": {
+          "trades": 44,
+          "wins": 24,
+          "winRate": 0.5455,
+          "averageNetPct": 0.0364,
+          "totalNetPct": 1.6014,
+          "targetRate": 0.3864,
+          "averageHoldMinutes": 28.7
+        },
+        "validation": {
+          "trades": 21,
+          "wins": 9,
+          "winRate": 0.4286,
+          "averageNetPct": -0.1052,
+          "totalNetPct": -2.2092,
+          "targetRate": 0.1905,
+          "averageHoldMinutes": 36.1
+        },
+        "blindTest": {
+          "trades": 4,
+          "wins": 2,
+          "winRate": 0.5,
+          "averageNetPct": 0.215,
+          "totalNetPct": 0.86,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 20.25
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 38,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 <= +1.84%",
+          "日内位置 > 0.65",
+          "开盘缺口 <= +0.11%",
+          "距VWAP > +0.46%"
+        ],
+        "rawScenarioCount": {
+          "training": 140,
+          "validation": 58,
+          "blindTest": 2
+        },
+        "training": {
+          "trades": 78,
+          "wins": 41,
+          "winRate": 0.5256,
+          "averageNetPct": 0.0769,
+          "totalNetPct": 5.9947,
+          "targetRate": 0.3462,
+          "averageHoldMinutes": 34.36
+        },
+        "validation": {
+          "trades": 25,
+          "wins": 9,
+          "winRate": 0.36,
+          "averageNetPct": -0.1059,
+          "totalNetPct": -2.6466,
+          "targetRate": 0.16,
+          "averageHoldMinutes": 39.04
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 0,
+          "winRate": 0.0,
+          "averageNetPct": -0.57,
+          "totalNetPct": -1.14,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 3.5
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 9,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 <= 11:28",
+          "已出现振幅 > +0.82%",
+          "已出现振幅 <= +1.51%",
+          "已出现振幅 <= +1.40%",
+          "相对开盘价 <= +0.31%"
+        ],
+        "rawScenarioCount": {
+          "training": 479,
+          "validation": 148,
+          "blindTest": 15
+        },
+        "training": {
+          "trades": 224,
+          "wins": 75,
+          "winRate": 0.3348,
+          "averageNetPct": -0.159,
+          "totalNetPct": -35.6055,
+          "targetRate": 0.2188,
+          "averageHoldMinutes": 29.25
+        },
+        "validation": {
+          "trades": 71,
+          "wins": 28,
+          "winRate": 0.3944,
+          "averageNetPct": -0.1075,
+          "totalNetPct": -7.6332,
+          "targetRate": 0.2535,
+          "averageHoldMinutes": 30.75
+        },
+        "blindTest": {
+          "trades": 8,
+          "wins": 1,
+          "winRate": 0.125,
+          "averageNetPct": -0.4366,
+          "totalNetPct": -3.4931,
+          "targetRate": 0.125,
+          "averageHoldMinutes": 21.88
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 21,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 > 11:28",
+          "开盘缺口 <= +0.20%",
+          "短ATR <= +0.16%",
+          "时刻 <= 14:02",
+          "开盘缺口 <= -0.56%"
+        ],
+        "rawScenarioCount": {
+          "training": 84,
+          "validation": 13,
+          "blindTest": 1
+        },
+        "training": {
+          "trades": 22,
+          "wins": 0,
+          "winRate": 0.0,
+          "averageNetPct": -0.3701,
+          "totalNetPct": -8.1428,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 46.86
+        },
+        "validation": {
+          "trades": 4,
+          "wins": 2,
+          "winRate": 0.5,
+          "averageNetPct": -0.1087,
+          "totalNetPct": -0.435,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 56.25
+        },
+        "blindTest": {
+          "trades": 1,
+          "wins": 1,
+          "winRate": 1.0,
+          "averageNetPct": 0.3214,
+          "totalNetPct": 0.3214,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 61.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 50,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 <= +2.21%",
+          "时刻 <= 14:08",
+          "距已出现低点 > +1.98%",
+          "开盘缺口 > -2.57%"
+        ],
+        "rawScenarioCount": {
+          "training": 2254,
+          "validation": 797,
+          "blindTest": 226
+        },
+        "training": {
+          "trades": 441,
+          "wins": 177,
+          "winRate": 0.4014,
+          "averageNetPct": -0.1128,
+          "totalNetPct": -49.7666,
+          "targetRate": 0.2948,
+          "averageHoldMinutes": 25.39
+        },
+        "validation": {
+          "trades": 138,
+          "wins": 53,
+          "winRate": 0.3841,
+          "averageNetPct": -0.1139,
+          "totalNetPct": -15.712,
+          "targetRate": 0.2826,
+          "averageHoldMinutes": 24.2
+        },
+        "blindTest": {
+          "trades": 38,
+          "wins": 12,
+          "winRate": 0.3158,
+          "averageNetPct": -0.1555,
+          "totalNetPct": -5.9084,
+          "targetRate": 0.2895,
+          "averageHoldMinutes": 18.55
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 53,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 <= +2.21%",
+          "时刻 > 14:08",
+          "开盘缺口 <= +0.06%",
+          "量比 <= 0.92"
+        ],
+        "rawScenarioCount": {
+          "training": 264,
+          "validation": 94,
+          "blindTest": 21
+        },
+        "training": {
+          "trades": 175,
+          "wins": 70,
+          "winRate": 0.4,
+          "averageNetPct": -0.081,
+          "totalNetPct": -14.1804,
+          "targetRate": 0.1314,
+          "averageHoldMinutes": 35.73
+        },
+        "validation": {
+          "trades": 55,
+          "wins": 16,
+          "winRate": 0.2909,
+          "averageNetPct": -0.1224,
+          "totalNetPct": -6.7323,
+          "targetRate": 0.0545,
+          "averageHoldMinutes": 41.09
+        },
+        "blindTest": {
+          "trades": 15,
+          "wins": 4,
+          "winRate": 0.2667,
+          "averageNetPct": -0.0987,
+          "totalNetPct": -1.4806,
+          "targetRate": 0.0667,
+          "averageHoldMinutes": 35.13
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 5,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 <= 11:28",
+          "已出现振幅 <= +0.82%",
+          "价格Z分数 > 0.34"
+        ],
+        "rawScenarioCount": {
+          "training": 89,
+          "validation": 29,
+          "blindTest": 12
+        },
+        "training": {
+          "trades": 57,
+          "wins": 19,
+          "winRate": 0.3333,
+          "averageNetPct": -0.1591,
+          "totalNetPct": -9.0673,
+          "targetRate": 0.2105,
+          "averageHoldMinutes": 24.56
+        },
+        "validation": {
+          "trades": 19,
+          "wins": 7,
+          "winRate": 0.3684,
+          "averageNetPct": -0.1225,
+          "totalNetPct": -2.3273,
+          "targetRate": 0.3158,
+          "averageHoldMinutes": 17.11
+        },
+        "blindTest": {
+          "trades": 4,
+          "wins": 1,
+          "winRate": 0.25,
+          "averageNetPct": -0.272,
+          "totalNetPct": -1.0882,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 19.5
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 57,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 <= +2.21%",
+          "时刻 > 14:08",
+          "开盘缺口 > +0.06%",
+          "短ATR > +0.14%"
+        ],
+        "rawScenarioCount": {
+          "training": 209,
+          "validation": 32,
+          "blindTest": 15
+        },
+        "training": {
+          "trades": 124,
+          "wins": 36,
+          "winRate": 0.2903,
+          "averageNetPct": -0.201,
+          "totalNetPct": -24.9236,
+          "targetRate": 0.0806,
+          "averageHoldMinutes": 31.37
+        },
+        "validation": {
+          "trades": 17,
+          "wins": 6,
+          "winRate": 0.3529,
+          "averageNetPct": -0.1273,
+          "totalNetPct": -2.1634,
+          "targetRate": 0.2353,
+          "averageHoldMinutes": 30.12
+        },
+        "blindTest": {
+          "trades": 12,
+          "wins": 1,
+          "winRate": 0.0833,
+          "averageNetPct": -0.3693,
+          "totalNetPct": -4.4317,
+          "targetRate": 0.0833,
+          "averageHoldMinutes": 18.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 54,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 <= +2.21%",
+          "时刻 > 14:08",
+          "开盘缺口 <= +0.06%",
+          "量比 > 0.92"
+        ],
+        "rawScenarioCount": {
+          "training": 242,
+          "validation": 65,
+          "blindTest": 25
+        },
+        "training": {
+          "trades": 176,
+          "wins": 59,
+          "winRate": 0.3352,
+          "averageNetPct": -0.1252,
+          "totalNetPct": -22.0296,
+          "targetRate": 0.1136,
+          "averageHoldMinutes": 33.29
+        },
+        "validation": {
+          "trades": 44,
+          "wins": 15,
+          "winRate": 0.3409,
+          "averageNetPct": -0.1416,
+          "totalNetPct": -6.2286,
+          "targetRate": 0.0455,
+          "averageHoldMinutes": 38.86
+        },
+        "blindTest": {
+          "trades": 21,
+          "wins": 5,
+          "winRate": 0.2381,
+          "averageNetPct": -0.2267,
+          "totalNetPct": -4.7607,
+          "targetRate": 0.0952,
+          "averageHoldMinutes": 29.52
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 25,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 > 11:28",
+          "开盘缺口 > +0.20%"
+        ],
+        "rawScenarioCount": {
+          "training": 87,
+          "validation": 31,
+          "blindTest": 10
+        },
+        "training": {
+          "trades": 29,
+          "wins": 10,
+          "winRate": 0.3448,
+          "averageNetPct": -0.1096,
+          "totalNetPct": -3.178,
+          "targetRate": 0.1724,
+          "averageHoldMinutes": 41.1
+        },
+        "validation": {
+          "trades": 11,
+          "wins": 4,
+          "winRate": 0.3636,
+          "averageNetPct": -0.1474,
+          "totalNetPct": -1.6211,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 50.36
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": -0.0351,
+          "totalNetPct": -0.0701,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 52.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 46,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 <= +2.21%",
+          "时刻 <= 14:08",
+          "距已出现低点 <= +1.98%",
+          "距已出现高点 <= -2.02%"
+        ],
+        "rawScenarioCount": {
+          "training": 485,
+          "validation": 139,
+          "blindTest": 79
+        },
+        "training": {
+          "trades": 159,
+          "wins": 63,
+          "winRate": 0.3962,
+          "averageNetPct": -0.096,
+          "totalNetPct": -15.2673,
+          "targetRate": 0.3396,
+          "averageHoldMinutes": 21.35
+        },
+        "validation": {
+          "trades": 53,
+          "wins": 16,
+          "winRate": 0.3019,
+          "averageNetPct": -0.1615,
+          "totalNetPct": -8.56,
+          "targetRate": 0.3019,
+          "averageHoldMinutes": 26.02
+        },
+        "blindTest": {
+          "trades": 28,
+          "wins": 9,
+          "winRate": 0.3214,
+          "averageNetPct": -0.164,
+          "totalNetPct": -4.5915,
+          "targetRate": 0.3214,
+          "averageHoldMinutes": 17.57
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 32,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 <= +1.84%",
+          "日内位置 <= 0.65",
+          "开盘缺口 > -0.96%",
+          "时刻 <= 13:40",
+          "MA10斜率 <= +0.14%"
+        ],
+        "rawScenarioCount": {
+          "training": 368,
+          "validation": 117,
+          "blindTest": 19
+        },
+        "training": {
+          "trades": 137,
+          "wins": 80,
+          "winRate": 0.5839,
+          "averageNetPct": 0.0712,
+          "totalNetPct": 9.7587,
+          "targetRate": 0.3869,
+          "averageHoldMinutes": 31.5
+        },
+        "validation": {
+          "trades": 46,
+          "wins": 17,
+          "winRate": 0.3696,
+          "averageNetPct": -0.1703,
+          "totalNetPct": -7.8318,
+          "targetRate": 0.1957,
+          "averageHoldMinutes": 31.04
+        },
+        "blindTest": {
+          "trades": 9,
+          "wins": 4,
+          "winRate": 0.4444,
+          "averageNetPct": -0.0177,
+          "totalNetPct": -0.1597,
+          "targetRate": 0.2222,
+          "averageHoldMinutes": 40.56
+        },
+        "passedTrainingGate": true,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 37,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 <= +1.84%",
+          "日内位置 > 0.65",
+          "开盘缺口 <= +0.11%",
+          "距VWAP <= +0.46%"
+        ],
+        "rawScenarioCount": {
+          "training": 150,
+          "validation": 63,
+          "blindTest": 1
+        },
+        "training": {
+          "trades": 77,
+          "wins": 32,
+          "winRate": 0.4156,
+          "averageNetPct": -0.0538,
+          "totalNetPct": -4.1397,
+          "targetRate": 0.2597,
+          "averageHoldMinutes": 32.78
+        },
+        "validation": {
+          "trades": 24,
+          "wins": 8,
+          "winRate": 0.3333,
+          "averageNetPct": -0.1776,
+          "totalNetPct": -4.2613,
+          "targetRate": 0.1667,
+          "averageHoldMinutes": 37.46
+        },
+        "blindTest": {
+          "trades": 1,
+          "wins": 0,
+          "winRate": 0.0,
+          "averageNetPct": -0.57,
+          "totalNetPct": -0.57,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 12.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 13,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 <= 11:28",
+          "已出现振幅 > +0.82%",
+          "已出现振幅 <= +1.51%",
+          "已出现振幅 > +1.40%",
+          "已出现振幅 > +1.45%"
+        ],
+        "rawScenarioCount": {
+          "training": 177,
+          "validation": 54,
+          "blindTest": 16
+        },
+        "training": {
+          "trades": 67,
+          "wins": 22,
+          "winRate": 0.3284,
+          "averageNetPct": -0.2034,
+          "totalNetPct": -13.6304,
+          "targetRate": 0.194,
+          "averageHoldMinutes": 28.22
+        },
+        "validation": {
+          "trades": 26,
+          "wins": 8,
+          "winRate": 0.3077,
+          "averageNetPct": -0.1798,
+          "totalNetPct": -4.6753,
+          "targetRate": 0.2692,
+          "averageHoldMinutes": 26.31
+        },
+        "blindTest": {
+          "trades": 7,
+          "wins": 2,
+          "winRate": 0.2857,
+          "averageNetPct": -0.1214,
+          "totalNetPct": -0.85,
+          "targetRate": 0.2857,
+          "averageHoldMinutes": 16.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 24,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 > 11:28",
+          "开盘缺口 <= +0.20%",
+          "短ATR > +0.16%"
+        ],
+        "rawScenarioCount": {
+          "training": 146,
+          "validation": 11,
+          "blindTest": 2
+        },
+        "training": {
+          "trades": 65,
+          "wins": 20,
+          "winRate": 0.3077,
+          "averageNetPct": -0.1802,
+          "totalNetPct": -11.7134,
+          "targetRate": 0.0923,
+          "averageHoldMinutes": 36.89
+        },
+        "validation": {
+          "trades": 4,
+          "wins": 1,
+          "winRate": 0.25,
+          "averageNetPct": -0.1809,
+          "totalNetPct": -0.7234,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 29.25
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": 0.0477,
+          "totalNetPct": 0.0953,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 18.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 10,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 <= 11:28",
+          "已出现振幅 > +0.82%",
+          "已出现振幅 <= +1.51%",
+          "已出现振幅 <= +1.40%",
+          "相对开盘价 > +0.31%"
+        ],
+        "rawScenarioCount": {
+          "training": 339,
+          "validation": 137,
+          "blindTest": 23
+        },
+        "training": {
+          "trades": 161,
+          "wins": 62,
+          "winRate": 0.3851,
+          "averageNetPct": -0.1257,
+          "totalNetPct": -20.2349,
+          "targetRate": 0.2484,
+          "averageHoldMinutes": 25.87
+        },
+        "validation": {
+          "trades": 71,
+          "wins": 21,
+          "winRate": 0.2958,
+          "averageNetPct": -0.1894,
+          "totalNetPct": -13.4473,
+          "targetRate": 0.2535,
+          "averageHoldMinutes": 25.21
+        },
+        "blindTest": {
+          "trades": 13,
+          "wins": 6,
+          "winRate": 0.4615,
+          "averageNetPct": -0.0194,
+          "totalNetPct": -0.2523,
+          "targetRate": 0.4615,
+          "averageHoldMinutes": 20.38
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 47,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 <= +2.21%",
+          "时刻 <= 14:08",
+          "距已出现低点 <= +1.98%",
+          "距已出现高点 > -2.02%"
+        ],
+        "rawScenarioCount": {
+          "training": 3220,
+          "validation": 1052,
+          "blindTest": 237
+        },
+        "training": {
+          "trades": 672,
+          "wins": 233,
+          "winRate": 0.3467,
+          "averageNetPct": -0.1604,
+          "totalNetPct": -107.7878,
+          "targetRate": 0.2366,
+          "averageHoldMinutes": 28.29
+        },
+        "validation": {
+          "trades": 224,
+          "wins": 64,
+          "winRate": 0.2857,
+          "averageNetPct": -0.1996,
+          "totalNetPct": -44.7008,
+          "targetRate": 0.2009,
+          "averageHoldMinutes": 29.06
+        },
+        "blindTest": {
+          "trades": 70,
+          "wins": 30,
+          "winRate": 0.4286,
+          "averageNetPct": -0.0476,
+          "totalNetPct": -3.3344,
+          "targetRate": 0.3857,
+          "averageHoldMinutes": 19.47
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 15,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 <= 11:28",
+          "已出现振幅 > +0.82%",
+          "已出现振幅 > +1.51%",
+          "时刻 <= 10:35"
+        ],
+        "rawScenarioCount": {
+          "training": 111,
+          "validation": 26,
+          "blindTest": 8
+        },
+        "training": {
+          "trades": 59,
+          "wins": 16,
+          "winRate": 0.2712,
+          "averageNetPct": -0.2289,
+          "totalNetPct": -13.5031,
+          "targetRate": 0.2034,
+          "averageHoldMinutes": 23.14
+        },
+        "validation": {
+          "trades": 22,
+          "wins": 7,
+          "winRate": 0.3182,
+          "averageNetPct": -0.2078,
+          "totalNetPct": -4.5721,
+          "targetRate": 0.2273,
+          "averageHoldMinutes": 13.27
+        },
+        "blindTest": {
+          "trades": 7,
+          "wins": 2,
+          "winRate": 0.2857,
+          "averageNetPct": -0.1722,
+          "totalNetPct": -1.2052,
+          "targetRate": 0.2857,
+          "averageHoldMinutes": 4.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 4,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 <= +1.58%",
+          "时刻 <= 11:28",
+          "已出现振幅 <= +0.82%",
+          "价格Z分数 <= 0.34"
+        ],
+        "rawScenarioCount": {
+          "training": 99,
+          "validation": 28,
+          "blindTest": 10
+        },
+        "training": {
+          "trades": 46,
+          "wins": 27,
+          "winRate": 0.587,
+          "averageNetPct": 0.0425,
+          "totalNetPct": 1.9546,
+          "targetRate": 0.413,
+          "averageHoldMinutes": 28.91
+        },
+        "validation": {
+          "trades": 13,
+          "wins": 4,
+          "winRate": 0.3077,
+          "averageNetPct": -0.2125,
+          "totalNetPct": -2.763,
+          "targetRate": 0.3077,
+          "averageHoldMinutes": 13.77
+        },
+        "blindTest": {
+          "trades": 4,
+          "wins": 2,
+          "winRate": 0.5,
+          "averageNetPct": 0.0409,
+          "totalNetPct": 0.1636,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 22.5
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 65,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 > +2.21%",
+          "已出现振幅 > +3.68%",
+          "相对开盘价 <= +0.08%"
+        ],
+        "rawScenarioCount": {
+          "training": 80,
+          "validation": 34,
+          "blindTest": 18
+        },
+        "training": {
+          "trades": 12,
+          "wins": 6,
+          "winRate": 0.5,
+          "averageNetPct": 0.0318,
+          "totalNetPct": 0.3817,
+          "targetRate": 0.4167,
+          "averageHoldMinutes": 21.33
+        },
+        "validation": {
+          "trades": 8,
+          "wins": 2,
+          "winRate": 0.25,
+          "averageNetPct": -0.2339,
+          "totalNetPct": -1.8716,
+          "targetRate": 0.25,
+          "averageHoldMinutes": 20.62
+        },
+        "blindTest": {
+          "trades": 2,
+          "wins": 1,
+          "winRate": 0.5,
+          "averageNetPct": 0.215,
+          "totalNetPct": 0.43,
+          "targetRate": 0.5,
+          "averageHoldMinutes": 6.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 56,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 <= +2.21%",
+          "时刻 > 14:08",
+          "开盘缺口 > +0.06%",
+          "短ATR <= +0.14%"
+        ],
+        "rawScenarioCount": {
+          "training": 216,
+          "validation": 141,
+          "blindTest": 14
+        },
+        "training": {
+          "trades": 113,
+          "wins": 21,
+          "winRate": 0.1858,
+          "averageNetPct": -0.2175,
+          "totalNetPct": -24.5787,
+          "targetRate": 0.0619,
+          "averageHoldMinutes": 36.88
+        },
+        "validation": {
+          "trades": 61,
+          "wins": 12,
+          "winRate": 0.1967,
+          "averageNetPct": -0.2494,
+          "totalNetPct": -15.2144,
+          "targetRate": 0.0164,
+          "averageHoldMinutes": 39.36
+        },
+        "blindTest": {
+          "trades": 7,
+          "wins": 1,
+          "winRate": 0.1429,
+          "averageNetPct": -0.2994,
+          "totalNetPct": -2.096,
+          "targetRate": 0.1429,
+          "averageHoldMinutes": 35.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 29,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 <= +1.84%",
+          "日内位置 <= 0.65",
+          "开盘缺口 <= -0.96%"
+        ],
+        "rawScenarioCount": {
+          "training": 155,
+          "validation": 32,
+          "blindTest": 0
+        },
+        "training": {
+          "trades": 36,
+          "wins": 14,
+          "winRate": 0.3889,
+          "averageNetPct": -0.0969,
+          "totalNetPct": -3.4892,
+          "targetRate": 0.2778,
+          "averageHoldMinutes": 26.06
+        },
+        "validation": {
+          "trades": 12,
+          "wins": 3,
+          "winRate": 0.25,
+          "averageNetPct": -0.2767,
+          "totalNetPct": -3.32,
+          "targetRate": 0.25,
+          "averageHoldMinutes": 18.83
+        },
+        "blindTest": {
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "averageNetPct": 0.0,
+          "totalNetPct": 0.0,
+          "targetRate": null,
+          "averageHoldMinutes": 0.0
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 49,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 <= +2.21%",
+          "时刻 <= 14:08",
+          "距已出现低点 > +1.98%",
+          "开盘缺口 <= -2.57%"
+        ],
+        "rawScenarioCount": {
+          "training": 108,
+          "validation": 69,
+          "blindTest": 81
+        },
+        "training": {
+          "trades": 17,
+          "wins": 5,
+          "winRate": 0.2941,
+          "averageNetPct": -0.2114,
+          "totalNetPct": -3.5935,
+          "targetRate": 0.2941,
+          "averageHoldMinutes": 18.65
+        },
+        "validation": {
+          "trades": 11,
+          "wins": 1,
+          "winRate": 0.0909,
+          "averageNetPct": -0.4273,
+          "totalNetPct": -4.7,
+          "targetRate": 0.0909,
+          "averageHoldMinutes": 10.55
+        },
+        "blindTest": {
+          "trades": 13,
+          "wins": 2,
+          "winRate": 0.1538,
+          "averageNetPct": -0.3957,
+          "totalNetPct": -5.1439,
+          "targetRate": 0.1538,
+          "averageHoldMinutes": 9.38
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      },
+      {
+        "leaf": 62,
+        "direction": "reverse",
+        "conditions": [
+          "已出现振幅 > +1.58%",
+          "已出现振幅 > +1.84%",
+          "开盘缺口 > +2.21%",
+          "已出现振幅 <= +3.68%",
+          "三分钟动量 <= -0.10%",
+          "距已出现低点 > +1.51%"
+        ],
+        "rawScenarioCount": {
+          "training": 81,
+          "validation": 37,
+          "blindTest": 19
+        },
+        "training": {
+          "trades": 25,
+          "wins": 17,
+          "winRate": 0.68,
+          "averageNetPct": 0.1929,
+          "totalNetPct": 4.8229,
+          "targetRate": 0.48,
+          "averageHoldMinutes": 25.24
+        },
+        "validation": {
+          "trades": 12,
+          "wins": 1,
+          "winRate": 0.0833,
+          "averageNetPct": -0.4898,
+          "totalNetPct": -5.8775,
+          "targetRate": 0.0,
+          "averageHoldMinutes": 9.75
+        },
+        "blindTest": {
+          "trades": 9,
+          "wins": 1,
+          "winRate": 0.1111,
+          "averageNetPct": -0.3887,
+          "totalNetPct": -3.4987,
+          "targetRate": 0.1111,
+          "averageHoldMinutes": 29.89
+        },
+        "passedTrainingGate": false,
+        "passedValidationGate": false
+      }
+    ]
+  },
+  "acceptedRuleCount": {
+    "positive": 0,
+    "reverse": 0
+  },
+  "candidateBaseline": {
+    "positive": {
+      "training": {
+        "trades": 1403,
+        "wins": 513,
+        "winRate": 0.3656,
+        "averageNetPct": -0.1235,
+        "totalNetPct": -173.231,
+        "targetRate": 0.2937,
+        "averageHoldMinutes": 24.34
+      },
+      "validation": {
+        "trades": 474,
+        "wins": 189,
+        "winRate": 0.3987,
+        "averageNetPct": -0.0892,
+        "totalNetPct": -42.2905,
+        "targetRate": 0.2932,
+        "averageHoldMinutes": 26.59
+      },
+      "blindTest": {
+        "trades": 136,
+        "wins": 42,
+        "winRate": 0.3088,
+        "averageNetPct": -0.1792,
+        "totalNetPct": -24.3683,
+        "targetRate": 0.2794,
+        "averageHoldMinutes": 15.17
+      }
+    },
+    "reverse": {
+      "training": {
+        "trades": 1358,
+        "wins": 513,
+        "winRate": 0.3778,
+        "averageNetPct": -0.1221,
+        "totalNetPct": -165.7506,
+        "targetRate": 0.2857,
+        "averageHoldMinutes": 23.49
+      },
+      "validation": {
+        "trades": 461,
+        "wins": 146,
+        "winRate": 0.3167,
+        "averageNetPct": -0.1693,
+        "totalNetPct": -78.025,
+        "targetRate": 0.243,
+        "averageHoldMinutes": 23.54
+      },
+      "blindTest": {
+        "trades": 131,
+        "wins": 49,
+        "winRate": 0.374,
+        "averageNetPct": -0.0932,
+        "totalNetPct": -12.2105,
+        "targetRate": 0.3282,
+        "averageHoldMinutes": 16.5
+      }
+    }
+  },
+  "sequenceAudit": {
+    "training": {
+      "trades": 0,
+      "wins": 0,
+      "winRate": null,
+      "averageNetPct": 0.0,
+      "totalNetPct": 0.0,
+      "targetRate": null,
+      "averageHoldMinutes": 0.0
+    },
+    "validation": {
+      "trades": 0,
+      "wins": 0,
+      "winRate": null,
+      "averageNetPct": 0.0,
+      "totalNetPct": 0.0,
+      "targetRate": null,
+      "averageHoldMinutes": 0.0
+    },
+    "blindTest": {
+      "trades": 0,
+      "wins": 0,
+      "winRate": null,
+      "averageNetPct": 0.0,
+      "totalNetPct": 0.0,
+      "targetRate": null,
+      "averageHoldMinutes": 0.0
+    }
+  },
+  "conclusion": {
+    "status": "no-stable-price-volume-rule",
+    "message": "纯个股价量条件没有发现跨年份稳定规律；所有候选均被样本外门槛否决。",
+    "winRateTarget": 0.65,
+    "nextRequiredFactors": [
+      "国际金价与铜价",
+      "有色金属板块强度",
+      "沪深300与上证指数",
+      "港股紫金矿业联动",
+      "公告与突发事件时钟"
+    ],
+    "deployment": "研究结果不自动进入Smart-T V4"
+  },
+  "generatedAt": "2026-07-18T02:59:50+0800",
+  "elapsedSeconds": 18.72
+}

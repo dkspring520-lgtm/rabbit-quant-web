@@ -105,11 +105,17 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
 
 test("Zijin factor research is visibly isolated from the execution strategy", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /紫金矿业专属因子研究/);
   assert.match(source, /与 Smart‑T V4 隔离/);
-  assert.match(source, /历史分钟库更新后由服务器自动重训/);
+  assert.match(source, /当前展示最近一次离线训练结果/);
+  assert.match(source, /数据更新后需重新启动训练/);
   assert.match(source, /盘中判断只读取当前及此前分钟/);
   assert.match(source, /analyzeZijinFactorResearch/);
+  assert.match(source, /zijinPatternDiscovery/);
+  assert.match(source, /紫金规律扫描/);
+  assert.match(source, /这不是停止训练，而是淘汰伪规律/);
+  assert.match(styles, /\.zijin-pattern-result\{/);
 });
 
 test("Zijin experiment progress has a stable deep link and explicit delivery stages", async () => {
@@ -163,6 +169,8 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(source, /待验证规律/);
   assert.match(source, /真实完整分时/);
+  assert.match(source, /因子监控中（非训练）/);
+  assert.doesNotMatch(source, /在线观察中/);
   assert.doesNotMatch(source, /持续影子训练 · 每5分钟/);
   assert.doesNotMatch(source, /\+¥2,416/);
 });
