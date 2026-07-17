@@ -41,3 +41,14 @@ test("cooldown must finish before the next cycle can open", () => {
   assert.equal(refreshTCycleState(closed, 27, 8).phase, "COOLDOWN");
   assert.equal(refreshTCycleState(closed, 28, 8).phase, "READY");
 });
+
+test("ordinary profit exits must respect the minimum holding confirmation", () => {
+  const opened = openTCycle(createTCycleState(), {
+    direction: "BUY_FIRST", price: 10, quantity: 1000, sellable: 0, cash: 20_000, minute: 10,
+  }).state;
+  const tooSoon = closeTCycle(opened, { side: "SELL", price: 10.1, minute: 12, forced: false, minHoldMinutes: 4 });
+  assert.equal(tooSoon.ok, false);
+  assert.match(tooSoon.reason, /最短确认时间/);
+  assert.equal(closeTCycle(opened, { side: "SELL", price: 10.1, minute: 14, forced: false, minHoldMinutes: 4 }).ok, true);
+  assert.equal(closeTCycle(opened, { side: "SELL", price: 9.8, minute: 11, forced: true, minHoldMinutes: 4 }).ok, true);
+});

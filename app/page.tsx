@@ -24,6 +24,7 @@ type EventRadarItem = { id:string; code:string; title:string; summary:string; ur
 type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; counts:{ positive:number; negative:number; neutral:number }; gate:{ level:"normal"|"caution"|"restricted"|"locked"; hardLock:boolean; score:number; label:string; action:string; reason:string } };
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean };
+type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type AccountPreferences = { stock:string; baseShares:number; risk:string };
 type StockPositionMap = Record<string, StockPosition>;
 const DEFAULT_PREFERENCES:AccountPreferences={stock:"601899 紫金矿业",baseShares:0,risk:"稳健"};
@@ -57,13 +58,13 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
   return { label:"横盘震荡", level:"flat", score:46, summary:"价格围绕均线反复，方向尚未形成。", action:"只在区间边缘等待高胜率信号", details:[rangeNote,`5 日动量 ${(fiveDay*100).toFixed(2)}%`] };
 }
 
-type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string };
+type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
 type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; edge:number; executable:boolean; stage?:"watch"|"candidate"; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; blockers:string[]; reason:string };
 type DeskHistoryRow = { time:string; direction:string; price:string; quantity:string; spread:string; status:string; tone?:"buy"|"sell"|"candidate" };
 type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
 type ReplayMinute = { time:string; price:number; volume:number };
-type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction; exit:ReplayAction; gross:number; fees:number; executionCost:number; net:number; outcome:"盈利"|"亏损"|"持平"; explanation:string };
+type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction; exit:ReplayAction; holdingMinutes:number; gross:number; fees:number; executionCost:number; net:number; outcome:"盈利"|"亏损"|"持平"; explanation:string };
 type StockBatchFeedback = { code:string; name:string; date:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; candidates:number; keyObservations:number; strongSellTrendBlocked:number; strongBuyTrendBlocked:number; feedback:string; minutes:ReplayMinute[]; actions:ReplayAction[]; observations:ReplayObservation[]; cycles:StockBatchCycle[] };
 type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; attemptedStocks:number; replacementStocks:number; uniqueSessions:number; noTrade:number; referenceStocks:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
 
@@ -127,6 +128,12 @@ function replayTime(value:string) {
   return value.length >= 4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : value;
 }
 
+function tradingMinuteOffset(value:string) {
+  const hour=Number(value.slice(0,2)),minute=Number(value.slice(2,4));
+  const wall=hour*60+minute;
+  return wall<=690?wall-570:120+wall-780;
+}
+
 function buildBatchCycles(result:BacktestResult, costs:{feeRate:number;slippage:number;minCommission:boolean;slippageMode:"percent"|"tick"}):StockBatchCycle[] {
   const groups=new Map<number,ReplayAction[]>();
   result.actions.forEach(action=>{
@@ -154,6 +161,7 @@ function buildBatchCycles(result:BacktestResult, costs:{feeRate:number;slippage:
     const fees=orderFee(entry)+orderFee(exit);
     const executionCost=(Math.abs(entry.price-rawEntry)+Math.abs(exit.price-rawExit))*entry.quantity;
     const net=result.cycleNets[id-1]??gross-fees-executionCost;
+    const holdingMinutes=Number(exit.meta?.hold??Math.max(0,tradingMinuteOffset(exit.time)-tradingMinuteOffset(entry.time)));
     const outcome=net>0?"盈利":net<0?"亏损":"持平";
     let explanation="价格走势未按入场预期发展，退出后本循环扣费为负。";
     if(net>=0)explanation="价格按入场方向运行，退出后仍覆盖了佣金、印花税与滑点。";
@@ -161,7 +169,7 @@ function buildBatchCycles(result:BacktestResult, costs:{feeRate:number;slippage:
     else if(direction==="正T"&&/止损/.test(exit.reason??""))explanation="买入后价格继续走弱，没有形成预期反弹，因此触发止损卖出。";
     else if(/时间退出/.test(exit.reason??""))explanation="持有到时间上限仍未形成足够价差，系统按时间纪律退出。";
     else if(/强制恢复/.test(exit.reason??""))explanation="尾盘前仍未形成计划价差，系统强制恢复计划底仓。";
-    return [{id,direction,entry,exit,gross,fees,executionCost,net,outcome,explanation}];
+    return [{id,direction,entry,exit,holdingMinutes,gross,fees,executionCost,net,outcome,explanation}];
   });
 }
 
@@ -304,11 +312,11 @@ export default function Home() {
   const [trainingRunning, setTrainingRunning] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,...JSON.parse(saved)}:{sound:false,system:false};}catch{return {sound:false,system:false};}});
-  const [alertToast, setAlertToast] = useState<{level:"candidate"|"signal"|"risk";rabbit:"buy"|"sell"|"both";title:string;message:string}|null>(null);
-  const lastAlertKey = useRef("");
+  const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
+  const alertToast=alertQueue[0]??null;
   const alertedEventKeys = useRef<Set<string>>(new Set());
+  const riskAlertEpisodes = useRef<Record<string,string>>({});
   const nextPreviewRabbit = useRef<"buy"|"sell">("buy");
-  const alertTimeoutRef = useRef<number|null>(null);
   const [customStrategy, setCustomStrategy] = useState("09:30开始实时扫描，至少4个真实分钟点后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；扣费后目标净收益低于0.64%不执行。");
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [marketError, setMarketError] = useState("");
@@ -644,12 +652,12 @@ export default function Home() {
     playAlertTone(risk);
     try{
       if(!("speechSynthesis" in window))return;
-      window.speechSynthesis.cancel();
       const speech=new SpeechSynthesisUtterance(text);
       speech.lang="zh-CN";speech.rate=1.02;speech.pitch=risk?0.82:1.08;speech.volume=.92;
       window.speechSynthesis.speak(speech);
     }catch{}
   };
+  const queueAlert=(alert:TradeAlertToast)=>setAlertQueue(current=>[...current,alert].slice(-8));
   const updateAlertSetting=async (kind:keyof AlertSettings)=>{
     let enabled=!alertSettings[kind];
     if(kind==="system"&&enabled){
@@ -668,44 +676,59 @@ export default function Home() {
     const message=isBuy
       ?"价格、VWAP、趋势、量价与风控过滤通过；左兔提醒关注买入/买回。"
       :"价格、VWAP、趋势、量价与风控过滤通过；右兔提醒关注卖出。";
-    if(alertTimeoutRef.current!==null)window.clearTimeout(alertTimeoutRef.current);
-    setAlertToast({level:"signal",rabbit,title,message});
+    queueAlert({level:"signal",rabbit,title,message});
     if(alertSettings.sound)speakAlert(`${stock.name}，${isBuy?"买入或买回":"卖出"}提醒`);
-    alertTimeoutRef.current=window.setTimeout(()=>{setAlertToast(null);alertTimeoutRef.current=null;},8_000);
   };
   useEffect(()=>{
+    if(!alertToast)return;
+    const timer=window.setTimeout(()=>setAlertQueue(current=>current.slice(1)),alertToast.level==="risk"?12_000:8_000);
+    return()=>window.clearTimeout(timer);
+  },[alertToast]);
+  useEffect(()=>{
     if(!marketSession.live)return;
-    const latest=liveEngine.actions.at(-1);
-    const latestObservation=[...currentObservations].reverse().find(observation=>observation.stage!=="watch");
     const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
-    const lastTime=(minutePoints.at(-1)?.time??"").replace(/\D/g,"").slice(0,4);
-    const formalFresh=Boolean(latest&&lastTime&&minuteNumber(lastTime)===minuteNumber(latest.time));
-    // The engine action is the source of truth for an executable reminder. Do not
-    // hide a closing leg (or a forced base-position recovery) behind the generic
-    // decision-card state: every action must alert in its confirmation minute.
-    const isFormal=Boolean(latest&&formalFresh);
-    const isRisk=!isFormal&&autoDecision.status==="locked";
-    const candidateFresh=Boolean(latestObservation&&lastTime&&minuteNumber(lastTime)===minuteNumber(latestObservation.time));
-    const isCandidate=!isRisk&&!isFormal&&candidateFresh&&latestObservation&&!latestObservation.executable;
-    if(!isRisk&&!isFormal&&!isCandidate)return;
-    const key=isRisk?`${stock.code}:risk:${autoDecision.reason}`:isFormal?`${stock.code}:${latest!.time}:${latest!.side}`:`${stock.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
-    const eventDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??"unknown-date";
-    const persistedKey=`rabbit-alerted:${accountName.toLowerCase()}:${eventDate}:${key}`;
-    let alreadyAlerted=lastAlertKey.current===persistedKey||alertedEventKeys.current.has(persistedKey);
-    try{alreadyAlerted=alreadyAlerted||localStorage.getItem(persistedKey)==="1";}catch{}
-    if(alreadyAlerted)return;
-    lastAlertKey.current=persistedKey;
-    alertedEventKeys.current.add(persistedKey);
-    try{localStorage.setItem(persistedKey,"1");}catch{}
-    const rabbit=isRisk?"both":isFormal?(latest!.side.includes("卖")?"sell":"buy"):(latestObservation!.direction==="反T"?"sell":"buy");
-    const title=isRisk?`${stock.name} 风险锁定`:isFormal?`${stock.name} ${latest!.direction}${latest!.side}`:`${stock.name} ${latestObservation!.direction}候选观察`;
-    const message=isRisk?autoDecision.reason:isFormal?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
-    if(alertTimeoutRef.current!==null)window.clearTimeout(alertTimeoutRef.current);
-    setAlertToast({level:isRisk?"risk":isFormal?"signal":"candidate",rabbit,title,message});
-    alertTimeoutRef.current=window.setTimeout(()=>{setAlertToast(null);alertTimeoutRef.current=null;},isRisk?12_000:8_000);
-    if(!isCandidate&&alertSettings.sound)speakAlert(isRisk?`${stock.name}，风险锁定，暂停做T`:`${stock.name}，${latest!.direction}${latest!.side}提醒`,isRisk);
-    if(!isCandidate&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`做T神器 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
-  },[autoDecision.status,autoDecision.reason,liveEngine.actions,currentObservations,minutePoints,marketSession.live,stock.code,stock.name,alertSettings,currentTrial?.sampleDate,currentMarket?.sampleDate,clockNow,accountName]);
+    const normalizeRisk=(value:string)=>value.replace(/[+-]?\d+(?:\.\d+)?%?/g,"#").replace(/\s+/g," ").trim();
+    for(const [index,item] of stockList.entries()){
+      const active=index===activeStock;
+      const snapshot=active?(currentTrial??currentMarket??marketSnapshots[item.code]):marketSnapshots[item.code];
+      const points=(active?minutePoints:(snapshot?.minutes??[]).filter(point=>isAShareRegularTradingMinute(point.time)));
+      if(!points.length)continue;
+      const itemPosition=active?effectiveLivePosition:resolveStockPosition(stockPositions,preferences,item.code);
+      const replay=active?liveEngine:runSmartTReplay(points,{
+        capital:200_000,baseShares:itemPosition.openingShares,sellable:itemPosition.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:snapshot?.quote.previousClose??null,randomValue:0,
+      });
+      const observations=(replay.observations??[]) as ReplayObservation[];
+      const latest=replay.actions.at(-1);
+      const latestObservation=active?[...observations].reverse().find(observation=>observation.stage!=="watch"):undefined;
+      const lastTime=(points.at(-1)?.time??"").replace(/\D/g,"").slice(0,4);
+      const formalFresh=Boolean(latest&&lastTime&&minuteNumber(lastTime)===minuteNumber(latest.time));
+      const riskMessage=active&&autoDecision.status==="locked"
+        ? autoDecision.reason
+        : eventsByCode[item.code]?.gate.hardLock
+          ? `事件雷达：${eventsByCode[item.code].gate.label}，${eventsByCode[item.code].gate.reason}。`
+          : "";
+      const riskSignature=riskMessage?normalizeRisk(riskMessage):"";
+      const isRisk=!formalFresh&&Boolean(riskMessage)&&riskAlertEpisodes.current[item.code]!==riskSignature;
+      if(!riskMessage)delete riskAlertEpisodes.current[item.code];
+      else if(isRisk)riskAlertEpisodes.current[item.code]=riskSignature;
+      const candidateFresh=Boolean(active&&latestObservation&&lastTime&&minuteNumber(lastTime)===minuteNumber(latestObservation.time));
+      const isCandidate=!isRisk&&!formalFresh&&candidateFresh&&latestObservation&&!latestObservation.executable;
+      if(!isRisk&&!formalFresh&&!isCandidate)continue;
+      const key=isRisk?`${item.code}:risk:${riskSignature}`:formalFresh?`${item.code}:${latest!.time}:${latest!.side}`:`${item.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
+      const eventDate=snapshot?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??"unknown-date";
+      const persistedKey=`rabbit-alerted:${accountName.toLowerCase()}:${eventDate}:${key}`;
+      let alreadyAlerted=!isRisk&&alertedEventKeys.current.has(persistedKey);
+      try{alreadyAlerted=alreadyAlerted||(!isRisk&&localStorage.getItem(persistedKey)==="1");}catch{}
+      if(alreadyAlerted)continue;
+      if(!isRisk){alertedEventKeys.current.add(persistedKey);try{localStorage.setItem(persistedKey,"1");}catch{}}
+      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):(latestObservation!.direction==="反T"?"sell":"buy");
+      const title=isRisk?`${item.name} 风险锁定`:formalFresh?`${item.name} ${latest!.direction}${latest!.side}`:`${item.name} ${latestObservation!.direction}候选观察`;
+      const message=isRisk?riskMessage:formalFresh?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
+      queueAlert({level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
+      if(!isCandidate&&alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:`${item.name}，${latest!.direction}${latest!.side}提醒`,isRisk);
+      if(!isCandidate&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`做T神器 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
+    }
+  },[autoDecision.status,autoDecision.reason,liveEngine,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
@@ -796,11 +819,11 @@ export default function Home() {
     let cancelled = false;
     let inFlight=false;
     const load=async()=>{
-      if(inFlight||document.visibilityState!=="visible")return;
+      if(inFlight)return;
       inFlight=true;
       try{
         const snapshots=await Promise.all(stockList.map(async item=>{
-          const response=await fetch(`/api/market-data?code=${encodeURIComponent(item.code)}`);
+          const response=await fetch(`/api/market-data?code=${encodeURIComponent(item.code)}&mode=trial-realtime`,{cache:"no-store"});
           if(!response.ok)throw new Error("quote unavailable");
           return await response.json() as MarketData;
         }));
@@ -811,7 +834,9 @@ export default function Home() {
       }catch{}finally{inFlight=false;}
     };
     void load();
-    const timer=window.setInterval(()=>void load(),30_000);
+    // Inactive tabs remain monitored. Five seconds is sufficient for the
+    // one-minute signal engine while avoiding ten simultaneous one-second feeds.
+    const timer=window.setInterval(()=>void load(),5_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [localAuth, stockList]);
   useEffect(() => {
@@ -975,7 +1000,7 @@ export default function Home() {
         </div>
 
         <aside className="decision-zone">
-          {alertToast&&<div className={`trade-alert-toast ${alertToast.level} rabbit-${alertToast.rabbit}`} role="alert"><span className={`rabbit-speaker ${alertToast.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{alertToast.level==="candidate"?`${alertToast.rabbit==="buy"?"左兔":"右兔"} · 候选观察`:alertToast.rabbit==="buy"?"左兔 · 买入/买回提醒":alertToast.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{alertToast.title}</b><span>{alertToast.message}</span></div><button onClick={()=>setAlertToast(null)} aria-label="关闭提醒">×</button></div>}
+          {alertToast&&<div className={`trade-alert-toast ${alertToast.level} rabbit-${alertToast.rabbit}`} role="alert"><span className={`rabbit-speaker ${alertToast.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{alertToast.level==="candidate"?`${alertToast.rabbit==="buy"?"左兔":"右兔"} · 候选观察`:alertToast.rabbit==="buy"?"左兔 · 买入/买回提醒":alertToast.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{alertToast.title}</b><span>{alertToast.message}</span></div>{alertQueue.length>1&&<em className="alert-queue-count">+{alertQueue.length-1}</em>}<button onClick={()=>setAlertQueue(current=>current.slice(1))} aria-label="关闭提醒">×</button></div>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
             <div className="signal-layer candidate"><span>本股候选观察</span><b>{signalFunnel.currentCandidates}<small> 个</small></b><em>全部自选 {signalFunnel.candidates} · 已扫描 {signalFunnel.scanned} 只</em></div>
             <i>→</i>
@@ -988,7 +1013,7 @@ export default function Home() {
             <small>振幅 {zijinOpeningPlaybook.metrics.openingRangePct.toFixed(2)}% · 距VWAP {zijinOpeningPlaybook.metrics.distanceToVwapPct>=0?"+":""}{zijinOpeningPlaybook.metrics.distanceToVwapPct.toFixed(2)}% · 量比 {zijinOpeningPlaybook.metrics.volumeRatio==null?"待数据":`${zijinOpeningPlaybook.metrics.volumeRatio.toFixed(2)}×`}</small>
             <i>仅作为候选观察，不直接生成成交</i>
           </div>}
-          <div className="alert-channel"><div><span>双兔买卖点提醒</span><small>左兔说买入/买回，右兔说卖出；候选仅弹出安静观察卡，正式信号才启用语音/系统通知</small></div><button onClick={previewRabbitAlert}>预览提醒</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>系统通知 {alertSettings.system?"已开":"关闭"}</button></div>
+          <div className="alert-channel"><div><span>全部自选股双兔提醒</span><small>当前股 1 秒、其余监控股 5 秒轮询；候选仅弹出安静观察卡，正式买卖点与新风险事件排队语音/通知</small></div><button onClick={previewRabbitAlert}>预览</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button></div>
           <div className={`auto-direction ${autoDecision.status}`}><div><span>自动方向</span><b>{autoDecision.status==="locked"?"风控锁定":autoDecision.mode??"等待确认"}</b></div><small>{autoDecision.reason}</small><em>{autoDecision.confirmed}/4</em></div>
           <div className="decision-label"><span>SMART-T 自动决策</span><em>{autoDecision.status==="ready"?"信号已确认":autoDecision.status==="locked"?"禁止开T":"1秒监控中"}</em></div>
           <div className={`stock-state ${stockState.level}`}>
@@ -1019,7 +1044,7 @@ export default function Home() {
             <small>{tradeLedgerSummary.oversold?'本机流水显示卖出超过昨日可卖或当前持仓为负，请立即核对券商成交。':cycleQuantity<100?'当前股票未设置足够的计划底仓与剩余可卖数量，请到持仓对账核对。':cycleStage === 'ready' ? (signalMode === '正T' ? `本股今日剩余可卖 ${effectiveLivePosition.sellable.toLocaleString()} 股；买入后需卖出等量旧仓。` : '卖出后需在 14:50 前买回等量股份。') : cycleStage === 'opened' ? `尚有 ${cycleQuantity.toLocaleString()} 股未配对，新的${signalMode}信号已冻结。` : '买卖数量相等，实际持仓已恢复计划底仓。'}</small>
           </div>
           <div className="decision-stats live-performance"><div title="使用当前股票最近完整交易日的真实分时，按当前V4档位、费用和滑点计算"><span>本股历史胜率</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b><small>{personalStrategyStats.wins}/{personalStrategyStats.cycles} 个闭环</small></div><div><span>有效样本</span><b>{personalStrategyStats.sessions}<small> 日</small></b><small>可信度：{personalStrategyStats.confidence}</small></div><div><span>历史扣费净收益</span><b className={personalStrategyStats.net>0?'positive':personalStrategyStats.net<0?'negative':''}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b><small>随当前股票与档位更新</small></div></div>
-          <div className="risk-box"><div><span>扣费净止盈目标</span><b>+0.64% ~ +0.74%</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>灵敏 / 平衡 / 稳健档分别以 0.64% / 0.69% / 0.74% 的预计扣费净收益触发止盈；若价格重新站回 VWAP 并放量上攻，反T预案立即失效。</p></div>
+          <div className="risk-box"><div><span>扣费净止盈区间</span><b>+0.64% ~ +1.00%</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>扣费净收益达到 0.64% 后只启动利润保护，不立即卖：走势继续有利则持有，出现连续反向动能、明显回吐或跌破保护底线才退出；达到 1.00% 上限直接锁定。若价格重新站回 VWAP 并放量上攻，反T预案立即失效。</p></div>
           <button className="automation-reserved" disabled><span><i />自动交易接口</span><b>已预留 · 当前关闭</b></button>
           <div className="position-row"><span>计划仓位</span><div className="position-dots"><i className="on"/><i/><i/></div><b>1 / 3</b></div>
         </aside>
@@ -1049,9 +1074,9 @@ export default function Home() {
           <div className="strategy-dialog-head"><div><span>SMART‑T FUSION V4</span><h2>同一套 V4，三个清晰档位</h2><p>稳健、平衡、灵敏只调整 Smart‑T 融合策略 V4 的确认门槛与信号频率，不是三套互不相干的策略；四兔训练只产生候选参数，不作为手动档位。</p></div><button onClick={()=>setStrategyOpen(false)} aria-label="关闭策略说明">×</button></div>
           <div className="strategy-cards">
             {[
-              {name:'稳健档',tag:'少做，只做最确定',fit:'震荡市、新手、重视回撤',score:'9/10',cycles:'每日最多 1 个闭环',spread:'扣费净止盈目标 0.74%',risk:'可能错过快速机会'},
-              {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'8/10',cycles:'每日最多 1 个闭环',spread:'扣费净止盈目标 0.69%',risk:'默认推荐'},
-              {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'7/10',cycles:'每日最多 2 个闭环',spread:'扣费净止盈目标 0.64%',risk:'假信号会增加'},
+              {name:'稳健档',tag:'少做，只做最确定',fit:'震荡市、新手、重视回撤',score:'9/10',cycles:'每日最多 1 个闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 5 分钟',risk:'可能错过快速机会'},
+              {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'8/10',cycles:'每日最多 1 个闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 4 分钟',risk:'默认推荐'},
+              {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'7/10',cycles:'每日最多 2 个闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 3 分钟',risk:'假信号会增加'},
             ].map(item=><button key={item.name} onClick={()=>setProfile(item.name)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
           </div>
           <div className="custom-strategy"><div className="custom-head"><div><h3>自定义规则草稿</h3><p>用于记录你的研究想法。自然语言目前不会直接变成可执行参数，也不会冒充已运行策略。</p></div><span>仅保存备注</span></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T规则草稿"/><div className="hard-guards"><span>正式执行仍受：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
@@ -1715,7 +1740,8 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
       const executionCost=(Math.abs(rawFirst-first.price)+Math.abs(rawSecond-second.price))*quantity;
       const commission=(action:ReplayAction)=>Math.max(minCommission ? 5 : 0, action.price*action.quantity*feeRate/100);
       const fees=commission(first)+commission(second)+(first.side==="卖出"?first.price*quantity*.0005:second.price*quantity*.0005);
-      return { index: index + 1, first, second, direction, gross, executionCost, fees, net: gross - executionCost - fees };
+      const holdingMinutes=Number(second.meta?.hold??Math.max(0,tradingMinuteOffset(second.time)-tradingMinuteOffset(first.time)));
+      return { index: index + 1, first, second, direction, holdingMinutes, gross, executionCost, fees, net: gross - executionCost - fees };
     });
   })();
   return <section className="backtest-view">
@@ -1803,7 +1829,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
           </svg>
           <div className="chart-truth-note"><span>曲线展示整日真实 1 分钟价格；悬停标记可查看触发或拦截原因，决策不读取未来数据</span><b>开 {fullDayPrices[0]?.toFixed(2) ?? "—"} · 高 {observedMax.toFixed(2)} · 低 {observedMin.toFixed(2)} · 收 {fullDayPrices.at(-1)?.toFixed(2) ?? "—"}</b></div>
         </div>
-        {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "每个闭环均列出开仓与平仓原因" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.first.time}-${cycle.second.time}`}><div><b>{cycle.direction} 循环 #{cycle.index}</b><span>{cycle.first.side} {cycle.first.time} ¥ {cycle.first.price.toFixed(2)} → {cycle.second.side} {cycle.second.time} ¥ {cycle.second.price.toFixed(2)}</span><p className="cycle-reason"><em>开仓依据</em>{cycle.first.reason ?? "趋势、量价与成本门槛同时通过"}</p><p className="cycle-reason"><em>平仓依据</em>{cycle.second.reason ?? "达到闭环或风控退出条件"}</p></div><div><small>数量</small><b>{cycle.first.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本完整交易日内没有形成同时满足成本、趋势和风控条件的正/反 T 循环，资金不变；整日真实分时仍保留用于复盘。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
+        {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "每个闭环均列出持仓时间、开仓与平仓原因" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.first.time}-${cycle.second.time}`}><div><b>{cycle.direction} 循环 #{cycle.index}</b><span>{cycle.first.side} {cycle.first.time} ¥ {cycle.first.price.toFixed(2)} → {cycle.second.side} {cycle.second.time} ¥ {cycle.second.price.toFixed(2)}</span><p className="cycle-reason"><em>开仓依据</em>{cycle.first.reason ?? "趋势、量价与成本门槛同时通过"}</p><p className="cycle-reason"><em>平仓依据</em>{cycle.second.reason ?? "达到闭环或风控退出条件"}</p></div><div><small>持仓时间</small><b>{cycle.holdingMinutes} 分钟</b></div><div><small>数量</small><b>{cycle.first.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本完整交易日内没有形成同时满足成本、趋势和风控条件的正/反 T 循环，资金不变；整日真实分时仍保留用于复盘。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
         {result&&<details className="candidate-audit" key={`candidate-audit-${singleRunDate}`} open={result.trades===0 || undefined}>
           <summary><span><b>候选信号过滤审计</b><small>{result.trades===0?"没有正式闭环时自动展开，展示关键拦截样本":"展开查看关键候选及过滤原因"}</small></span><em>候选判定 {result.diagnostics?.candidates ?? 0} 次 · {result.trades} 个正式闭环</em></summary>
           <div className="candidate-audit-metrics">

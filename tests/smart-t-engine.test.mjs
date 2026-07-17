@@ -155,17 +155,18 @@ test("a profitable buy-first cycle exits at the first causal minute that clears 
   );
 });
 
-test("all V4 profiles keep their after-cost targets inside the promised 0.64%-0.74% range", () => {
+test("all V4 profiles arm profit protection at 0.64% and cap after-cost profit at 1.00%", () => {
   const targets = Object.values(PROFILES).map((profile) => profile.targetNetPct);
 
   assert.ok(targets.length > 0);
   targets.forEach((target) => {
-    assert.ok(target >= 0.64 && target <= 0.74);
+    assert.equal(target, 0.64);
   });
   assert.deepEqual(
     Object.fromEntries(Object.entries(PROFILES).map(([name, profile]) => [name, profile.targetNetPct])),
-    { "稳健档": 0.74, "平衡档": 0.69, "灵敏档": 0.64, "量化学习": 0.69 },
+    { "稳健档": 0.64, "平衡档": 0.64, "灵敏档": 0.64, "量化学习": 0.64 },
   );
+  Object.values(PROFILES).forEach((profile) => assert.equal(profile.maxTargetNetPct, 1.00));
 });
 
 test("the lunch break is excluded from causal holding minutes", () => {
@@ -239,7 +240,15 @@ test("the production profit trail exits only after an observed pullback and stay
   }));
   const replayOptions = {
     ...options,
-    profileOverrides: { maxOpeningChasePct: Number.POSITIVE_INFINITY },
+    profileOverrides: {
+      maxOpeningChasePct: Number.POSITIVE_INFINITY,
+      targetNetPct: 0.15,
+      maxTargetNetPct: 0.80,
+      trailActivationPct: 0.15,
+      trailRetracePct: 0.05,
+      trailMinNetPct: 0.02,
+      minHoldMinutes: 3,
+    },
   };
   const full = runSmartTReplay(rows, replayOptions);
   const exit = full.actions[1];
@@ -250,6 +259,8 @@ test("the production profit trail exits only after an observed pullback and stay
   assert.equal(full.trades, 1);
   assert.equal(full.wins, 1);
   assert.equal(exit?.meta?.trailingProfit, true);
+  assert.match(exit.reason, /回撤保护/);
+  assert.ok(exit.meta.projectedNetPct < replayOptions.profileOverrides.maxTargetNetPct, "a pullback exit must happen before the hard profit ceiling");
   assert.ok(exit.meta.bestMove > exit.meta.move, "the exit requires a pullback from an already observed best move");
   assert.equal(beforeExit.actions.length, 1, "the later pullback must not be known one minute early");
   assert.deepEqual(atExit.actions, full.actions, "the exit must be reproducible at its confirmation minute");

@@ -66,6 +66,8 @@ export const PROFILES: Record<string, {
   cooldown: number;
   candidateNetPct: number;
   targetNetPct: number;
+  maxTargetNetPct: number;
+  minHoldMinutes: number;
   maxCycles: number;
   deviation: number;
   reversal: number;

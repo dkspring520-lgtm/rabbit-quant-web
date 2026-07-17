@@ -81,12 +81,14 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /提醒按确认分钟实时落点 · 不回填峰谷/);
   assert.match(source, /const formalFresh=Boolean/);
   assert.match(source, /minuteNumber\(lastTime\)===minuteNumber\(latest\.time\)/);
-  assert.match(source, /const isFormal=Boolean\(latest&&formalFresh\)/);
+  assert.match(source, /for\(const \[index,item\] of stockList\.entries\(\)\)/);
+  assert.match(source, /const formalFresh=Boolean\(latest&&lastTime/);
+  assert.match(source, /const isRisk=!formalFresh&&Boolean\(riskMessage\)/);
   assert.doesNotMatch(source, /const isFormal=Boolean\(autoDecision\.status==="ready"/);
-  assert.match(source, /const isRisk=!isFormal&&autoDecision\.status==="locked"/);
   assert.match(source, /alertedEventKeys/);
-  assert.match(source, /lastAlertKey\.current===persistedKey/);
-  assert.match(source, /lastAlertKey\.current=persistedKey/);
+  assert.match(source, /riskAlertEpisodes/);
+  assert.match(source, /alertedEventKeys\.current\.has\(persistedKey\)/);
+  assert.match(source, /alertedEventKeys\.current\.add\(persistedKey\)/);
   assert.match(source, /localStorage\.setItem\(persistedKey,"1"\)/);
   assert.match(styles, /candidate-signal-marker rect\{fill:rgba\(242,184,75,\.12\)/);
   assert.match(styles, /live-signal-marker\.sell rect\{fill:rgba\(255,100,100,\.18\)/);
