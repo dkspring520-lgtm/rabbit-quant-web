@@ -13,6 +13,7 @@ import { analyzeZijinFactorResearch } from "@/lib/zijin-factor-research.mjs";
 import zijinHistoricalEvidence from "@/public/research/zijin-factor-evidence.json";
 import zijinPatternDiscovery from "@/public/research/zijin-pattern-discovery.json";
 import zijinPeerPatternDiscovery from "@/public/research/zijin-peer-pattern-discovery.json";
+import zijinExternalFactorReadiness from "@/public/research/zijin-external-factor-readiness.json";
 import { sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
@@ -1436,6 +1437,11 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
         <div className="zijin-pattern-title"><div><span>紫金规律扫描 · 阶段二已完成</span><h3>{zijinPeerPatternDiscovery.conclusion.message}</h3><p>阶段一已检验 {zijinPatternDiscovery.dataset.labeledScenarios.toLocaleString()} 个仅靠紫金自身价量形成的候选场景；阶段二加入 6 只黄金、铜和有色同业的同分钟强弱，以及只来自前一交易日和前 5/20 日的历史结构。</p></div><em>{zijinPeerPatternDiscovery.conclusion.deployment}</em></div>
         <div className="zijin-pattern-metrics"><p><span>因果候选场景</span><b>{zijinPeerPatternDiscovery.dataset.labeledScenarios.toLocaleString()}</b><small>下一分钟开盘成交；不读未来</small></p><p><span>完整交易日</span><b>{zijinPeerPatternDiscovery.dataset.tradingDays.toLocaleString()}</b><small>{zijinPeerPatternDiscovery.dataset.firstDate}—{zijinPeerPatternDiscovery.dataset.lastDate}</small></p><p><span>分钟面板</span><b>{zijinPeerPatternDiscovery.dataset.stockCount} 股</b><small>{zijinPeerPatternDiscovery.dataset.minuteRows.toLocaleString()} 行 · 覆盖 {(zijinPeerPatternDiscovery.dataset.meanPeerCoverage*100).toFixed(0)}%</small></p><p><span>跨期稳定规律</span><b>{zijinPeerPatternDiscovery.stableRuleCount}</b><small>2025 验证后才开启 2026 盲测</small></p></div>
         <div className="zijin-pattern-next"><b>胜率不能靠回看最高低点制造</b><span>{zijinPeerPatternDiscovery.stableRuleCount?`已发现 ${zijinPeerPatternDiscovery.stableRuleCount} 组通过盲测的候选，下一步仍需模拟观察和人工评审。`:`同业与历史结构仍未形成可部署规则。后续需要补入 ${zijinPeerPatternDiscovery.conclusion.nextRequiredFactors.join('、')}；未达到 65% 样本外门槛的规律继续淘汰。`}</span></div>
+      </div>
+      <div className={`zijin-pattern-result zijin-external-stage ${zijinExternalFactorReadiness.status}`}>
+        <div className="zijin-pattern-title"><div><span>紫金规律扫描 · 阶段三数据接入</span><h3>{zijinExternalFactorReadiness.message}</h3><p>阶段三把国际金价、铜价、大盘指数、港股紫金和公告事件作为研究慢层。每个值必须在当时已经公开，并通过“来源时间 ≤ A 股当前分钟”的因果对齐；它不会直接改变盘中 V4 买卖点。</p></div><em>{zijinExternalFactorReadiness.deployment}</em></div>
+        <div className="zijin-external-sources">{zijinExternalFactorReadiness.requiredSources.map(source=><p key={source.id} className={source.status}><span>{source.label}</span><b>{source.status==='ready'?'已接入':'等待数据'}</b><small>{source.role} · {source.resolution}</small></p>)}</div>
+        <div className="zijin-pattern-next"><b>当前没有启动外部因子训练</b><span>{zijinExternalFactorReadiness.nextStep} 未导入真实数据前不显示胜率，也不会伪装成持续训练。</span></div>
       </div>
       <div className="zijin-evidence"><p><span>完整分时</span><b>{zijinFactorResearch.evidence.sessions} 日</b></p><p><span>历史候选样本</span><b>{zijinFactorResearch.evidence.samples} 条</b></p><p><span>样本外验证</span><b>{zijinFactorResearch.evidence.validationSamples} 条</b></p><p><span>验证胜率</span><b>{zijinFactorResearch.evidence.ready&&zijinFactorResearch.evidence.validationWinRate!==null?`${(zijinFactorResearch.evidence.validationWinRate*100).toFixed(1)}%`:'暂不展示'}</b></p><strong>{zijinFactorResearch.evidence.label}；当前展示最近一次离线训练结果，数据更新后需重新启动训练；盘中判断只读取当前及此前分钟。</strong></div>
       <footer><b>与 Smart‑T V4 隔离</b><span>不会修改档位、买卖点或风控阈值；通过样本外验证和人工评审后，才允许进入模拟观察。</span></footer>
