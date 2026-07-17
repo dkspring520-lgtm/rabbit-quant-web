@@ -52,7 +52,8 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /左兔 · 买入\/买回提醒/);
   assert.match(source, /右兔 · 卖出提醒/);
-  assert.match(source, /候选仅弹出安静观察卡/);
+  assert.match(source, /候选点保持静默/);
+  assert.match(source, /className="alert-channel-actions"/);
   assert.match(source, /function observationConfirmationLabel/);
   assert.match(source, /function observationDirectionNote/);
   assert.match(source, /候补\$\{observation\.direction\}方向 · 不可执行/);
@@ -129,13 +130,15 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
 
 test("random 10-stock replay randomizes stock-days and separates references from formal trades", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  const poolMatch = source.match(/const batchValidationUniverse = \[([\s\S]*?)\];/);
+  const poolMatch = source.match(/const representativeBacktestUniverse = \[([\s\S]*?)\];/);
   assert.ok(poolMatch);
   const poolCodes = [...poolMatch[1].matchAll(/"(\d{6})"/g)].map((match) => match[1]);
   assert.ok(poolCodes.length >= 30);
   assert.equal(new Set(poolCodes).size, poolCodes.length);
-  assert.match(source, /sampleWithSeed\(batchValidationUniverse,10,seed\)/);
-  assert.match(source, /const replacementCodes=sampleWithSeed\(/);
+  assert.match(source, /fetch\("\/api\/stock-universe"/);
+  assert.match(source, /diversifyStockUniverse\(universeResponse\.stocks/);
+  assert.match(source, /const sampledItems=queue\.slice\(0,10\)/);
+  assert.match(source, /representative-fallback/);
   assert.match(source, /while\(available\.length<10 && cursor<queue\.length\)/);
   assert.match(source, /setBatchFetchProgress\(\{ready:available\.length,attempted\}\)/);
   assert.match(source, /batchFetchProgress\.ready\}\/10/);
@@ -146,8 +149,9 @@ test("random 10-stock replay randomizes stock-days and separates references from
   assert.match(source, /standardBacktestShares/);
   assert.match(source, /buildCausalReferencePoints/);
   assert.match(source, /slice\(0,5\)/);
-  assert.match(source, /random完整交易日|随机完整交易日/);
-  assert.match(source, /随机10股真实分时批次/);
+  assert.match(source, /从近 5 个可用完整交易日中随机选一天|sampleWithSeed\(sessionPool,1/);
+  assert.match(source, /全A股随机10股真实分时批次/);
+  assert.match(source, /全市场列表不可用时会明确显示/);
   assert.match(source, /每股最多展示 2 个候补买点和 2 个候补卖点/);
   assert.match(source, /候补点不可执行/);
   assert.match(source, /才升级为正式候选或正式交易/);
