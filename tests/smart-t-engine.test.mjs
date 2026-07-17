@@ -169,6 +169,19 @@ test("all V4 profiles arm profit protection at 0.64% and cap after-cost profit a
   Object.values(PROFILES).forEach((profile) => assert.equal(profile.maxTargetNetPct, 1.00));
 });
 
+test("V4 profile gates stay monotonic from steady to balanced to sensitive", () => {
+  const steady = PROFILES["稳健档"];
+  const balanced = PROFILES["平衡档"];
+  const sensitive = PROFILES["灵敏档"];
+
+  assert.ok(steady.score >= balanced.score && balanced.score >= sensitive.score);
+  assert.ok(steady.deviation >= balanced.deviation && balanced.deviation >= sensitive.deviation);
+  assert.ok(steady.candidateNetPct >= balanced.candidateNetPct && balanced.candidateNetPct >= sensitive.candidateNetPct);
+  assert.ok(steady.cooldown >= balanced.cooldown && balanced.cooldown >= sensitive.cooldown);
+  assert.ok(steady.maxCycles <= balanced.maxCycles && balanced.maxCycles <= sensitive.maxCycles);
+  assert.ok(sensitive.maxSellPullback >= balanced.maxSellPullback, "the sensitive profile must not use a narrower sell confirmation window than balanced");
+});
+
 test("the lunch break is excluded from causal holding minutes", () => {
   assert.equal(minutesFromOpen("1130"), 120);
   assert.equal(minutesFromOpen("1300"), 120);
