@@ -12,6 +12,7 @@ import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
+import PublicLanding from "./public-landing";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
@@ -284,6 +285,8 @@ const strategyProfiles = ["稳健档","平衡档","灵敏档"];
 export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [localAuth, setLocalAuth] = useState(false);
+  const [authScreen,setAuthScreen]=useState<'landing'|'account'>('landing');
+  const [demoMode,setDemoMode]=useState(false);
   const [accountName, setAccountName] = useState("jay cc");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [preferences, setPreferences] = useState<AccountPreferences>(DEFAULT_PREFERENCES);
@@ -306,7 +309,7 @@ export default function Home() {
   const alertedEventKeys = useRef<Set<string>>(new Set());
   const nextPreviewRabbit = useRef<"buy"|"sell">("buy");
   const alertTimeoutRef = useRef<number|null>(null);
-  const [customStrategy, setCustomStrategy] = useState("09:35后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；扣费后目标净收益低于0.64%不执行。");
+  const [customStrategy, setCustomStrategy] = useState("09:30开始实时扫描，至少4个真实分钟点后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；扣费后目标净收益低于0.64%不执行。");
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [marketError, setMarketError] = useState("");
   const [marketQuotes, setMarketQuotes] = useState<Record<string, MarketData["quote"]>>({});
@@ -447,7 +450,7 @@ export default function Home() {
       const qualified=observation.stage!=="watch";
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
-      const currentLabel=observation.confirmationLabel??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?"趋势未破":"观察");
+      const currentLabel=observation.confirmationLabel??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const labelWidth=currentLabel.length*8+14;
       const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
       return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,observation}];
@@ -531,7 +534,7 @@ export default function Home() {
   const autoDecision = useMemo(() => {
     const price=activeQuote?.price ?? 0; const open=activeQuote?.open ?? 0; const vwap=chartModel?.lastVwap ?? 0;
     const lastTime=(minutePoints.at(-1)?.time ?? "").replace(/\D/g,"").slice(0,4);
-    const inDecisionWindow=lastTime>="0936" && lastTime<="1430";
+    const inDecisionWindow=lastTime>="0933" && lastTime<="1430";
     const recent=minutePoints.slice(-4).map(point=>point.price);
     const rising=recent.length>=4 && recent.at(-1)!>=recent[0]*1.001;
     const falling=recent.length>=4 && recent.at(-1)!<=recent[0]*.999;
@@ -547,21 +550,24 @@ export default function Home() {
           ? "高开回落型反T预案：09:30 后等待跌回竞价价与 VWAP"
           : "平开双向预案：等待连续竞价形成明确方向";
       const auctionReason=marketSession.phase==="auction-result"
-        ? `09:25 集合竞价初判：${openingAssessment.gapText}；${auctionBias}。这不是买卖点，09:36 起才允许小仓正式信号。`
+        ? `09:25 集合竞价初判：${openingAssessment.gapText}；${auctionBias}。这不是买卖点；09:30 开始扫描，最早 09:33 显示候选，09:36 后才允许经确认的小仓正式信号。`
         : `${marketSession.label}：${marketSession.detail}`;
       return {status:"waiting" as const,mode:null,confirmed:marketSession.phase==="auction-result"?1:confirmed,reason:auctionReason,lastTime,inDecisionWindow:false,referenceConfirmed:false,trendConfirmed:false};
     }
     if(stockState.level==="risk") return {status:"locked" as const,mode:null,confirmed,reason:`股票状态风控：${stockState.details.join("；")}`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentEvents?.gate.hardLock) return {status:"locked" as const,mode:null,confirmed,reason:`事件雷达：${currentEvents.gate.label}，${currentEvents.gate.reason}。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentEvents?.gate.level==="restricted") return {status:"waiting" as const,mode:null,confirmed,reason:`事件雷达：${currentEvents.gate.label}，请先核实原文。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
-    if(currentContext?.gate.hardLock) return {status:"locked" as const,mode:null,confirmed,reason:`外部环境雷达：${currentContext.gate.label}，只允许恢复底仓。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
+    if(currentContext?.gate.hardLock) {
+      const triggers=currentContext.gate.reasons.length?currentContext.gate.reasons.join("、"):"多项外部指标同步走弱";
+      return {status:"locked" as const,mode:null,confirmed,reason:`外部环境雷达 ${currentContext.gate.score}/100：${triggers}；禁止新开 T，只允许恢复底仓。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
+    }
     if(currentContext?.gate.level==="restricted") return {status:"waiting" as const,mode:null,confirmed,reason:`外部环境雷达：${currentContext.gate.label}，暂停新开循环。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     const latestAction=liveEngine.actions.at(-1);
     const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
     const fresh=Boolean(latestAction&&minuteNumber(lastTime)===minuteNumber(latestAction.time));
     if(latestAction&&fresh) return {status:"ready" as const,mode:(latestAction.direction??(lowOpen?"正T":"反T")) as "正T"|"反T",confirmed:4,reason:`融合引擎实时信号：${latestAction.time} ${latestAction.direction} ${latestAction.side}，成本、趋势、量价与风控均已通过。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
     if(!lowOpen&&!highOpen) return {status:"waiting" as const,mode:null,confirmed,reason:"平开或开盘数据不完整，等待形成明确方向。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
-    if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:36 前只采样；09:36 起可在连续走势与 VWAP 确认后小仓试单。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
+    if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:30 已开始扫描；积累 4 个真实分钟点后，最早 09:33 可在连续走势与 VWAP 确认后小仓试单。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
     return {status:"waiting" as const,mode:null,confirmed,reason:directionConfirmed?`基础方向已确认，但融合引擎仍在检查成本、量价和盈亏比。`:liveEngine.status,lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
   },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState,currentEvents,currentContext,liveEngine,marketSession]);
   const signalMode:"正T"|"反T"=autoDecision.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
@@ -720,7 +726,7 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
-    if (!localAuth || !accountName || !stockList.length) return;
+    if (!localAuth || demoMode || !accountName || !stockList.length) return;
     const loaded:StockPositionMap=Object.fromEntries(stockList.map(item=>{
       const position=loadStockPosition(window.localStorage,accountName,item.code,preferences,hasPersistedPreferences);
       const persisted=position.updatedAt?position:saveStockPosition(window.localStorage,accountName,position);
@@ -728,7 +734,7 @@ export default function Home() {
     }));
     const timer=window.setTimeout(()=>{setStockPositions(loaded);if(Object.values(loaded).some(position=>position.needsConfirmation))setOnboardingOpen(true)},0);
     return()=>window.clearTimeout(timer);
-  },[localAuth,accountName,stockList,preferences.stock,preferences.baseShares,hasPersistedPreferences]);
+  },[localAuth,demoMode,accountName,stockList,preferences.stock,preferences.baseShares,hasPersistedPreferences]);
   useEffect(()=>{
     if(!ledgerStorageKey||!stock?.code||tradingDate==="1970-01-01")return;
     const timer=window.setTimeout(()=>{
@@ -875,7 +881,11 @@ export default function Home() {
   };
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-logo-compact.png" alt="做T神器"/></main>;
-  if(!localAuth) return <AuthView onAuthenticated={(name,isNew,remember)=>{setAccountName(name);setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);setStockList(initialStocks);setActiveStock(0);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){setPreferences(JSON.parse(saved));setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=normalizeWatchlist(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
+  if(!localAuth){
+    const enterDemo=()=>{setDemoMode(true);setAccountName('演示访客');setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);setStockList(initialStocks);setActiveStock(0);setActiveView('首页');setLocalAuth(true)};
+    if(authScreen==='landing')return <PublicLanding onDemo={enterDemo} onAccount={()=>setAuthScreen('account')}/>;
+    return <AuthView onBack={()=>setAuthScreen('landing')} onDemo={enterDemo} onAuthenticated={(name,isNew,remember)=>{setDemoMode(false);setAccountName(name);setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);setStockList(initialStocks);setActiveStock(0);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){setPreferences(JSON.parse(saved));setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=normalizeWatchlist(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
+  }
 
   return (
     <main className={`app-shell session-${marketSession.tone}`}>
@@ -897,11 +907,12 @@ export default function Home() {
           <button className="icon-button" onClick={()=>setOnboardingOpen(true)} aria-label="打开账户与监控设置" title="账户与监控设置">⚙</button>
         </div>
       </header>
+      {demoMode&&<div className="demo-ribbon" role="status"><b>免注册演示</b><span>当前为本机临时体验，不代表正式账户；下单接口关闭，演示操作不会同步到其他设备。</span><button onClick={()=>{setDemoMode(false);setLocalAuth(false);setAuthScreen('account')}}>创建测试账户</button></div>}
 
       {activeView === "首页" ? <HomeView onNavigate={setActiveView} stockCount={stockList.length} /> : activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
         {stockList.map((item, index) => (
-          <div className={`ticker-item ${activeStock === index ? 'selected' : ''}`} key={item.code}>{(()=>{const quote=marketQuotes[item.code];const radar=eventsByCode[item.code];const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;return <><button onClick={() => setActiveStock(index)}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>:radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>:null}</button><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>})()}</div>
+          <div className={`ticker-item ${activeStock === index ? 'selected' : ''}`} key={item.code}>{(()=>{const quote=marketQuotes[item.code];const radar=eventsByCode[item.code];const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>:radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>:radar?<small className="ticker-event quiet">暂无新增</small>:eventRadarError?<small className="ticker-event pending">雷达待更新</small>:<small className="ticker-event pending">扫描中</small>;return <><button onClick={() => setActiveStock(index)}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>})()}</div>
         ))}
         <button className="ticker-add" onClick={()=>setOnboardingOpen(true)}>＋ 管理监控</button>
       </section>
@@ -993,7 +1004,7 @@ export default function Home() {
             {Boolean(currentEvents?.items.length)&&<div className="event-radar-list">{currentEvents!.items.slice(0,3).map(item=><a href={item.url} target="_blank" rel="noreferrer" key={item.id} className={item.sentiment}><i>{item.sentiment==="negative"?"利空":item.sentiment==="positive"?"利好":"中性"}</i><span><b>{item.title}</b><small>{item.relatedCount&&item.relatedCount>1?`合并 ${item.relatedCount} 个来源 · `:""}{item.source} · {new Date(item.publishedAt).toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})} · {item.reason}</small></span></a>)}</div>}
             <div className="context-radar-foot"><span>{currentContext?.gate.reasons.join(" · ") || "公开行情仅供人工研判"}</span><em>{eventRadar?.sources.join(" + ") || eventRadarError || "多源事件扫描加载中"}</em></div>
           </div>
-          <div className="opening-causal"><span>09:36 起分阶段判断</span><b>仅使用已出现数据 · 无需手动切换</b><small>09:36–09:44 连续走势与 VWAP 确认后仅小仓试单；09:45 后恢复完整过滤。低开修复看正T，高开回落看反T。</small></div>
+          <div className="opening-causal"><span>09:30 起实时扫描</span><b>仅使用已出现数据 · 无需手动切换</b><small>最早 09:33 显示候选，09:36–09:44 经连续走势与 VWAP 确认后才允许小仓正式信号；09:45 后恢复完整过滤。</small></div>
           <h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2>
           <p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p>
           <button disabled={cycleQuantity<100||(cycleStage==='ready'&&autoDecision.status!=="ready")} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
@@ -1044,21 +1055,21 @@ export default function Home() {
             ].map(item=><button key={item.name} onClick={()=>setProfile(item.name)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
           </div>
           <div className="custom-strategy"><div className="custom-head"><div><h3>自定义规则草稿</h3><p>用于记录你的研究想法。自然语言目前不会直接变成可执行参数，也不会冒充已运行策略。</p></div><span>仅保存备注</span></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T规则草稿"/><div className="hard-guards"><span>正式执行仍受：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
-          <div className="opening-rule"><span>开盘因果规则</span><p>09:30–09:35 只观察；09:35–10:00 只使用当前分钟及之前的数据。低开重新站上VWAP、高开跌破VWAP且确认后，分两次各 1/6；早盘累计不超过 1/3。</p><button onClick={()=>{try{localStorage.setItem(`rabbit-custom-strategy:${accountName.toLowerCase()}`,customStrategy)}catch{}setStrategyOpen(false)}}>保存规则草稿</button></div>
+          <div className="opening-rule"><span>开盘因果规则</span><p>09:30立即开始扫描；积累至少4个真实分钟点后即可出现候选。低开重新站上VWAP、高开跌破VWAP且确认后，分两次各 1/6；早盘累计不超过 1/3，所有判断只使用当时及此前数据。</p><button onClick={()=>{try{localStorage.setItem(`rabbit-custom-strategy:${accountName.toLowerCase()}`,customStrategy)}catch{}setStrategyOpen(false)}}>保存规则草稿</button></div>
         </div>
       </div>}
 
       {accountOpen && <div className="account-overlay" role="dialog" aria-modal="true" aria-label="账户中心" onMouseDown={e=>{if(e.target===e.currentTarget)setAccountOpen(false)}}><div className="account-dialog">
-        <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>用户名账户已登录</span><h2>{accountName}</h2><p>本机测试账户</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
-        <div className="account-plan"><div><span>当前套餐</span><b>个人体验版</b><small>账户已自动创建，无需设置站内密码</small></div><em>已激活</em></div>
+        <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>{demoMode?'免注册演示已进入':'用户名账户已登录'}</span><h2>{accountName}</h2><p>{demoMode?'临时演示会话':'本机测试账户'}</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
+        <div className="account-plan"><div><span>当前状态</span><b>{demoMode?'免注册演示':'个人体验版'}</b><small>{demoMode?'不跨设备同步，刷新后可能丢失':'公开测试期账户保存在当前浏览器'}</small></div><em>{demoMode?'演示中':'已激活'}</em></div>
         <div className="account-stats"><div><span>监控股票</span><b>4 / 10</b></div><div><span>本月回测</span><b>29 次</b></div><div><span>策略版本</span><b>QB‑04</b></div></div>
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>当前股票计划底仓<small>{stock.code} · 用于当日闭环校验</small></span><b>{activePosition.plannedBase.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
-        <div className="account-security"><i>✓</i><p><b>密码安全</b><span>测试版只在本机保存密码摘要，不保存密码明文；正式版将迁移至服务器账户库。</span></p></div>
-        <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session');sessionStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setLocalAuth(false)}}>退出登录</button></div>
+        <div className="account-security"><i>✓</i><p><b>{demoMode?'演示边界':'密码安全'}</b><span>{demoMode?'演示不连接券商、不执行下单，也不会冒充正式账户。':'测试版只在本机保存密码摘要，不保存密码明文；正式商用前迁移至服务器账户库。'}</span></p></div>
+        <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button><button onClick={()=>{try{localStorage.removeItem('rabbit-auth-session');sessionStorage.removeItem('rabbit-auth-session')}catch{} setAccountOpen(false);setDemoMode(false);setAuthScreen('landing');setLocalAuth(false)}}>{demoMode?'退出演示':'退出登录'}</button></div>
       </div></div>}
       {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} onSave={(next,list,positions)=>{setPreferences(next);setHasPersistedPreferences(true);setStockList(list);setStockPositions(positions);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}setOnboardingOpen(false)}}/>}
 
-      <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><span>Rabbit Quant V1.0</span></footer>
+      <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><span><a href="/terms">用户协议</a> · <a href="/privacy">隐私政策</a> · Rabbit Quant V1.0</span></footer>
     </main>
   );
 }
@@ -1069,7 +1080,7 @@ async function passwordDigest(value:string){
   return Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,'0')).join('');
 }
 
-function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean,remember:boolean)=>void}) {
+function AuthView({onAuthenticated,onBack,onDemo}:{onAuthenticated:(name:string,isNew:boolean,remember:boolean)=>void;onBack:()=>void;onDemo:()=>void}) {
   const [mode,setMode]=useState<'login'|'register'>('login');
   const [username,setUsername]=useState('');
   const [password,setPassword]=useState('');
@@ -1105,6 +1116,11 @@ function AuthView({onAuthenticated}:{onAuthenticated:(name:string,isNew:boolean,
     }catch{setError('当前浏览器无法保存账户，请检查隐私设置');}finally{setBusy(false);}
   };
   return <main className="auth-page">
+    <div className="auth-entry-floating">
+      <button type="button" onClick={onBack}>← 产品首页</button>
+      <span><a href="/terms" target="_blank" rel="noreferrer">用户协议</a><i/> <a href="/privacy" target="_blank" rel="noreferrer">隐私政策</a></span>
+      <button type="button" onClick={onDemo}>免注册演示</button>
+    </div>
     <section className="auth-brand-panel"><div className="auth-brand"><img src="/rabbit-brand-gold.png" alt="做T神器双兔黑金品牌标志"/><span><b aria-label="做T神器"><span aria-hidden="true">做</span><span className="brand-ascii-t" aria-hidden="true">T</span><span aria-hidden="true">神器</span></b><small>RABBIT QUANT</small></span></div><div className="auth-message"><span className="eyebrow">RABBIT SMART‑T</span><h1>把复杂的盘面，<br/><em>变成简单的操作。</em></h1><p>多股监控、正反T决策、当日仓位闭环与四兔持续训练。</p></div><div className="auth-points"><span><i/>市场雷达硬门控</span><span><i/>T+1可卖数量校验</span><span><i/>收盘恢复计划底仓</span></div><small className="auth-disclaimer">策略研究工具 · 不构成投资建议</small></section>
     <section className="auth-form-panel"><div className="auth-card"><div className="auth-card-head"><span>{mode==='login'?'WELCOME BACK':'CREATE ACCOUNT'}</span><h2>{mode==='login'?'登录做T神器':'创建用户名账户'}</h2><p>{mode==='login'?'继续查看你的监控、回测和训练记录。':'首次注册后即可进入个人交易工作台。'}</p></div><div className="auth-tabs"><button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setError('')}}>登录</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setError('')}}>注册</button></div><label className="auth-field"><span>用户名</span><input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" placeholder="请输入用户名"/></label><label className="auth-field"><span>密码</span><div><input value={password} onChange={e=>setPassword(e.target.value)} type={showPassword?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} placeholder="至少 6 个字符"/><button onClick={()=>setShowPassword(!showPassword)} type="button">{showPassword?'隐藏':'显示'}</button></div></label>{mode==='register'&&<><div className="password-strength"><span>密码强度</span><i className={strength>0?'on':''}/><i className={strength>1?'on':''}/><i className={strength>2?'on':''}/><i className={strength>3?'on':''}/><b>{strength<2?'较弱':strength<4?'可用':'较强'}</b></div><label className="auth-field"><span>确认密码</span><input value={confirm} onChange={e=>setConfirm(e.target.value)} type={showPassword?'text':'password'} autoComplete="new-password" placeholder="再次输入密码"/></label><label className="terms-check"><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/><span>我已阅读并同意《用户协议》和《隐私政策》，理解本工具不构成投资建议。</span></label></>}{mode==='login'&&<div className="auth-options"><label><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/><span>记住登录</span></label><button type="button" onClick={()=>setError('测试版暂不支持找回密码，请重新注册其他用户名')}>忘记密码？</button></div>}{error&&<div className="auth-error"><i>!</i>{error}</div>}<button className="auth-submit" onClick={submit} disabled={busy}>{busy?'正在验证…':mode==='login'?'登录':'注册并进入'}<span>→</span></button><div className="auth-local-note"><i>i</i><p><b>本机测试账户</b><span>当前账户仅保存在这个浏览器中，清除浏览器数据后会丢失。正式商用版将接入服务器数据库。</span></p></div></div><footer className="auth-footer">© 2026 Rabbit Quant · 用户协议 · 隐私政策</footer></section>
   </main>;
@@ -1267,7 +1283,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSamples.length} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
     <div className="research-grid">
       <div className="research-column research-primary"><article className="research-card research-summary"><span>这只股票当前的研究结论</span><h2>{candidate}</h2><p>{stats.trend}；近20日平均振幅 {stats.range?`${stats.range.toFixed(2)}%`:'待计算'}。系统已自动回放 {autoSamples.length} 个完整交易日，形成 {autoCycles} 个闭环，扣费后净收益 {autoSamples.length?money(autoNet):'等待样本'}。</p><div><b>这不是自动买卖指令</b><small>自动研究只负责形成证据；正式买卖点仍由操盘台 V4 逐分钟过滤，风险规则拥有一票否决权。</small></div></article><article className="research-card feedback-card"><span>确认系统判断是否正确</span><p>系统已经自动收集客观数据。只有主观结论需要你确认；选择标签、写一句原因再保存。</p><div className="feedback-control"><small>判断类型</small><div>{['观察','正T','反T'].map(item=><button key={item} className={mode===item?'active':''} onClick={()=>{setMode(item);setSaveMessage('')}}>{item}{mode===item?' ✓':''}</button>)}</div></div><div className="feedback-control"><small>实际结果</small><div>{['待验证','有效','无效'].map(item=><button key={item} className={outcome===item?'active':''} onClick={()=>{setOutcome(item);setSaveMessage('')}}>{item}{outcome===item?' ✓':''}</button>)}</div></div><textarea value={feedback} onChange={event=>{setFeedback(event.target.value);setSaveMessage('')}} placeholder="例如：10:15 回踩后量能未跟上，因此没有执行；等待是正确的。"/><button onClick={saveNote} disabled={!feedback.trim()}>{saveMessage||'保存本次人工确认'}</button></article></div>
-      <div className="research-column research-secondary"><article className="research-card"><span>股性指纹 · 日线</span><div className="fingerprint"><p><small>平均振幅</small><b>{stats.range?`${stats.range.toFixed(2)}%`:'--'}</b></p><p><small>阳线天数</small><b>{bars.length?`${stats.upDays}/20`:'--'}</b></p><p><small>20日均价</small><b>{stats.ma20?stats.ma20.toFixed(2):'--'}</b></p><p><small>量能比</small><b>{stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'--'}</b></p></div><small className="data-note">日线用于股性背景；盘中信号仍使用已出现的分钟数据。</small></article><article className="research-card"><span>待验证规律</span><ul className="candidate-list">{zijinOpeningEvidence&&<li><b>紫金早盘高波动观察</b><small>09:35–10:30 只用当时已出现的振幅、VWAP、三分钟动量与量比；近 {zijinOpeningEvidence.sessions} 个完整样本中 {zijinOpeningEvidence.candidateDays} 日形成候选（正T {zijinOpeningEvidence.positiveDays} / 反T {zijinOpeningEvidence.reverseDays}），尚不直接执行。</small><em>{zijinOpeningEvidence.sessions>=10?'验证中':'收集中'}</em></li>}<li><b>{candidate}</b><small>{stats.range<3.5?'振幅偏小时，提高确认门槛，避免费用吃掉价差。':'波动偏大时，缩小单次仓位并限制连续试错。'}</small><em>{autoSamples.length>=10?'验证中':'收集中'}</em></li><li><b>{stats.trend.includes('上方')?'趋势内回撤观察':'均值回归观察'}</b><small>{autoCycles?`真实分时已形成 ${autoCycles} 个闭环，盈利 ${autoWins} 个。`:'还没有足够正式闭环，不输出胜率。'}</small><em>{autoCycles>=20?'可评审':'待样本'}</em></li><li><b>开盘分阶段确认</b><small>09:36–09:44 允许 1/6 底仓小仓试单；仍须通过连续走势、VWAP、成本与风控过滤，09:45 后恢复完整确认。</small><em>V4硬规则</em></li></ul><small className="candidate-explain">这里是研究假设，不是可点击启用的另一套策略。</small></article></div>
+      <div className="research-column research-secondary"><article className="research-card"><span>股性指纹 · 日线</span><div className="fingerprint"><p><small>平均振幅</small><b>{stats.range?`${stats.range.toFixed(2)}%`:'--'}</b></p><p><small>阳线天数</small><b>{bars.length?`${stats.upDays}/20`:'--'}</b></p><p><small>20日均价</small><b>{stats.ma20?stats.ma20.toFixed(2):'--'}</b></p><p><small>量能比</small><b>{stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'--'}</b></p></div><small className="data-note">日线用于股性背景；盘中信号仍使用已出现的分钟数据。</small></article><article className="research-card"><span>待验证规律</span><ul className="candidate-list">{zijinOpeningEvidence&&<li><b>紫金早盘高波动观察</b><small>09:30–10:30 只用当时已出现的振幅、VWAP、三分钟动量与量比；近 {zijinOpeningEvidence.sessions} 个完整样本中 {zijinOpeningEvidence.candidateDays} 日形成候选（正T {zijinOpeningEvidence.positiveDays} / 反T {zijinOpeningEvidence.reverseDays}），尚不直接执行。</small><em>{zijinOpeningEvidence.sessions>=10?'验证中':'收集中'}</em></li>}<li><b>{candidate}</b><small>{stats.range<3.5?'振幅偏小时，提高确认门槛，避免费用吃掉价差。':'波动偏大时，缩小单次仓位并限制连续试错。'}</small><em>{autoSamples.length>=10?'验证中':'收集中'}</em></li><li><b>{stats.trend.includes('上方')?'趋势内回撤观察':'均值回归观察'}</b><small>{autoCycles?`真实分时已形成 ${autoCycles} 个闭环，盈利 ${autoWins} 个。`:'还没有足够正式闭环，不输出胜率。'}</small><em>{autoCycles>=20?'可评审':'待样本'}</em></li><li><b>开盘分阶段确认</b><small>09:33–09:44 允许 1/6 底仓小仓试单；仍须通过连续走势、VWAP、成本与风控过滤，09:45 后恢复完整确认。</small><em>V4硬规则</em></li></ul><small className="candidate-explain">这里是研究假设，不是可点击启用的另一套策略。</small></article></div>
     </div>
     <div className="research-bottom"><div><span>自动分时研究</span><b>{autoSamples.length} 个完整交易日</b>{autoSamples.length?<div className="auto-sample-list">{autoSamples.slice(0,3).map(item=><p key={item.date}><b>{item.date}</b><em className={item.net>=0?'valid':'invalid'}>{item.status}</em></p>)}</div>:<small>公开源尚未提供可用的完整历史分时，系统不会伪造样本。</small>}</div><div><span>最近人工确认</span>{notes.length?notes.slice(0,3).map(note=><p key={note.id}><b>{note.date} · {note.mode}</b><em className={note.outcome==='有效'?'valid':note.outcome==='无效'?'invalid':''}>{note.outcome}</em><small>{note.note}</small></p>):<p className="empty-note">尚无人工确认；这不会阻止系统自动计算客观分时样本。</p>}</div><aside><span>升级规则</span><b>自动收集 → 样本外验证 → 人工评审</b><small>达到 30 条只代表可以评审，不代表自动启用。正式策略与真实下单始终保持人工控制。</small></aside></div>
   </section>;
@@ -1276,14 +1292,14 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
 const marketStrategies = [
   {rank:1,name:'胡萝卜波段兔',author:'A客户',mode:'模拟盘',win:78,returns:8.6,drawdown:2.1,cycles:41,days:36,risk:'中风险',price:0,followers:126,tags:['VWAP','反T','量能确认'],summary:'高开转弱后等待回抽失败，分批反T；14:50前强制恢复底仓。'},
   {rank:2,name:'稳稳闭环兔',author:'量化小林',mode:'模拟盘',win:72,returns:6.9,drawdown:1.2,cycles:68,days:63,risk:'低风险',price:19,followers:284,tags:['低回撤','正反T','硬风控'],summary:'以低频高确认信号为主，单次不超过底仓1/4，连续失败两次即停止。'},
-  {rank:3,name:'开盘雷达兔',author:'北辰',mode:'回测',win:69,returns:11.3,drawdown:4.8,cycles:93,days:90,risk:'高风险',price:39,followers:91,tags:['集合竞价','开盘30分','趋势过滤'],summary:'聚焦09:35至10:00，只使用当时已出现数据判断低开转强与高开转弱。'},
+  {rank:3,name:'开盘雷达兔',author:'北辰',mode:'回测',win:69,returns:11.3,drawdown:4.8,cycles:93,days:90,risk:'高风险',price:39,followers:91,tags:['集合竞价','开盘30分','趋势过滤'],summary:'09:30开始扫描，至少4个真实分钟点后只用当时已出现数据判断低开转强与高开转弱。'},
   {rank:4,name:'午后均值兔',author:'青禾',mode:'模拟盘',win:74,returns:5.2,drawdown:1.9,cycles:37,days:45,risk:'中风险',price:9,followers:76,tags:['均值回归','VWAP','午后'],summary:'午后偏离VWAP后等待量价收敛，优先完成已有循环，不追逐新信号。'},
   {rank:5,name:'新锐挑战兔',author:'NeoQuant',mode:'回测',win:66,returns:13.7,drawdown:6.4,cycles:29,days:22,risk:'高风险',price:0,followers:48,tags:['灵敏档','超买超卖','小样本'],summary:'灵敏型候选策略，收益较高但样本量较少，目前仅允许历史回测与模拟观察。'},
 ];
 
 const builtInStrategies = [
-  {id:'steady-pullback',name:'稳健回踩观察',tag:'低频 · 低回撤优先',fit:'适合先建立纪律：仅在趋势背景与回踩确认同时满足时观察。',rules:['09:36 前只采样','价格结构与量能同时确认','单日最多 2 次候选'],risk:'连续两次无效后，当日暂停'},
-  {id:'opening-reversal',name:'开盘反转确认',tag:'开盘 · 正反T候选',fit:'观察高开转弱或低开转强，不用第一根波动直接下结论。',rules:['09:36 起分阶段确认','回抽失败/站回需二次确认','不追逐快速拉升或跳水'],risk:'09:45 前仅用 1/6 底仓试单'},
+  {id:'steady-pullback',name:'稳健回踩观察',tag:'低频 · 低回撤优先',fit:'适合先建立纪律：仅在趋势背景与回踩确认同时满足时观察。',rules:['09:30 开始扫描，09:33 前只积累样本','价格结构与量能同时确认','单日最多 2 次候选'],risk:'连续两次无效后，当日暂停'},
+  {id:'opening-reversal',name:'开盘反转确认',tag:'开盘 · 正反T候选',fit:'观察高开转弱或低开转强，不用第一根波动直接下结论。',rules:['09:30 起扫描，09:33 最早确认','回抽失败/站回需二次确认','不追逐快速拉升或跳水'],risk:'09:45 前仅用 1/6 底仓试单'},
   {id:'afternoon-vwap',name:'午后均值回归',tag:'午后 · VWAP参考',fit:'用于震荡日午后偏离后的收敛观察，先处理未闭环仓位。',rules:['仅在 13:30–14:30 观察','量价收敛后才形成候选','已有未闭环时不新增'],risk:'14:50 前停止新候选'},
   {id:'position-guard',name:'底仓闭环卫士',tag:'风控 · 始终生效',fit:'不是交易策略，而是每个策略都应遵守的仓位与尾盘检查。',rules:['T+1 可卖数量检查','未配对时冻结新候选','收盘前核对计划底仓'],risk:'不满足闭环条件即转人工核对'},
 ];

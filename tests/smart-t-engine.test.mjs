@@ -277,12 +277,17 @@ test("flat-open reversals become visible candidates without hindsight promotion"
   assert.ok(buyCandidate.time <= "0940", "the recovery candidate should not wait until the local peak");
   assert.ok(buyCandidate.pivotTime <= buyCandidate.time, "a valley reference must only use an already observed minute");
   assert.ok(buyCandidate.pivotPrice <= buyCandidate.price, "a buy-side valley reference must not be above its confirmation minute");
-  assert.ok(["弱势未破", "转强确认", "反弹观察"].includes(buyCandidate.confirmationLabel));
-  assert.ok(sellCandidate.time >= "0946" && sellCandidate.time <= "0955", "the fade candidate should appear after the observed reversal");
+  assert.ok(["低位偏离", "低位候选", "转强确认", "反弹观察"].includes(buyCandidate.confirmationLabel));
+  if (sellCandidate.confirmationLabel === "高位偏离") {
+    assert.ok(sellCandidate.time >= "0939" && sellCandidate.time <= "0945", "a live VWAP displacement warning may precede reversal confirmation");
+    assert.equal(sellCandidate.executable, false, "a displacement warning is never a hindsight sell signal");
+  } else {
+    assert.ok(sellCandidate.time >= "0946" && sellCandidate.time <= "0955", "the fade candidate should appear after the observed reversal");
+  }
   assert.ok(sellCandidate.pivotTime <= sellCandidate.time, "a peak reference must only use an already observed minute");
   assert.ok(sellCandidate.pivotPrice >= sellCandidate.price, "a sell-side peak reference must not be below its confirmation minute");
   assert.ok(["strong", "confirmed", "unconfirmed"].includes(sellCandidate.pivotAssessment));
-  assert.ok(["强势未破", "转弱确认", "回落观察"].includes(sellCandidate.confirmationLabel));
+  assert.ok(["高位偏离", "高位候选", "转弱确认", "回落观察"].includes(sellCandidate.confirmationLabel));
   assert.equal(result.actions.length, 0, "flat-open swing observations must wait for formal confirmation");
 });
 
@@ -415,7 +420,7 @@ test("an already-confirmed local peak can clear a long regime label within the s
 
 test("full-day replay starts at the earliest causal window and keeps chart markers in time order", () => {
   const result = runSmartTReplay(openingRecoverySession("rise"), { ...options, randomValue: 0 });
-  assert.equal(result.startTime, "0935");
+  assert.equal(result.startTime, "0933");
   assert.equal(result.actions.length, 2);
   assert.ok(result.actions[0].time >= "0936");
   assert.ok(result.actions[0].time < "0945", "a confirmed early opening repair should not be forced to wait until 09:45");

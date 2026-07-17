@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./backtest.css";
 import "./holdings.css";
@@ -10,16 +9,8 @@ import "./auth.css";
 import "./onboarding.css";
 import "./watchlist.css";
 import "./marketplace.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import "./public-landing.css";
+import "./legal.css";
 
 export const metadata: Metadata = {
   title: "做T神器｜A股日内量化决策终端",
@@ -37,11 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
