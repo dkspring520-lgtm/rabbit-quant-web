@@ -17,6 +17,13 @@ test("a fresh official critical negative event locks new T cycles", () => {
   assert.equal(gate.hardLock, true);
 });
 
+test("an official critical event older than 24 hours stays visible without repeatedly hard-locking", () => {
+  const gate = evaluateEventGate([{ ...event({ official:true, source:"巨潮资讯" }), sentiment:"negative", severity:"critical", reason:"命中立案风险词", ageHours:30 }]);
+  assert.equal(gate.level, "restricted");
+  assert.equal(gate.hardLock, false);
+  assert.match(gate.reason, /超过 24 小时/);
+});
+
 test("a positive headline is displayed but never relaxes the execution gate", () => {
   const classified = { ...event(), ...classifyEvent({ title:"上半年业绩预增公告", publishedAt:"2026-07-14T07:00:00Z", now }) };
   const gate = evaluateEventGate([classified]);

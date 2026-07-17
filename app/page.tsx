@@ -12,6 +12,7 @@ import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
+import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import PublicLanding from "./public-landing";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
@@ -495,16 +496,20 @@ export default function Home() {
       const formalCycles=replay.trades;
       return [{code:item.code,name:snapshot.quote.name||item.name,observations,formalCycles}];
     });
-    const qualified=rows.flatMap(row=>row.observations.filter(observation=>observation.stage!=="watch").map(observation=>({...observation,code:row.code,name:row.name})));
-    const latest=[...qualified].sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
+    const visible=rows.flatMap(row=>row.observations.map(observation=>({...observation,code:row.code,name:row.name})));
+    const qualified=visible.filter(observation=>observation.stage!=="watch");
+    const latest=[...visible].sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
     const currentRow=rows.find(row=>row.code===stock?.code);
+    const currentVisible=currentRow?.observations??[];
     const currentQualified=(currentRow?.observations??[]).filter(observation=>observation.stage!=="watch");
-    const currentLatest=[...currentQualified].sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
+    const currentLatest=[...currentVisible].sort((left,right)=>right.time.localeCompare(left.time))[0]??null;
     return {
       scanned:rows.length,
+      observations:visible.length,
       candidates:qualified.length,
       formal:rows.reduce((sum,row)=>sum+row.formalCycles,0),
       latest,
+      currentObservations:currentVisible.length,
       currentCandidates:currentQualified.length,
       currentFormal:currentRow?.formalCycles??0,
       currentLatest,
@@ -589,8 +594,7 @@ export default function Home() {
     }
     if(currentContext?.gate.level==="restricted") return {status:"waiting" as const,mode:null,confirmed,reason:`外部环境雷达：${currentContext.gate.label}，暂停新开循环。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     const latestAction=liveEngine.actions.at(-1);
-    const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
-    const fresh=Boolean(latestAction&&minuteNumber(lastTime)===minuteNumber(latestAction.time));
+    const fresh=Boolean(latestAction&&isRecentCausalEvent(lastTime,latestAction.time,3));
     if(latestAction&&fresh) return {status:"ready" as const,mode:(latestAction.direction??(lowOpen?"正T":"反T")) as "正T"|"反T",confirmed:4,reason:`融合引擎实时信号：${latestAction.time} ${latestAction.direction} ${latestAction.side}，成本、趋势、量价与风控均已通过。`,lastTime,inDecisionWindow,referenceConfirmed:true,trendConfirmed:true};
     if(!lowOpen&&!highOpen) return {status:"waiting" as const,mode:null,confirmed,reason:"平开或开盘数据不完整，等待形成明确方向。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:30 已开始扫描；积累 4 个真实分钟点后，最早 09:33 可在连续走势与 VWAP 确认后小仓试单。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
@@ -704,7 +708,6 @@ export default function Home() {
   },[alertToast]);
   useEffect(()=>{
     if(!marketSession.live)return;
-    const minuteNumber=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
     const normalizeRisk=(value:string)=>value.replace(/[+-]?\d+(?:\.\d+)?%?/g,"#").replace(/\s+/g," ").trim();
     for(const [index,item] of stockList.entries()){
       const active=index===activeStock;
@@ -717,9 +720,9 @@ export default function Home() {
       });
       const observations=(replay.observations??[]) as ReplayObservation[];
       const latest=replay.actions.at(-1);
-      const latestObservation=active?[...observations].reverse().find(observation=>observation.stage!=="watch"):undefined;
+      const latestObservation=selectLatestAlertableObservation(observations) as ReplayObservation|undefined;
       const lastTime=(points.at(-1)?.time??"").replace(/\D/g,"").slice(0,4);
-      const formalFresh=Boolean(latest&&lastTime&&minuteNumber(lastTime)===minuteNumber(latest.time));
+      const formalFresh=Boolean(latest&&isRecentCausalEvent(lastTime,latest.time,3));
       const riskMessage=active&&autoDecision.status==="locked"
         ? autoDecision.reason
         : eventsByCode[item.code]?.gate.hardLock
@@ -729,7 +732,7 @@ export default function Home() {
       const isRisk=!formalFresh&&Boolean(riskMessage)&&riskAlertEpisodes.current[item.code]!==riskSignature;
       if(!riskMessage)delete riskAlertEpisodes.current[item.code];
       else if(isRisk)riskAlertEpisodes.current[item.code]=riskSignature;
-      const candidateFresh=Boolean(active&&latestObservation&&lastTime&&minuteNumber(lastTime)===minuteNumber(latestObservation.time));
+      const candidateFresh=Boolean(latestObservation&&isRecentCausalEvent(lastTime,latestObservation.time,2));
       const isCandidate=!isRisk&&!formalFresh&&candidateFresh&&latestObservation&&!latestObservation.executable;
       if(!isRisk&&!formalFresh&&!isCandidate)continue;
       const key=isRisk?`${item.code}:risk:${riskSignature}`:formalFresh?`${item.code}:${latest!.time}:${latest!.side}`:`${item.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
@@ -743,8 +746,11 @@ export default function Home() {
       const title=isRisk?`${item.name} 风险锁定`:formalFresh?`${item.name} ${latest!.direction}${latest!.side}`:`${item.name} ${latestObservation!.direction}候选观察`;
       const message=isRisk?riskMessage:formalFresh?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
       queueAlert({level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
-      if(!isCandidate&&alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:`${item.name}，${latest!.direction}${latest!.side}提醒`,isRisk);
-      if(!isCandidate&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`做T神器 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
+      const candidateSpeech=isVwapDisplacementObservation(latestObservation)
+        ? `${item.name}，价格${latestObservation!.direction==="正T"?"低位":"高位"}偏离均价线，请观察确认，不是买卖指令`
+        : `${item.name}，${latestObservation?.direction??"做T"}候选观察，不是买卖指令`;
+      if(alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latest!.direction}${latest!.side}提醒`:candidateSpeech,isRisk);
+      if(alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`做T神器 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
     }
   },[autoDecision.status,autoDecision.reason,liveEngine,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName]);
   useEffect(() => {
@@ -840,14 +846,15 @@ export default function Home() {
       if(inFlight)return;
       inFlight=true;
       try{
-        const snapshots=await Promise.all(stockList.map(async item=>{
+        const results=await Promise.allSettled(stockList.map(async item=>{
           const response=await fetch(`/api/market-data?code=${encodeURIComponent(item.code)}&mode=trial-realtime`,{cache:"no-store"});
           if(!response.ok)throw new Error("quote unavailable");
           return await response.json() as MarketData;
         }));
-        if(!cancelled){
-          setMarketQuotes(Object.fromEntries(snapshots.map(snapshot=>[snapshot.quote.code,snapshot.quote])));
-          setMarketSnapshots(Object.fromEntries(snapshots.map(snapshot=>[snapshot.quote.code,snapshot])));
+        const snapshots=fulfilledWatchlistSnapshots(results) as MarketData[];
+        if(!cancelled&&snapshots.length){
+          setMarketQuotes(current=>({...current,...Object.fromEntries(snapshots.map(snapshot=>[snapshot.quote.code,snapshot.quote]))}));
+          setMarketSnapshots(current=>({...current,...Object.fromEntries(snapshots.map(snapshot=>[snapshot.quote.code,snapshot]))}));
         }
       }catch{}finally{inFlight=false;}
     };
@@ -1020,18 +1027,18 @@ export default function Home() {
         <aside className="decision-zone">
           {alertToast&&<div className={`trade-alert-toast ${alertToast.level} rabbit-${alertToast.rabbit}`} role="alert"><span className={`rabbit-speaker ${alertToast.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{alertToast.level==="candidate"?`${alertToast.rabbit==="buy"?"左兔":"右兔"} · 候选观察`:alertToast.rabbit==="buy"?"左兔 · 买入/买回提醒":alertToast.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{alertToast.title}</b><span>{alertToast.message}</span></div>{alertQueue.length>1&&<em className="alert-queue-count">+{alertQueue.length-1}</em>}<button onClick={()=>setAlertQueue(current=>current.slice(1))} aria-label="关闭提醒">×</button></div>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
-            <div className="signal-layer candidate"><span>本股候选观察</span><b>{signalFunnel.currentCandidates}<small> 个</small></b><em>全部自选 {signalFunnel.candidates} · 已扫描 {signalFunnel.scanned} 只</em></div>
+            <div className="signal-layer candidate"><span>本股实时观察</span><b>{signalFunnel.currentObservations}<small> 个</small></b><em>正式候选 {signalFunnel.currentCandidates} · 全自选观察 {signalFunnel.observations}</em></div>
             <i>→</i>
             <div className="signal-layer formal"><span>本股正式闭环</span><b>{signalFunnel.currentFormal}<small> 个</small></b><em>全部自选 {signalFunnel.formal} · V4 过滤后保留</em></div>
           </div>
-          <div className="signal-funnel-note"><span>{signalFunnel.currentLatest?`本股最新候选 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无候选观察"}</span><em>候选可以带拦截原因；趋势、量价、成本和风控全部通过后才进入正式层</em></div>
+          <div className="signal-funnel-note"><span>{signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察"}</span><em>均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层</em></div>
           {zijinOpeningPlaybook&&<div className={`zijin-opening-card ${zijinOpeningPlaybook.status}`}>
             <div><span>紫金早盘高波动观察</span><b>{zijinOpeningPlaybook.status==="candidate"?`${zijinOpeningPlaybook.direction}候选`:zijinOpeningPlaybook.status==="blocked"?"本窗口已停止":zijinOpeningPlaybook.status==="waiting"?"正在积累开盘样本":"继续观察"}</b><em>{zijinOpeningPlaybook.asOfTime?`${zijinOpeningPlaybook.asOfTime.slice(0,2)}:${zijinOpeningPlaybook.asOfTime.slice(2)}`:"--:--"} · {zijinOpeningPlaybook.score}/100</em></div>
             <p>{zijinOpeningPlaybook.reasons[0]}</p>
             <small>振幅 {zijinOpeningPlaybook.metrics.openingRangePct.toFixed(2)}% · 距VWAP {zijinOpeningPlaybook.metrics.distanceToVwapPct>=0?"+":""}{zijinOpeningPlaybook.metrics.distanceToVwapPct.toFixed(2)}% · 量比 {zijinOpeningPlaybook.metrics.volumeRatio==null?"待数据":`${zijinOpeningPlaybook.metrics.volumeRatio.toFixed(2)}×`}</small>
             <i>仅作为候选观察，不直接生成成交</i>
           </div>}
-          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>正式买卖点与新风险事件全股提醒；候选点保持静默</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button></div></div>
+          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、正式候选、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button></div></div>
           <div className={`auto-direction ${autoDecision.status}`}><div><span>自动方向</span><b>{autoDecision.status==="locked"?"风控锁定":autoDecision.mode??"等待确认"}</b></div><small>{autoDecision.reason}</small><em>{autoDecision.confirmed}/4</em></div>
           <div className="decision-label"><span>SMART-T 自动决策</span><em>{autoDecision.status==="ready"?"信号已确认":autoDecision.status==="locked"?"禁止开T":"1秒监控中"}</em></div>
           <div className={`stock-state ${stockState.level}`}>

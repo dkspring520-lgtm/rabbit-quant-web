@@ -181,11 +181,29 @@ test("candidate observations are deduplicated and do not relax the execution gat
   const minuteNumber = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(2, 4));
 
   assert.ok(result.observations.length >= 1);
-  assert.ok(result.observations.length <= 3, "one stock-day must not flood the desk with repeated candidates");
+  assert.ok(result.observations.length <= 6, "one stock-day must not flood the desk with repeated candidates");
   result.observations.slice(1).forEach((observation, index) => {
     assert.ok(minuteNumber(observation.time) - minuteNumber(result.observations[index].time) >= 8);
   });
   assert.equal(result.trades, 1, "formal cycles keep the original V4 execution threshold");
+});
+
+test("a distinct afternoon VWAP displacement is not hidden by the morning observation budget", () => {
+  const rows = sessionTimes.map((time, index) => ({
+    time,
+    price: index < 10 ? 10 : index < morningTimes.length ? 10.55 : 11.20,
+    volume: 10_000,
+  }));
+  const result = runSmartTReplay(rows, {
+    ...options,
+    baseShares: 0,
+    sellable: 0,
+  });
+  const displacementWatches = result.observations.filter((item) => item.stage === "watch" && item.reason.includes("VWAP"));
+
+  assert.ok(displacementWatches.some((item) => item.time < "1130"), "the morning displacement should remain visible");
+  assert.ok(displacementWatches.some((item) => item.time >= "1300"), "a new afternoon displacement should also surface");
+  assert.ok(result.observations.length <= 6, "the second session must not turn the chart into an alert flood");
 });
 
 test("zero simulated inventory still exposes a few candidates without creating orders", () => {
@@ -199,7 +217,7 @@ test("zero simulated inventory still exposes a few candidates without creating o
   assert.equal(result.trades, 0);
   assert.ok(result.diagnostics.candidates > 0);
   assert.ok(result.observations.length >= 1);
-  assert.ok(result.observations.length <= 3, "candidate markers must remain visually limited");
+  assert.ok(result.observations.length <= 6, "candidate markers must remain visually limited");
   assert.ok(
     result.observations.some((observation) => observation.blockers.includes("可用资金或股数不足")),
     "the UI should explain that the setup exists but the simulated account cannot execute it",
