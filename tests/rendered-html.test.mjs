@@ -113,8 +113,10 @@ test("Zijin factor research is visibly isolated from the execution strategy", as
   assert.match(source, /盘中判断只读取当前及此前分钟/);
   assert.match(source, /analyzeZijinFactorResearch/);
   assert.match(source, /zijinPatternDiscovery/);
+  assert.match(source, /zijinPeerPatternDiscovery/);
   assert.match(source, /紫金规律扫描/);
-  assert.match(source, /这不是停止训练，而是淘汰伪规律/);
+  assert.match(source, /阶段二已完成/);
+  assert.match(source, /胜率不能靠回看最高低点制造/);
   assert.match(styles, /\.zijin-pattern-result\{/);
 });
 
