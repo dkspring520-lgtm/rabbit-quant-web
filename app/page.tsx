@@ -347,6 +347,7 @@ export default function Home() {
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [agentOpen, setAgentOpen] = useState(false);
   const [activeView, setActiveView] = useState("操盘台");
+  const experimentDeepLinkHandled = useRef(false);
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [trainingRunning, setTrainingRunning] = useState(false);
@@ -373,6 +374,22 @@ export default function Home() {
   const [starredRevision, setStarredRevision] = useState(0);
   const [indicatorsVisible, setIndicatorsVisible] = useState(true);
   const stock = stockList[activeStock] || stockList[0];
+  useEffect(()=>{
+    if(experimentDeepLinkHandled.current||typeof window==='undefined')return;
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('view')!=='zijin-lab')return;
+    const zijinIndex=stockList.findIndex(item=>item.code==='601899');
+    if(zijinIndex<0)return;
+    experimentDeepLinkHandled.current=true;
+    setActiveStock(zijinIndex);
+    setActiveView('单股智研');
+  },[stockList]);
+  useEffect(()=>{
+    if(activeView!=='单股智研'||stock?.code!=='601899'||typeof window==='undefined')return;
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('view')!=='zijin-lab')return;
+    window.requestAnimationFrame(()=>document.getElementById('zijin-experiment-progress')?.scrollIntoView({block:'start'}));
+  },[activeView,stock?.code]);
   const activePosition = resolveStockPosition(stockPositions, preferences, stock?.code ?? "");
   const tradingDate=clockNow?tradeLedgerDate(clockNow):"1970-01-01";
   const ledgerStorageKey=localAuth&&stock?.code&&clockNow?tradeLedgerKey(accountName,stock.code,tradingDate):"";
@@ -1373,11 +1390,18 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     <div className="research-head"><div><span className="eyebrow">SINGLE STOCK RESEARCH · AUTO + REVIEW</span><h1>系统自动研究，用户只负责确认</h1><p>系统会读取这只股票的完整分时回放、日线股性和本机成交记录；你只需要确认结论是否有效，必要时补充一句原因。</p></div><button onClick={onOpenConsole}>去看今日信号 →</button></div>
     <div className="research-purpose"><b>这个页面只回答 3 个问题</b><div><p><i>01</i><span><strong>它平时怎么走？</strong><small>看振幅、趋势、量能和日内习惯</small></span></p><p><i>02</i><span><strong>什么做 T 条件更适合？</strong><small>根据历史记录形成观察方案</small></span></p><p><i>03</i><span><strong>今天的信号靠谱吗？</strong><small>把历史股性作为操盘台的参考背景</small></span></p></div><em>看实时买卖信号请进入“操盘台”</em></div>
     <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSamples.length} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
-    {stock.code==="601899"&&<div className={`zijin-training-live zijin-training-prominent ${zijinTrainingProgress?.status??'loading'}`}>
+    {stock.code==="601899"&&<div id="zijin-experiment-progress" className={`zijin-training-live zijin-training-prominent ${zijinTrainingProgress?.status??'loading'}`}>
       <div className="zijin-training-title"><div><span><i/>紫金矿业 · 四兔真实训练进度</span><b>{zijinTrainingProgress?.message??'正在连接服务器训练记录…'}</b></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></div>
       <div className="zijin-training-track"><i style={{width:`${zijinTrainingProgress?.progress??0}%`}}/></div>
       {zijinTrainingProgress?<>
         <div className="zijin-training-stats"><p><span>当前阶段</span><b>{zijinTrainingProgress.stage==="training"?"训练集选参":zijinTrainingProgress.stage==="validation"?"2025 样本外":zijinTrainingProgress.stage==="blind-test"?"2026 盲测":zijinTrainingProgress.stage==="completed"?"本轮完成":"数据准备"}</b><small>{zijinTrainingProgress.totalCandidates?`${zijinTrainingProgress.processedCandidates}/${zijinTrainingProgress.totalCandidates} 组参数`:"读取历史库"}</small></p><p><span>训练集</span><b>{zijinTrainingProgress.latest.trainingWinRate==null?'--':`${(zijinTrainingProgress.latest.trainingWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.trainingTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.trainingAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>样本外</span><b>{zijinTrainingProgress.latest.validationWinRate==null?'--':`${(zijinTrainingProgress.latest.validationWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.validationTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.validationAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>最终盲测</span><b>{zijinTrainingProgress.latest.blindWinRate==null?'--':`${(zijinTrainingProgress.latest.blindWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.blindTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.blindAverageNetPct?.toFixed(3)??'--'}%</small></p></div>
+        <div className="zijin-implementation-steps" aria-label="紫金矿业实验实施进度">
+          <p className="done"><i>1</i><span><b>历史数据整理</b><small>4.3 年 1 分钟库已完成审计</small></span><em>已完成</em></p>
+          <p className="done"><i>2</i><span><b>因果参数训练</b><small>{zijinTrainingProgress.processedCandidates}/{zijinTrainingProgress.totalCandidates} 组参数，不读取未来分钟</small></span><em>已完成</em></p>
+          <p className={zijinTrainingProgress.latest.passedValidationGate?'done':'failed'}><i>3</i><span><b>样本外验证</b><small>只使用训练期未见过的 2025 数据</small></span><em>{zijinTrainingProgress.latest.passedValidationGate?'通过':'未通过'}</em></p>
+          <p className={zijinTrainingProgress.latest.passedValidationGate?'done':'failed'}><i>4</i><span><b>2026 最终盲测</b><small>用于判断候选参数能否继续观察</small></span><em>{zijinTrainingProgress.latest.passedValidationGate?'完成':'保留失败证据'}</em></p>
+          <p className="pending"><i>5</i><span><b>接入 V4 影子观察</b><small>必须先通过样本外验证和人工评审</small></span><em>未开始</em></p>
+        </div>
         <footer><span>任务 {zijinTrainingProgress.runId} · 更新 {new Date(zijinTrainingProgress.updatedAt).toLocaleString('zh-CN')}</span><b>{zijinTrainingProgress.status==="running"?"训练中":zijinTrainingProgress.latest.passedValidationGate?"通过验证，等待人工评审":"未通过门槛，不进入 V4"}</b></footer>
       </>:<footer><span>训练数据仍在服务器保留，页面会自动重试</span><b>连接中</b></footer>}
     </div>}

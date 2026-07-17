@@ -112,6 +112,18 @@ test("Zijin factor research is visibly isolated from the execution strategy", as
   assert.match(source, /analyzeZijinFactorResearch/);
 });
 
+test("Zijin experiment progress has a stable deep link and explicit delivery stages", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(source, /params\.get\('view'\)!=='zijin-lab'/);
+  assert.match(source, /id="zijin-experiment-progress"/);
+  assert.match(source, /className="zijin-implementation-steps"/);
+  assert.match(source, /aria-label="紫金矿业实验实施进度"/);
+  assert.match(source, /passedValidationGate\?'通过':'未通过'/);
+  assert.match(source, /passedValidationGate\?'完成':'保留失败证据'/);
+  assert.match(styles, /\.zijin-implementation-steps\{/);
+});
+
 test("pre-open status keeps readable labels without global auction layout leakage", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
