@@ -320,6 +320,19 @@ function diversifyStockUniverse(items:StockUniverseItem[],seed:string) {
   return [...firstByIndustry,...remaining];
 }
 const normalizeWatchlist = (list: { code:string; name:string; price:string; change:string }[]) => list.map(item => ({ ...item, name: canonicalStockNames[item.code] ?? item.name }));
+const isZijinExperimentDeepLink = () => {
+  if(typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("view") === "zijin-lab";
+};
+const ensureZijinExperimentStock = (list: typeof initialStocks) => {
+  const normalized=normalizeWatchlist(list);
+  if(normalized.some(item=>item.code==="601899"))return normalized;
+  const zijin=initialStocks.find(item=>item.code==="601899");
+  return zijin?[{...zijin},...normalized]:normalized;
+};
+const prepareWatchlistForCurrentEntry = (list: typeof initialStocks) => isZijinExperimentDeepLink()
+  ? ensureZijinExperimentStock(list)
+  : normalizeWatchlist(list);
 
 const agents = [
   { avatar: "/agents/training.png", name: "训练兔", role: "严格模拟", state: "训练中", value: "76%", metric: "样本覆盖率" },
@@ -347,7 +360,6 @@ export default function Home() {
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [agentOpen, setAgentOpen] = useState(false);
   const [activeView, setActiveView] = useState("操盘台");
-  const experimentDeepLinkHandled = useRef(false);
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [trainingRunning, setTrainingRunning] = useState(false);
@@ -375,15 +387,13 @@ export default function Home() {
   const [indicatorsVisible, setIndicatorsVisible] = useState(true);
   const stock = stockList[activeStock] || stockList[0];
   useEffect(()=>{
-    if(experimentDeepLinkHandled.current||typeof window==='undefined')return;
-    const params=new URLSearchParams(window.location.search);
-    if(params.get('view')!=='zijin-lab')return;
-    const zijinIndex=stockList.findIndex(item=>item.code==='601899');
-    if(zijinIndex<0)return;
-    experimentDeepLinkHandled.current=true;
+    if(!authReady||!localAuth||!isZijinExperimentDeepLink())return;
+    const prepared=ensureZijinExperimentStock(stockList);
+    const zijinIndex=prepared.findIndex(item=>item.code==='601899');
+    if(prepared.length!==stockList.length)setStockList(prepared);
     setActiveStock(zijinIndex);
     setActiveView('单股智研');
-  },[stockList]);
+  },[authReady,localAuth,stockList]);
   useEffect(()=>{
     if(activeView!=='单股智研'||stock?.code!=='601899'||typeof window==='undefined')return;
     const params=new URLSearchParams(window.location.search);
@@ -801,7 +811,7 @@ export default function Home() {
           const saved=localStorage.getItem(`rabbit-prefs:${session.toLowerCase()}`);
           if(saved){setPreferences(JSON.parse(saved));setHasPersistedPreferences(true)}else{setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);setOnboardingOpen(true)}
           const watchlist=localStorage.getItem(`rabbit-watchlist:${session.toLowerCase()}`);
-          if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=normalizeWatchlist(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(normalized));}}
+          if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=prepareWatchlistForCurrentEntry(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${session.toLowerCase()}`,JSON.stringify(normalized));}}
           const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${session.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');
           if(savedStrategy)setCustomStrategy(savedStrategy);
         }
@@ -970,9 +980,9 @@ export default function Home() {
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-logo-compact.png" alt="做T神器"/></main>;
   if(!localAuth){
-    const enterDemo=()=>{setDemoMode(true);setAccountName('演示访客');setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);setStockList(initialStocks);setActiveStock(0);setActiveView('首页');setLocalAuth(true)};
+    const enterDemo=()=>{setDemoMode(true);setAccountName('演示访客');setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true)};
     if(authScreen==='landing')return <PublicLanding onDemo={enterDemo} onAccount={()=>setAuthScreen('account')}/>;
-    return <AuthView onBack={()=>setAuthScreen('landing')} onDemo={enterDemo} onAuthenticated={(name,isNew,remember)=>{setDemoMode(false);setAccountName(name);setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);setStockList(initialStocks);setActiveStock(0);setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){setPreferences(JSON.parse(saved));setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=normalizeWatchlist(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
+    return <AuthView onBack={()=>setAuthScreen('landing')} onDemo={enterDemo} onAuthenticated={(name,isNew,remember)=>{setDemoMode(false);setAccountName(name);setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){setPreferences(JSON.parse(saved));setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=prepareWatchlistForCurrentEntry(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
   }
 
   return (
