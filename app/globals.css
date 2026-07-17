@@ -85,14 +85,14 @@
 .auto-direction div{min-width:0}
 .auto-direction small{grid-column:1/-1;white-space:normal;overflow-wrap:anywhere;line-height:1.55}
 .auto-direction em{grid-column:2;grid-row:1;align-self:center}
-.alert-channel{display:flex;flex-direction:column;align-items:stretch;padding:10px;gap:9px}
+.alert-channel{display:flex;flex:0 0 auto;flex-direction:column;align-items:stretch;padding:10px;gap:9px}
 .alert-channel>div{min-width:0}
 .alert-channel-actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;width:100%}
 .alert-channel small{font-size:9px;line-height:1.55}
 .alert-channel button{width:100%;min-width:0;padding:8px 4px;font-size:8.5px;line-height:1.25}
 .alert-queue-count{align-self:start;color:var(--amber);font:700 9px var(--font-geist-mono);font-style:normal;white-space:nowrap}
 .context-radar.restricted>p i{background:var(--amber)}
-.auto-direction{position:relative;display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-auto-rows:auto;height:auto!important;min-height:0!important;overflow:visible}
+.auto-direction{position:relative;display:grid!important;flex:0 0 auto;grid-template-columns:minmax(0,1fr) auto!important;grid-auto-rows:max-content;height:auto!important;min-height:max-content!important;align-content:start;overflow:visible}
 .auto-direction small{display:block;grid-column:1/-1!important;grid-row:2!important;margin:0;padding:2px 0 1px;font-size:9.25px!important;line-height:1.6!important;white-space:normal!important;word-break:break-word;overflow:visible!important}
 .auto-direction em{grid-column:2!important;grid-row:1!important;margin-left:8px}
 .cycle-row{grid-template-columns:minmax(300px,1.8fr) .62fr .55fr .7fr .85fr .9fr}
