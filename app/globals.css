@@ -89,5 +89,6 @@
 .alert-channel>div{grid-column:1/-1}
 .alert-channel button{width:100%;padding-left:5px;padding-right:5px}
 .alert-queue-count{align-self:start;color:var(--amber);font:700 9px var(--font-geist-mono);font-style:normal;white-space:nowrap}
+.context-radar.restricted>p i{background:var(--amber)}
 .cycle-row{grid-template-columns:minmax(300px,1.8fr) .62fr .55fr .7fr .85fr .9fr}
 @media(max-width:900px){.cycle-row{grid-template-columns:1fr 1fr}.cycle-row>div:first-child{grid-column:1/-1}}

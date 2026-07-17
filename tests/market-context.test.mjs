@@ -16,16 +16,17 @@ test("healthy market and sector context allows a normal-size T cycle", () => {
   assert.equal(result.positionFraction, 1 / 3);
 });
 
-test("multiple adverse external moves lock new T cycles", () => {
+test("multiple adverse external moves restrict rather than hard-lock every stock", () => {
   const result = evaluateMarketContext([
     item("上证指数", "market", -3.1),
     item("有色金属ETF", "sector", -4.2),
     item("港股紫金矿业", "cross", -4.6),
     item("伦铜", "related", -3.3),
   ], -5.1);
-  assert.equal(result.level, "locked");
-  assert.equal(result.hardLock, true);
-  assert.equal(result.positionFraction, 0);
+  assert.equal(result.level, "restricted");
+  assert.equal(result.hardLock, false);
+  assert.equal(result.positionFraction, 1 / 6);
+  assert.match(result.action, /不触发全局红色锁定/);
 });
 
 test("missing external data degrades conservatively instead of fabricating a green light", () => {
