@@ -47,12 +47,12 @@ test("brand keeps a distinct ASCII T and never regresses to the wrong name", asy
   assert.match(styles, /\.brand-ascii-t\{[^}]*letter-spacing:0!important/);
 });
 
-test("formal alerts use branded rabbits and candidates stay non-executable", async () => {
+test("all-watchlist alerts use branded rabbits while candidates stay non-executable", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /左兔 · 买入\/买回提醒/);
   assert.match(source, /右兔 · 卖出提醒/);
-  assert.match(source, /候选点保持静默/);
+  assert.match(source, /均价线大偏离、正式候选、正式买卖点与新风险全股提醒/);
   assert.match(source, /className="alert-channel-actions"/);
   assert.match(source, /function observationConfirmationLabel/);
   assert.match(source, /function observationDirectionNote/);
@@ -61,11 +61,13 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /formatTime\(observation\.time\)\} · \{observationConfirmationLabel\(observation\)\}/);
   assert.doesNotMatch(source, /observation\.direction==="正T"\?"候买":"候卖"/);
   assert.doesNotMatch(source, /\$\{observation\.stage==="candidate"\?"候选":"观察"\}\$\{observation\.direction\}/);
-  assert.match(source, /!isCandidate&&alertSettings\.sound/);
+  assert.match(source, /selectLatestAlertableObservation\(observations\)/);
+  assert.match(source, /不是买卖指令/);
+  assert.match(source, /if\(alertSettings\.sound\)speakAlert/);
   assert.match(source, /autoDecision\.status==="ready"/);
   assert.match(source, /observation\.stage!=="watch"/);
-  assert.match(source, /本股候选观察/);
-  assert.match(source, /全部自选 \{signalFunnel\.candidates\}/);
+  assert.match(source, /本股实时观察/);
+  assert.match(source, /正式候选 \{signalFunnel\.currentCandidates\}/);
   assert.match(source, /本股正式闭环/);
   assert.match(source, /signalFunnel\.currentLatest/);
   assert.doesNotMatch(source, /pivot-reference-marker/);
@@ -81,10 +83,12 @@ test("formal alerts use branded rabbits and candidates stay non-executable", asy
   assert.match(source, /marker-label-leader/);
   assert.match(source, /提醒按确认分钟实时落点 · 不回填峰谷/);
   assert.match(source, /const formalFresh=Boolean/);
-  assert.match(source, /minuteNumber\(lastTime\)===minuteNumber\(latest\.time\)/);
+  assert.match(source, /isRecentCausalEvent\(lastTime,latest\.time,3\)/);
   assert.match(source, /for\(const \[index,item\] of stockList\.entries\(\)\)/);
-  assert.match(source, /const formalFresh=Boolean\(latest&&lastTime/);
+  assert.match(source, /const formalFresh=Boolean\(latest&&isRecentCausalEvent\(lastTime,latest\.time,3\)\)/);
   assert.match(source, /const isRisk=!formalFresh&&Boolean\(riskMessage\)/);
+  assert.match(source, /Promise\.allSettled/);
+  assert.match(source, /fulfilledWatchlistSnapshots/);
   assert.doesNotMatch(source, /const isFormal=Boolean\(autoDecision\.status==="ready"/);
   assert.match(source, /alertedEventKeys/);
   assert.match(source, /riskAlertEpisodes/);
