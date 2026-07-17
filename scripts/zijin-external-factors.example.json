@@ -1,0 +1,36 @@
+{
+  "factors": [
+    {
+      "id": "internationalGold",
+      "path": "D:/market-data/gold-minute.parquet",
+      "timestampColumn": "timestamp",
+      "valueColumn": "close",
+      "timezone": "Asia/Shanghai",
+      "maxStalenessMinutes": 1440
+    },
+    {
+      "id": "internationalCopper",
+      "path": "D:/market-data/copper-minute.parquet",
+      "timestampColumn": "timestamp",
+      "valueColumn": "close",
+      "timezone": "Asia/Shanghai",
+      "maxStalenessMinutes": 1440
+    },
+    {
+      "id": "csi300",
+      "path": "D:/market-data/csi300-minute.parquet",
+      "timestampColumn": "timestamp",
+      "valueColumn": "close",
+      "timezone": "Asia/Shanghai",
+      "maxStalenessMinutes": 10
+    },
+    {
+      "id": "hkZijin",
+      "path": "D:/market-data/02899-hk-minute.parquet",
+      "timestampColumn": "timestamp",
+      "valueColumn": "close",
+      "timezone": "Asia/Hong_Kong",
+      "maxStalenessMinutes": 10
+    }
+  ]
+}

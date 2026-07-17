@@ -6,6 +6,7 @@ const evidenceUrl = new URL("../public/research/zijin-factor-evidence.json", imp
 const progressUrl = new URL("../public/research/zijin-training-progress.json", import.meta.url);
 const patternUrl = new URL("../public/research/zijin-pattern-discovery.json", import.meta.url);
 const peerPatternUrl = new URL("../public/research/zijin-peer-pattern-discovery.json", import.meta.url);
+const externalReadinessUrl = new URL("../public/research/zijin-external-factor-readiness.json", import.meta.url);
 
 test("Zijin historical evidence is causal, isolated and split before blind testing", async () => {
   const evidence = JSON.parse(await readFile(evidenceUrl, "utf8"));
@@ -22,6 +23,23 @@ test("Zijin historical evidence is causal, isolated and split before blind testi
   assert.ok(evidence.results.training.trades > 0);
   assert.ok(evidence.results.validation.trades > 0);
   assert.ok(evidence.results.blindTest.trades > 0);
+});
+
+test("Zijin stage-three external factors refuse to train before real data is ready", async () => {
+  const readiness = JSON.parse(await readFile(externalReadinessUrl, "utf8"));
+  assert.equal(readiness.stock.code, "601899");
+  assert.equal(readiness.stage, 3);
+  assert.equal(readiness.status, "awaiting-external-data");
+  assert.equal(readiness.affectsV4, false);
+  assert.equal(readiness.causal, true);
+  assert.equal(readiness.pipeline.asOfJoin, "source_timestamp <= target_timestamp");
+  assert.equal(readiness.pipeline.futureRowsUsed, 0);
+  assert.equal(readiness.pipeline.trainingStarted, false);
+  assert.equal(readiness.pipeline.winRateAvailable, false);
+  assert.equal(readiness.coverage.externalSourcesReady, 0);
+  assert.equal(readiness.coverage.trainingReady, false);
+  assert.equal(readiness.requiredSources.length, 5);
+  assert.ok(readiness.requiredSources.every(source => source.status === "missing"));
 });
 
 test("a failed factor audit is not promoted into Smart-T V4", async () => {

@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "stage": 3,
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "status": "awaiting-external-data",
+  "affectsV4": false,
+  "causal": true,
+  "message": "因果接入管线已完成，外部历史数据尚未导入",
+  "deployment": "紫金实验室研究慢层 · 不进入 Smart-T V4",
+  "pipeline": {
+    "asOfJoin": "source_timestamp <= target_timestamp",
+    "futureRowsUsed": 0,
+    "staleValuesRejected": true,
+    "trainingStarted": false,
+    "winRateAvailable": false
+  },
+  "coverage": {
+    "aSharePeerPanelRows": 1749419,
+    "aSharePeerStocks": 7,
+    "externalSourcesReady": 0,
+    "externalSourcesRequired": 5,
+    "trainingReady": false
+  },
+  "requiredSources": [
+    {
+      "id": "internationalGold",
+      "label": "国际金价",
+      "resolution": "1/5分钟优先，日线只作隔夜背景",
+      "status": "missing",
+      "role": "黄金业务与隔夜外盘传导"
+    },
+    {
+      "id": "internationalCopper",
+      "label": "国际铜价",
+      "resolution": "1/5分钟优先，日线只作隔夜背景",
+      "status": "missing",
+      "role": "铜业务与盘中商品价格传导"
+    },
+    {
+      "id": "marketIndex",
+      "label": "上证/沪深300",
+      "resolution": "1分钟",
+      "status": "missing",
+      "role": "剥离大盘共同波动"
+    },
+    {
+      "id": "hkZijin",
+      "label": "港股紫金 02899",
+      "resolution": "1分钟",
+      "status": "missing",
+      "role": "同公司跨市场领先与背离"
+    },
+    {
+      "id": "eventClock",
+      "label": "公告与事件时钟",
+      "resolution": "精确发布时间",
+      "status": "missing",
+      "role": "只在消息公开后影响样本"
+    }
+  ],
+  "nextStep": "导入带时间戳的真实外部数据后，先做覆盖率审计，再按 2022—2024 训练、2025 验证、2026 盲测。"
+}
