@@ -313,6 +313,30 @@ test("a local fade above a rising VWAP cannot open a counter-trend sell cycle", 
   assert.ok(result.diagnostics.strongTrendBlocked > 0);
 });
 
+test("insufficient participation keeps a counter-trend turn visible but non-executable", () => {
+  const rows = sessionTimes.slice(0, 70).map((time, index) => {
+    const price = index <= 35 ? 10 + index * 0.0115 : 10.4025 - (index - 35) * 0.012;
+    return { time, price: Number(price.toFixed(3)), volume: 10_000 };
+  });
+  const result = runSmartTReplay(rows, {
+    ...options,
+    previousClose: 10,
+    profileOverrides: {
+      ...options.profileOverrides,
+      counterTrendVwap30: 0.01,
+      counterTrendSessionMove: 0.01,
+      counterTrendMinVolumeRatio: 1.10,
+    },
+  });
+
+  assert.equal(result.actions.length, 0);
+  assert.ok(result.diagnostics.counterTrendQualityBlocked > 0);
+  assert.ok(
+    result.observations.some((observation) => observation.blockers.some((blocker) => blocker.includes("30分钟均价线趋势尚未反转"))),
+    "the rejected setup must remain visible with its causal volume-and-VWAP reason",
+  );
+});
+
 test("a shallow fade after a long rising VWAP stays an observation instead of a reverse-T sale", () => {
   const rows = sessionTimes.slice(0, 85).map((time, index) => {
     let price;
