@@ -84,4 +84,7 @@ export const PROFILES: Record<string, {
   strongBuyVwap30?: number;
   strongSellSessionMove?: number;
   strongSellVwap30?: number;
+  counterTrendVwap30?: number;
+  counterTrendSessionMove?: number;
+  counterTrendMinVolumeRatio?: number;
 }>;
