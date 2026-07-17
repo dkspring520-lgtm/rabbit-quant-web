@@ -206,6 +206,32 @@ test("a distinct afternoon VWAP displacement is not hidden by the morning observ
   assert.ok(result.observations.length <= 6, "the second session must not turn the chart into an alert flood");
 });
 
+test("the afternoon candidate scanner remains active after 13:30", () => {
+  const rows = sessionTimes.map((time, index) => {
+    let price = 10;
+    if (index < morningTimes.length) {
+      const phase = index % 18;
+      price = phase < 5 ? 10.8 : phase < 10 ? 9.3 : 10;
+    } else {
+      const afternoonIndex = index - morningTimes.length;
+      if (afternoonIndex < 36) price = 10;
+      else if (afternoonIndex < 45) price = 10 + (afternoonIndex - 35) * 0.12;
+      else price = 11.2 - (afternoonIndex - 44) * 0.05;
+    }
+    return { time, price: Number(price.toFixed(3)), volume: 10_000 };
+  });
+  const result = runSmartTReplay(rows, options);
+  const morning = result.observations.filter((item) => item.time < "1300");
+  const afternoon = result.observations.filter((item) => item.time >= "1300");
+
+  assert.equal(morning.length, 3, "the morning may not consume the entire chart budget");
+  assert.equal(afternoon.length, 3, "three readable afternoon slots should remain available");
+  assert.ok(afternoon.some((item) => item.time > "1330"), "a post-13:30 displacement must be evaluated");
+  assert.ok(afternoon.some((item) => item.stage === "candidate"), "the late move should progress beyond a raw watch marker");
+  assert.equal(result.diagnostics.morningObservations, 3);
+  assert.equal(result.diagnostics.afternoonObservations, 3);
+});
+
 test("zero simulated inventory still exposes a few candidates without creating orders", () => {
   const result = runSmartTReplay(openingRecoverySession("rise"), {
     ...options,
