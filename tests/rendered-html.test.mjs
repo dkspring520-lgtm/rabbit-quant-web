@@ -74,6 +74,9 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.doesNotMatch(source, /pivot-confirmation-link/);
   assert.match(source, /visibleChartObservations/);
   assert.match(source, /return observations\.filter\(observation=>!observation\.executable\)/);
+  assert.match(source, /\{visibleBacktestObservations\.map\(\(observation,index\)=>\{/);
+  assert.doesNotMatch(source, /result\?\.trades===0&&visibleBacktestObservations\.map/);
+  assert.doesNotMatch(source, /result\?\.trades===0&&visibleBacktestObservations\.length/);
   assert.match(source, /observation\.confirmationLabel/);
   assert.match(source, /pointPosition\(observation\.time\)/);
   assert.doesNotMatch(source, /pointPosition\(observation\.pivotTime/);

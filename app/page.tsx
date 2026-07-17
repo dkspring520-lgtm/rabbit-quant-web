@@ -1826,7 +1826,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
         <div className="equity-panel">
           <div className="panel-heading">
             <div><h2>{source?`完整交易日真实分时 · ${source.quote.code} ${source.quote.name}`:"完整交易日真实分时"}</h2><span>{result ? `${formatDate(source?.sampleDate)} · ${formatTime(fullDayMinutes[0]?.time)} 至 ${formatTime(fullDayMinutes.at(-1)?.time)} · 策略从 ${formatTime(result.startTime)} 起逐分钟判断` : "运行后显示"}</span></div>
-            <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{result?.trades===0&&visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 候补观察</span>}</div>
+            <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 候补观察</span>}</div>
           </div>
           <svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点">
             <defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".16"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>
@@ -1835,7 +1835,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
             {points&&<>
               <polyline points={`${points} 820,202 65,202`} fill="url(#equityFill)"/>
               <polyline points={points} className="equity-line" fill="none"/>
-              {result?.trades===0&&visibleBacktestObservations.map((observation,index)=>{
+              {visibleBacktestObservations.map((observation,index)=>{
                 const minuteIndex=fullDayMinutes.findIndex(point=>point.time===observation.time);
                 if(minuteIndex<0)return null;
                 const price=observation.price ?? fullDayMinutes[minuteIndex].price;
