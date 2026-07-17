@@ -179,7 +179,29 @@ test("V4 profile gates stay monotonic from steady to balanced to sensitive", () 
   assert.ok(steady.candidateNetPct >= balanced.candidateNetPct && balanced.candidateNetPct >= sensitive.candidateNetPct);
   assert.ok(steady.cooldown >= balanced.cooldown && balanced.cooldown >= sensitive.cooldown);
   assert.ok(steady.maxCycles <= balanced.maxCycles && balanced.maxCycles <= sensitive.maxCycles);
-  assert.ok(sensitive.maxSellPullback >= balanced.maxSellPullback, "the sensitive profile must not use a narrower sell confirmation window than balanced");
+  assert.ok(steady.maxSellPullback <= balanced.maxSellPullback && balanced.maxSellPullback <= sensitive.maxSellPullback);
+  assert.ok(steady.maxOpeningChasePct <= balanced.maxOpeningChasePct && balanced.maxOpeningChasePct <= sensitive.maxOpeningChasePct);
+  assert.ok(steady.strongBuySessionMove <= balanced.strongBuySessionMove && balanced.strongBuySessionMove <= sensitive.strongBuySessionMove);
+  assert.ok(steady.strongSellSessionMove <= balanced.strongSellSessionMove && balanced.strongSellSessionMove <= sensitive.strongSellSessionMove);
+  assert.ok(steady.counterTrendVwap30 <= balanced.counterTrendVwap30 && balanced.counterTrendVwap30 <= sensitive.counterTrendVwap30);
+  assert.ok(steady.counterTrendSessionMove <= balanced.counterTrendSessionMove && balanced.counterTrendSessionMove <= sensitive.counterTrendSessionMove);
+  assert.ok(steady.counterTrendMinVolumeRatio >= balanced.counterTrendMinVolumeRatio && balanced.counterTrendMinVolumeRatio >= sensitive.counterTrendMinVolumeRatio);
+});
+
+test("every V4 profile owns the complete risk, exit and trend gate set", () => {
+  const required = [
+    "hardStopPct", "softStopPct", "softStopMinutes", "timeExitMinutes",
+    "trailActivationPct", "trailRetracePct", "trailMinNetPct",
+    "maxOpeningChasePct", "strongBuySessionMove", "strongBuyVwap30",
+    "strongSellSessionMove", "strongSellVwap30", "counterTrendVwap30",
+    "counterTrendSessionMove", "counterTrendMinVolumeRatio",
+  ];
+
+  Object.entries(PROFILES).forEach(([name, profile]) => {
+    required.forEach((key) => {
+      assert.ok(Number.isFinite(profile[key]), `${name} is missing ${key}`);
+    });
+  });
 });
 
 test("the lunch break is excluded from causal holding minutes", () => {

@@ -1100,9 +1100,9 @@ export default function Home() {
           <div className="strategy-dialog-head"><div><span>SMART‑T FUSION V4</span><h2>同一套 V4，三个清晰档位</h2><p>稳健、平衡、灵敏只调整 Smart‑T 融合策略 V4 的确认门槛与信号频率，不是三套互不相干的策略；四兔训练只产生候选参数，不作为手动档位。</p></div><button onClick={()=>setStrategyOpen(false)} aria-label="关闭策略说明">×</button></div>
           <div className="strategy-cards">
             {[
-              {name:'稳健档',tag:'少做，只做最确定',fit:'震荡市、新手、重视回撤',score:'9/10',cycles:'每日最多 1 个闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 5 分钟',risk:'可能错过快速机会'},
-              {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'8/10',cycles:'每日最多 1 个闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 4 分钟',risk:'默认推荐'},
-              {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'7/10',cycles:'每日最多 2 个闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 3 分钟',risk:'假信号会增加'},
+              {name:'稳健档',tag:'少做，只做最确定',fit:'震荡市、新手、重视回撤',score:'至少 6/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 5 分钟',risk:'候补点照常显示，正式点可能为空'},
+              {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'至少 4/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 4 分钟',risk:'默认推荐'},
+              {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'至少 4/6',cycles:'每日最多 2 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 3 分钟',risk:'候补更多，但仍需成本与风控过滤'},
             ].map(item=><button key={item.name} onClick={()=>setProfile(item.name)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
           </div>
           <div className="custom-strategy"><div className="custom-head"><div><h3>自定义规则草稿</h3><p>用于记录你的研究想法。自然语言目前不会直接变成可执行参数，也不会冒充已运行策略。</p></div><span>仅保存备注</span></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T规则草稿"/><div className="hard-guards"><span>正式执行仍受：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
