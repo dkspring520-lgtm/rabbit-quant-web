@@ -165,6 +165,9 @@ test("mobile layout keeps core product flows usable on phones", async () => {
   assert.match(mobile, /env\(safe-area-inset-bottom\)/);
   assert.match(mobile, /\.main-nav\s*\{/);
   assert.match(mobile, /\.workspace\s*\{/);
+  assert.match(mobile, /\.signal-funnel\s*\{\s*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(mobile, /\.signal-funnel > i\s*\{\s*display: none/);
+  assert.doesNotMatch(mobile, /\.signal-funnel\s*\{\s*grid-template-columns:\s*1fr 1fr/);
   assert.match(mobile, /\.backtest-grid/);
   assert.match(mobile, /\.research-grid/);
   assert.match(mobile, /\.zijin-external-sources/);

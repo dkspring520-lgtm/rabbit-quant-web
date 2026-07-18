@@ -341,16 +341,32 @@
   }
 
   .signal-funnel {
-    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
-    gap: 4px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .signal-funnel > i {
+    display: none;
   }
 
   .signal-layer {
-    padding: 8px;
+    min-height: 62px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    padding: 10px 12px;
   }
 
   .signal-layer > b {
-    font-size: 17px;
+    align-self: center;
+    font-size: 21px;
+    line-height: 1;
+  }
+
+  .signal-layer > em {
+    max-width: 100%;
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.45;
   }
 
   .decision-stats,
@@ -688,7 +704,8 @@
   }
 
   .signal-funnel {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 
   .signal-funnel > i {
