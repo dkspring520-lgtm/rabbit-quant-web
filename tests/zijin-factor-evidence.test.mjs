@@ -13,6 +13,7 @@ const trainingStateSyncUrl = new URL("../scripts/sync-zijin-training-state.mjs",
 test("Zijin historical evidence is causal, isolated and split before blind testing", async () => {
   const evidence = JSON.parse(await readFile(evidenceUrl, "utf8"));
   assert.equal(evidence.stock.marketCode, "601899.SH");
+  assert.equal(evidence.stock.name, "紫金矿业");
   assert.equal(evidence.affectsV4, false);
   assert.equal(evidence.methodology.causal, true);
   assert.equal(evidence.methodology.training, "2022-2024");
@@ -30,6 +31,7 @@ test("Zijin historical evidence is causal, isolated and split before blind testi
 test("Zijin stage-three external factors refuse to train before real data is ready", async () => {
   const readiness = JSON.parse(await readFile(externalReadinessUrl, "utf8"));
   assert.equal(readiness.stock.code, "601899");
+  assert.equal(readiness.stock.name, "紫金矿业");
   assert.equal(readiness.stage, 3);
   assert.equal(readiness.status, "awaiting-external-data");
   assert.equal(readiness.affectsV4, false);
@@ -56,8 +58,10 @@ test("a failed factor audit is not promoted into Smart-T V4", async () => {
 test("Zijin training progress reports real completed work and all audit stages", async () => {
   const progress = JSON.parse(await readFile(progressUrl, "utf8"));
   assert.equal(progress.stock.code, "601899");
+  assert.equal(progress.stock.name, "紫金矿业");
   assert.equal(progress.status, "completed");
   assert.equal(progress.stage, "completed");
+  assert.equal(progress.message, "本轮因果训练、样本外验证与盲测已完成");
   assert.equal(progress.progress, 100);
   assert.equal(progress.processedCandidates, progress.totalCandidates);
   assert.ok(progress.totalCandidates > 0);
@@ -79,6 +83,7 @@ test("production startup publishes the latest Zijin training state to Nginx", as
 test("Zijin pattern discovery rejects unstable price-volume rules without future leakage", async () => {
   const pattern = JSON.parse(await readFile(patternUrl, "utf8"));
   assert.equal(pattern.stock.marketCode, "601899.SH");
+  assert.equal(pattern.stock.name, "紫金矿业");
   assert.equal(pattern.affectsV4, false);
   assert.equal(pattern.dataset.minuteRows, 249917);
   assert.equal(pattern.dataset.tradingDays, 1037);
@@ -102,6 +107,7 @@ test("Zijin pattern discovery rejects unstable price-volume rules without future
 test("Zijin peer and prior-day research stays causal and isolated from V4", async () => {
   const pattern = JSON.parse(await readFile(peerPatternUrl, "utf8"));
   assert.equal(pattern.stock.marketCode, "601899.SH");
+  assert.equal(pattern.stock.name, "紫金矿业");
   assert.equal(pattern.affectsV4, false);
   assert.equal(pattern.dataset.stockCount, 7);
   assert.equal(pattern.dataset.minuteRows, 1749419);
@@ -114,4 +120,20 @@ test("Zijin peer and prior-day research stays causal and isolated from V4", asyn
   assert.ok(pattern.methodology.peerFeatures.includes("zijinAlphaVwapPct"));
   assert.ok(pattern.methodology.dailyContextFeatures.includes("rolling20ReturnPct"));
   assert.equal(pattern.conclusion.deployment, "研究结果不自动进入Smart-T V4");
+});
+
+test("Zijin public research JSON does not regress to mojibake copy", async () => {
+  const files = [
+    evidenceUrl,
+    progressUrl,
+    patternUrl,
+    peerPatternUrl,
+    externalReadinessUrl,
+  ];
+  const mojibake = /绱|鏈|鍥|鐩|璁|闂|鍙|鍏|锛|鈥||||/;
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+    assert.doesNotMatch(text, mojibake, file.pathname);
+  }
 });
