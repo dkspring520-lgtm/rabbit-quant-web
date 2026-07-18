@@ -7,6 +7,11 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
+    environment:
+      CONTROL_PLANE_ORIGIN: http://control:3010
+    depends_on:
+      control:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -17,4 +22,32 @@ services:
       timeout: 8s
       retries: 3
       start_period: 60s
+  control:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: rabbit-quant-control
+    command: ["node", "server/control-plane.mjs"]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      CONTROL_PORT: "3010"
+      CONTROL_DB_PATH: /data/rabbit-control.sqlite
+      MARKET_DATA_ORIGIN: http://web:3000
+      MONITOR_INTERVAL_MS: "15000"
+      RABBIT_ADMIN_USER: ${RABBIT_ADMIN_USER:-dkspring520@outlook.com}
+    volumes:
+      - rabbit-quant-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3010/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
+volumes:
+  rabbit-quant-data:
