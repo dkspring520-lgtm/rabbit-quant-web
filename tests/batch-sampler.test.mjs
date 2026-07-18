@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   normalizeBatchSeed,
+  randomizedUniqueQueue,
   sampleWithSeed,
 } from "../lib/batch-sampler.mjs";
 
@@ -82,4 +83,26 @@ test("item validation and value de-duplication remain the caller's concern", () 
 
 test("non-array input is rejected without attempting business normalization", () => {
   assert.throws(() => sampleWithSeed(new Set(stockPool), 10, "seed"), /items must be an array/);
+});
+
+test("recent stock codes are pushed behind fresh full-market choices", () => {
+  const recent = stockPool.slice(0, 10).map((stock) => stock.code);
+  const queue = randomizedUniqueQueue(stockPool, "next-batch", recent);
+
+  assert.equal(queue.length, stockPool.length);
+  assert.equal(new Set(queue.map((stock) => stock.code)).size, stockPool.length);
+  assert.equal(queue.slice(0, 10).filter((stock) => recent.includes(stock.code)).length, 0);
+  assert.deepEqual(new Set(queue.slice(-10).map((stock) => stock.code)), new Set(recent));
+});
+
+test("randomized queue removes duplicate business keys before sampling", () => {
+  const queue = randomizedUniqueQueue([
+    { code: "601899", name: "first" },
+    { code: "601899", name: "duplicate" },
+    { code: "603993", name: "second" },
+    null,
+  ], "dedupe");
+
+  assert.equal(queue.length, 2);
+  assert.deepEqual(new Set(queue.map((stock) => stock.code)), new Set(["601899", "603993"]));
 });
