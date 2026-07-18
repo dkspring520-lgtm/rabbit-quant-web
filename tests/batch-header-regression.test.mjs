@@ -22,8 +22,12 @@ test("stock universe route loads the full A-share list and declares its fallback
   assert.match(source, /`\$\{upstream\}\/api\/qt\/clist\/get\?\$\{query\}`/);
   assert.match(source, /push2delay\.eastmoney\.com/);
   assert.match(source, /for \(const upstream of upstreams\)/);
-  assert.match(source, /pz: "6000"/);
+  assert.match(source, /fetchEastmoneyPage\(upstream, page\)/);
+  assert.match(source, /pz: "100"/);
+  assert.match(source, /Math\.ceil\(total \/ 100\)/);
   assert.match(source, /unique\.length < 3_000/);
+  assert.match(source, /eastmoney-public-snapshot/);
+  assert.match(source, /a-share-universe\.json/);
   assert.match(source, /provider: "representative-fallback"/);
   assert.match(source, /X-Stock-Universe-Fallback/);
   assert.match(source, /"Cache-Control": "no-store"/);
