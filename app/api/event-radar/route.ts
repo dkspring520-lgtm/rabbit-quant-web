@@ -1,4 +1,5 @@
 import { classifyEvent, dedupeRelatedEvents, evaluateEventGate, stripEventMarkup } from "@/lib/event-radar.mjs";
+import { isStockRelatedNews } from "@/lib/external-source-parsers.mjs";
 
 type RawEvent = {
   id: string; code: string; title: string; summary: string; url: string; source: string;
@@ -43,11 +44,18 @@ async function loadSinaNews(code: string, name: string): Promise<RawEvent[]> {
   });
   if (!response.ok) throw new Error("公开财经资讯暂不可用");
   const data = await response.json() as { data?: { list?: Array<{ dataid:string; title:string; intro?:string; searchSummary?:string; media_show?:string; ctime:number; url:string }> } };
-  return (data.data?.list ?? []).slice(0, 8).map(item => ({
-    id: `sina-${item.dataid}`, code, title: stripEventMarkup(item.title), summary: stripEventMarkup(item.searchSummary || item.intro || ""),
-    url: item.url, source: stripEventMarkup(item.media_show || "新浪财经聚合"), provider: "sina-search-public", official: false,
-    publishedAt: new Date(item.ctime * 1_000).toISOString(),
-  }));
+  return (data.data?.list ?? []).map(item => ({
+      ...item,
+      cleanTitle: stripEventMarkup(item.title),
+      cleanSummary: stripEventMarkup(item.searchSummary || item.intro || ""),
+    }))
+    .filter(item => isStockRelatedNews({ code, name, title: item.cleanTitle, summary: item.cleanSummary }))
+    .slice(0, 8)
+    .map(item => ({
+      id: `sina-${item.dataid}`, code, title: item.cleanTitle, summary: item.cleanSummary,
+      url: item.url, source: stripEventMarkup(item.media_show || "新浪财经聚合"), provider: "sina-search-public", official: false,
+      publishedAt: new Date(item.ctime * 1_000).toISOString(),
+    }));
 }
 
 export async function GET(request: Request) {

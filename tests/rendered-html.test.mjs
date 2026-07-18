@@ -137,7 +137,7 @@ test("Zijin factor research is visibly isolated from the execution strategy", as
   assert.match(source, /2026 继续封存/);
   assert.match(source, /扣费后净期望仍为负/);
   assert.match(source, /阶段三数据接入/);
-  assert.match(source, /当前没有启动外部因子训练/);
+  assert.match(source, /实时参考已连通，历史训练尚未启动/);
   assert.match(source, /不会伪装成持续训练/);
   assert.match(source, /紫金规律扫描/);
   assert.match(source, /阶段二已完成/);

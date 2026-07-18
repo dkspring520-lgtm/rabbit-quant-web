@@ -1571,6 +1571,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const historicalPassed=zijinHistoricalEvidence.selectedModel.passedValidationGate;
   const trainingStale=Boolean(zijinTrainingProgress?.status==="running"&&zijinTrainingProgress.meta?.stale);
   const externalSourcesReady=zijinExternalFactorReadiness.requiredSources.filter(source=>source.status==="ready").length;
+  const externalLiveSourcesReady=zijinExternalFactorReadiness.requiredSources.filter(source=>source.liveStatus==="reachable").length;
   const externalSourcesTotal=zijinExternalFactorReadiness.requiredSources.length;
   const round2BestRegime=zijinRound2RegimeAudit.regimes[0];
   return <section className="stock-research-view">
@@ -1591,7 +1592,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
           <p className="pending"><i>5</i><span><b>接入 V4 影子观察</b><small>必须先通过样本外验证和人工评审</small></span><em>未开始</em></p>
         </div>
         <div className="zijin-training-verdict"><b>本轮真实结论</b><span>{zijinTrainingProgress.latest.passedValidationGate?'候选通过训练与样本外门槛，但仍只允许人工评审和模拟观察。':validationRan||blindRan?'旧轮次四阶段均已执行，但训练集和样本外净期望为负；结果只保留为失败证据，后续不重复使用 2026 盲测调参。':'训练集没有合格候选，2025 与 2026 数据继续封存；下一轮须先补充真实外部因子。'}</span><em>{zijinTrainingProgress.latest.nextAction??'补充真实外部因子后再开启新一轮因果训练'}</em></div>
-        {!zijinTrainingProgress.latest.passedValidationGate&&<div className="zijin-next-round"><div><span>第二轮准备</span><b>等待真实外部因子 {externalSourcesReady}/{externalSourcesTotal}</b><small>国际金价、铜价、大盘、港股紫金、公告事件必须按发布时间因果对齐；未准备好前不重复训练。</small></div><em>与 V4 隔离</em></div>}
+        {!zijinTrainingProgress.latest.passedValidationGate&&<div className="zijin-next-round"><div><span>第二轮准备</span><b>实时参考 {externalLiveSourcesReady}/{externalSourcesTotal} · 训练历史 {externalSourcesReady}/{externalSourcesTotal}</b><small>实时接口连通不等于已有历史训练库；国际金价、铜价、大盘、港股紫金、公告事件仍须按发布时间因果对齐后才能重新训练。</small></div><em>与 V4 隔离</em></div>}
         <div className="zijin-regime-audit">
           <div><span>第二轮内部分型审计</span><b>{zijinRound2RegimeAudit.qualifiedRegimes} 类通过 / {zijinRound2RegimeAudit.regimes.length} 类</b><small>2022–2024 训练，2025 样本外；2026 继续封存</small></div>
           <div><span>当前相对最好场景</span><b>{round2BestRegime.label}</b><small>2025 胜率 {round2BestRegime.validation.winRate==null?'--':`${(round2BestRegime.validation.winRate*100).toFixed(1)}%`} · 平均净收益 {round2BestRegime.validation.averageNetPct>=0?'+':''}{round2BestRegime.validation.averageNetPct.toFixed(4)}%</small></div>
@@ -1619,8 +1620,8 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       </div>
       <div className={`zijin-pattern-result zijin-external-stage ${zijinExternalFactorReadiness.status}`}>
         <div className="zijin-pattern-title"><div><span>紫金规律扫描 · 阶段三数据接入</span><h3>{zijinExternalFactorReadiness.message}</h3><p>阶段三把国际金价、铜价、大盘指数、港股紫金和公告事件作为研究慢层。每个值必须在当时已经公开，并通过“来源时间 ≤ A 股当前分钟”的因果对齐；它不会直接改变盘中 V4 买卖点。</p></div><em>{zijinExternalFactorReadiness.deployment}</em></div>
-        <div className="zijin-external-sources">{zijinExternalFactorReadiness.requiredSources.map(source=><p key={source.id} className={source.status}><span>{source.label}</span><b>{source.status==='ready'?'已接入':'等待数据'}</b><small>{source.role} · {source.resolution}</small></p>)}</div>
-        <div className="zijin-pattern-next"><b>当前没有启动外部因子训练</b><span>{zijinExternalFactorReadiness.nextStep} 未导入真实数据前不显示胜率，也不会伪装成持续训练。</span></div>
+        <div className="zijin-external-sources">{zijinExternalFactorReadiness.requiredSources.map(source=><p key={source.id} className={source.status}><span>{source.label}</span><b>{source.status==='ready'?'历史已接入':source.liveStatus==='reachable'?'实时可用 · 缺历史':'等待数据'}</b><small>{source.role} · {source.resolution}</small></p>)}</div>
+        <div className="zijin-pattern-next"><b>实时参考已连通，历史训练尚未启动</b><span>{zijinExternalFactorReadiness.nextStep} 未导入真实历史数据前不显示胜率，也不会伪装成持续训练。最近探测：{new Date(zijinExternalFactorReadiness.liveProbe.checkedAt).toLocaleString('zh-CN')}。</span></div>
       </div>
       <div className="zijin-evidence"><p><span>完整分时</span><b>{zijinFactorResearch.evidence.sessions} 日</b></p><p><span>历史候选样本</span><b>{zijinFactorResearch.evidence.samples} 条</b></p><p><span>样本外验证</span><b>{zijinFactorResearch.evidence.validationSamples} 条</b></p><p><span>验证胜率</span><b>{zijinFactorResearch.evidence.ready&&zijinFactorResearch.evidence.validationWinRate!==null?`${(zijinFactorResearch.evidence.validationWinRate*100).toFixed(1)}%`:'暂不展示'}</b></p><strong>{zijinFactorResearch.evidence.label}；当前展示最近一次离线训练结果，数据更新后需重新启动训练；盘中判断只读取当前及此前分钟。</strong></div>
       <footer><b>与 Smart‑T V4 隔离</b><span>不会修改档位、买卖点或风控阈值；通过样本外验证和人工评审后，才允许进入模拟观察。</span></footer>
