@@ -8,8 +8,8 @@ import { confirmStockPosition, loadStockPosition, migrateLegacyPosition, normali
 import type { StockPosition } from "@/lib/stock-position.mjs";
 import { normalizeTradeLedgerRows, summarizeTradeLedger, tradeLedgerDate, tradeLedgerKey } from "@/lib/trade-ledger.mjs";
 import type { TradeLedgerRow } from "@/lib/trade-ledger.mjs";
-import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { analyzeZijinFactorResearch } from "@/lib/zijin-factor-research.mjs";
+import { evaluateStockAgent, resolveStockAgent } from "@/lib/stock-agent-router.mjs";
 import zijinHistoricalEvidence from "@/public/research/zijin-factor-evidence.json";
 import zijinPatternDiscovery from "@/public/research/zijin-pattern-discovery.json";
 import zijinPeerPatternDiscovery from "@/public/research/zijin-peer-pattern-discovery.json";
@@ -476,6 +476,12 @@ export default function Home() {
     return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,volumes:minutePoints.map((point,index)=>({x:intradayChartX(point.time),height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:[max,max-range*.25,max-range*.5,max-range*.75,min]};
   },[minutePoints]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
+  const stockAgent=useMemo(()=>resolveStockAgent(stock?.code),[stock?.code]);
+  const stockAgentEvaluation=useMemo(()=>evaluateStockAgent({
+    code:stock?.code,
+    minutes:minutePoints,
+    previousClose:activeQuote?.previousClose??null,
+  }),[stock?.code,minutePoints,activeQuote?.previousClose]);
   const liveEngine = useMemo(() => runSmartTReplay(minutePoints, {
     capital:200_000,
     baseShares:Math.max(0,effectiveLivePosition.openingShares),
@@ -490,9 +496,6 @@ export default function Home() {
     randomValue:0,
   }),[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose]);
   const currentObservations=(liveEngine.observations ?? []) as ReplayObservation[];
-  const zijinOpeningPlaybook=useMemo(()=>stock?.code==="601899"
-    ? evaluateZijinOpeningPlaybook(minutePoints,{previousClose:activeQuote?.previousClose??null})
-    : null,[stock?.code,minutePoints,activeQuote?.previousClose]);
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(()=>selectVisibleChartObservations(currentObservations),[currentObservations]);
@@ -661,7 +664,29 @@ export default function Home() {
     if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:30 已开始扫描；积累 4 个真实分钟点后，最早 09:33 可在连续走势与 VWAP 确认后小仓试单。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
     return {status:"waiting" as const,mode:null,confirmed,reason:directionConfirmed?`基础方向已确认，但融合引擎仍在检查成本、量价和盈亏比。`:liveEngine.status,lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
   },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,minutePoints,openingAssessment.session,stockState,currentEvents,currentContext,liveEngine,marketSession]);
-  const signalMode:"正T"|"反T"=autoDecision.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
+  const decisionModel=useMemo(()=>{
+    if(stockAgent.canExecute)return autoDecision;
+    if(autoDecision.status==="locked")return {
+      ...autoDecision,
+      mode:null,
+      reason:`${stockAgent.name}处于研究观察版；${autoDecision.reason}`,
+    };
+    const evaluation=stockAgentEvaluation;
+    const score=evaluation?.score??0;
+    return {
+      status:"waiting" as const,
+      mode:evaluation?.direction??null,
+      confirmed:Math.min(3,Math.max(0,Math.floor(score/25))),
+      reason:evaluation
+        ? `${evaluation.title}：${evaluation.reasons[0]}（专属智能体尚未通过样本外验证，不开放正式执行）`
+        : `${stockAgent.name}正在等待真实分钟数据。`,
+      lastTime:evaluation?.asOfTime??"",
+      inDecisionWindow:Boolean(evaluation?.asOfTime),
+      referenceConfirmed:Boolean(evaluation&&Math.abs(evaluation.metrics.vwapBiasPct)>=.2),
+      trendConfirmed:evaluation?.status==="candidate",
+    };
+  },[stockAgent,stockAgentEvaluation,autoDecision]);
+  const signalMode:"正T"|"反T"=decisionModel.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
   const cycleQuantity=Math.floor(Math.min(Math.max(0,effectiveLivePosition.openingShares),effectiveLivePosition.sellable)/3/100)*100;
   const displayedShares=cycleStage==='opened'
     ? effectiveLivePosition.openingShares+(signalMode==='正T'?cycleQuantity:-cycleQuantity)
@@ -687,6 +712,19 @@ export default function Home() {
   },[tradeLedgerRows]);
   const deskHistoryRows=useMemo<DeskHistoryRow[]>(()=>{
     if(panel==="今日T循环")return confirmedCycleRows;
+    if(stockAgentEvaluation){
+      if(panel!=="历史信号"||stockAgentEvaluation.status!=="candidate"||!stockAgentEvaluation.asOfTime)return [];
+      const point=minutePoints.find(item=>item.time===stockAgentEvaluation.asOfTime);
+      return [{
+        time:`${stockAgentEvaluation.asOfTime.slice(0,2)}:${stockAgentEvaluation.asOfTime.slice(2)}`,
+        direction:`${stockAgentEvaluation.direction??"双向"}专属候选`,
+        price:point?point.price.toFixed(2):"—",
+        quantity:"未下单",
+        spread:`评分 ${stockAgentEvaluation.score}/100`,
+        status:`${stockAgentEvaluation.title}；研究观察版，不生成正式成交`,
+        tone:"candidate",
+      }];
+    }
     if(panel==="历史信号")return [...currentObservations].reverse().map(observation=>{
       const point=minutePoints.find(item=>item.time===observation.time);
       const time=`${observation.time.slice(0,2)}:${observation.time.slice(2)}`;
@@ -694,7 +732,7 @@ export default function Home() {
       return {time,direction:observationConfirmationLabel(observation),price:point?point.price.toFixed(2):"—",quantity:"未下单",spread:`预估 ${observation.edge.toFixed(2)}%`,status:`${observationDirectionNote(observation)}；${qualified?"候选门槛通过":observation.blockers[0]??"尚未达到候选门槛"}`,tone:"candidate"};
     });
     return [...liveEngine.actions].reverse().map(action=>({time:`${action.time.slice(0,2)}:${action.time.slice(2)}`,direction:`${action.direction??"T"}${action.side}`,price:action.price.toFixed(2),quantity:`${action.quantity.toLocaleString("zh-CN")}股`,spread:"引擎模拟",status:action.reason??"正式过滤通过",tone:action.side==="卖出"?"sell":"buy"}));
-  },[panel,confirmedCycleRows,currentObservations,minutePoints,liveEngine.actions]);
+  },[panel,confirmedCycleRows,stockAgentEvaluation,currentObservations,minutePoints,liveEngine.actions]);
   useEffect(() => {
     const update=()=>setClockNow(new Date());
     update();
@@ -783,7 +821,8 @@ export default function Home() {
       const latest=replay.actions.at(-1);
       const latestObservation=selectLatestAlertableObservation(observations) as ReplayObservation|undefined;
       const lastTime=(points.at(-1)?.time??"").replace(/\D/g,"").slice(0,4);
-      const formalFresh=Boolean(latest&&isRecentCausalEvent(lastTime,latest.time,3));
+      const agentEvaluation=evaluateStockAgent({code:item.code,minutes:points,previousClose:snapshot?.quote.previousClose??null});
+      const formalFresh=Boolean(!agentEvaluation&&latest&&isRecentCausalEvent(lastTime,latest.time,3));
       const riskMessage=active&&autoDecision.status==="locked"
         ? autoDecision.reason
         : eventsByCode[item.code]?.gate.hardLock
@@ -794,20 +833,23 @@ export default function Home() {
       if(!riskMessage)delete riskAlertEpisodes.current[item.code];
       else if(isRisk)riskAlertEpisodes.current[item.code]=riskSignature;
       const candidateFresh=Boolean(latestObservation&&isRecentCausalEvent(lastTime,latestObservation.time,2));
-      const isCandidate=!isRisk&&!formalFresh&&candidateFresh&&latestObservation&&!latestObservation.executable;
+      const agentCandidateFresh=Boolean(agentEvaluation?.status==="candidate"&&agentEvaluation.asOfTime&&isRecentCausalEvent(lastTime,agentEvaluation.asOfTime,2));
+      const isCandidate=!isRisk&&!formalFresh&&(agentEvaluation?agentCandidateFresh:Boolean(candidateFresh&&latestObservation&&!latestObservation.executable));
       if(!isRisk&&!formalFresh&&!isCandidate)continue;
-      const key=isRisk?`${item.code}:risk:${riskSignature}`:formalFresh?`${item.code}:${latest!.time}:${latest!.side}`:`${item.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
+      const key=isRisk?`${item.code}:risk:${riskSignature}`:formalFresh?`${item.code}:${latest!.time}:${latest!.side}`:agentEvaluation?`${item.code}:agent:${agentEvaluation.asOfTime}:${agentEvaluation.direction}`:`${item.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
       const eventDate=snapshot?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??"unknown-date";
       const persistedKey=`rabbit-alerted:${accountName.toLowerCase()}:${eventDate}:${key}`;
       let alreadyAlerted=!isRisk&&alertedEventKeys.current.has(persistedKey);
       try{alreadyAlerted=alreadyAlerted||(!isRisk&&localStorage.getItem(persistedKey)==="1");}catch{}
       if(alreadyAlerted)continue;
       if(!isRisk){alertedEventKeys.current.add(persistedKey);try{localStorage.setItem(persistedKey,"1");}catch{}}
-      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):(latestObservation!.direction==="反T"?"sell":"buy");
-      const title=isRisk?`${item.name} 风险锁定`:formalFresh?`${item.name} ${latest!.direction}${latest!.side}`:`${item.name} ${latestObservation!.direction}候选观察`;
-      const message=isRisk?riskMessage:formalFresh?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
+      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):((agentEvaluation?.direction??latestObservation!.direction)==="反T"?"sell":"buy");
+      const title=isRisk?`${item.name} 风险锁定`:formalFresh?`${item.name} ${latest!.direction}${latest!.side}`:agentEvaluation?`${item.name} · ${agentEvaluation.title}`:`${item.name} ${latestObservation!.direction}候选观察`;
+      const message=isRisk?riskMessage:formalFresh?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):agentEvaluation?`${agentEvaluation.reasons[0]}；紫金专属研究观察，不是买卖指令。`:`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
       queueAlert({level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
-      const candidateSpeech=isVwapDisplacementObservation(latestObservation)
+      const candidateSpeech=agentEvaluation
+        ? `${item.name}，${agentEvaluation.direction??"做T"}专属候选观察，不是买卖指令`
+        : isVwapDisplacementObservation(latestObservation)
         ? `${item.name}，价格${latestObservation!.direction==="正T"?"低位":"高位"}偏离均价线，请观察确认，不是买卖指令`
         : `${item.name}，${latestObservation?.direction??"做T"}候选观察，不是买卖指令`;
       if(alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latest!.direction}${latest!.side}提醒`:candidateSpeech,isRisk);
@@ -1140,29 +1182,29 @@ export default function Home() {
           <div className="signal-tape">
             <span className="tape-title">信号证据</span>
             <span><i className={openingAssessment.session==="低开"||openingAssessment.session==="高开"?"ok":"wait"}>{openingAssessment.session==="低开"||openingAssessment.session==="高开"?"✓":"·"}</i>{openingAssessment.gapText}</span>
-            <span><i className={autoDecision.referenceConfirmed?"ok":"wait"}>{autoDecision.referenceConfirmed?"✓":"·"}</i>开盘价 + VWAP</span>
-            <span><i className={autoDecision.trendConfirmed?"ok":"wait"}>{autoDecision.trendConfirmed?"✓":"·"}</i>连续走势确认</span>
-            <span><i className={autoDecision.inDecisionWindow?"ok":"wait"}>{autoDecision.inDecisionWindow?"✓":"·"}</i>{autoDecision.lastTime||"--:--"} 时间门控</span>
+            <span><i className={decisionModel.referenceConfirmed?"ok":"wait"}>{decisionModel.referenceConfirmed?"✓":"·"}</i>开盘价 + VWAP</span>
+            <span><i className={decisionModel.trendConfirmed?"ok":"wait"}>{decisionModel.trendConfirmed?"✓":"·"}</i>连续走势确认</span>
+            <span><i className={decisionModel.inDecisionWindow?"ok":"wait"}>{decisionModel.inDecisionWindow?"✓":"·"}</i>{decisionModel.lastTime||"--:--"} 时间门控</span>
           </div>
         </div>
 
         <aside className="decision-zone">
           {alertToast&&<div className={`trade-alert-toast ${alertToast.level} rabbit-${alertToast.rabbit}`} role="alert"><span className={`rabbit-speaker ${alertToast.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{alertToast.level==="candidate"?`${alertToast.rabbit==="buy"?"左兔":"右兔"} · 候选观察`:alertToast.rabbit==="buy"?"左兔 · 买入/买回提醒":alertToast.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{alertToast.title}</b><span>{alertToast.message}</span></div>{alertQueue.length>1&&<em className="alert-queue-count">+{alertQueue.length-1}</em>}<button onClick={()=>setAlertQueue(current=>current.slice(1))} aria-label="关闭提醒">×</button></div>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
-            <div className="signal-layer candidate"><span>本股实时观察</span><b>{signalFunnel.currentObservations}<small> 个</small></b><em>正式候选 {signalFunnel.currentCandidates} · 全自选观察 {signalFunnel.observations}</em></div>
+            <div className="signal-layer candidate"><span>本股实时观察</span><b>{stockAgentEvaluation?Number(stockAgentEvaluation.status==="candidate"):signalFunnel.currentObservations}<small> 个</small></b><em>{stockAgentEvaluation?`${stockAgent.name} · ${stockAgentEvaluation.title}`:`正式候选 ${signalFunnel.currentCandidates} · 全自选观察 ${signalFunnel.observations}`}</em></div>
             <i>→</i>
-            <div className="signal-layer formal"><span>本股正式闭环</span><b>{signalFunnel.currentFormal}<small> 个</small></b><em>全部自选 {signalFunnel.formal} · V4 过滤后保留</em></div>
+            <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · V4 过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
           </div>
-          <div className="signal-funnel-note"><span>{signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察"}</span><em>均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层</em></div>
-          {zijinOpeningPlaybook&&<div className={`zijin-opening-card ${zijinOpeningPlaybook.status}`}>
-            <div><span>紫金早盘高波动观察</span><b>{zijinOpeningPlaybook.status==="candidate"?`${zijinOpeningPlaybook.direction}候选`:zijinOpeningPlaybook.status==="blocked"?"本窗口已停止":zijinOpeningPlaybook.status==="waiting"?"正在积累开盘样本":"继续观察"}</b><em>{zijinOpeningPlaybook.asOfTime?`${zijinOpeningPlaybook.asOfTime.slice(0,2)}:${zijinOpeningPlaybook.asOfTime.slice(2)}`:"--:--"} · {zijinOpeningPlaybook.score}/100</em></div>
-            <p>{zijinOpeningPlaybook.reasons[0]}</p>
-            <small>振幅 {zijinOpeningPlaybook.metrics.openingRangePct.toFixed(2)}% · 距VWAP {zijinOpeningPlaybook.metrics.distanceToVwapPct>=0?"+":""}{zijinOpeningPlaybook.metrics.distanceToVwapPct.toFixed(2)}% · 量比 {zijinOpeningPlaybook.metrics.volumeRatio==null?"待数据":`${zijinOpeningPlaybook.metrics.volumeRatio.toFixed(2)}×`}</small>
-            <i>仅作为候选观察，不直接生成成交</i>
+          <div className="signal-funnel-note"><span>{stockAgentEvaluation?(stockAgentEvaluation.asOfTime?`专属评估 ${stockAgentEvaluation.asOfTime.slice(0,2)}:${stockAgentEvaluation.asOfTime.slice(2)} · ${stockAgentEvaluation.direction??"等待方向"}`:"紫金智能体等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察")}</span><em>{stockAgentEvaluation?"601899 自动切换专属智能体；离开该股票自动恢复 V4。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层"}</em></div>
+          {stockAgentEvaluation&&<div className={`zijin-opening-card stock-agent-card ${stockAgentEvaluation.status}`}>
+            <div><span>已自动调用 · {stockAgent.name}</span><b>{stockAgentEvaluation.title}</b><em>{stockAgentEvaluation.asOfTime?`${stockAgentEvaluation.asOfTime.slice(0,2)}:${stockAgentEvaluation.asOfTime.slice(2)}`:"--:--"} · {stockAgentEvaluation.score}/100</em></div>
+            <p>{stockAgentEvaluation.reasons[0]}</p>
+            <small>{stockAgentEvaluation.phase==="opening"?"早盘专属层":"全天因子层"} · 振幅 {stockAgentEvaluation.metrics.rangePct.toFixed(2)}% · 距VWAP {stockAgentEvaluation.metrics.vwapBiasPct>=0?"+":""}{stockAgentEvaluation.metrics.vwapBiasPct.toFixed(2)}% · 量比 {stockAgentEvaluation.metrics.volumeRatio==null?"待数据":`${stockAgentEvaluation.metrics.volumeRatio.toFixed(2)}×`}</small>
+            <i>{stockAgent.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
           <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、正式候选、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button></div></div>
-          <div className={`auto-direction ${autoDecision.status}`}><div><span>自动方向</span><b>{autoDecision.status==="locked"?"风控锁定":autoDecision.mode??"等待确认"}</b></div><small>{autoDecision.reason}</small><em>{autoDecision.confirmed}/4</em></div>
-          <div className="decision-label"><span>SMART-T 自动决策</span><em>{autoDecision.status==="ready"?"信号已确认":autoDecision.status==="locked"?"禁止开T":"1秒监控中"}</em></div>
+          <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div><small>{decisionModel.reason}</small><em>{decisionModel.confirmed}/4</em></div>
+          <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <div className={`stock-state ${stockState.level}`}>
             <div><span>股票状态识别器</span><b>{stockState.label}</b></div><strong>{stockState.score}<small>/100</small></strong>
             <p>{stockState.summary}</p><ul>{stockState.details.map(detail=><li key={detail}>{detail}</li>)}</ul><em>{stockState.action}</em>
@@ -1179,8 +1221,8 @@ export default function Home() {
           <div className="opening-causal"><span>09:30 起实时扫描</span><b>仅使用已出现数据 · 无需手动切换</b><small>最早 09:33 显示候选，09:36–09:44 经连续走势与 VWAP 确认后才允许小仓正式信号；09:45 后恢复完整过滤。</small></div>
           <h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2>
           <p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p>
-          <button disabled={cycleQuantity<100||(cycleStage==='ready'&&autoDecision.status!=="ready")} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
-            <span>{cycleQuantity<100?'先设置本股底仓与昨日可卖':cycleStage === 'ready' ? autoDecision.status==="locked"?'风控锁定 · 暂停做T':autoDecision.status!=="ready"?'等待自动信号':(signalMode === '反T' ? `反T信号 · 卖出 ${cycleQuantity.toLocaleString()} 股` : `正T信号 · 买入 ${cycleQuantity.toLocaleString()} 股`) : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
+          <button disabled={!stockAgent.canExecute||cycleQuantity<100||(cycleStage==='ready'&&decisionModel.status!=="ready")} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
+            <span>{!stockAgent.canExecute?'紫金智能体观察中 · 未开放执行':cycleQuantity<100?'先设置本股底仓与昨日可卖':cycleStage === 'ready' ? decisionModel.status==="locked"?'风控锁定 · 暂停做T':decisionModel.status!=="ready"?'等待自动信号':(signalMode === '反T' ? `反T信号 · 卖出 ${cycleQuantity.toLocaleString()} 股` : `正T信号 · 买入 ${cycleQuantity.toLocaleString()} 股`) : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
             <small>{cycleStage === 'ready' ? '记录首笔成交' : cycleStage === 'opened' ? '完成反向成交' : '开始下一次循环'} →</small>
           </button>
           <div className={`closure-guard ${cycleStage}`}>
@@ -1206,9 +1248,9 @@ export default function Home() {
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
           <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四兔盘后研究</span><small>{trainingRunning?'正在核对真实完整分时':trainingProgress===100?'今日研究已完成':'收盘后自动 · 可手动运行'}</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
           {agentOpen && <div className="training-console">
-            <div className="training-control"><div><span>当前股票 · Smart-T 融合策略 V4</span><b>{trainingRunning?'真实分时核对中':trainingProgress===100?'本轮已完成':'等待盘后研究'}</b></div><button onClick={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} disabled={trainingRunning}>{trainingRunning?'研究中…':trainingProgress===100?'重新核对':'运行盘后研究'}</button></div>
+            <div className="training-control"><div><span>当前股票 · {stockAgent.name}{stockAgent.canExecute?"":"（研究观察版）"}</span><b>{trainingRunning?'真实分时核对中':trainingProgress===100?'本轮已完成':'等待盘后研究'}</b></div><button onClick={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} disabled={trainingRunning}>{trainingRunning?'研究中…':trainingProgress===100?'重新核对':'运行盘后研究'}</button></div>
             <div className="training-progress"><div style={{width:`${trainingProgress}%`}}/><span>{trainingProgress}%</span></div>
-            <div className="training-metrics"><p><span>完整样本</span><b>{personalStrategyStats.sessions} 日</b></p><p><span>正式闭环</span><b>{personalStrategyStats.cycles}</b></p><p><span>扣费胜率</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b></p><p><span>扣费净盈亏</span><b className={personalStrategyStats.net>=0?'teal':'negative'}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b></p><p><span>最差回撤</span><b>-{(personalStrategyStats.maxDrawdown*100).toFixed(2)}%</b></p></div>
+            <div className="training-metrics"><p><span>完整样本</span><b>{personalStrategyStats.sessions} 日</b></p><p><span>{stockAgent.canExecute?"正式闭环":"V4 对照闭环"}</span><b>{personalStrategyStats.cycles}</b></p><p><span>{stockAgent.canExecute?"扣费胜率":"V4 对照胜率"}</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b></p><p><span>扣费净盈亏</span><b className={personalStrategyStats.net>=0?'teal':'negative'}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b></p><p><span>最差回撤</span><b>-{(personalStrategyStats.maxDrawdown*100).toFixed(2)}%</b></p></div>
             <div className="training-log"><span>本机</span><p>{trainingRunning?`训练兔正在核对 ${personalStrategyStats.sessions} 个真实完整交易日`:`已核对 ${personalStrategyStats.cycles} 个扣费闭环；样本不足时不生成可晋升候选`}</p><em>自动晋升关闭</em></div>
           </div>}
           <div className="agent-grid">{liveAgents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>

@@ -64,10 +64,10 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /selectLatestAlertableObservation\(observations\)/);
   assert.match(source, /不是买卖指令/);
   assert.match(source, /if\(alertSettings\.sound\)speakAlert/);
-  assert.match(source, /autoDecision\.status==="ready"/);
+  assert.match(source, /decisionModel\.status==="ready"/);
   assert.match(source, /observation\.stage!=="watch"/);
   assert.match(source, /本股实时观察/);
-  assert.match(source, /正式候选 \{signalFunnel\.currentCandidates\}/);
+  assert.match(source, /signalFunnel\.currentCandidates/);
   assert.match(source, /本股正式闭环/);
   assert.match(source, /signalFunnel\.currentLatest/);
   assert.doesNotMatch(source, /pivot-reference-marker/);
@@ -88,7 +88,7 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /const formalFresh=Boolean/);
   assert.match(source, /isRecentCausalEvent\(lastTime,latest\.time,3\)/);
   assert.match(source, /for\(const \[index,item\] of stockList\.entries\(\)\)/);
-  assert.match(source, /const formalFresh=Boolean\(latest&&isRecentCausalEvent\(lastTime,latest\.time,3\)\)/);
+  assert.match(source, /const formalFresh=Boolean\(!agentEvaluation&&latest&&isRecentCausalEvent\(lastTime,latest\.time,3\)\)/);
   assert.match(source, /const isRisk=!formalFresh&&Boolean\(riskMessage\)/);
   assert.match(source, /Promise\.allSettled/);
   assert.match(source, /fulfilledWatchlistSnapshots/);
