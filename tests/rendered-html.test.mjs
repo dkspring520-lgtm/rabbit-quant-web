@@ -148,10 +148,16 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
 
 test("Zijin experiment deep link survives authentication and a missing saved watchlist stock", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const homeStyles = await readFile(new URL("../app/home.css", import.meta.url), "utf8");
   const landing = await readFile(new URL("../app/public-landing.tsx", import.meta.url), "utf8");
   assert.match(source, /isZijinExperimentDeepLink/);
   assert.match(source, /ensureZijinExperimentStock/);
   assert.match(source, /prepareWatchlistForCurrentEntry/);
+  assert.match(source, /const \[authReady, setAuthReady\] = useState\(true\)/);
+  assert.match(source, /openZijinExperiment/);
+  assert.match(source, /紫金矿业实验室/);
+  assert.match(source, /查看训练进度/);
+  assert.match(homeStyles, /\.home-zijin-entry\{/);
   assert.match(source, /!authReady\|\|!localAuth\|\|!isZijinExperimentDeepLink\(\)/);
   assert.match(landing, /查看紫金实验进度/);
   assert.match(landing, /view=zijin-lab/);
