@@ -237,7 +237,8 @@ test("public beta has an honest no-registration entry and legal disclosure", asy
   const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 
   assert.match(landing, /免注册进入演示/);
-  assert.match(landing, /创建本机测试账户/);
+  assert.match(landing, /创建服务器测试账户/);
+  assert.match(landing, /服务器账户、跨设备监控清单、持仓参数同步/);
   assert.match(landing, /公开测试版/);
   assert.match(landing, /href="\/terms"/);
   assert.match(landing, /href="\/privacy"/);
