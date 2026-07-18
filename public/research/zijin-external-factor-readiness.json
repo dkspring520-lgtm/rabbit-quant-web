@@ -5,10 +5,10 @@
     "code": "601899",
     "name": "紫金矿业"
   },
-  "status": "awaiting-external-data",
+  "status": "awaiting-external-history",
   "affectsV4": false,
   "causal": true,
-  "message": "因果接入管线已完成，外部历史数据尚未导入",
+  "message": "实时参考源已连通，外部历史训练数据尚未导入",
   "deployment": "紫金实验室研究慢层 · 不进入 Smart-T V4",
   "pipeline": {
     "asOfJoin": "source_timestamp <= target_timestamp",
@@ -22,7 +22,14 @@
     "aSharePeerStocks": 7,
     "externalSourcesReady": 0,
     "externalSourcesRequired": 5,
+    "liveSourcesReachable": 5,
+    "liveSourcesRequired": 5,
     "trainingReady": false
+  },
+  "liveProbe": {
+    "checkedAt": "2026-07-18T20:47:40+08:00",
+    "status": "reachable",
+    "note": "只代表最近一次公开源探测可用，不代表交易级时效、永久可用或已取得历史训练授权"
   },
   "requiredSources": [
     {
@@ -30,6 +37,8 @@
       "label": "国际金价",
       "resolution": "1/5分钟优先，日线只作隔夜背景",
       "status": "missing",
+      "liveStatus": "reachable",
+      "liveProvider": "sina-public",
       "role": "黄金业务与隔夜外盘传导"
     },
     {
@@ -37,6 +46,8 @@
       "label": "国际铜价",
       "resolution": "1/5分钟优先，日线只作隔夜背景",
       "status": "missing",
+      "liveStatus": "reachable",
+      "liveProvider": "sina-public",
       "role": "铜业务与盘中商品价格传导"
     },
     {
@@ -44,6 +55,8 @@
       "label": "上证/沪深300",
       "resolution": "1分钟",
       "status": "missing",
+      "liveStatus": "reachable",
+      "liveProvider": "tencent-public",
       "role": "剥离大盘共同波动"
     },
     {
@@ -51,6 +64,8 @@
       "label": "港股紫金 02899",
       "resolution": "1分钟",
       "status": "missing",
+      "liveStatus": "reachable",
+      "liveProvider": "tencent-public",
       "role": "同公司跨市场领先与背离"
     },
     {
@@ -58,8 +73,10 @@
       "label": "公告与事件时钟",
       "resolution": "精确发布时间",
       "status": "missing",
+      "liveStatus": "reachable",
+      "liveProvider": "cninfo-official + sina-search-public",
       "role": "只在消息公开后影响样本"
     }
   ],
-  "nextStep": "导入带时间戳的真实外部数据后，先做覆盖率审计，再按 2022—2024 训练、2025 验证、2026 盲测。"
+  "nextStep": "导入带时间戳的真实外部历史数据后，先做覆盖率审计，再按 2022—2024 训练、2025 验证、2026 盲测。"
 }

@@ -1,4 +1,5 @@
 import { evaluateMarketContext } from "@/lib/market-context.mjs";
+import { parseTencentSourceTimestamp, sinaDomesticReference } from "@/lib/external-source-parsers.mjs";
 
 type ContextGroup = "market" | "sector" | "related" | "cross" | "currency";
 type ContextItem = {
@@ -70,8 +71,7 @@ async function loadTencent(definitions: Profile["tencent"]): Promise<ContextItem
     const price = numeric(fields[3]);
     const percent = numeric(fields[32]) ?? changePercent(price, numeric(fields[4]));
     if (price === null || percent === null) return [];
-    const rawTime = fields[30] ?? "";
-    const sourceTimestamp = /^\d{14}$/.test(rawTime) ? `${rawTime.slice(0,4)}-${rawTime.slice(4,6)}-${rawTime.slice(6,8)}T${rawTime.slice(8,10)}:${rawTime.slice(10,12)}:${rawTime.slice(12,14)}+08:00` : null;
+    const sourceTimestamp = parseTencentSourceTimestamp(fields[30] ?? "");
     return [{ id: definition.symbol, label: definition.label, group: definition.group, price, changePercent: percent, sourceTimestamp, provider: "tencent-public", inverse: definition.inverse }];
   });
 }
@@ -88,7 +88,7 @@ async function loadSina(definitions: NonNullable<Profile["sina"]>): Promise<Cont
     if (!fields?.length) return [];
     let price: number | null = null; let previous: number | null = null; let percent: number | null = null; let sourceTimestamp: string | null = null;
     if (definition.kind === "domestic") {
-      price = numeric(fields[8]); previous = numeric(fields[9]);
+      price = numeric(fields[8]); previous = sinaDomesticReference(fields);
       sourceTimestamp = fields[17] && /^\d{6}$/.test(fields[1] ?? "") ? `${fields[17]}T${fields[1].slice(0,2)}:${fields[1].slice(2,4)}:${fields[1].slice(4,6)}+08:00` : null;
     } else if (definition.kind === "global") {
       price = numeric(fields[0]); previous = numeric(fields[7]);

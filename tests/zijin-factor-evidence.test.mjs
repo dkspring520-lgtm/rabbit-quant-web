@@ -35,7 +35,7 @@ test("Zijin stage-three external factors refuse to train before real data is rea
   assert.equal(readiness.stock.code, "601899");
   assert.equal(readiness.stock.name, "紫金矿业");
   assert.equal(readiness.stage, 3);
-  assert.equal(readiness.status, "awaiting-external-data");
+  assert.equal(readiness.status, "awaiting-external-history");
   assert.equal(readiness.affectsV4, false);
   assert.equal(readiness.causal, true);
   assert.equal(readiness.pipeline.asOfJoin, "source_timestamp <= target_timestamp");
@@ -43,9 +43,12 @@ test("Zijin stage-three external factors refuse to train before real data is rea
   assert.equal(readiness.pipeline.trainingStarted, false);
   assert.equal(readiness.pipeline.winRateAvailable, false);
   assert.equal(readiness.coverage.externalSourcesReady, 0);
+  assert.equal(readiness.coverage.liveSourcesReachable, 5);
   assert.equal(readiness.coverage.trainingReady, false);
   assert.equal(readiness.requiredSources.length, 5);
   assert.ok(readiness.requiredSources.every(source => source.status === "missing"));
+  assert.ok(readiness.requiredSources.every(source => source.liveStatus === "reachable"));
+  assert.equal(readiness.liveProbe.status, "reachable");
 });
 
 test("Zijin round-two regime audit keeps 2026 sealed and refuses negative expectancy", async () => {
