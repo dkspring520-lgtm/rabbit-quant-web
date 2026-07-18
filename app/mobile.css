@@ -631,11 +631,32 @@
   }
 
   .watch-table {
-    overflow-x: auto;
+    overflow: hidden;
   }
 
   .watch-row {
-    min-width: 760px;
+    min-width: 0;
+    grid-template-columns: minmax(116px, 1.2fr) minmax(78px, .8fr) minmax(92px, 1fr);
+    gap: 7px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .watch-row > :nth-child(n + 4) {
+    display: none;
+  }
+
+  .watch-row > span,
+  .watch-row > strong,
+  .watch-row > b {
+    min-width: 0;
+  }
+
+  .watch-row b,
+  .watch-row small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .backtest-grid {
@@ -675,6 +696,87 @@
 
   .result-summary b,
   .result-primary strong {
+    overflow-wrap: anywhere;
+  }
+
+  .market-list {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .market-row.market-title {
+    display: none;
+  }
+
+  .market-row:not(.market-title) {
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 8px;
+    margin-bottom: 9px;
+    padding: 13px;
+    border: 1px solid var(--line);
+    background: #0a0d0c;
+  }
+
+  .market-row:not(.market-title) > * {
+    min-width: 0;
+  }
+
+  .market-row:not(.market-title) > .market-name,
+  .market-row:not(.market-title) > button {
+    grid-column: 1 / -1;
+  }
+
+  .market-row:not(.market-title) > strong,
+  .market-row:not(.market-title) > span:not(.market-name) {
+    display: grid;
+    align-content: start;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .market-row:not(.market-title) > strong::before {
+    color: var(--dim);
+    font-size: 8px;
+    font-weight: 500;
+  }
+
+  .market-row:not(.market-title) > .market-win::before {
+    content: "胜率";
+  }
+
+  .market-row:not(.market-title) > .market-return::before {
+    content: "扣费净收益";
+  }
+
+  .market-row:not(.market-title) > .market-drawdown::before {
+    content: "最大回撤";
+  }
+
+  .market-row:not(.market-title) > button {
+    width: 100%;
+  }
+
+  .public-terminal > header,
+  .public-quote,
+  .public-signal {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .public-terminal > header > *,
+  .public-quote > *,
+  .public-signal > * {
+    min-width: 0;
+  }
+
+  .public-quote > strong {
+    font-size: 25px;
+  }
+
+  .public-signal b,
+  .public-signal small {
     overflow-wrap: anywhere;
   }
 
