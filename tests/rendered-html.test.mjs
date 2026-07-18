@@ -44,12 +44,14 @@ test("Zijin research imports every opening-playbook symbol it executes", async (
   assert.match(source, /evaluateZijinOpeningPlaybook\(opening\.slice\(0,index\+1\)/);
 });
 
-test("brand keeps a distinct ASCII T and never regresses to the wrong name", async () => {
+test("brand uses the 双兔助手 and 做T神器 lockup without regressing to the wrong name", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/typography.css", import.meta.url), "utf8");
-  assert.match(source, /aria-label="做T神器 Rabbit Smart-T"/);
+  assert.match(source, /aria-label="双兔助手 做T神器 Rabbit Smart-T"/);
+  assert.match(source, /<span>双兔助手<\/span>/);
+  assert.match(source, /做<span className="brand-ascii-t">T<\/span>神器 · SMART-T/);
   assert.match(source, /className="brand-ascii-t">T<\/span>/);
-  assert.match(source, /aria-label="做T神器"/);
+  assert.match(source, /aria-label="双兔助手 做T神器"/);
   assert.doesNotMatch(source, /<em>做T<\/em>/);
   assert.doesNotMatch(source, /做人神器/);
   assert.match(styles, /\.brand-lockup \.brand-type strong\{[^}]*letter-spacing:0!important/);
@@ -141,9 +143,11 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
   assert.match(source, /id="zijin-experiment-progress"/);
   assert.match(source, /className="zijin-implementation-steps"/);
   assert.match(source, /aria-label="紫金矿业实验实施进度"/);
-  assert.match(source, /passedValidationGate\?'通过':'未通过'/);
-  assert.match(source, /passedValidationGate\?'完成':'保留失败证据'/);
+  assert.match(source, /选参完成 · 未通过/);
+  assert.match(source, /封存未运行/);
+  assert.match(source, /后续不重复使用 2026 盲测调参/);
   assert.match(styles, /\.zijin-implementation-steps\{/);
+  assert.match(styles, /\.zijin-training-verdict\{/);
 });
 
 test("Zijin experiment deep link survives authentication and a missing saved watchlist stock", async () => {
@@ -195,7 +199,7 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   assert.doesNotMatch(source, /在线观察中/);
   assert.doesNotMatch(source, /持续影子训练 · 每5分钟/);
   assert.doesNotMatch(source, /\+¥2,416/);
-  assert.match(source, /本轮训练已完成｜未通过验证，不进入 V4/);
+  assert.match(source, /本轮因果审计完成｜没有可晋级参数/);
 });
 
 test("random 10-stock replay randomizes stock-days and separates references from formal trades", async () => {

@@ -21,7 +21,7 @@ export default function PublicLanding({onDemo,onAccount}:PublicLandingProps) {
   };
   return <main className="public-site">
     <header className="public-nav">
-      <a className="public-brand" href="#top" aria-label="做T神器首页"><img src="/rabbit-logo-compact.png" alt="做T神器双兔标志"/><span><b>做<span>T</span>神器</b><small>SMART INTRADAY SYSTEM</small></span></a>
+      <a className="public-brand" href="#top" aria-label="双兔助手 做T神器首页"><img src="/rabbit-logo-compact.png" alt="双兔助手双兔标志"/><span><b>双兔助手</b><small>做T神器 · SMART-T SYSTEM</small></span></a>
       <nav aria-label="产品导航"><a href="#features">核心功能</a><a href="#workflow">使用流程</a><a href="#safety">安全边界</a><Link href="/?view=zijin-lab" onClick={event=>{event.preventDefault();openZijinExperiment()}}>紫金实验进度</Link></nav>
       <button onClick={onAccount}>登录 / 注册</button>
     </header>
@@ -44,6 +44,6 @@ export default function PublicLanding({onDemo,onAccount}:PublicLandingProps) {
 
     <section className="public-safety" id="safety"><div><span>COMMERCIAL READINESS</span><h2>当前是公开测试，不伪装成正式券商终端</h2></div><div><p><b>已经上线</b><span>服务器账户、跨设备监控清单、持仓参数同步和管理员密码重置已经开放测试。</span></p><p><b>安全边界</b><span>行情来源与时效非交易级；信号只用于研究和提醒；演示结果与真实账户严格区分。</span></p><p><b>尚未开放</b><span>收费套餐、券商下单、自动交易与收益承诺均未开放；运营主体与客服信息将在收费前公示。</span></p></div></section>
 
-    <footer className="public-footer"><div><b>做T神器</b><span>Rabbit Quant · A 股日内策略研究工具</span></div><nav><a href="/terms">用户协议</a><a href="/privacy">隐私政策</a><button onClick={onAccount}>登录 / 注册</button></nav><small>© 2026 Rabbit Quant · 公开测试版 · 不构成投资建议</small></footer>
+    <footer className="public-footer"><div><b>双兔助手 · 做T神器</b><span>Rabbit Quant · A 股日内策略研究工具</span></div><nav><a href="/terms">用户协议</a><a href="/privacy">隐私政策</a><button onClick={onAccount}>登录 / 注册</button></nav><small>© 2026 Rabbit Quant · 公开测试版 · 不构成投资建议</small></footer>
   </main>;
 }

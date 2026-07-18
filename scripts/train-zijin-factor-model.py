@@ -348,6 +348,30 @@ def selection_score(summary: dict[str, object], annual: list[dict[str, object]])
     )
 
 
+def passes_training_gate(summary: dict[str, object], annual: list[dict[str, object]]) -> bool:
+    """Only a positive, cross-year-stable training candidate may see 2025 data."""
+    return (
+        int(summary["trades"]) >= 90
+        and float(summary["averageNetPct"]) > 0
+        and float(summary["winRate"] or 0) >= 0.55
+        and all(
+            int(item["trades"]) >= 20
+            and float(item["averageNetPct"]) > 0
+            and float(item["winRate"] or 0) >= 0.50
+            for item in annual
+        )
+    )
+
+
+def passes_validation_gate(summary: dict[str, object]) -> bool:
+    """Keep 2026 blind data sealed unless the untouched 2025 sample passes."""
+    return (
+        int(summary["trades"]) >= 30
+        and float(summary["averageNetPct"]) > 0
+        and float(summary["winRate"] or 0) >= 0.55
+    )
+
+
 def annual_summaries(
     trades: list[dict[str, object]], years: set[str]
 ) -> list[dict[str, object]]:
@@ -404,6 +428,7 @@ def main() -> None:
 
     grid = SEARCH_GRIDS[args.search_profile]
     leaderboard: list[tuple[float, dict[str, float], dict[str, object]]] = []
+    qualified_leaderboard: list[tuple[float, dict[str, float], dict[str, object]]] = []
     combinations = list(itertools.product(
         grid["vwapBiasPct"], grid["turn3Pct"], grid["volumeRatio"]
     ))
@@ -415,7 +440,10 @@ def main() -> None:
         annual = annual_summaries(train_trades, train_years)
         score = selection_score(train_summary, annual)
         if math.isfinite(score):
-            leaderboard.append((score, config, {**train_summary, "annual": annual}))
+            candidate = (score, config, {**train_summary, "annual": annual})
+            leaderboard.append(candidate)
+            if passes_training_gate(train_summary, annual):
+                qualified_leaderboard.append(candidate)
         if (
             candidate_index == 1
             or candidate_index % progress_interval == 0
@@ -443,44 +471,53 @@ def main() -> None:
     if not leaderboard:
         raise SystemExit("训练集未找到满足最低样本量的候选")
     leaderboard.sort(key=lambda item: item[0], reverse=True)
-    score, selected, training = leaderboard[0]
-    atomic_write_json(progress_path, progress_payload(
-        run_id, "running", "validation", 82,
-        processed=len(combinations), total=len(combinations),
-        message="挑战兔正在使用未参与选参的 2025 年样本验证",
-        latest={
-            "trainingTrades": int(training["trades"]),
-            "trainingWinRate": training["winRate"],
-            "trainingAverageNetPct": training["averageNetPct"],
-        },
-    ))
-    validation_trades = collect_trades(sessions, feature_map, selected, validation_years)
-    validation = summarize(validation_trades)
-    atomic_write_json(progress_path, progress_payload(
-        run_id, "running", "blind-test", 92,
-        processed=len(combinations), total=len(combinations),
-        message="风控兔正在读取从未参与训练与选参的 2026 年盲测样本",
-        latest={
-            "trainingWinRate": training["winRate"],
-            "trainingAverageNetPct": training["averageNetPct"],
-            "validationTrades": int(validation["trades"]),
-            "validationWinRate": validation["winRate"],
-            "validationAverageNetPct": validation["averageNetPct"],
-        },
-    ))
-    blind_trades = collect_trades(sessions, feature_map, selected, blind_years)
-    blind = summarize(blind_trades)
-    passed_training_gate = (
-        float(training["averageNetPct"]) > 0
-        and float(training["winRate"] or 0) >= 0.55
-        and all(float(item["averageNetPct"]) > 0 for item in training["annual"])
+    qualified_leaderboard.sort(key=lambda item: item[0], reverse=True)
+    score, selected, training = (
+        qualified_leaderboard[0] if qualified_leaderboard else leaderboard[0]
     )
-    passed_validation_gate = (
-        passed_training_gate
-        and int(validation["trades"]) >= 30
-        and float(validation["averageNetPct"]) > 0
-        and float(validation["winRate"] or 0) >= 0.55
-    )
+    passed_training_gate = passes_training_gate(training, training["annual"])
+    validation_ran = False
+    blind_ran = False
+    validation = summarize([])
+    blind = summarize([])
+    passed_validation_gate = False
+
+    if passed_training_gate:
+        atomic_write_json(progress_path, progress_payload(
+            run_id, "running", "validation", 82,
+            processed=len(combinations), total=len(combinations),
+            message="挑战兔正在使用未参与选参的 2025 年样本验证",
+            latest={
+                "trainingTrades": int(training["trades"]),
+                "trainingWinRate": training["winRate"],
+                "trainingAverageNetPct": training["averageNetPct"],
+                "qualifiedCandidates": len(qualified_leaderboard),
+                "validationRan": False,
+                "blindRan": False,
+            },
+        ))
+        validation = summarize(collect_trades(sessions, feature_map, selected, validation_years))
+        validation_ran = True
+        passed_validation_gate = passes_validation_gate(validation)
+
+        if passed_validation_gate:
+            atomic_write_json(progress_path, progress_payload(
+                run_id, "running", "blind-test", 92,
+                processed=len(combinations), total=len(combinations),
+                message="风控兔正在读取从未参与训练与选参的 2026 年盲测样本",
+                latest={
+                    "trainingWinRate": training["winRate"],
+                    "trainingAverageNetPct": training["averageNetPct"],
+                    "validationTrades": int(validation["trades"]),
+                    "validationWinRate": validation["winRate"],
+                    "validationAverageNetPct": validation["averageNetPct"],
+                    "qualifiedCandidates": len(qualified_leaderboard),
+                    "validationRan": True,
+                    "blindRan": False,
+                },
+            ))
+            blind = summarize(collect_trades(sessions, feature_map, selected, blind_years))
+            blind_ran = True
 
     dates = sorted(sessions)
     evidence = {
@@ -515,13 +552,21 @@ def main() -> None:
         },
         "selectedModel": {
             "selectedOn": "training-only",
+            "candidateRole": "qualified" if passed_training_gate else "audit-only",
+            "qualifiedCandidates": len(qualified_leaderboard),
             "vwapBiasPct": selected["vwapBiasPct"],
             "turn3Pct": selected["turn3Pct"],
             "volumeRatio": selected["volumeRatio"],
             "trainingScore": round(score, 6),
             "passedTrainingGate": passed_training_gate,
             "passedValidationGate": passed_validation_gate,
-            "status": "待2026盲测审计" if passed_validation_gate else "未通过研究门槛",
+            "status": (
+                "已完成2026盲测，等待人工评审"
+                if blind_ran
+                else "2025验证未通过，2026保持封存"
+                if validation_ran
+                else "训练门槛未通过，2025与2026保持封存"
+            ),
         },
         "results": {
             "training": training,
@@ -530,9 +575,9 @@ def main() -> None:
         },
         "fourRabbits": {
             "trainingRabbit": "仅使用 2022-2024 网格寻找候选阈值",
-            "challengeRabbit": "使用未参与选参的 2025 样本外验证",
+            "challengeRabbit": "仅在训练门槛通过后，使用未参与选参的 2025 样本外验证",
             "formalRabbit": "通过训练与验证门槛后仍需人工评审；当前未进入正式 V4",
-            "riskRabbit": "2026 盲测、费用、止损、回撤与同K冲突保守处理",
+            "riskRabbit": "仅在2025验证通过后开启2026盲测；费用、止损、回撤与同K冲突保守处理",
         },
         "topTrainingCandidates": [
             {
@@ -553,7 +598,13 @@ def main() -> None:
     atomic_write_json(progress_path, progress_payload(
         run_id, "completed", "completed", 100,
         processed=len(combinations), total=len(combinations),
-        message="本轮因果训练、样本外验证与盲测已完成",
+        message=(
+            "训练、样本外验证与最终盲测已按门禁完成"
+            if blind_ran
+            else "训练已完成；2025验证未通过，2026盲测保持封存"
+            if validation_ran
+            else "训练已完成；无合格候选，2025与2026样本保持封存"
+        ),
         latest={
             "trainingTrades": int(training["trades"]),
             "trainingWinRate": training["winRate"],
@@ -566,6 +617,14 @@ def main() -> None:
             "blindAverageNetPct": blind["averageNetPct"],
             "passedTrainingGate": passed_training_gate,
             "passedValidationGate": passed_validation_gate,
+            "qualifiedCandidates": len(qualified_leaderboard),
+            "validationRan": validation_ran,
+            "blindRan": blind_ran,
+            "nextAction": (
+                "等待人工评审"
+                if blind_ran
+                else "补充真实外部因子后开启新一轮训练；不重复消耗封存样本"
+            ),
             "elapsedSeconds": evidence["elapsedSeconds"],
         },
     ))
