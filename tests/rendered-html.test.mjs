@@ -125,26 +125,49 @@ test("Zijin factor research is visibly isolated from the execution strategy", as
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /紫金矿业专属因子研究/);
   assert.match(source, /与 Smart‑T V4 隔离/);
-  assert.match(source, /当前展示最近一次离线训练结果/);
-  assert.match(source, /数据更新后需重新启动训练/);
-  assert.match(source, /盘中判断只读取当前及此前分钟/);
+  assert.match(source, /这里展示最近一次离线训练结果/);
+  assert.match(source, /数据更新后需要重新训练/);
+  assert.match(source, /盘中判断不会读取未来分钟/);
   assert.match(source, /analyzeZijinFactorResearch/);
   assert.match(source, /zijinPatternDiscovery/);
   assert.match(source, /zijinPeerPatternDiscovery/);
   assert.match(source, /zijinExternalFactorReadiness/);
   assert.match(source, /zijinRound2RegimeAudit/);
-  assert.match(source, /第二轮内部分型审计/);
-  assert.match(source, /2026 继续封存/);
-  assert.match(source, /扣费后净期望仍为负/);
-  assert.match(source, /阶段三数据接入/);
-  assert.match(source, /实时参考已连通，历史训练尚未启动/);
-  assert.match(source, /不会伪装成持续训练/);
+  assert.match(source, /不同市场状态都测过了吗/);
+  assert.match(source, /2026 不参与调参/);
+  assert.match(source, /扣掉费用后，长期平均仍会亏/);
+  assert.match(source, /紫金规律扫描 · 外部参考/);
+  assert.match(source, /今天能不能直接用/);
+  assert.match(source, /这些专业词是什么意思/);
+  assert.match(source, /盘中参考已经可用，长期训练还缺历史数据/);
+  assert.match(source, /一句话理解/);
+  assert.match(source, /实时数据用来帮助解释/);
+  assert.match(source, /历史训练：/);
+  assert.match(source, /不代表系统仍在持续训练/);
   assert.match(source, /紫金规律扫描/);
   assert.match(source, /阶段二已完成/);
   assert.match(source, /胜率不能靠回看最高低点制造/);
   assert.match(styles, /\.zijin-pattern-result\{/);
   assert.match(styles, /\.zijin-external-sources\{/);
+  assert.match(styles, /\.zijin-external-summary\{/);
+  assert.match(styles, /\.zijin-external-conclusion\{/);
   assert.match(styles, /\.zijin-regime-audit\{/);
+});
+
+test("mobile layout keeps core product flows usable on phones", async () => {
+  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const mobile = await readFile(new URL("../app/mobile.css", import.meta.url), "utf8");
+
+  assert.match(layout, /import type \{ Metadata, Viewport \} from "next"/);
+  assert.match(layout, /viewportFit: "cover"/);
+  assert.match(layout, /import "\.\/mobile\.css"/);
+  assert.match(mobile, /@media \(max-width: 760px\)/);
+  assert.match(mobile, /env\(safe-area-inset-bottom\)/);
+  assert.match(mobile, /\.main-nav\s*\{/);
+  assert.match(mobile, /\.workspace\s*\{/);
+  assert.match(mobile, /\.backtest-grid/);
+  assert.match(mobile, /\.research-grid/);
+  assert.match(mobile, /\.zijin-external-sources/);
 });
 
 test("Zijin experiment progress has a stable deep link and explicit delivery stages", async () => {

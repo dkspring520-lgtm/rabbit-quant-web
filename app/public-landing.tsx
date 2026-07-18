@@ -21,7 +21,7 @@ export default function PublicLanding({onDemo,onAccount}:PublicLandingProps) {
   };
   return <main className="public-site">
     <header className="public-nav">
-      <a className="public-brand" href="#top" aria-label="双兔助手 做T神器首页"><img src="/rabbit-logo-compact.png" alt="双兔助手双兔标志"/><span><b>双兔助手</b><small>做T神器 · SMART-T SYSTEM</small></span></a>
+      <a className="public-brand" href="#top" aria-label="双兔助手 做T神器首页"><img className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志"/><span><b>双兔助手</b><small>做T神器 · SMART-T SYSTEM</small></span></a>
       <nav aria-label="产品导航"><a href="#features">核心功能</a><a href="#workflow">使用流程</a><a href="#safety">安全边界</a><Link href="/?view=zijin-lab" onClick={event=>{event.preventDefault();openZijinExperiment()}}>紫金实验进度</Link></nav>
       <button onClick={onAccount}>登录 / 注册</button>
     </header>

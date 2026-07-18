@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./backtest.css";
 import "./holdings.css";
@@ -11,6 +11,13 @@ import "./watchlist.css";
 import "./marketplace.css";
 import "./public-landing.css";
 import "./legal.css";
+import "./mobile.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "双兔助手｜做T神器｜A股日内量化决策终端",
