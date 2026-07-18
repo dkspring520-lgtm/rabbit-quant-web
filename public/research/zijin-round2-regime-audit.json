@@ -1,0 +1,230 @@
+{
+  "schemaVersion": 1,
+  "stage": 4,
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "mode": "research-only",
+  "affectsV4": false,
+  "status": "blocked",
+  "dataset": {
+    "firstDate": "20220104",
+    "lastDateUsed": "20251231",
+    "blindSet": "2026 封存，未用于本轮分型与排序",
+    "minuteRowsLoaded": 233529,
+    "causalCandidates": 14185
+  },
+  "methodology": {
+    "training": "2022-2024",
+    "validation": "2025",
+    "blindTest": "2026 sealed",
+    "selectionUsesBlindTest": false,
+    "earliestFill": "下一分钟开盘价",
+    "futureUse": "仅作为收益标签",
+    "roundTripCostPct": 0.12,
+    "netProfitZonePct": [
+      0.64,
+      1.0
+    ],
+    "targetValidationWinRate": 0.65
+  },
+  "externalReadiness": {
+    "ready": 0,
+    "required": 5,
+    "trainingReady": false
+  },
+  "regimes": [
+    {
+      "id": "range_rotation",
+      "label": "震荡区间轮动",
+      "training": {
+        "trades": 757,
+        "wins": 279,
+        "winRate": 0.3686,
+        "averageNetPct": -0.1192,
+        "totalNetPct": -90.2626,
+        "targetRate": 0.214,
+        "averageHoldMinutes": 38.76
+      },
+      "validation": {
+        "trades": 256,
+        "wins": 117,
+        "winRate": 0.457,
+        "averageNetPct": -0.0557,
+        "totalNetPct": -14.2687,
+        "targetRate": 0.2305,
+        "averageHoldMinutes": 38.95
+      },
+      "passedTrainingGate": false,
+      "passedValidationGate": false,
+      "blockers": [
+        "训练胜率低于 55%",
+        "训练扣费后净期望不为正",
+        "2025 验证胜率低于 65%",
+        "2025 验证扣费后净期望不为正"
+      ]
+    },
+    {
+      "id": "vwap_reversion",
+      "label": "VWAP 偏离回归",
+      "training": {
+        "trades": 1424,
+        "wins": 537,
+        "winRate": 0.3771,
+        "averageNetPct": -0.1334,
+        "totalNetPct": -189.9998,
+        "targetRate": 0.2317,
+        "averageHoldMinutes": 32.77
+      },
+      "validation": {
+        "trades": 481,
+        "wins": 173,
+        "winRate": 0.3597,
+        "averageNetPct": -0.1256,
+        "totalNetPct": -60.3928,
+        "targetRate": 0.2308,
+        "averageHoldMinutes": 33.29
+      },
+      "passedTrainingGate": false,
+      "passedValidationGate": false,
+      "blockers": [
+        "训练胜率低于 55%",
+        "训练扣费后净期望不为正",
+        "2025 验证胜率低于 65%",
+        "2025 验证扣费后净期望不为正"
+      ]
+    },
+    {
+      "id": "unclassified",
+      "label": "暂未归类",
+      "training": {
+        "trades": 1373,
+        "wins": 485,
+        "winRate": 0.3532,
+        "averageNetPct": -0.134,
+        "totalNetPct": -184.0324,
+        "targetRate": 0.2899,
+        "averageHoldMinutes": 23.55
+      },
+      "validation": {
+        "trades": 463,
+        "wins": 164,
+        "winRate": 0.3542,
+        "averageNetPct": -0.1424,
+        "totalNetPct": -65.9468,
+        "targetRate": 0.2765,
+        "averageHoldMinutes": 23.17
+      },
+      "passedTrainingGate": false,
+      "passedValidationGate": false,
+      "blockers": [
+        "训练胜率低于 55%",
+        "训练扣费后净期望不为正",
+        "2025 验证胜率低于 65%",
+        "2025 验证扣费后净期望不为正"
+      ]
+    },
+    {
+      "id": "opening_repair",
+      "label": "开盘缺口修复",
+      "training": {
+        "trades": 94,
+        "wins": 34,
+        "winRate": 0.3617,
+        "averageNetPct": -0.1275,
+        "totalNetPct": -11.9833,
+        "targetRate": 0.3298,
+        "averageHoldMinutes": 21.28
+      },
+      "validation": {
+        "trades": 34,
+        "wins": 9,
+        "winRate": 0.2647,
+        "averageNetPct": -0.2027,
+        "totalNetPct": -6.8918,
+        "targetRate": 0.2647,
+        "averageHoldMinutes": 19.79
+      },
+      "passedTrainingGate": false,
+      "passedValidationGate": false,
+      "blockers": [
+        "训练胜率低于 55%",
+        "训练扣费后净期望不为正",
+        "2025 验证胜率低于 65%",
+        "2025 验证扣费后净期望不为正"
+      ]
+    },
+    {
+      "id": "trend_pullback",
+      "label": "趋势回踩确认",
+      "training": {
+        "trades": 8,
+        "wins": 2,
+        "winRate": 0.25,
+        "averageNetPct": -0.1913,
+        "totalNetPct": -1.5307,
+        "targetRate": 0.25,
+        "averageHoldMinutes": 16.38
+      },
+      "validation": {
+        "trades": 1,
+        "wins": 0,
+        "winRate": 0.0,
+        "averageNetPct": -0.57,
+        "totalNetPct": -0.57,
+        "targetRate": 0.0,
+        "averageHoldMinutes": 4.0
+      },
+      "passedTrainingGate": false,
+      "passedValidationGate": false,
+      "blockers": [
+        "训练独立交易不足 80 笔",
+        "训练胜率低于 55%",
+        "训练扣费后净期望不为正",
+        "2025 验证交易不足 30 笔",
+        "2025 验证胜率低于 65%",
+        "2025 验证扣费后净期望不为正"
+      ]
+    },
+    {
+      "id": "impulse_exhaustion",
+      "label": "急涨急跌衰竭",
+      "training": {
+        "trades": 35,
+        "wins": 12,
+        "winRate": 0.3429,
+        "averageNetPct": -0.1818,
+        "totalNetPct": -6.3615,
+        "targetRate": 0.2857,
+        "averageHoldMinutes": 14.63
+      },
+      "validation": {
+        "trades": 1,
+        "wins": 0,
+        "winRate": 0.0,
+        "averageNetPct": -0.57,
+        "totalNetPct": -0.57,
+        "targetRate": 0.0,
+        "averageHoldMinutes": 18.0
+      },
+      "passedTrainingGate": false,
+      "passedValidationGate": false,
+      "blockers": [
+        "训练独立交易不足 80 笔",
+        "训练胜率低于 55%",
+        "训练扣费后净期望不为正",
+        "2025 验证交易不足 30 笔",
+        "2025 验证胜率低于 65%",
+        "2025 验证扣费后净期望不为正"
+      ]
+    }
+  ],
+  "qualifiedRegimes": 0,
+  "conclusion": {
+    "message": "内部行情已分型，但没有场景同时通过训练和 2025 样本外门槛；外部因子未齐前不重复消耗 2026 盲测。",
+    "nextAction": "补齐金价、铜价、指数、港股紫金与事件时钟，按分型分别训练；不修改 Smart-T V4。"
+  },
+  "generatedAt": "2026-07-18T20:20:07+0800",
+  "elapsedSeconds": 34.86
+}

@@ -132,6 +132,10 @@ test("Zijin factor research is visibly isolated from the execution strategy", as
   assert.match(source, /zijinPatternDiscovery/);
   assert.match(source, /zijinPeerPatternDiscovery/);
   assert.match(source, /zijinExternalFactorReadiness/);
+  assert.match(source, /zijinRound2RegimeAudit/);
+  assert.match(source, /第二轮内部分型审计/);
+  assert.match(source, /2026 继续封存/);
+  assert.match(source, /扣费后净期望仍为负/);
   assert.match(source, /阶段三数据接入/);
   assert.match(source, /当前没有启动外部因子训练/);
   assert.match(source, /不会伪装成持续训练/);
@@ -140,6 +144,7 @@ test("Zijin factor research is visibly isolated from the execution strategy", as
   assert.match(source, /胜率不能靠回看最高低点制造/);
   assert.match(styles, /\.zijin-pattern-result\{/);
   assert.match(styles, /\.zijin-external-sources\{/);
+  assert.match(styles, /\.zijin-regime-audit\{/);
 });
 
 test("Zijin experiment progress has a stable deep link and explicit delivery stages", async () => {
