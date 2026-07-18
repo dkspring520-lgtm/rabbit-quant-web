@@ -1881,7 +1881,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
     try {
       let universeResponse:StockUniverseResponse={provider:"representative-fallback",total:representativeBacktestItems.length,fallback:true,stocks:representativeBacktestItems};
       try {
-        const response=await fetch("/api/stock-universe",{cache:"no-store"});
+        const response=await fetch("/api/stock-universe?pool=full-a-v1",{cache:"force-cache"});
         if(!response.ok)throw new Error("stock universe unavailable");
         const payload=await response.json() as StockUniverseResponse;
         const valid=(payload.stocks??[]).filter(item=>/^\d{6}$/.test(item.code)&&item.name);
