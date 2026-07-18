@@ -64,6 +64,8 @@ function normalizeSnapshot() {
   return [...new Map(stocks.map(item => [item.code, item])).values()];
 }
 
+const snapshotStocks = normalizeSnapshot();
+
 async function fetchEastmoneyPage(upstream: string, page: number) {
   const query = new URLSearchParams({
     pn: String(page),
@@ -122,12 +124,23 @@ async function loadEastmoneyUniverse() {
   throw lastError instanceof Error ? lastError : new Error("全A股列表暂不可用");
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const refreshLive = new URL(request.url).searchParams.get("refresh") === "live";
+  if (!refreshLive && snapshotStocks.length >= 3_000) {
+    return Response.json({
+      provider: "eastmoney-public-snapshot",
+      total: snapshotStocks.length,
+      fallback: false,
+      snapshot: true,
+      fetchedAt: new Date().toISOString(),
+      stocks: snapshotStocks,
+    }, { headers: universeHeaders });
+  }
   try {
     const stocks = await loadEastmoneyUniverse();
     return Response.json({ provider: "eastmoney-public", total: stocks.length, fallback: false, fetchedAt: new Date().toISOString(), stocks }, { headers: universeHeaders });
   } catch (error) {
-    const stocks = normalizeSnapshot();
+    const stocks = snapshotStocks;
     if (stocks.length >= 3_000) {
       return Response.json({
         provider: "eastmoney-public-snapshot",

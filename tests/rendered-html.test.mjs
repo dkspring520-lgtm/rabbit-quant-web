@@ -215,7 +215,7 @@ test("random 10-stock replay randomizes stock-days and separates references from
   const poolCodes = [...poolMatch[1].matchAll(/"(\d{6})"/g)].map((match) => match[1]);
   assert.ok(poolCodes.length >= 30);
   assert.equal(new Set(poolCodes).size, poolCodes.length);
-  assert.match(source, /fetch\("\/api\/stock-universe"/);
+  assert.match(source, /fetch\("\/api\/stock-universe\?pool=full-a-v1"/);
   assert.match(source, /diversifyStockUniverse\(universeResponse\.stocks,`\$\{seed\}:market`,recentCodes\)/);
   assert.match(source, /const sampledItems=queue\.slice\(0,10\)/);
   assert.match(source, /representative-fallback/);
