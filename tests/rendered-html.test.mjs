@@ -180,6 +180,7 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   assert.doesNotMatch(source, /在线观察中/);
   assert.doesNotMatch(source, /持续影子训练 · 每5分钟/);
   assert.doesNotMatch(source, /\+¥2,416/);
+  assert.match(source, /本轮训练已完成｜未通过验证，不进入 V4/);
 });
 
 test("random 10-stock replay randomizes stock-days and separates references from formal trades", async () => {

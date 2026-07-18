@@ -7,6 +7,8 @@ const progressUrl = new URL("../public/research/zijin-training-progress.json", i
 const patternUrl = new URL("../public/research/zijin-pattern-discovery.json", import.meta.url);
 const peerPatternUrl = new URL("../public/research/zijin-peer-pattern-discovery.json", import.meta.url);
 const externalReadinessUrl = new URL("../public/research/zijin-external-factor-readiness.json", import.meta.url);
+const composeUrl = new URL("../compose.web.yml", import.meta.url);
+const trainingStateSyncUrl = new URL("../scripts/sync-zijin-training-state.mjs", import.meta.url);
 
 test("Zijin historical evidence is causal, isolated and split before blind testing", async () => {
   const evidence = JSON.parse(await readFile(evidenceUrl, "utf8"));
@@ -63,6 +65,15 @@ test("Zijin training progress reports real completed work and all audit stages",
   assert.ok(progress.latest.validationTrades > 0);
   assert.ok(progress.latest.blindTrades > 0);
   assert.equal(progress.latest.passedValidationGate, false);
+});
+
+test("production startup publishes the latest Zijin training state to Nginx", async () => {
+  const compose = await readFile(composeUrl, "utf8");
+  const syncScript = await readFile(trainingStateSyncUrl, "utf8");
+  assert.match(compose, /\/opt\/rabbit-quant-state:\/training-state/);
+  assert.match(compose, /sync-zijin-training-state\.mjs/);
+  assert.match(syncScript, /stock\?\.code !== "601899"/);
+  assert.match(syncScript, /copyFile\(source, target\)/);
 });
 
 test("Zijin pattern discovery rejects unstable price-volume rules without future leakage", async () => {
