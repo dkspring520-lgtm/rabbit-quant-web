@@ -7,8 +7,14 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
+    command:
+      - sh
+      - -lc
+      - node scripts/sync-zijin-training-state.mjs public/research/zijin-training-progress.json /training-state/zijin-training-progress.json && exec npm start -- -p 3000 -H 0.0.0.0
     environment:
       CONTROL_PLANE_ORIGIN: http://control:3010
+    volumes:
+      - /opt/rabbit-quant-state:/training-state
     depends_on:
       control:
         condition: service_healthy
