@@ -9,6 +9,7 @@ import type { StockPosition } from "@/lib/stock-position.mjs";
 import { normalizeTradeLedgerRows, summarizeTradeLedger, tradeLedgerDate, tradeLedgerKey } from "@/lib/trade-ledger.mjs";
 import type { TradeLedgerRow } from "@/lib/trade-ledger.mjs";
 import { analyzeZijinFactorResearch } from "@/lib/zijin-factor-research.mjs";
+import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { evaluateStockAgent, resolveStockAgent } from "@/lib/stock-agent-router.mjs";
 import zijinHistoricalEvidence from "@/public/research/zijin-factor-evidence.json";
 import zijinPatternDiscovery from "@/public/research/zijin-pattern-discovery.json";

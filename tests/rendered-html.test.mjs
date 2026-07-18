@@ -35,6 +35,15 @@ test("does not render development preview metadata", async () => {
   assert.doesNotMatch(html, /做人神器/);
 });
 
+test("Zijin research imports every opening-playbook symbol it executes", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(
+    source,
+    /import \{ evaluateZijinOpeningPlaybook \} from "@\/lib\/zijin-opening-playbook\.mjs";/,
+  );
+  assert.match(source, /evaluateZijinOpeningPlaybook\(opening\.slice\(0,index\+1\)/);
+});
+
 test("brand keeps a distinct ASCII T and never regresses to the wrong name", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/typography.css", import.meta.url), "utf8");
