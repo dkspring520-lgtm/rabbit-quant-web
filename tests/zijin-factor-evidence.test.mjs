@@ -9,6 +9,7 @@ const peerPatternUrl = new URL("../public/research/zijin-peer-pattern-discovery.
 const externalReadinessUrl = new URL("../public/research/zijin-external-factor-readiness.json", import.meta.url);
 const composeUrl = new URL("../compose.web.yml", import.meta.url);
 const trainingStateSyncUrl = new URL("../scripts/sync-zijin-training-state.mjs", import.meta.url);
+const trainingProgressApiUrl = new URL("../app/api/research/zijin-training-progress/route.ts", import.meta.url);
 
 test("Zijin historical evidence is causal, isolated and split before blind testing", async () => {
   const evidence = JSON.parse(await readFile(evidenceUrl, "utf8"));
@@ -71,13 +72,20 @@ test("Zijin training progress reports real completed work and all audit stages",
   assert.equal(progress.latest.passedValidationGate, false);
 });
 
-test("production startup publishes the latest Zijin training state to Nginx", async () => {
+test("production preserves and dynamically serves the latest Zijin training state", async () => {
   const compose = await readFile(composeUrl, "utf8");
   const syncScript = await readFile(trainingStateSyncUrl, "utf8");
+  const apiRoute = await readFile(trainingProgressApiUrl, "utf8");
   assert.match(compose, /\/opt\/rabbit-quant-state:\/training-state/);
+  assert.match(compose, /ZIJIN_TRAINING_STATE_PATH: \/training-state\/zijin-training-progress\.json/);
   assert.match(compose, /sync-zijin-training-state\.mjs/);
-  assert.match(syncScript, /stock\?\.code !== "601899"/);
+  assert.match(syncScript, /stock\?\.code === "601899"/);
+  assert.match(syncScript, /keep newer runtime state/);
+  assert.match(syncScript, /updatedAt\(current\) > updatedAt\(progress\)/);
   assert.match(syncScript, /copyFile\(source, target\)/);
+  assert.match(apiRoute, /ZIJIN_TRAINING_STATE_PATH/);
+  assert.match(apiRoute, /"Cache-Control": "no-store/);
+  assert.match(apiRoute, /Date\.now\(\) - updatedAt > 10 \* 60 \* 1000/);
 });
 
 test("Zijin pattern discovery rejects unstable price-volume rules without future leakage", async () => {
