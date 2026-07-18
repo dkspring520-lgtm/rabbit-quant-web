@@ -48,16 +48,33 @@ async function loadEastmoneyUniverse() {
     fs: "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048",
     fields: "f12,f13,f14,f100",
   });
-  const response = await fetch(`https://push2.eastmoney.com/api/qt/clist/get?${query}`, {
-    signal: AbortSignal.timeout(10_000),
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; SmartTUniverse/1.0)",
-      Referer: "https://quote.eastmoney.com/center/gridlist.html",
-      Accept: "application/json,text/plain,*/*",
-    },
-  });
-  if (!response.ok) throw new Error(`全A股列表返回 ${response.status}`);
-  const payload = await response.json() as { data?: { diff?: EastmoneyStock[] } };
+  const upstreams = [
+    "https://push2.eastmoney.com",
+    "https://push2delay.eastmoney.com",
+    "https://82.push2.eastmoney.com",
+  ];
+  let payload: { data?: { diff?: EastmoneyStock[] } } | null = null;
+  let lastError: unknown;
+  for (const upstream of upstreams) {
+    try {
+      const response = await fetch(`${upstream}/api/qt/clist/get?${query}`, {
+        signal: AbortSignal.timeout(12_000),
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; SmartTUniverse/1.0)",
+          Referer: "https://quote.eastmoney.com/center/gridlist.html",
+          Accept: "application/json,text/plain,*/*",
+        },
+      });
+      if (!response.ok) throw new Error(`全A股列表返回 ${response.status}`);
+      const candidate = await response.json() as { data?: { diff?: EastmoneyStock[] } };
+      if ((candidate.data?.diff?.length ?? 0) < 3_000) throw new Error("全A股列表返回不完整");
+      payload = candidate;
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!payload) throw lastError instanceof Error ? lastError : new Error("全A股列表暂不可用");
   const stocks = (payload.data?.diff ?? []).flatMap(item => {
     const code = String(item.f12 ?? "").trim();
     const name = String(item.f14 ?? "").trim();
@@ -77,6 +94,6 @@ export async function GET() {
     return Response.json({
       provider: "representative-fallback", total: representativeFallback.length, fallback: true,
       fetchedAt: new Date().toISOString(), warning: error instanceof Error ? error.message : "全A股列表暂不可用", stocks: representativeFallback,
-    }, { headers: { ...universeHeaders, "X-Stock-Universe-Fallback": "1" } });
+    }, { headers: { "Cache-Control": "no-store", "CDN-Cache-Control": "no-store", "Cloudflare-CDN-Cache-Control": "no-store", "X-Stock-Universe-Fallback": "1" } });
   }
 }
