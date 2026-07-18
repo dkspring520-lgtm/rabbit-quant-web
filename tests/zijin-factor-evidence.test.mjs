@@ -7,6 +7,7 @@ const progressUrl = new URL("../public/research/zijin-training-progress.json", i
 const patternUrl = new URL("../public/research/zijin-pattern-discovery.json", import.meta.url);
 const peerPatternUrl = new URL("../public/research/zijin-peer-pattern-discovery.json", import.meta.url);
 const externalReadinessUrl = new URL("../public/research/zijin-external-factor-readiness.json", import.meta.url);
+const round2RegimeAuditUrl = new URL("../public/research/zijin-round2-regime-audit.json", import.meta.url);
 const composeUrl = new URL("../compose.web.yml", import.meta.url);
 const trainingStateSyncUrl = new URL("../scripts/sync-zijin-training-state.mjs", import.meta.url);
 const trainingProgressApiUrl = new URL("../app/api/research/zijin-training-progress/route.ts", import.meta.url);
@@ -45,6 +46,26 @@ test("Zijin stage-three external factors refuse to train before real data is rea
   assert.equal(readiness.coverage.trainingReady, false);
   assert.equal(readiness.requiredSources.length, 5);
   assert.ok(readiness.requiredSources.every(source => source.status === "missing"));
+});
+
+test("Zijin round-two regime audit keeps 2026 sealed and refuses negative expectancy", async () => {
+  const audit = JSON.parse(await readFile(round2RegimeAuditUrl, "utf8"));
+  assert.equal(audit.stock.code, "601899");
+  assert.equal(audit.stock.name, "紫金矿业");
+  assert.equal(audit.stage, 4);
+  assert.equal(audit.affectsV4, false);
+  assert.equal(audit.methodology.training, "2022-2024");
+  assert.equal(audit.methodology.validation, "2025");
+  assert.equal(audit.methodology.blindTest, "2026 sealed");
+  assert.equal(audit.methodology.selectionUsesBlindTest, false);
+  assert.equal(audit.methodology.earliestFill, "下一分钟开盘价");
+  assert.equal(audit.methodology.targetValidationWinRate, 0.65);
+  assert.equal(audit.externalReadiness.trainingReady, false);
+  assert.equal(audit.qualifiedRegimes, 0);
+  assert.equal(audit.status, "blocked");
+  assert.ok(audit.regimes.length >= 5);
+  assert.ok(audit.regimes.every(regime => regime.passedValidationGate === false));
+  assert.ok(audit.regimes.some(regime => regime.validation.trades > 0));
 });
 
 test("a failed factor audit is not promoted into Smart-T V4", async () => {
@@ -137,6 +158,7 @@ test("Zijin public research JSON does not regress to mojibake copy", async () =>
     patternUrl,
     peerPatternUrl,
     externalReadinessUrl,
+    round2RegimeAuditUrl,
   ];
   const mojibake = /绱|鏈|鍥|鐩|璁|闂|鍙|鍏|锛|鈥||||/;
 
