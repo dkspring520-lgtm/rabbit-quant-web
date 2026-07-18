@@ -23,7 +23,11 @@
     "blindAverageNetPct": -0.0715,
     "passedTrainingGate": false,
     "passedValidationGate": false,
-    "elapsedSeconds": 503.14
+    "elapsedSeconds": 503.14,
+    "qualifiedCandidates": 0,
+    "validationRan": true,
+    "blindRan": true,
+    "nextAction": "补充真实外部因子后开启新一轮训练；不重复使用2026盲测调参"
   },
   "updatedAt": "2026-07-18T02:21:45+0800"
 }

@@ -50,6 +50,7 @@ type ZijinTrainingProgress = {
     validationTrades?:number; validationWinRate?:number|null; validationAverageNetPct?:number;
     blindTrades?:number; blindWinRate?:number|null; blindAverageNetPct?:number;
     passedTrainingGate?:boolean; passedValidationGate?:boolean; elapsedSeconds?:number;
+    qualifiedCandidates?:number; validationRan?:boolean; blindRan?:boolean; nextAction?:string;
   };
 };
 type AccountPreferences = { stock:string; baseShares:number; risk:string };
@@ -854,7 +855,7 @@ export default function Home() {
         ? `${item.name}，价格${latestObservation!.direction==="正T"?"低位":"高位"}偏离均价线，请观察确认，不是买卖指令`
         : `${item.name}，${latestObservation?.direction??"做T"}候选观察，不是买卖指令`;
       if(alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latest!.direction}${latest!.side}提醒`:candidateSpeech,isRisk);
-      if(alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`做T神器 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
+      if(alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
     }
   },[autoDecision.status,autoDecision.reason,liveEngine,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName]);
   useEffect(()=>{
@@ -875,7 +876,7 @@ export default function Home() {
           const level=item.level==='formal'?'signal':'candidate';
           queueAlert({level,rabbit:sell?'sell':'buy',title:item.title,message:item.message});
           if(serverAlertsInitialized.current&&item.level!=='watch'&&alertSettings.sound)speakAlert(`${item.title}，${item.level==='formal'?'正式信号':'候选观察'}`);
-          if(serverAlertsInitialized.current&&item.level!=='watch'&&alertSettings.system&&'Notification' in window&&Notification.permission==='granted')new Notification(`做T神器 · ${item.title}`,{body:item.message,tag:`server-${item.id}`});
+          if(serverAlertsInitialized.current&&item.level!=='watch'&&alertSettings.system&&'Notification' in window&&Notification.permission==='granted')new Notification(`双兔助手 · ${item.title}`,{body:item.message,tag:`server-${item.id}`});
           void fetch(`/api/control/alerts/${item.id}/ack`,{method:'POST',credentials:'include'}).catch(()=>{});
         }
         serverAlertsInitialized.current=true;
@@ -1107,7 +1108,7 @@ export default function Home() {
     try{localStorage.setItem(ledgerStorageKey,JSON.stringify(normalized));}catch{}
   };
 
-  if(!authReady) return <main className="auth-loading"><img src="/rabbit-logo-compact.png" alt="做T神器"/></main>;
+  if(!authReady) return <main className="auth-loading"><img src="/rabbit-logo-compact.png" alt="双兔助手 做T神器"/></main>;
   if(!localAuth){
     const enterDemo=()=>{setDemoMode(true);setAccountName('演示访客');setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true)};
     if(authScreen==='landing')return <PublicLanding onDemo={enterDemo} onAccount={()=>setAuthScreen('account')}/>;
@@ -1117,9 +1118,9 @@ export default function Home() {
   return (
     <main className={`app-shell session-${marketSession.tone}`}>
       <header className="topbar">
-        <div className="brand brand-lockup" aria-label="做T神器 Rabbit Smart-T">
-          <span className="brand-emblem"><img className="rabbit-logo" src="/rabbit-logo-compact.png" alt="做T神器双兔黑金品牌标志"/><i /></span>
-          <span className="brand-type"><strong aria-hidden="true"><span>做</span><span className="brand-ascii-t">T</span><span>神器</span></strong><small>SMART INTRADAY SYSTEM</small></span>
+        <div className="brand brand-lockup" aria-label="双兔助手 做T神器 Rabbit Smart-T">
+          <span className="brand-emblem"><img className="rabbit-logo" src="/rabbit-logo-compact.png" alt="双兔助手双兔黑金品牌标志"/><i /></span>
+          <span className="brand-type"><strong aria-hidden="true"><span>双兔助手</span></strong><small>做<span className="brand-ascii-t">T</span>神器 · SMART-T</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
           {['首页','操盘台','单股智研','多股监控','策略市场','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
@@ -1355,7 +1356,7 @@ function AuthView({onAuthenticated,onBack,onDemo}:{onAuthenticated:(name:string,
       <span><a href="/terms" target="_blank" rel="noreferrer">用户协议</a><i/> <a href="/privacy" target="_blank" rel="noreferrer">隐私政策</a></span>
       <button type="button" onClick={onDemo}>免注册演示</button>
     </div>
-    <section className="auth-brand-panel"><div className="auth-brand"><img src="/rabbit-brand-gold.png" alt="做T神器双兔黑金品牌标志"/><span><b aria-label="做T神器"><span aria-hidden="true">做</span><span className="brand-ascii-t" aria-hidden="true">T</span><span aria-hidden="true">神器</span></b><small>RABBIT QUANT</small></span></div><div className="auth-message"><span className="eyebrow">RABBIT SMART‑T</span><h1>把复杂的盘面，<br/><em>变成简单的操作。</em></h1><p>多股监控、正反T决策、当日仓位闭环与四兔持续训练。</p></div><div className="auth-points"><span><i/>市场雷达硬门控</span><span><i/>T+1可卖数量校验</span><span><i/>收盘恢复计划底仓</span></div><small className="auth-disclaimer">策略研究工具 · 不构成投资建议</small></section>
+    <section className="auth-brand-panel"><div className="auth-brand"><img src="/rabbit-brand-gold.png" alt="双兔助手双兔黑金品牌标志"/><span><b aria-label="双兔助手 做T神器"><span aria-hidden="true">双兔助手</span></b><small>做T神器 · RABBIT QUANT</small></span></div><div className="auth-message"><span className="eyebrow">RABBIT SMART‑T</span><h1>把复杂的盘面，<br/><em>变成简单的操作。</em></h1><p>多股监控、正反T决策、当日仓位闭环与四兔持续训练。</p></div><div className="auth-points"><span><i/>市场雷达硬门控</span><span><i/>T+1可卖数量校验</span><span><i/>收盘恢复计划底仓</span></div><small className="auth-disclaimer">策略研究工具 · 不构成投资建议</small></section>
     <section className="auth-form-panel"><div className="auth-card"><div className="auth-card-head"><span>{resetMode?'RESET PASSWORD':mode==='login'?'WELCOME BACK':'CREATE ACCOUNT'}</span><h2>{resetMode?'使用一次性重置码':mode==='login'?'登录做T神器':'创建服务器账户'}</h2><p>{resetMode?'输入管理员提供的 30 分钟有效重置码，并设置新密码。':mode==='login'?'继续查看你的监控、回测和训练记录。':'注册后可在电脑和手机使用同一监控清单。'}</p></div><div className="auth-tabs"><button className={mode==='login'&&!resetMode?'active':''} onClick={()=>{setMode('login');setResetMode(false);setError('')}}>登录</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setResetMode(false);setError('')}}>注册</button></div><label className="auth-field"><span>账号</span><input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" placeholder="用户名或邮箱"/></label>{resetMode&&<label className="auth-field"><span>一次性重置码</span><input value={resetToken} onChange={e=>setResetToken(e.target.value)} autoComplete="one-time-code" placeholder="粘贴管理员提供的重置码"/></label>}<label className="auth-field"><span>{resetMode?'新密码':'密码'}</span><div><input value={password} onChange={e=>setPassword(e.target.value)} type={showPassword?'text':'password'} autoComplete={mode==='login'&&!resetMode?'current-password':'new-password'} placeholder="至少 8 个字符"/><button onClick={()=>setShowPassword(!showPassword)} type="button">{showPassword?'隐藏':'显示'}</button></div></label>{mode==='register'&&!resetMode&&<><div className="password-strength"><span>密码强度</span><i className={strength>0?'on':''}/><i className={strength>1?'on':''}/><i className={strength>2?'on':''}/><i className={strength>3?'on':''}/><b>{strength<2?'较弱':strength<4?'可用':'较强'}</b></div><label className="auth-field"><span>确认密码</span><input value={confirm} onChange={e=>setConfirm(e.target.value)} type={showPassword?'text':'password'} autoComplete="new-password" placeholder="再次输入密码"/></label><label className="terms-check"><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/><span>我已阅读并同意《用户协议》和《隐私政策》，理解本工具不构成投资建议。</span></label></>}{mode==='login'&&!resetMode&&<div className="auth-options"><label><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/><span>记住登录</span></label><button type="button" onClick={()=>void requestReset()}>忘记密码？</button></div>}{resetMode&&<div className="auth-options"><span>重置后旧设备会自动退出</span><button type="button" onClick={()=>{setResetMode(false);setError('')}}>返回登录</button></div>}{error&&<div className="auth-error"><i>!</i>{error}</div>}<button className="auth-submit" onClick={submit} disabled={busy}>{busy?'正在验证…':resetMode?'更新密码':mode==='login'?'登录':'注册并进入'}<span>→</span></button><div className="auth-local-note"><i>i</i><p><b>服务器账户</b><span>账号、监控股票和持仓设置保存在服务器，可跨设备同步；密码仅保存为不可逆哈希。</span></p></div></div><footer className="auth-footer">© 2026 Rabbit Quant · 用户协议 · 隐私政策</footer></section>
   </main>;
 }
@@ -1480,17 +1481,23 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       return()=>window.clearTimeout(resetTimer);
     }
     let active=true;
+    let timer:number|undefined;
     const load=async()=>{
       try{
         const response=await fetch(`/research/zijin-training-progress.json?t=${Date.now()}`,{cache:"no-store"});
         if(!response.ok)throw new Error(`HTTP ${response.status}`);
         const payload=await response.json() as ZijinTrainingProgress;
-        if(active&&payload.stock?.code==="601899")setZijinTrainingProgress(payload);
-      }catch{/* 保留上一份真实状态；没有文件时不伪造训练进度。 */}
+        if(active&&payload.stock?.code==="601899"){
+          setZijinTrainingProgress(payload);
+          if(payload.status==="running")timer=window.setTimeout(()=>void load(),2000);
+        }
+      }catch{
+        /* 保留上一份真实状态；连接失败时低频重试，不伪造训练进度。 */
+        if(active)timer=window.setTimeout(()=>void load(),10000);
+      }
     };
     void load();
-    const timer=window.setInterval(()=>void load(),2000);
-    return()=>{active=false;window.clearInterval(timer)};
+    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
   },[stock.code]);
   const storageKey=`rabbit-stock-research:${accountName.toLowerCase()}:${stock.code}`;
   const [notes,setNotes]=useState<StockResearchNote[]>(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];return Array.isArray(parsed)?parsed:[]}catch{return [];}});
@@ -1554,23 +1561,26 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const quoteDirection=quote?.changePercent==null?'neutral':quote.changePercent>0?'positive':quote.changePercent<0?'negative':'neutral';
   const validationFinished=zijinTrainingProgress?.stage==="blind-test"||zijinTrainingProgress?.stage==="completed";
   const blindFinished=zijinTrainingProgress?.stage==="completed";
+  const validationRan=zijinTrainingProgress?.latest.validationRan??Boolean(validationFinished&&zijinTrainingProgress?.latest.validationTrades);
+  const blindRan=zijinTrainingProgress?.latest.blindRan??Boolean(blindFinished&&zijinTrainingProgress?.latest.blindTrades);
   const historicalPassed=zijinHistoricalEvidence.selectedModel.passedValidationGate;
   return <section className="stock-research-view">
     <div className="research-head"><div><span className="eyebrow">SINGLE STOCK RESEARCH · AUTO + REVIEW</span><h1>系统自动研究，用户只负责确认</h1><p>系统会读取这只股票的完整分时回放、日线股性和本机成交记录；你只需要确认结论是否有效，必要时补充一句原因。</p></div><button onClick={onOpenConsole}>去看今日信号 →</button></div>
     <div className="research-purpose"><b>这个页面只回答 3 个问题</b><div><p><i>01</i><span><strong>它平时怎么走？</strong><small>看振幅、趋势、量能和日内习惯</small></span></p><p><i>02</i><span><strong>什么做 T 条件更适合？</strong><small>根据历史记录形成观察方案</small></span></p><p><i>03</i><span><strong>今天的信号靠谱吗？</strong><small>把历史股性作为操盘台的参考背景</small></span></p></div><em>看实时买卖信号请进入“操盘台”</em></div>
     <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSamples.length} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
     {stock.code==="601899"&&<div id="zijin-experiment-progress" className={`zijin-training-live zijin-training-prominent ${zijinTrainingProgress?.status??'loading'}`}>
-      <div className="zijin-training-title"><div><span><i/>紫金矿业 · 四兔真实训练进度</span><b>{!zijinTrainingProgress?'正在连接服务器训练记录…':zijinTrainingProgress.status==="running"?zijinTrainingProgress.message:zijinTrainingProgress.latest.passedValidationGate?'本轮训练已完成｜通过验证，等待人工评审':'本轮训练已完成｜未通过验证，不进入 V4'}</b></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></div>
+      <div className="zijin-training-title"><div><span><i/>紫金矿业 · 四兔真实训练进度</span><b>{!zijinTrainingProgress?'正在连接服务器训练记录…':zijinTrainingProgress.status==="running"?zijinTrainingProgress.message:zijinTrainingProgress.latest.passedValidationGate?'本轮因果审计完成｜通过验证，等待人工评审':'本轮因果审计完成｜没有可晋级参数'}</b></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></div>
       <div className="zijin-training-track"><i style={{width:`${zijinTrainingProgress?.progress??0}%`}}/></div>
       {zijinTrainingProgress?<>
-        <div className="zijin-training-stats"><p><span>当前阶段</span><b>{zijinTrainingProgress.stage==="training"?"训练集选参":zijinTrainingProgress.stage==="validation"?"2025 样本外":zijinTrainingProgress.stage==="blind-test"?"2026 盲测":zijinTrainingProgress.stage==="completed"?"本轮完成":"数据准备"}</b><small>{zijinTrainingProgress.totalCandidates?`${zijinTrainingProgress.processedCandidates}/${zijinTrainingProgress.totalCandidates} 组参数`:"读取历史库"}</small></p><p><span>训练集</span><b>{zijinTrainingProgress.latest.trainingWinRate==null?'--':`${(zijinTrainingProgress.latest.trainingWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.trainingTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.trainingAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>样本外</span><b>{zijinTrainingProgress.latest.validationWinRate==null?'--':`${(zijinTrainingProgress.latest.validationWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.validationTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.validationAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>最终盲测</span><b>{zijinTrainingProgress.latest.blindWinRate==null?'--':`${(zijinTrainingProgress.latest.blindWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.blindTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.blindAverageNetPct?.toFixed(3)??'--'}%</small></p></div>
+        <div className="zijin-training-stats"><p><span>当前阶段</span><b>{zijinTrainingProgress.stage==="training"?"训练集选参":zijinTrainingProgress.stage==="validation"?"2025 样本外":zijinTrainingProgress.stage==="blind-test"?"2026 盲测":zijinTrainingProgress.stage==="completed"?"本轮完成":"数据准备"}</b><small>{zijinTrainingProgress.totalCandidates?`${zijinTrainingProgress.processedCandidates}/${zijinTrainingProgress.totalCandidates} 组参数`:"读取历史库"}</small></p><p><span>训练集</span><b>{zijinTrainingProgress.latest.trainingWinRate==null?'--':`${(zijinTrainingProgress.latest.trainingWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.trainingTrades??0} 笔 · 平均 {zijinTrainingProgress.latest.trainingAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>样本外</span><b>{validationFinished&&!validationRan?'封存':zijinTrainingProgress.latest.validationWinRate==null?'--':`${(zijinTrainingProgress.latest.validationWinRate*100).toFixed(1)}%`}</b><small>{validationFinished&&!validationRan?'训练门槛未过，未读取':`${zijinTrainingProgress.latest.validationTrades??0} 笔 · 平均 ${zijinTrainingProgress.latest.validationAverageNetPct?.toFixed(3)??'--'}%`}</small></p><p><span>最终盲测</span><b>{blindFinished&&!blindRan?'封存':zijinTrainingProgress.latest.blindWinRate==null?'--':`${(zijinTrainingProgress.latest.blindWinRate*100).toFixed(1)}%`}</b><small>{blindFinished&&!blindRan?'2025 未过，未读取':`${zijinTrainingProgress.latest.blindTrades??0} 笔 · 平均 ${zijinTrainingProgress.latest.blindAverageNetPct?.toFixed(3)??'--'}%`}</small></p></div>
         <div className="zijin-implementation-steps" aria-label="紫金矿业实验实施进度">
           <p className="done"><i>1</i><span><b>历史数据整理</b><small>4.3 年 1 分钟库已完成审计</small></span><em>已完成</em></p>
-          <p className={zijinTrainingProgress.stage==="training"?'pending':'done'}><i>2</i><span><b>因果参数训练</b><small>{zijinTrainingProgress.processedCandidates}/{zijinTrainingProgress.totalCandidates} 组参数，不读取未来分钟</small></span><em>{zijinTrainingProgress.stage==="training"?'进行中':'已完成'}</em></p>
-          <p className={!validationFinished?'pending':zijinTrainingProgress.latest.passedValidationGate?'done':'failed'}><i>3</i><span><b>样本外验证</b><small>只使用训练期未见过的 2025 数据</small></span><em>{!validationFinished?'等待':zijinTrainingProgress.latest.passedValidationGate?'通过':'未通过'}</em></p>
-          <p className={!blindFinished?'pending':zijinTrainingProgress.latest.passedValidationGate?'done':'failed'}><i>4</i><span><b>2026 最终盲测</b><small>用于判断候选参数能否继续观察</small></span><em>{!blindFinished?'等待':zijinTrainingProgress.latest.passedValidationGate?'完成':'保留失败证据'}</em></p>
+          <p className={zijinTrainingProgress.stage==="training"?'pending':zijinTrainingProgress.latest.passedTrainingGate?'done':'failed'}><i>2</i><span><b>因果参数训练</b><small>{zijinTrainingProgress.processedCandidates}/{zijinTrainingProgress.totalCandidates} 组参数，不读取未来分钟</small></span><em>{zijinTrainingProgress.stage==="training"?'进行中':zijinTrainingProgress.latest.passedTrainingGate?'通过':'选参完成 · 未通过'}</em></p>
+          <p className={!validationFinished?'pending':!validationRan?'sealed':zijinTrainingProgress.latest.passedValidationGate?'done':'failed'}><i>3</i><span><b>样本外验证</b><small>只使用训练期未见过的 2025 数据</small></span><em>{!validationFinished?'等待':!validationRan?'封存未运行':zijinTrainingProgress.latest.passedValidationGate?'通过':'已执行 · 未通过'}</em></p>
+          <p className={!blindFinished?'pending':!blindRan?'sealed':zijinTrainingProgress.latest.passedValidationGate?'done':'failed'}><i>4</i><span><b>2026 最终盲测</b><small>只在 2025 通过后开启，避免反复偷看</small></span><em>{!blindFinished?'等待':!blindRan?'封存未运行':zijinTrainingProgress.latest.passedValidationGate?'完成':'已审计 · 不晋级'}</em></p>
           <p className="pending"><i>5</i><span><b>接入 V4 影子观察</b><small>必须先通过样本外验证和人工评审</small></span><em>未开始</em></p>
         </div>
+        <div className="zijin-training-verdict"><b>本轮真实结论</b><span>{zijinTrainingProgress.latest.passedValidationGate?'候选通过训练与样本外门槛，但仍只允许人工评审和模拟观察。':validationRan||blindRan?'旧轮次四阶段均已执行，但训练集和样本外净期望为负；结果只保留为失败证据，后续不重复使用 2026 盲测调参。':'训练集没有合格候选，2025 与 2026 数据继续封存；下一轮须先补充真实外部因子。'}</span><em>{zijinTrainingProgress.latest.nextAction??'补充真实外部因子后再开启新一轮因果训练'}</em></div>
         <footer><span>任务 {zijinTrainingProgress.runId} · 更新 {new Date(zijinTrainingProgress.updatedAt).toLocaleString('zh-CN')}</span><b>{zijinTrainingProgress.status==="running"?"训练中":zijinTrainingProgress.latest.passedValidationGate?"通过验证，等待人工评审":"未通过门槛，不进入 V4"}</b></footer>
       </>:<footer><span>训练数据仍在服务器保留，页面会自动重试</span><b>连接中</b></footer>}
     </div>}
