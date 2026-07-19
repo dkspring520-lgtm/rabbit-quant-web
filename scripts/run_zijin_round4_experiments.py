@@ -234,17 +234,26 @@ def v4_baseline(target: pd.DataFrame, runtime_dir: Path) -> dict[str, dict[str, 
         if not "20240101" <= str(date) <= "20251231":
             continue
         ordered = day.sort_values("tradeTime")
+        valid_prices = pd.to_numeric(ordered["close"], errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+        if valid_prices.empty:
+            continue
+        previous_values = pd.to_numeric(ordered["previousClose"], errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+        previous_close = float(previous_values.iloc[0]) if not previous_values.empty else float(valid_prices.iloc[0])
+        minutes = []
+        for row in ordered.itertuples():
+            price = float(row.close)
+            if not np.isfinite(price):
+                continue
+            volume = float(row.volume)
+            minutes.append({
+                "time": "".join(character for character in str(row.tradeTime) if character.isdigit())[:4].zfill(4),
+                "price": price,
+                "volume": volume if np.isfinite(volume) else 0.0,
+            })
         sessions.append({
             "date": str(date),
-            "previousClose": float(ordered["previousClose"].iloc[0]),
-            "minutes": [
-                {
-                    "time": "".join(character for character in str(row.tradeTime) if character.isdigit())[:4].zfill(4),
-                    "price": float(row.close),
-                    "volume": float(row.volume),
-                }
-                for row in ordered.itertuples()
-            ],
+            "previousClose": previous_close,
+            "minutes": minutes,
         })
     input_path = runtime_dir / "v4-baseline-input.json"
     output_path = runtime_dir / "v4-baseline-output.json"
