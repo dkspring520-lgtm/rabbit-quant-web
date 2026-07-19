@@ -145,10 +145,11 @@
 .stock-agent-switch{margin:0 0 9px;padding:9px 10px;border:1px solid rgba(46,207,192,.2);background:rgba(46,207,192,.035);display:flex;align-items:center;justify-content:space-between;gap:10px}.stock-agent-switch>div:first-child{min-width:0;display:grid;gap:2px}.stock-agent-switch span{font-size:8px;letter-spacing:.1em;color:var(--dim)}.stock-agent-switch b{font-size:11px;color:var(--teal)}.stock-agent-switch small{font-size:8px;line-height:1.4;color:var(--muted)}.stock-agent-switch-actions{display:flex;flex:0 0 auto;gap:5px}.stock-agent-switch-actions button{border:1px solid var(--line);background:#0a0d0c;color:var(--muted);padding:6px 8px;font-size:8px;cursor:pointer}.stock-agent-switch-actions button.active{border-color:rgba(46,207,192,.55);background:rgba(46,207,192,.12);color:var(--teal)}.stock-agent-switch-actions button.research.active{border-color:rgba(221,169,53,.55);background:rgba(221,169,53,.1);color:var(--amber)}
 @media(max-width:760px){.stock-agent-switch{align-items:flex-start;flex-direction:column}.stock-agent-switch-actions{width:100%}.stock-agent-switch-actions button{flex:1}}
 /* 操盘台股票排序与独立全屏 */
-.ticker-item{align-items:stretch;flex:0 0 auto;transition:opacity .15s ease}
+.ticker-item{align-items:stretch;flex:0 0 auto;transition:opacity .15s ease,box-shadow .15s ease,background .15s ease}
 .ticker-item.dragging{opacity:.42}
+.ticker-item.drag-over{background:rgba(40,215,196,.08);box-shadow:inset 3px 0 0 var(--teal)}
 .ticker .ticker-stock-button{padding-left:9px;padding-right:9px}
-.ticker-drag-handle{display:flex;align-items:center;padding:0 4px 0 7px;color:#55615e;font-size:11px;cursor:grab;user-select:none}
+.ticker-drag-handle{display:flex;align-items:center;padding:0 8px;color:#65736e;font-size:13px;cursor:grab;user-select:none;touch-action:none}
 .ticker-drag-handle:active{cursor:grabbing;color:var(--teal)}
 .ticker-order-controls{display:flex;align-items:center}
 .ticker .ticker-order-button{min-width:20px;padding:0 4px;border-right:0;font-size:15px;color:#687470;justify-content:center;gap:0}

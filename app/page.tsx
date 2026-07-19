@@ -397,6 +397,8 @@ export default function Home() {
   const [starredRevision, setStarredRevision] = useState(0);
   const [indicatorsVisible, setIndicatorsVisible] = useState(true);
   const [draggedStockCode, setDraggedStockCode] = useState<string | null>(null);
+  const [dragOverStockCode, setDragOverStockCode] = useState<string | null>(null);
+  const draggedStockCodeRef = useRef<string | null>(null);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const stock = stockList[activeStock] || stockList[0];
@@ -475,10 +477,22 @@ export default function Home() {
     if(fromIndex===toIndex||toIndex<0||toIndex>=stockList.length)return;
     saveStockOrder(moveWatchlistItem(stockList,fromIndex,toIndex));
   };
-  const dropStock=(targetCode:string)=>{
-    if(!draggedStockCode||draggedStockCode===targetCode)return;
-    saveStockOrder(moveWatchlistItemByCode(stockList,draggedStockCode,targetCode));
+  const startStockDrag=(event:React.DragEvent<HTMLElement>,code:string)=>{
+    draggedStockCodeRef.current=code;
+    setDraggedStockCode(code);
+    event.dataTransfer.effectAllowed='move';
+    event.dataTransfer.setData('text/plain',code);
+  };
+  const finishStockDrag=()=>{
+    draggedStockCodeRef.current=null;
     setDraggedStockCode(null);
+    setDragOverStockCode(null);
+  };
+  const dropStock=(event:React.DragEvent<HTMLElement>,targetCode:string)=>{
+    event.preventDefault();
+    const sourceCode=event.dataTransfer.getData('text/plain')||draggedStockCodeRef.current||draggedStockCode;
+    if(sourceCode&&sourceCode!==targetCode)saveStockOrder(moveWatchlistItemByCode(stockList,sourceCode,targetCode));
+    finishStockDrag();
   };
   const toggleWorkspaceFullscreen=async()=>{
     const target=workspaceRef.current;
@@ -1186,11 +1200,13 @@ export default function Home() {
       <section className="ticker" aria-label="股票监控列表">
         {stockList.map((item, index) => (
           <div
-            className={`ticker-item ${activeStock === index ? 'selected' : ''} ${draggedStockCode===item.code?'dragging':''}`}
+            className={`ticker-item ${activeStock === index ? 'selected' : ''} ${draggedStockCode===item.code?'dragging':''} ${dragOverStockCode===item.code&&draggedStockCode!==item.code?'drag-over':''}`}
             key={item.code}
-            onDragOver={(event)=>event.preventDefault()}
-            onDrop={()=>dropStock(item.code)}
-          >{(()=>{const quote=marketQuotes[item.code];const radar=eventsByCode[item.code];const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>:radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>:radar?<small className="ticker-event quiet">暂无新增</small>:eventRadarError?<small className="ticker-event pending">雷达待更新</small>:<small className="ticker-event pending">扫描中</small>;return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>{setDraggedStockCode(item.code);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',item.code)}} onDragEnd={()=>setDraggedStockCode(null)} title="按住拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => setActiveStock(index)}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>})()}</div>
+            onDragEnter={()=>setDragOverStockCode(item.code)}
+            onDragLeave={(event)=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setDragOverStockCode(current=>current===item.code?null:current)}}
+            onDragOver={(event)=>{event.preventDefault();event.dataTransfer.dropEffect='move'}}
+            onDrop={(event)=>dropStock(event,item.code)}
+          >{(()=>{const quote=marketQuotes[item.code];const radar=eventsByCode[item.code];const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>:radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>:radar?<small className="ticker-event quiet">暂无新增</small>:eventRadarError?<small className="ticker-event pending">雷达待更新</small>:<small className="ticker-event pending">扫描中</small>;return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>startStockDrag(event,item.code)} onDragEnd={finishStockDrag} title="按住手柄拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => setActiveStock(index)}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>})()}</div>
         ))}
         <button className="ticker-add" onClick={()=>setOnboardingOpen(true)}>＋ 管理监控 · {stockList.length}/{monitorLimit}</button>
       </section>
