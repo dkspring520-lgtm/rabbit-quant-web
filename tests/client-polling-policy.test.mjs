@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { clientPollingInterval, shouldRunClientPolling } from "../lib/client-polling-policy.mjs";
+
+const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
 test("visible trading desk keeps the one-second active quote and five-second watchlist", () => {
   assert.equal(clientPollingInterval("activeQuote", true), 1_000);
@@ -18,5 +21,10 @@ test("browser polling stops while hidden because the control-plane remains respo
   assert.equal(shouldRunClientPolling("visible"), true);
   assert.equal(shouldRunClientPolling("hidden"), false);
   assert.equal(shouldRunClientPolling("prerender"), false);
+  assert.match(page, /if\(inFlight\|\|!shouldRunClientPolling\(document\.visibilityState\)\)return;/);
+  assert.match(page, /document\.addEventListener\('visibilitychange',onVisibility\)/);
 });
 
+test("the large trading desk clock does not force a full render every second", () => {
+  assert.match(page, /window\.setInterval\(update,15_000\)/);
+});

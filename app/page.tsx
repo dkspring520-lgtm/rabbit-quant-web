@@ -875,7 +875,10 @@ export default function Home() {
   useEffect(() => {
     const update=()=>setClockNow(new Date());
     update();
-    const timer=window.setInterval(update,1_000);
+    // Market-session boundaries only need a coarse clock. Live quotes have their
+    // own one-second poll; updating this large view every second only causes
+    // redundant chart and signal recalculation.
+    const timer=window.setInterval(update,15_000);
     return()=>window.clearInterval(timer);
   },[]);
   const playAlertTone=(risk=false)=>{
@@ -979,7 +982,10 @@ export default function Home() {
   useEffect(()=>{
     if(!localAuth||demoMode)return;
     let cancelled=false;
+    let inFlight=false;
     const pull=async()=>{
+      if(inFlight||!shouldRunClientPolling(document.visibilityState))return;
+      inFlight=true;
       try{
         const response=await fetch(`/api/control/alerts?afterId=${serverAlertCursor.current}&limit=30`,{credentials:'include',cache:'no-store'});
         if(!response.ok)return;
@@ -1001,10 +1007,12 @@ export default function Home() {
           void fetch(`/api/control/alerts/${item.id}/ack`,{method:'POST',credentials:'include'}).catch(()=>{});
         }
         serverAlertsInitialized.current=true;
-      }catch{}
+      }catch{}finally{inFlight=false}
     };
     void pull();const timer=window.setInterval(()=>void pull(),5000);
-    return()=>{cancelled=true;window.clearInterval(timer)};
+    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void pull()};
+    document.addEventListener('visibilitychange',onVisibility);
+    return()=>{cancelled=true;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisibility)};
   },[localAuth,demoMode,alertSettings.sound,alertSettings.system]);
   useEffect(() => {
     const timer = window.setTimeout(() => {void (async()=>{
@@ -1692,6 +1700,10 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     let active=true;
     let timer:number|undefined;
     const load=async()=>{
+      if(document.visibilityState!=='visible'){
+        if(active)timer=window.setTimeout(()=>void load(),30_000);
+        return;
+      }
       try{
         const response=await fetch(`/api/research/zijin-training-progress?t=${Date.now()}`,{cache:"no-store"});
         if(!response.ok)throw new Error(`HTTP ${response.status}`);
@@ -1706,7 +1718,9 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       }
     };
     void load();
-    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
+    const onVisibility=()=>{if(document.visibilityState==='visible'){if(timer!==undefined)window.clearTimeout(timer);void load()}};
+    document.addEventListener('visibilitychange',onVisibility);
+    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer);document.removeEventListener('visibilitychange',onVisibility)};
   },[stock.code]);
   const storageKey=`rabbit-stock-research:${accountName.toLowerCase()}:${stock.code}`;
   const [notes,setNotes]=useState<StockResearchNote[]>(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];return Array.isArray(parsed)?parsed:[]}catch{return [];}});
