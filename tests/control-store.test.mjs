@@ -27,6 +27,17 @@ test("server accounts, sessions and cross-device profile data", () => {
     assert.equal(monitors[0].code, "601899");
     assert.equal(store.listActiveMonitors().length, 1);
 
+    const ordered = store.replaceMonitors(member.id, [
+      { code: "600003", name: "第三只" },
+      { code: "600001", name: "第一只" },
+      { code: "600002", name: "第二只" },
+      { code: "600004", name: "第四只" },
+      { code: "600005", name: "第五只" },
+      { code: "600006", name: "第六只" },
+    ], { maxMonitors: 5 });
+    assert.deepEqual(ordered.map(item => item.code), ["600003", "600001", "600002", "600004", "600005"]);
+    assert.deepEqual(store.listActiveMonitors().map(item => item.code), ["600003", "600001", "600002", "600004", "600005"]);
+
     assert.equal(store.addAlert(member.id, { code: "601899", level: "candidate", title: "低位候选", message: "等待确认", eventKey: "601899:20260718:0940:buy" }), true);
     assert.equal(store.addAlert(member.id, { code: "601899", level: "candidate", title: "重复", message: "不应重复", eventKey: "601899:20260718:0940:buy" }), false);
     const alerts = store.listAlerts(member.id);

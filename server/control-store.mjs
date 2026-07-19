@@ -68,6 +68,7 @@ export function createControlStore(databasePath, options = {}) {
       enabled INTEGER NOT NULL DEFAULT 1,
       profile TEXT NOT NULL DEFAULT '平衡',
       position TEXT NOT NULL DEFAULT '{}',
+      sort_order INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL,
       PRIMARY KEY(user_id, code)
     );
@@ -96,6 +97,11 @@ export function createControlStore(databasePath, options = {}) {
       used_at TEXT
     );
   `);
+
+  const monitorColumns = db.prepare("PRAGMA table_info(monitors)").all();
+  if (!monitorColumns.some(column => column.name === "sort_order")) {
+    db.exec("ALTER TABLE monitors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+  }
 
   const configuredAdmin = normalizeLogin(options.adminUsername ?? process.env.RABBIT_ADMIN_USER ?? "dkspring520@outlook.com");
 
@@ -156,24 +162,25 @@ export function createControlStore(databasePath, options = {}) {
   }
 
   function listMonitors(userId) {
-    return db.prepare("SELECT * FROM monitors WHERE user_id=? ORDER BY updated_at DESC").all(userId).map(row => ({
+    return db.prepare("SELECT * FROM monitors WHERE user_id=? ORDER BY sort_order ASC, updated_at DESC").all(userId).map(row => ({
       code: row.code, name: row.name, enabled: Boolean(row.enabled), profile: row.profile,
       position: safeJson(row.position, {}), updatedAt: row.updated_at,
     }));
   }
 
-  function replaceMonitors(userId, monitors) {
-    const list = Array.isArray(monitors) ? monitors.slice(0, 30) : [];
+  function replaceMonitors(userId, monitors, { maxMonitors = 30 } = {}) {
+    const limit = Math.max(1, Math.min(30, Number(maxMonitors) || 30));
+    const list = Array.isArray(monitors) ? monitors.slice(0, limit) : [];
     db.exec("BEGIN IMMEDIATE");
     try {
       db.prepare("DELETE FROM monitors WHERE user_id=?").run(userId);
-      const insert = db.prepare("INSERT INTO monitors(user_id,code,name,enabled,profile,position,updated_at) VALUES(?,?,?,?,?,?,?)");
+      const insert = db.prepare("INSERT INTO monitors(user_id,code,name,enabled,profile,position,sort_order,updated_at) VALUES(?,?,?,?,?,?,?,?)");
       const updatedAt = nowIso();
-      for (const item of list) {
+      for (const [index, item] of list.entries()) {
         const code = String(item?.code ?? "").replace(/\D/g, "").slice(0, 6);
         if (!/^\d{6}$/.test(code)) continue;
         insert.run(userId, code, String(item?.name ?? code).slice(0, 30), item?.enabled === false ? 0 : 1,
-          ["稳健", "平衡", "灵敏"].includes(item?.profile) ? item.profile : "平衡", JSON.stringify(item?.position ?? {}), updatedAt);
+          ["稳健", "平衡", "灵敏"].includes(item?.profile) ? item.profile : "平衡", JSON.stringify(item?.position ?? {}), index, updatedAt);
       }
       db.exec("COMMIT");
     } catch (error) { db.exec("ROLLBACK"); throw error; }
@@ -181,8 +188,16 @@ export function createControlStore(databasePath, options = {}) {
   }
 
   function listActiveMonitors() {
-    return db.prepare(`SELECT monitors.*,users.status FROM monitors JOIN users ON users.id=monitors.user_id
-      WHERE monitors.enabled=1 AND users.status='active' ORDER BY monitors.updated_at DESC`).all().map(row => ({
+    const perUserCount = new Map();
+    return db.prepare(`SELECT monitors.*,users.status,users.role FROM monitors JOIN users ON users.id=monitors.user_id
+      WHERE monitors.enabled=1 AND users.status='active'
+      ORDER BY monitors.user_id ASC, monitors.sort_order ASC, monitors.updated_at DESC`).all().filter(row => {
+      const count = perUserCount.get(row.user_id) ?? 0;
+      const limit = row.role === "admin" ? 30 : 5;
+      if (count >= limit) return false;
+      perUserCount.set(row.user_id, count + 1);
+      return true;
+    }).map(row => ({
       userId: row.user_id, code: row.code, name: row.name, profile: row.profile, position: safeJson(row.position, {}),
     }));
   }

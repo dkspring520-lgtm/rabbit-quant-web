@@ -200,8 +200,14 @@ async function dispatch(req, res) {
     }
     if (req.method === "GET" && path === "/profile") return json(res, 200, store.getProfile(requireUser(req).id));
     if (req.method === "PUT" && path === "/profile") return json(res, 200, store.putProfile(requireUser(req).id, (await bodyJson(req)).data));
-    if (req.method === "GET" && path === "/monitors") return json(res, 200, { monitors: store.listMonitors(requireUser(req).id) });
-    if (req.method === "PUT" && path === "/monitors") return json(res, 200, { monitors: store.replaceMonitors(requireUser(req).id, (await bodyJson(req)).monitors) });
+    if (req.method === "GET" && path === "/monitors") {
+      const user=requireUser(req); const limit=user.role==="admin"?30:5;
+      return json(res, 200, { monitors: store.listMonitors(user.id).slice(0,limit), limit });
+    }
+    if (req.method === "PUT" && path === "/monitors") {
+      const user=requireUser(req); const limit=user.role==="admin"?30:5;
+      return json(res, 200, { monitors: store.replaceMonitors(user.id, (await bodyJson(req)).monitors, { maxMonitors: limit }), limit });
+    }
     if (req.method === "GET" && path === "/alerts") return json(res, 200, { alerts: store.listAlerts(requireUser(req).id, { afterId: url.searchParams.get("afterId"), limit: url.searchParams.get("limit") }) });
     if (req.method === "POST" && /^\/alerts\/\d+\/ack$/.test(path)) {
       store.acknowledgeAlert(requireUser(req).id, Number(path.split("/")[2])); return json(res, 200, { ok: true });
