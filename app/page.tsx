@@ -17,6 +17,7 @@ import zijinPeerPatternDiscovery from "@/public/research/zijin-peer-pattern-disc
 import zijinExternalFactorReadiness from "@/public/research/zijin-external-factor-readiness.json";
 import zijinRound2RegimeAudit from "@/public/research/zijin-round2-regime-audit.json";
 import zijinRound2WalkForward from "@/public/research/zijin-round2-walk-forward.json";
+import zijinRound3Nested from "@/public/research/zijin-round3-summary.json";
 import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
@@ -1584,6 +1585,8 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const round2BestRegime=zijinRound2RegimeAudit.regimes[0];
   const round2Walk=zijinRound2WalkForward.overallOutOfSample;
   const round2Passed=zijinRound2WalkForward.conclusion.passed;
+  const round3Walk=zijinRound3Nested.overallOutOfSample;
+  const round3Passed=zijinRound3Nested.conclusion.passed;
   return <section className="stock-research-view">
     <div className="research-head"><div><span className="eyebrow">SINGLE STOCK RESEARCH · AUTO + REVIEW</span><h1>系统自动研究，用户只负责确认</h1><p>系统会读取这只股票的完整分时回放、日线股性和本机成交记录；你只需要确认结论是否有效，必要时补充一句原因。</p></div><button onClick={onOpenConsole}>去看今日信号 →</button></div>
     <div className="research-purpose"><b>这个页面只回答 3 个问题</b><div><p><i>01</i><span><strong>它平时怎么走？</strong><small>看振幅、趋势、量能和日内习惯</small></span></p><p><i>02</i><span><strong>什么做 T 条件更适合？</strong><small>根据历史记录形成观察方案</small></span></p><p><i>03</i><span><strong>今天的信号靠谱吗？</strong><small>把历史股性作为操盘台的参考背景</small></span></p></div><em>看实时买卖信号请进入“操盘台”</em></div>
@@ -1612,6 +1615,11 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
           <div><span>第二轮是怎么测的</span><b>8 个季度逐季滚动验证</b><small>每一季只用此前数据选规则；2026 载入 {zijinRound2WalkForward.dataset.loaded2026Rows} 行</small></div>
           <div><span>换到陌生季度后的成绩</span><b>{round2Walk.trades} 次 · 胜率 {round2Walk.winRate==null?'--':`${(round2Walk.winRate*100).toFixed(1)}%`}</b><small>扣除近似往返成本后，每次平均 {round2Walk.averageNetPct>=0?'+':''}{round2Walk.averageNetPct.toFixed(4)}%</small></div>
           <div className={round2Passed?'':'blocked'}><span>现在能否用于正式信号</span><b>{round2Passed?'仅可进入影子观察':'不能，第二轮未通过'}</b><small>{zijinRound2WalkForward.positiveFoldCount}/8 个季度为正；不降低 65% 门槛，也不修改 V4</small></div>
+        </div>
+        <div className="zijin-regime-audit zijin-walkforward-audit">
+          <div><span>第三轮做了什么修正</span><b>内层选参，再到外层盲测</b><small>每个季度都先用更早数据选候选，再用未参与选参的季度检验；2026 读取 {zijinRound3Nested.dataset.loaded2026Rows} 行</small></div>
+          <div className={round3Passed?'':'blocked'}><span>第三轮样本外成绩</span><b>{round3Walk.trades} 次 · 胜率 {round3Walk.winRate==null?'--':`${(round3Walk.winRate*100).toFixed(1)}%`}</b><small>扣费后每次平均 {round3Walk.averageNetPct>=0?'+':''}{round3Walk.averageNetPct.toFixed(4)}%；压力成本下 {zijinRound3Nested.stressAverageNetPct>=0?'+':''}{zijinRound3Nested.stressAverageNetPct.toFixed(4)}%</small></div>
+          <div className="blocked"><span>现在的真实结论</span><b>{round3Passed?'通过研究门槛，仍待人工评审':'第三轮未通过，继续与 V4 隔离'}</b><small>{zijinRound3Nested.positiveFoldCount}/8 个季度为正；内层达标季度 {zijinRound3Nested.gates.innerEligibleFolds.actual}/8，不能把训练内好看当成可用规律</small></div>
         </div>
         <footer><span>任务 {zijinTrainingProgress.runId} · 更新 {new Date(zijinTrainingProgress.updatedAt.replace(/([+-]\d{2})(\d{2})$/,'$1:$2')).toLocaleString('zh-CN')} · {zijinTrainingProgress.meta?.source==='runtime'?'服务器实时状态':'内置审计快照'}</span><b>{trainingStale?"需检查训练进程":zijinTrainingProgress.status==="running"?"训练中":zijinTrainingProgress.latest.passedValidationGate?"通过验证，等待人工评审":"未通过门槛，不进入 V4"}</b></footer>
       </>:<footer><span>训练数据仍在服务器保留，页面会自动重试</span><b>连接中</b></footer>}

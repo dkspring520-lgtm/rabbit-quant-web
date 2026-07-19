@@ -1,0 +1,2938 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "marketCode": "601899.SH",
+    "name": "紫金矿业"
+  },
+  "round": 3,
+  "mode": "research-only",
+  "affectsV4": false,
+  "status": "failed",
+  "dataset": {
+    "firstDate": "20220104",
+    "lastDateLoaded": "20251231",
+    "minuteRows": 1634703,
+    "tradingDays": 969,
+    "stockCount": 7,
+    "causalCandidates": 29335,
+    "loaded2026Rows": 0,
+    "allowedCodes": [
+      "601899",
+      "603993",
+      "600362",
+      "000630",
+      "600547",
+      "600489",
+      "601600"
+    ],
+    "completeTargetDays": 969,
+    "meanPeerCoverage": 1.0,
+    "minimumPeerCoverage": 1.0
+  },
+  "methodology": {
+    "outerFolds": "8 expanding quarterly out-of-sample folds (2024Q1..2025Q4)",
+    "innerFoldsPerOuter": 4,
+    "embargoTradingDays": 1,
+    "selectionTarget": "inner OOF netPct and date-block bootstrap lower bound",
+    "selectionUsesOuterQuarter": false,
+    "selectionUsesWinRate": false,
+    "causalFeatures": true,
+    "earliestFill": "下一分钟开盘价",
+    "sameBarConflict": "同柱止损优先",
+    "futureUse": "仅作为收益标签",
+    "cutoff": "20251231",
+    "loaded2026Rows": 0,
+    "roundTripCostPct": 0.12,
+    "stressCostPct": 0.18,
+    "netProfitZonePct": [
+      0.64,
+      1.0
+    ],
+    "modelConfigs": [
+      {
+        "maxDepth": 2,
+        "minSamplesLeaf": 80
+      },
+      {
+        "maxDepth": 2,
+        "minSamplesLeaf": 140
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 80
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 140
+      }
+    ],
+    "keepRates": [
+      0.08,
+      0.12,
+      0.18,
+      0.25
+    ],
+    "sessions": {
+      "opening": [
+        573,
+        630
+      ],
+      "regular": [
+        631,
+        870
+      ]
+    },
+    "guards": {
+      "positive": "低于VWAP + 动量转正 + 同业广度不恶化 + 禁止强VWAP下行",
+      "reverse": "高于VWAP + 动量转弱 + 同业广度不继续走强 + 禁止强VWAP上行"
+    }
+  },
+  "folds": [
+    {
+      "id": "2024Q1",
+      "validationStart": "20240101",
+      "validationEnd": "20240331",
+      "innerFoldCount": 4,
+      "strategies": [
+        {
+          "direction": "positive",
+          "session": "opening",
+          "trainingCandidates": 433,
+          "validationCandidates": 47,
+          "trainingEnd": "20231228",
+          "embargoDate": "20231229",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q1",
+              "trainingEnd": "20221226",
+              "embargoDate": "20221228",
+              "validationStart": "20230101",
+              "validationEnd": "20230331",
+              "passed": true
+            },
+            {
+              "id": "2023Q2",
+              "trainingEnd": "20230328",
+              "embargoDate": "20230329",
+              "validationStart": "20230401",
+              "validationEnd": "20230630",
+              "passed": true
+            },
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230629",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230918",
+              "embargoDate": "20230925",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "positive",
+          "session": "regular",
+          "trainingCandidates": 2073,
+          "validationCandidates": 222,
+          "trainingEnd": "20231226",
+          "embargoDate": "20231228",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q1",
+              "trainingEnd": "20221227",
+              "embargoDate": "20221230",
+              "validationStart": "20230101",
+              "validationEnd": "20230331",
+              "passed": true
+            },
+            {
+              "id": "2023Q2",
+              "trainingEnd": "20230330",
+              "embargoDate": "20230331",
+              "validationStart": "20230401",
+              "validationEnd": "20230630",
+              "passed": true
+            },
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230626",
+              "embargoDate": "20230629",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230927",
+              "embargoDate": "20230928",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "opening",
+          "trainingCandidates": 557,
+          "validationCandidates": 74,
+          "trainingEnd": "20231227",
+          "embargoDate": "20231229",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q1",
+              "trainingEnd": "20221228",
+              "embargoDate": "20221229",
+              "validationStart": "20230101",
+              "validationEnd": "20230331",
+              "passed": true
+            },
+            {
+              "id": "2023Q2",
+              "trainingEnd": "20230330",
+              "embargoDate": "20230331",
+              "validationStart": "20230401",
+              "validationEnd": "20230630",
+              "passed": true
+            },
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230629",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230921",
+              "embargoDate": "20230926",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "regular",
+          "trainingCandidates": 2679,
+          "validationCandidates": 395,
+          "trainingEnd": "20231227",
+          "embargoDate": "20231229",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q1",
+              "trainingEnd": "20221229",
+              "embargoDate": "20221230",
+              "validationStart": "20230101",
+              "validationEnd": "20230331",
+              "passed": true
+            },
+            {
+              "id": "2023Q2",
+              "trainingEnd": "20230330",
+              "embargoDate": "20230331",
+              "validationStart": "20230401",
+              "validationEnd": "20230630",
+              "passed": true
+            },
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230628",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230922",
+              "embargoDate": "20230926",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            }
+          ]
+        }
+      ],
+      "evaluatedStrategyCount": 4,
+      "innerEligibleStrategyCount": 0,
+      "result": {
+        "trades": 82,
+        "wins": 40,
+        "winRate": 0.4878,
+        "averageNetPct": -0.0439,
+        "totalNetPct": -3.5979,
+        "targetRate": 0.2561,
+        "averageHoldMinutes": 35.7
+      },
+      "stressAverageNetPct": -0.1039,
+      "innerAverageNetPct": 0.0,
+      "innerToOuterDecayPct": 0.0439,
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2024Q2",
+      "validationStart": "20240401",
+      "validationEnd": "20240630",
+      "innerFoldCount": 4,
+      "strategies": [
+        {
+          "direction": "positive",
+          "session": "opening",
+          "trainingCandidates": 480,
+          "validationCandidates": 54,
+          "trainingEnd": "20240321",
+          "embargoDate": "20240322",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": true,
+            "stressAverageNotNegative": true,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 2,
+            "wins": 2,
+            "winRate": 1.0,
+            "averageNetPct": 0.8249,
+            "totalNetPct": 1.6498,
+            "targetRate": 1.0,
+            "averageHoldMinutes": 22.0,
+            "stressAverageNetPct": 0.7649,
+            "bootstrap95LowerPct": 0.6498,
+            "stressBootstrap95LowerPct": 0.5898,
+            "positiveInnerFolds": 1,
+            "coveredInnerFolds": 1,
+            "byFold": {
+              "2024Q1": {
+                "trades": 2,
+                "wins": 2,
+                "winRate": 1.0,
+                "averageNetPct": 0.8249,
+                "totalNetPct": 1.6498,
+                "targetRate": 1.0,
+                "averageHoldMinutes": 22.0
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q2",
+              "trainingEnd": "20230328",
+              "embargoDate": "20230329",
+              "validationStart": "20230401",
+              "validationEnd": "20230630",
+              "passed": true
+            },
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230629",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230918",
+              "embargoDate": "20230925",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231228",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "positive",
+          "session": "regular",
+          "trainingCandidates": 2310,
+          "validationCandidates": 240,
+          "trainingEnd": "20240326",
+          "embargoDate": "20240329",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q2",
+              "trainingEnd": "20230330",
+              "embargoDate": "20230331",
+              "validationStart": "20230401",
+              "validationEnd": "20230630",
+              "passed": true
+            },
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230626",
+              "embargoDate": "20230629",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230927",
+              "embargoDate": "20230928",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231226",
+              "embargoDate": "20231228",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "opening",
+          "trainingCandidates": 629,
+          "validationCandidates": 71,
+          "trainingEnd": "20240328",
+          "embargoDate": "20240329",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q2",
+              "trainingEnd": "20230330",
+              "embargoDate": "20230331",
+              "validationStart": "20230401",
+              "validationEnd": "20230630",
+              "passed": true
+            },
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230629",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230921",
+              "embargoDate": "20230926",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231227",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "regular",
+          "trainingCandidates": 3084,
+          "validationCandidates": 411,
+          "trainingEnd": "20240328",
+          "embargoDate": "20240329",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q2",
+              "trainingEnd": "20230330",
+              "embargoDate": "20230331",
+              "validationStart": "20230401",
+              "validationEnd": "20230630",
+              "passed": true
+            },
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230628",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230922",
+              "embargoDate": "20230926",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231227",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            }
+          ]
+        }
+      ],
+      "evaluatedStrategyCount": 4,
+      "innerEligibleStrategyCount": 0,
+      "result": {
+        "trades": 113,
+        "wins": 42,
+        "winRate": 0.3717,
+        "averageNetPct": -0.1268,
+        "totalNetPct": -14.3272,
+        "targetRate": 0.292,
+        "averageHoldMinutes": 27.43
+      },
+      "stressAverageNetPct": -0.1868,
+      "innerAverageNetPct": 0.8249,
+      "innerToOuterDecayPct": 0.9517,
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2024Q3",
+      "validationStart": "20240701",
+      "validationEnd": "20240930",
+      "innerFoldCount": 4,
+      "strategies": [
+        {
+          "direction": "positive",
+          "session": "opening",
+          "trainingCandidates": 533,
+          "validationCandidates": 53,
+          "trainingEnd": "20240620",
+          "embargoDate": "20240621",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": true,
+            "stressAverageNotNegative": true,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 2,
+            "wins": 2,
+            "winRate": 1.0,
+            "averageNetPct": 0.8249,
+            "totalNetPct": 1.6498,
+            "targetRate": 1.0,
+            "averageHoldMinutes": 22.0,
+            "stressAverageNetPct": 0.7649,
+            "bootstrap95LowerPct": 0.6498,
+            "stressBootstrap95LowerPct": 0.5898,
+            "positiveInnerFolds": 1,
+            "coveredInnerFolds": 1,
+            "byFold": {
+              "2024Q1": {
+                "trades": 2,
+                "wins": 2,
+                "winRate": 1.0,
+                "averageNetPct": 0.8249,
+                "totalNetPct": 1.6498,
+                "targetRate": 1.0,
+                "averageHoldMinutes": 22.0
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230629",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230918",
+              "embargoDate": "20230925",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231228",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240321",
+              "embargoDate": "20240322",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "positive",
+          "session": "regular",
+          "trainingCandidates": 2545,
+          "validationCandidates": 306,
+          "trainingEnd": "20240626",
+          "embargoDate": "20240627",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230626",
+              "embargoDate": "20230629",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230927",
+              "embargoDate": "20230928",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231226",
+              "embargoDate": "20231228",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240326",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "opening",
+          "trainingCandidates": 701,
+          "validationCandidates": 58,
+          "trainingEnd": "20240627",
+          "embargoDate": "20240628",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230629",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230921",
+              "embargoDate": "20230926",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231227",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240328",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "regular",
+          "trainingCandidates": 3495,
+          "validationCandidates": 387,
+          "trainingEnd": "20240626",
+          "embargoDate": "20240628",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q3",
+              "trainingEnd": "20230628",
+              "embargoDate": "20230630",
+              "validationStart": "20230701",
+              "validationEnd": "20230930",
+              "passed": true
+            },
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230922",
+              "embargoDate": "20230926",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231227",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240328",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            }
+          ]
+        }
+      ],
+      "evaluatedStrategyCount": 4,
+      "innerEligibleStrategyCount": 0,
+      "result": {
+        "trades": 118,
+        "wins": 50,
+        "winRate": 0.4237,
+        "averageNetPct": -0.0767,
+        "totalNetPct": -9.0503,
+        "targetRate": 0.2458,
+        "averageHoldMinutes": 38.97
+      },
+      "stressAverageNetPct": -0.1367,
+      "innerAverageNetPct": 0.8249,
+      "innerToOuterDecayPct": 0.9016,
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2024Q4",
+      "validationStart": "20241001",
+      "validationEnd": "20241231",
+      "innerFoldCount": 4,
+      "strategies": [
+        {
+          "direction": "positive",
+          "session": "opening",
+          "trainingCandidates": 587,
+          "validationCandidates": 58,
+          "trainingEnd": "20240923",
+          "embargoDate": "20240925",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230918",
+              "embargoDate": "20230925",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231228",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240321",
+              "embargoDate": "20240322",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240620",
+              "embargoDate": "20240621",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "positive",
+          "session": "regular",
+          "trainingCandidates": 2854,
+          "validationCandidates": 285,
+          "trainingEnd": "20240925",
+          "embargoDate": "20240930",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230927",
+              "embargoDate": "20230928",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231226",
+              "embargoDate": "20231228",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240326",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240626",
+              "embargoDate": "20240627",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "opening",
+          "trainingCandidates": 759,
+          "validationCandidates": 70,
+          "trainingEnd": "20240925",
+          "embargoDate": "20240926",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230921",
+              "embargoDate": "20230926",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231227",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240328",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240627",
+              "embargoDate": "20240628",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "regular",
+          "trainingCandidates": 3886,
+          "validationCandidates": 324,
+          "trainingEnd": "20240927",
+          "embargoDate": "20240930",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2023Q4",
+              "trainingEnd": "20230922",
+              "embargoDate": "20230926",
+              "validationStart": "20231001",
+              "validationEnd": "20231231",
+              "passed": true
+            },
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231227",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240328",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240626",
+              "embargoDate": "20240628",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            }
+          ]
+        }
+      ],
+      "evaluatedStrategyCount": 4,
+      "innerEligibleStrategyCount": 0,
+      "result": {
+        "trades": 101,
+        "wins": 37,
+        "winRate": 0.3663,
+        "averageNetPct": -0.1282,
+        "totalNetPct": -12.9524,
+        "targetRate": 0.198,
+        "averageHoldMinutes": 35.41
+      },
+      "stressAverageNetPct": -0.1882,
+      "innerAverageNetPct": 0.0,
+      "innerToOuterDecayPct": 0.1282,
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2025Q1",
+      "validationStart": "20250101",
+      "validationEnd": "20250331",
+      "innerFoldCount": 4,
+      "strategies": [
+        {
+          "direction": "positive",
+          "session": "opening",
+          "trainingCandidates": 643,
+          "validationCandidates": 70,
+          "trainingEnd": "20241227",
+          "embargoDate": "20241230",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231228",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240321",
+              "embargoDate": "20240322",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240620",
+              "embargoDate": "20240621",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240923",
+              "embargoDate": "20240925",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "positive",
+          "session": "regular",
+          "trainingCandidates": 3140,
+          "validationCandidates": 260,
+          "trainingEnd": "20241230",
+          "embargoDate": "20241231",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 3,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": true,
+            "stressAverageNotNegative": true,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 3,
+            "wins": 2,
+            "winRate": 0.6667,
+            "averageNetPct": 0.0784,
+            "totalNetPct": 0.2352,
+            "targetRate": 0.0,
+            "averageHoldMinutes": 61.0,
+            "stressAverageNetPct": 0.0184,
+            "bootstrap95LowerPct": 0.0737,
+            "stressBootstrap95LowerPct": 0.0137,
+            "positiveInnerFolds": 1,
+            "coveredInnerFolds": 1,
+            "byFold": {
+              "2024Q4": {
+                "trades": 3,
+                "wins": 2,
+                "winRate": 0.6667,
+                "averageNetPct": 0.0784,
+                "totalNetPct": 0.2352,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 61.0
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231226",
+              "embargoDate": "20231228",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240326",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240626",
+              "embargoDate": "20240627",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240925",
+              "embargoDate": "20240930",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "opening",
+          "trainingCandidates": 826,
+          "validationCandidates": 46,
+          "trainingEnd": "20241224",
+          "embargoDate": "20241226",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231227",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240328",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240627",
+              "embargoDate": "20240628",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240925",
+              "embargoDate": "20240926",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "regular",
+          "trainingCandidates": 4213,
+          "validationCandidates": 363,
+          "trainingEnd": "20241230",
+          "embargoDate": "20241231",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q1",
+              "trainingEnd": "20231227",
+              "embargoDate": "20231229",
+              "validationStart": "20240101",
+              "validationEnd": "20240331",
+              "passed": true
+            },
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240328",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240626",
+              "embargoDate": "20240628",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240927",
+              "embargoDate": "20240930",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            }
+          ]
+        }
+      ],
+      "evaluatedStrategyCount": 4,
+      "innerEligibleStrategyCount": 0,
+      "result": {
+        "trades": 79,
+        "wins": 31,
+        "winRate": 0.3924,
+        "averageNetPct": -0.1279,
+        "totalNetPct": -10.1041,
+        "targetRate": 0.2025,
+        "averageHoldMinutes": 37.92
+      },
+      "stressAverageNetPct": -0.1879,
+      "innerAverageNetPct": 0.0784,
+      "innerToOuterDecayPct": 0.2063,
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2025Q2",
+      "validationStart": "20250401",
+      "validationEnd": "20250630",
+      "innerFoldCount": 4,
+      "strategies": [
+        {
+          "direction": "positive",
+          "session": "opening",
+          "trainingCandidates": 715,
+          "validationCandidates": 64,
+          "trainingEnd": "20250327",
+          "embargoDate": "20250331",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240321",
+              "embargoDate": "20240322",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240620",
+              "embargoDate": "20240621",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240923",
+              "embargoDate": "20240925",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241227",
+              "embargoDate": "20241230",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "positive",
+          "session": "regular",
+          "trainingCandidates": 3391,
+          "validationCandidates": 290,
+          "trainingEnd": "20250328",
+          "embargoDate": "20250331",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240326",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240626",
+              "embargoDate": "20240627",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240925",
+              "embargoDate": "20240930",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241230",
+              "embargoDate": "20241231",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "opening",
+          "trainingCandidates": 876,
+          "validationCandidates": 63,
+          "trainingEnd": "20250318",
+          "embargoDate": "20250328",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240328",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240627",
+              "embargoDate": "20240628",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240925",
+              "embargoDate": "20240926",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241224",
+              "embargoDate": "20241226",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "regular",
+          "trainingCandidates": 4573,
+          "validationCandidates": 337,
+          "trainingEnd": "20250327",
+          "embargoDate": "20250328",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q2",
+              "trainingEnd": "20240328",
+              "embargoDate": "20240329",
+              "validationStart": "20240401",
+              "validationEnd": "20240630",
+              "passed": true
+            },
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240626",
+              "embargoDate": "20240628",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240927",
+              "embargoDate": "20240930",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241230",
+              "embargoDate": "20241231",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            }
+          ]
+        }
+      ],
+      "evaluatedStrategyCount": 4,
+      "innerEligibleStrategyCount": 0,
+      "result": {
+        "trades": 43,
+        "wins": 12,
+        "winRate": 0.2791,
+        "averageNetPct": -0.2235,
+        "totalNetPct": -9.6119,
+        "targetRate": 0.1628,
+        "averageHoldMinutes": 37.37
+      },
+      "stressAverageNetPct": -0.2835,
+      "innerAverageNetPct": 0.0,
+      "innerToOuterDecayPct": 0.2235,
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2025Q3",
+      "validationStart": "20250701",
+      "validationEnd": "20250930",
+      "innerFoldCount": 4,
+      "strategies": [
+        {
+          "direction": "positive",
+          "session": "opening",
+          "trainingCandidates": 778,
+          "validationCandidates": 69,
+          "trainingEnd": "20250626",
+          "embargoDate": "20250630",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240620",
+              "embargoDate": "20240621",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240923",
+              "embargoDate": "20240925",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241227",
+              "embargoDate": "20241230",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            },
+            {
+              "id": "2025Q2",
+              "trainingEnd": "20250327",
+              "embargoDate": "20250331",
+              "validationStart": "20250401",
+              "validationEnd": "20250630",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "positive",
+          "session": "regular",
+          "trainingCandidates": 3682,
+          "validationCandidates": 319,
+          "trainingEnd": "20250624",
+          "embargoDate": "20250630",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 3,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.18,
+          "innerChecks": {
+            "minimumTrades": true,
+            "allInnerFolds": true,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": false
+          },
+          "innerEvidence": {
+            "trades": 50,
+            "wins": 21,
+            "winRate": 0.42,
+            "averageNetPct": -0.1091,
+            "totalNetPct": -5.4549,
+            "targetRate": 0.24,
+            "averageHoldMinutes": 38.22,
+            "stressAverageNetPct": -0.1691,
+            "bootstrap95LowerPct": -0.2409,
+            "stressBootstrap95LowerPct": -0.3009,
+            "positiveInnerFolds": 1,
+            "coveredInnerFolds": 4,
+            "byFold": {
+              "2024Q3": {
+                "trades": 28,
+                "wins": 14,
+                "winRate": 0.5,
+                "averageNetPct": -0.031,
+                "totalNetPct": -0.8678,
+                "targetRate": 0.2857,
+                "averageHoldMinutes": 41.18
+              },
+              "2024Q4": {
+                "trades": 3,
+                "wins": 2,
+                "winRate": 0.6667,
+                "averageNetPct": 0.0784,
+                "totalNetPct": 0.2352,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 61.0
+              },
+              "2025Q1": {
+                "trades": 10,
+                "wins": 3,
+                "winRate": 0.3,
+                "averageNetPct": -0.1951,
+                "totalNetPct": -1.9511,
+                "targetRate": 0.3,
+                "averageHoldMinutes": 30.6
+              },
+              "2025Q2": {
+                "trades": 9,
+                "wins": 2,
+                "winRate": 0.2222,
+                "averageNetPct": -0.319,
+                "totalNetPct": -2.8712,
+                "targetRate": 0.1111,
+                "averageHoldMinutes": 29.89
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240626",
+              "embargoDate": "20240627",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240925",
+              "embargoDate": "20240930",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241230",
+              "embargoDate": "20241231",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            },
+            {
+              "id": "2025Q2",
+              "trainingEnd": "20250328",
+              "embargoDate": "20250331",
+              "validationStart": "20250401",
+              "validationEnd": "20250630",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "opening",
+          "trainingCandidates": 938,
+          "validationCandidates": 80,
+          "trainingEnd": "20250625",
+          "embargoDate": "20250626",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 0,
+            "wins": 0,
+            "winRate": null,
+            "averageNetPct": 0.0,
+            "totalNetPct": 0.0,
+            "targetRate": null,
+            "averageHoldMinutes": 0.0,
+            "stressAverageNetPct": -0.06,
+            "bootstrap95LowerPct": 0.0,
+            "stressBootstrap95LowerPct": 0.0,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 0,
+            "byFold": {}
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240627",
+              "embargoDate": "20240628",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240925",
+              "embargoDate": "20240926",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241224",
+              "embargoDate": "20241226",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            },
+            {
+              "id": "2025Q2",
+              "trainingEnd": "20250318",
+              "embargoDate": "20250328",
+              "validationStart": "20250401",
+              "validationEnd": "20250630",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "regular",
+          "trainingCandidates": 4904,
+          "validationCandidates": 436,
+          "trainingEnd": "20250626",
+          "embargoDate": "20250627",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 3,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.12,
+          "innerChecks": {
+            "minimumTrades": true,
+            "allInnerFolds": true,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": false
+          },
+          "innerEvidence": {
+            "trades": 50,
+            "wins": 20,
+            "winRate": 0.4,
+            "averageNetPct": -0.1228,
+            "totalNetPct": -6.1414,
+            "targetRate": 0.28,
+            "averageHoldMinutes": 31.46,
+            "stressAverageNetPct": -0.1828,
+            "bootstrap95LowerPct": -0.2549,
+            "stressBootstrap95LowerPct": -0.3149,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 4,
+            "byFold": {
+              "2024Q3": {
+                "trades": 17,
+                "wins": 9,
+                "winRate": 0.5294,
+                "averageNetPct": -0.0301,
+                "totalNetPct": -0.5121,
+                "targetRate": 0.4118,
+                "averageHoldMinutes": 30.35
+              },
+              "2024Q4": {
+                "trades": 9,
+                "wins": 2,
+                "winRate": 0.2222,
+                "averageNetPct": -0.1842,
+                "totalNetPct": -1.6574,
+                "targetRate": 0.2222,
+                "averageHoldMinutes": 30.78
+              },
+              "2025Q1": {
+                "trades": 7,
+                "wins": 2,
+                "winRate": 0.2857,
+                "averageNetPct": -0.22,
+                "totalNetPct": -1.5403,
+                "targetRate": 0.1429,
+                "averageHoldMinutes": 33.0
+              },
+              "2025Q2": {
+                "trades": 17,
+                "wins": 7,
+                "winRate": 0.4118,
+                "averageNetPct": -0.143,
+                "totalNetPct": -2.4317,
+                "targetRate": 0.2353,
+                "averageHoldMinutes": 32.29
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q3",
+              "trainingEnd": "20240626",
+              "embargoDate": "20240628",
+              "validationStart": "20240701",
+              "validationEnd": "20240930",
+              "passed": true
+            },
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240927",
+              "embargoDate": "20240930",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241230",
+              "embargoDate": "20241231",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            },
+            {
+              "id": "2025Q2",
+              "trainingEnd": "20250327",
+              "embargoDate": "20250328",
+              "validationStart": "20250401",
+              "validationEnd": "20250630",
+              "passed": true
+            }
+          ]
+        }
+      ],
+      "evaluatedStrategyCount": 4,
+      "innerEligibleStrategyCount": 0,
+      "result": {
+        "trades": 93,
+        "wins": 33,
+        "winRate": 0.3548,
+        "averageNetPct": -0.1246,
+        "totalNetPct": -11.5887,
+        "targetRate": 0.1828,
+        "averageHoldMinutes": 36.68
+      },
+      "stressAverageNetPct": -0.1846,
+      "innerAverageNetPct": -0.116,
+      "innerToOuterDecayPct": 0.0086,
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2025Q4",
+      "validationStart": "20251001",
+      "validationEnd": "20251231",
+      "innerFoldCount": 4,
+      "strategies": [
+        {
+          "direction": "positive",
+          "session": "opening",
+          "trainingCandidates": 845,
+          "validationCandidates": 52,
+          "trainingEnd": "20250926",
+          "embargoDate": "20250930",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": false,
+            "allInnerFolds": false,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": true,
+            "stressAverageNotNegative": true,
+            "bootstrapFloor": true
+          },
+          "innerEvidence": {
+            "trades": 7,
+            "wins": 7,
+            "winRate": 1.0,
+            "averageNetPct": 0.441,
+            "totalNetPct": 3.0873,
+            "targetRate": 0.5714,
+            "averageHoldMinutes": 50.43,
+            "stressAverageNetPct": 0.381,
+            "bootstrap95LowerPct": 0.2123,
+            "stressBootstrap95LowerPct": 0.1523,
+            "positiveInnerFolds": 2,
+            "coveredInnerFolds": 2,
+            "byFold": {
+              "2025Q1": {
+                "trades": 6,
+                "wins": 6,
+                "winRate": 1.0,
+                "averageNetPct": 0.4488,
+                "totalNetPct": 2.6926,
+                "targetRate": 0.5,
+                "averageHoldMinutes": 52.0
+              },
+              "2025Q3": {
+                "trades": 1,
+                "wins": 1,
+                "winRate": 1.0,
+                "averageNetPct": 0.3947,
+                "totalNetPct": 0.3947,
+                "targetRate": 1.0,
+                "averageHoldMinutes": 41.0
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240923",
+              "embargoDate": "20240925",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241227",
+              "embargoDate": "20241230",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            },
+            {
+              "id": "2025Q2",
+              "trainingEnd": "20250327",
+              "embargoDate": "20250331",
+              "validationStart": "20250401",
+              "validationEnd": "20250630",
+              "passed": true
+            },
+            {
+              "id": "2025Q3",
+              "trainingEnd": "20250626",
+              "embargoDate": "20250630",
+              "validationStart": "20250701",
+              "validationEnd": "20250930",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "positive",
+          "session": "regular",
+          "trainingCandidates": 4004,
+          "validationCandidates": 323,
+          "trainingEnd": "20250926",
+          "embargoDate": "20250930",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 2,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.25,
+          "innerChecks": {
+            "minimumTrades": true,
+            "allInnerFolds": true,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": false
+          },
+          "innerEvidence": {
+            "trades": 125,
+            "wins": 44,
+            "winRate": 0.352,
+            "averageNetPct": -0.1497,
+            "totalNetPct": -18.7101,
+            "targetRate": 0.144,
+            "averageHoldMinutes": 40.98,
+            "stressAverageNetPct": -0.2097,
+            "bootstrap95LowerPct": -0.2248,
+            "stressBootstrap95LowerPct": -0.2848,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 4,
+            "byFold": {
+              "2024Q4": {
+                "trades": 38,
+                "wins": 15,
+                "winRate": 0.3947,
+                "averageNetPct": -0.1223,
+                "totalNetPct": -4.6476,
+                "targetRate": 0.1316,
+                "averageHoldMinutes": 42.89
+              },
+              "2025Q1": {
+                "trades": 36,
+                "wins": 13,
+                "winRate": 0.3611,
+                "averageNetPct": -0.1391,
+                "totalNetPct": -5.0059,
+                "targetRate": 0.1944,
+                "averageHoldMinutes": 39.69
+              },
+              "2025Q2": {
+                "trades": 14,
+                "wins": 4,
+                "winRate": 0.2857,
+                "averageNetPct": -0.2942,
+                "totalNetPct": -4.1182,
+                "targetRate": 0.0714,
+                "averageHoldMinutes": 39.79
+              },
+              "2025Q3": {
+                "trades": 37,
+                "wins": 12,
+                "winRate": 0.3243,
+                "averageNetPct": -0.1335,
+                "totalNetPct": -4.9384,
+                "targetRate": 0.1351,
+                "averageHoldMinutes": 40.73
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240925",
+              "embargoDate": "20240930",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241230",
+              "embargoDate": "20241231",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            },
+            {
+              "id": "2025Q2",
+              "trainingEnd": "20250328",
+              "embargoDate": "20250331",
+              "validationStart": "20250401",
+              "validationEnd": "20250630",
+              "passed": true
+            },
+            {
+              "id": "2025Q3",
+              "trainingEnd": "20250624",
+              "embargoDate": "20250630",
+              "validationStart": "20250701",
+              "validationEnd": "20250930",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "opening",
+          "trainingCandidates": 1019,
+          "validationCandidates": 83,
+          "trainingEnd": "20250919",
+          "embargoDate": "20250925",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 3,
+            "minSamplesLeaf": 80
+          },
+          "keepRate": 0.25,
+          "innerChecks": {
+            "minimumTrades": true,
+            "allInnerFolds": true,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": false
+          },
+          "innerEvidence": {
+            "trades": 42,
+            "wins": 10,
+            "winRate": 0.2381,
+            "averageNetPct": -0.2582,
+            "totalNetPct": -10.8455,
+            "targetRate": 0.1429,
+            "averageHoldMinutes": 26.36,
+            "stressAverageNetPct": -0.3182,
+            "bootstrap95LowerPct": -0.3978,
+            "stressBootstrap95LowerPct": -0.4578,
+            "positiveInnerFolds": 0,
+            "coveredInnerFolds": 4,
+            "byFold": {
+              "2024Q4": {
+                "trades": 12,
+                "wins": 4,
+                "winRate": 0.3333,
+                "averageNetPct": -0.222,
+                "totalNetPct": -2.6635,
+                "targetRate": 0.0833,
+                "averageHoldMinutes": 33.58
+              },
+              "2025Q1": {
+                "trades": 3,
+                "wins": 0,
+                "winRate": 0.0,
+                "averageNetPct": -0.57,
+                "totalNetPct": -1.71,
+                "targetRate": 0.0,
+                "averageHoldMinutes": 10.0
+              },
+              "2025Q2": {
+                "trades": 6,
+                "wins": 1,
+                "winRate": 0.1667,
+                "averageNetPct": -0.2629,
+                "totalNetPct": -1.5776,
+                "targetRate": 0.1667,
+                "averageHoldMinutes": 38.67
+              },
+              "2025Q3": {
+                "trades": 21,
+                "wins": 5,
+                "winRate": 0.2381,
+                "averageNetPct": -0.2331,
+                "totalNetPct": -4.8944,
+                "targetRate": 0.1905,
+                "averageHoldMinutes": 21.05
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240925",
+              "embargoDate": "20240926",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241224",
+              "embargoDate": "20241226",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            },
+            {
+              "id": "2025Q2",
+              "trainingEnd": "20250318",
+              "embargoDate": "20250328",
+              "validationStart": "20250401",
+              "validationEnd": "20250630",
+              "passed": true
+            },
+            {
+              "id": "2025Q3",
+              "trainingEnd": "20250625",
+              "embargoDate": "20250626",
+              "validationStart": "20250701",
+              "validationEnd": "20250930",
+              "passed": true
+            }
+          ]
+        },
+        {
+          "direction": "reverse",
+          "session": "regular",
+          "trainingCandidates": 5350,
+          "validationCandidates": 355,
+          "trainingEnd": "20250929",
+          "embargoDate": "20250930",
+          "causalBoundaryPassed": true,
+          "evaluated": true,
+          "innerEligible": false,
+          "model": {
+            "maxDepth": 3,
+            "minSamplesLeaf": 140
+          },
+          "keepRate": 0.08,
+          "innerChecks": {
+            "minimumTrades": true,
+            "allInnerFolds": true,
+            "positiveInnerFolds": false,
+            "positiveAverageNet": false,
+            "stressAverageNotNegative": false,
+            "bootstrapFloor": false
+          },
+          "innerEvidence": {
+            "trades": 35,
+            "wins": 13,
+            "winRate": 0.3714,
+            "averageNetPct": -0.1122,
+            "totalNetPct": -3.9272,
+            "targetRate": 0.2857,
+            "averageHoldMinutes": 31.09,
+            "stressAverageNetPct": -0.1722,
+            "bootstrap95LowerPct": -0.2987,
+            "stressBootstrap95LowerPct": -0.3587,
+            "positiveInnerFolds": 1,
+            "coveredInnerFolds": 4,
+            "byFold": {
+              "2024Q4": {
+                "trades": 9,
+                "wins": 2,
+                "winRate": 0.2222,
+                "averageNetPct": -0.1842,
+                "totalNetPct": -1.6574,
+                "targetRate": 0.2222,
+                "averageHoldMinutes": 30.78
+              },
+              "2025Q1": {
+                "trades": 7,
+                "wins": 2,
+                "winRate": 0.2857,
+                "averageNetPct": -0.22,
+                "totalNetPct": -1.5403,
+                "targetRate": 0.1429,
+                "averageHoldMinutes": 33.0
+              },
+              "2025Q2": {
+                "trades": 9,
+                "wins": 5,
+                "winRate": 0.5556,
+                "averageNetPct": 0.0539,
+                "totalNetPct": 0.4847,
+                "targetRate": 0.4444,
+                "averageHoldMinutes": 37.11
+              },
+              "2025Q3": {
+                "trades": 10,
+                "wins": 4,
+                "winRate": 0.4,
+                "averageNetPct": -0.1214,
+                "totalNetPct": -1.2142,
+                "targetRate": 0.3,
+                "averageHoldMinutes": 24.6
+              }
+            }
+          },
+          "innerBoundaries": [
+            {
+              "id": "2024Q4",
+              "trainingEnd": "20240927",
+              "embargoDate": "20240930",
+              "validationStart": "20241001",
+              "validationEnd": "20241231",
+              "passed": true
+            },
+            {
+              "id": "2025Q1",
+              "trainingEnd": "20241230",
+              "embargoDate": "20241231",
+              "validationStart": "20250101",
+              "validationEnd": "20250331",
+              "passed": true
+            },
+            {
+              "id": "2025Q2",
+              "trainingEnd": "20250327",
+              "embargoDate": "20250328",
+              "validationStart": "20250401",
+              "validationEnd": "20250630",
+              "passed": true
+            },
+            {
+              "id": "2025Q3",
+              "trainingEnd": "20250626",
+              "embargoDate": "20250627",
+              "validationStart": "20250701",
+              "validationEnd": "20250930",
+              "passed": true
+            }
+          ]
+        }
+      ],
+      "evaluatedStrategyCount": 4,
+      "innerEligibleStrategyCount": 0,
+      "result": {
+        "trades": 85,
+        "wins": 34,
+        "winRate": 0.4,
+        "averageNetPct": -0.0915,
+        "totalNetPct": -7.7782,
+        "targetRate": 0.3059,
+        "averageHoldMinutes": 29.41
+      },
+      "stressAverageNetPct": -0.1515,
+      "innerAverageNetPct": -0.1454,
+      "innerToOuterDecayPct": -0.0539,
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    }
+  ],
+  "overallOutOfSample": {
+    "trades": 714,
+    "wins": 279,
+    "winRate": 0.3908,
+    "averageNetPct": -0.1107,
+    "totalNetPct": -79.0106,
+    "targetRate": 0.2367,
+    "averageHoldMinutes": 34.62
+  },
+  "bootstrap95LowerPct": -0.1457,
+  "stressAverageNetPct": -0.1707,
+  "stressBootstrap95LowerPct": -0.2057,
+  "positiveFoldCount": 0,
+  "averageInnerToOuterDecayPct": 0.3012,
+  "gates": {
+    "loaded2026Rows": {
+      "target": 0,
+      "actual": 0,
+      "passed": true
+    },
+    "causalBoundaries": {
+      "target": 8,
+      "actual": 8,
+      "passed": true
+    },
+    "innerEligibleFolds": {
+      "target": 8,
+      "actual": 0,
+      "passed": false
+    },
+    "minimumTrades": {
+      "target": 80,
+      "actual": 714,
+      "passed": true
+    },
+    "winRate": {
+      "target": 0.65,
+      "actual": 0.3908,
+      "passed": false
+    },
+    "averageNetPct": {
+      "target": "> 0",
+      "actual": -0.1107,
+      "passed": false
+    },
+    "bootstrap95LowerPct": {
+      "target": "> 0",
+      "actual": -0.1457,
+      "passed": false
+    },
+    "positiveFolds": {
+      "target": 6,
+      "actual": 0,
+      "passed": false
+    },
+    "stressAverageNetPct": {
+      "target": ">= 0 at 0.18% cost",
+      "actual": -0.1707,
+      "passed": false
+    },
+    "stressBootstrap95LowerPct": {
+      "target": "> 0",
+      "actual": -0.2057,
+      "passed": false
+    },
+    "worstFoldAverageNetPct": {
+      "target": ">= -0.10",
+      "actual": -0.2235,
+      "passed": false
+    },
+    "innerToOuterDecayPct": {
+      "target": "<= 0.10",
+      "actual": 0.3012,
+      "passed": false
+    }
+  },
+  "conclusion": {
+    "passed": false,
+    "message": "第三轮嵌套验证未通过；保留失败证据，不进入 V4，也不触碰 2026。",
+    "nextAction": "先审计退出原因与持有时长；若没有新的独立数据，不继续扩大参数网格。"
+  },
+  "generatedAt": "2026-07-19T15:26:10+0800",
+  "elapsedSeconds": 237.83
+}

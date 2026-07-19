@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "round": 3,
+  "status": "failed",
+  "affectsV4": false,
+  "dataset": {
+    "firstDate": "20220104",
+    "lastDateLoaded": "20251231",
+    "tradingDays": 969,
+    "loaded2026Rows": 0
+  },
+  "overallOutOfSample": {
+    "trades": 714,
+    "wins": 279,
+    "winRate": 0.3908,
+    "averageNetPct": -0.1107,
+    "averageHoldMinutes": 34.62
+  },
+  "stressAverageNetPct": -0.1707,
+  "positiveFoldCount": 0,
+  "gates": {
+    "innerEligibleFolds": {
+      "target": 8,
+      "actual": 0,
+      "passed": false
+    }
+  },
+  "conclusion": {
+    "passed": false,
+    "message": "第三轮嵌套验证未通过；保留失败证据，不进入 V4，也不读取 2026。"
+  },
+  "evidencePath": "/research/zijin-round3-nested.json"
+}

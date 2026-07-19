@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "round": 3,
+  "status": "completed",
+  "stage": "completed",
+  "progress": 100,
+  "message": "第三轮嵌套验证未通过；保留失败证据，不进入 V4，也不触碰 2026。",
+  "latest": {
+    "passed": false,
+    "oofTrades": 714,
+    "oofWinRate": 0.3908,
+    "oofAverageNetPct": -0.1107,
+    "bootstrap95LowerPct": -0.1457,
+    "stressAverageNetPct": -0.1707,
+    "positiveFolds": 0,
+    "elapsedSeconds": 237.83
+  },
+  "updatedAt": "2026-07-19T15:26:10+0800"
+}
