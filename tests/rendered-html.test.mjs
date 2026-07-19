@@ -239,6 +239,15 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   assert.match(source, /本轮因果审计完成｜没有可晋级参数/);
 });
 
+test("single-stock research keeps advanced evidence collapsed by default", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /const \[researchExpanded,setResearchExpanded\]=useState\(false\)/);
+  assert.match(source, /aria-expanded=\{researchExpanded\}/);
+  assert.match(source, /researchExpanded&&<div className="research-purpose"/);
+  assert.match(source, /zijinFactorResearch&&researchExpanded&&<section/);
+  assert.match(source, /research-compact-training/);
+});
+
 test("random 10-stock replay randomizes stock-days and separates references from formal trades", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const poolMatch = source.match(/const representativeBacktestUniverse = \[([\s\S]*?)\];/);
