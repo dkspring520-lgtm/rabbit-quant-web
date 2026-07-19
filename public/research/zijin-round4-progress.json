@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round4-standard-quant",
+  "status": "completed",
+  "stage": "completed",
+  "progress": 100,
+  "message": "滚动样本外未通过；2026 继续封存，禁止调参硬过",
+  "latest": {
+    "qualifiedHypotheses": 0,
+    "ledgerRecords": 256,
+    "runId": "r4-20260719T114433-283500"
+  },
+  "updatedAt": "2026-07-19T11:45:52.688576+00:00"
+}

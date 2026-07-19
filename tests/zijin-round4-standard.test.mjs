@@ -3,6 +3,34 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const scriptUrl = new URL("../scripts/zijin_round4_standard.py", import.meta.url);
+const publishedReportUrl = new URL("../public/research/zijin-round4-report.json", import.meta.url);
+
+test("published round four audit stays sealed after a rejected research run", async () => {
+  const report = JSON.parse(await readFile(publishedReportUrl, "utf8"));
+
+  assert.equal(report.status, "research-rejected");
+  assert.equal(report.reads2026, false);
+  assert.equal(report.hypotheses.length, 4);
+  assert.equal(report.ledger.runRecords, 256);
+  assert.equal(report.ledger.verified, true);
+  assert.equal(report.finalBlind.sealed, true);
+  assert.equal(report.finalBlind.allowed, false);
+  assert.equal(report.finalBlind.opened, false);
+  assert.deepEqual(
+    report.hypotheses[0].baselines.map((item) => item.id),
+    ["no-trade", "simple-vwap", "smart-t-v4"],
+  );
+
+  for (const hypothesis of report.hypotheses) {
+    assert.equal(hypothesis.evaluation.nextStage, "research-rejected");
+    assert.equal(hypothesis.evaluation.passedRollingOutOfSample, false);
+    assert.equal(hypothesis.outerQuarters.length, 8);
+    assert.equal(hypothesis.trialPeriodReturns.length, 9);
+    assert.equal(hypothesis.trialPeriodReturns[0].length, 8);
+    assert.equal(typeof hypothesis.evaluation.metrics.pbo, "number");
+    assert.equal(typeof hypothesis.evaluation.metrics.deflatedSharpeProbability, "number");
+  }
+});
 
 test("round four ledger is append-only and rejects 2026 selection trials", async () => {
   const source = await readFile(scriptUrl, "utf8");
