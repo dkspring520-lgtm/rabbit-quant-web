@@ -58,6 +58,8 @@ test("round four executor runs four separate hypotheses and exact baselines", as
   assert.match(executor, /"simple-vwap"/);
   assert.match(executor, /"smart-t-v4"/);
   assert.match(executor, /reads2026.*False/);
+  assert.match(executor, /to_pickle\(samples_path\)/);
+  assert.match(executor, /"failed" if stage == "failed"/);
   assert.match(v4Baseline, /runSmartTReplay/);
   assert.match(v4Baseline, /cycleNetPcts/);
 });
