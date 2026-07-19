@@ -205,6 +205,16 @@
 .alert-log-toolbar select{min-width:280px;height:42px;padding:0 34px 0 12px;border:1px solid var(--line);border-radius:8px;background:#0a1211;color:var(--text)}
 .alert-log-toolbar button{height:42px;padding:0 18px;border:1px solid rgba(59,214,197,.4);border-radius:8px;background:rgba(59,214,197,.08);color:var(--cyan);cursor:pointer}
 .alert-log-toolbar button:disabled{opacity:.45;cursor:wait}
+.alert-log-health{display:grid;grid-template-columns:auto minmax(160px,1.2fr) repeat(3,minmax(130px,1fr));align-items:center;gap:14px;margin-bottom:12px;padding:13px 16px;border:1px solid var(--line);background:rgba(255,255,255,.018)}
+.alert-log-health>i{width:10px;height:10px;border-radius:50%;background:#7d8987;box-shadow:0 0 0 5px rgba(125,137,135,.08)}
+.alert-log-health>div,.alert-log-health>p{display:grid;gap:4px;min-width:0;margin:0}
+.alert-log-health small,.alert-log-health span{color:var(--muted);font-size:11px}
+.alert-log-health b,.alert-log-health strong{overflow:hidden;color:var(--text);font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+.alert-log-health.healthy>i{background:var(--cyan);box-shadow:0 0 14px rgba(59,214,197,.6)}
+.alert-log-health.running>i{background:#f0bd4f;box-shadow:0 0 14px rgba(240,189,79,.55);animation:pulse 1.2s ease-in-out infinite}
+.alert-log-health.error{border-color:rgba(255,94,94,.38);background:rgba(255,94,94,.045)}
+.alert-log-health.error>i{background:#ff6969;box-shadow:0 0 14px rgba(255,94,94,.5)}
+.alert-log-health.error b{color:#ff8585}
 .alert-log-summary{display:grid;grid-template-columns:150px 150px 150px 1fr;border:1px solid var(--line);background:rgba(255,255,255,.015)}
 .alert-log-summary p{display:grid;gap:4px;margin:0;padding:14px 18px;border-right:1px solid var(--line)}
 .alert-log-summary small,.alert-log-summary em{color:var(--muted);font-size:12px;font-style:normal}
