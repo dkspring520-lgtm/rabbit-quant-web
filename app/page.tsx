@@ -1778,14 +1778,6 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   </section>;
 }
 
-const marketStrategies = [
-  {rank:1,name:'胡萝卜波段兔',author:'A客户',mode:'模拟盘',win:78,returns:8.6,drawdown:2.1,cycles:41,days:36,risk:'中风险',price:0,followers:126,tags:['VWAP','反T','量能确认'],summary:'高开转弱后等待回抽失败，分批反T；14:50前强制恢复底仓。'},
-  {rank:2,name:'稳稳闭环兔',author:'量化小林',mode:'模拟盘',win:72,returns:6.9,drawdown:1.2,cycles:68,days:63,risk:'低风险',price:19,followers:284,tags:['低回撤','正反T','硬风控'],summary:'以低频高确认信号为主，单次不超过底仓1/4，连续失败两次即停止。'},
-  {rank:3,name:'开盘雷达兔',author:'北辰',mode:'回测',win:69,returns:11.3,drawdown:4.8,cycles:93,days:90,risk:'高风险',price:39,followers:91,tags:['集合竞价','开盘30分','趋势过滤'],summary:'09:30开始扫描，至少4个真实分钟点后只用当时已出现数据判断低开转强与高开转弱。'},
-  {rank:4,name:'午后均值兔',author:'青禾',mode:'模拟盘',win:74,returns:5.2,drawdown:1.9,cycles:37,days:45,risk:'中风险',price:9,followers:76,tags:['均值回归','VWAP','午后'],summary:'午后偏离VWAP后等待量价收敛，优先完成已有循环，不追逐新信号。'},
-  {rank:5,name:'新锐挑战兔',author:'NeoQuant',mode:'回测',win:66,returns:13.7,drawdown:6.4,cycles:29,days:22,risk:'高风险',price:0,followers:48,tags:['灵敏档','超买超卖','小样本'],summary:'灵敏型候选策略，收益较高但样本量较少，目前仅允许历史回测与模拟观察。'},
-];
-
 const builtInStrategies = [
   {id:'steady-pullback',name:'稳健回踩观察',tag:'低频 · 低回撤优先',fit:'适合先建立纪律：仅在趋势背景与回踩确认同时满足时观察。',rules:['09:30 开始扫描，09:33 前只积累样本','价格结构与量能同时确认','单日最多 2 次候选'],risk:'连续两次无效后，当日暂停'},
   {id:'opening-reversal',name:'开盘反转确认',tag:'开盘 · 正反T候选',fit:'观察高开转弱或低开转强，不用第一根波动直接下结论。',rules:['09:30 起扫描，09:33 最早确认','回抽失败/站回需二次确认','不追逐快速拉升或跳水'],risk:'09:45 前仅用 1/6 底仓试单'},
@@ -1794,47 +1786,39 @@ const builtInStrategies = [
 ];
 
 function readMarketStorage(accountName:string){
-  if(typeof window==='undefined')return {subscribed:[] as string[],name:'',summary:''};
+  if(typeof window==='undefined')return {name:'',summary:''};
   try{
     const storageKey=`rabbit-market:${accountName.toLowerCase()}`;
-    const subscriptions=JSON.parse(localStorage.getItem(`${storageKey}:subscriptions`)||'[]');
     const draft=JSON.parse(localStorage.getItem(`${storageKey}:draft`)||'{}');
     return {
-      subscribed:Array.isArray(subscriptions)?subscriptions:[],
       name:typeof draft.name==='string'?draft.name:'',
       summary:typeof draft.summary==='string'?draft.summary:'',
     };
-  }catch{return {subscribed:[] as string[],name:'',summary:''};}
+  }catch{return {name:'',summary:''};}
 }
 
 function StrategyMarketView({accountName}:{accountName:string}){
-  const [sort,setSort]=useState('综合榜');
-  const [selected,setSelected]=useState<(typeof marketStrategies)[number]|null>(null);
-  const [subscribed,setSubscribed]=useState<string[]>(()=>readMarketStorage(accountName).subscribed);
   const [publishing,setPublishing]=useState(false);
   const [draftName,setDraftName]=useState(()=>readMarketStorage(accountName).name);
   const [draftSummary,setDraftSummary]=useState(()=>readMarketStorage(accountName).summary);
   const [draftMessage,setDraftMessage]=useState('');
   const storageKey=`rabbit-market:${accountName.toLowerCase()}`;
   const [enabledBuiltIns,setEnabledBuiltIns]=useState<string[]>(()=>{try{const saved=JSON.parse(localStorage.getItem(`${storageKey}:builtins`)||'[]');return Array.isArray(saved)?saved:[]}catch{return [];}});
-  const rows=[...marketStrategies].sort((a,b)=>sort==='收益榜'?b.returns-a.returns:sort==='低回撤榜'?a.drawdown-b.drawdown:sort==='胜率榜'?b.win-a.win:a.rank-b.rank);
-  const follow=(name:string)=>setSubscribed(items=>{const next=items.includes(name)?items.filter(item=>item!==name):[...items,name];try{localStorage.setItem(`${storageKey}:subscriptions`,JSON.stringify(next))}catch{}return next});
   const toggleBuiltIn=(id:string)=>setEnabledBuiltIns(items=>{const next=items.includes(id)?items.filter(item=>item!==id):[...items,id];try{localStorage.setItem(`${storageKey}:builtins`,JSON.stringify(next));}catch{}return next;});
   const saveDraft=()=>{
     const name=draftName.trim();
     const summary=draftSummary.trim();
     if(!name||!summary){setDraftMessage('请填写策略名称和策略说明后再保存。');return;}
-    try{localStorage.setItem(`${storageKey}:draft`,JSON.stringify({name,summary,savedAt:new Date().toISOString()}));setDraftMessage('草稿已保存到当前账户；完成回测接入后可继续提交审核。');}catch{setDraftMessage('草稿保存失败，请检查浏览器存储权限。');}
+    try{localStorage.setItem(`${storageKey}:draft`,JSON.stringify({name,summary,savedAt:new Date().toISOString()}));setDraftMessage('研究草稿已保存；当前不会公开、收费或自动执行。');}catch{setDraftMessage('草稿保存失败，请检查浏览器存储权限。');}
   };
   return <section className="market-view">
-    <div className="market-hero"><div><span className="eyebrow">RABBIT STRATEGY MARKET</span><h1>策略智能体排行榜</h1><p>发现、比较并模拟跟随优秀的用户策略。所有指标都同时展示样本与风险，不用单一胜率制造错觉。</p></div></div>
-    <div className="market-guard"><b>测试版安全边界</b><span>支持策略发布、订阅与模拟跟随</span><span>真实资金自动交易保持关闭</span><span>不代管资金，不承诺收益</span></div>
+    <div className="market-hero"><div><span className="eyebrow">RABBIT RESEARCH PLAYBOOKS</span><h1>策略研究与观察库</h1><p>选择透明规则进入本机模拟观察，或保存自己的研究草稿。当前不展示未经审计的用户排行榜、虚拟业绩和收费订阅。</p></div></div>
+    <div className="market-guard"><b>公开测试边界</b><span>内置规则仅用于模拟观察</span><span>用户策略发布与排行榜尚未开放</span><span>收费订阅和真实资金交易保持关闭</span></div>
     <section className="builtin-strategies"><div className="builtin-head"><div><span className="eyebrow">BUILT-IN PLAYBOOKS</span><h2>内置策略库</h2><p>这些是透明的研究规则，不是收益承诺。启用后只进入模拟观察和记录，不会自动下单。</p></div><b>已启用 {enabledBuiltIns.length} / {builtInStrategies.length}</b></div><div className="builtin-grid">{builtInStrategies.map(item=>{const enabled=enabledBuiltIns.includes(item.id);return <article className={enabled?'enabled':'disabled'} key={item.id}><div><span>{item.tag}</span><em>{enabled?'运行中':'未启用'}</em></div><h3>{item.name}</h3><p>{item.fit}</p><ul>{item.rules.map(rule=><li key={rule}>{rule}</li>)}</ul><small>风控：{item.risk}</small><button onClick={()=>toggleBuiltIn(item.id)}>{enabled?'取消观察 · 运行中':'启用模拟观察'}</button></article>})}</div></section>
-    <div className="market-stats"><div><span>公开策略</span><b>128</b><small>46个通过样本检查</small></div><div><span>今日模拟跟随</span><b>1,284</b><small>全部由用户主动开启</small></div><div><span>平均闭环胜率</span><b>68.4%</b><small>至少20次闭环才统计</small></div><div><span>风险暂停</span><b className="amber-text">7</b><small>触发回撤或仓位异常</small></div></div>
-    <div className="market-toolbar"><div>{['综合榜','胜率榜','收益榜','低回撤榜'].map(item=><button className={sort===item?'active':''} onClick={()=>setSort(item)} key={item}>{item}</button>)}</div><div className="market-toolbar-actions"><span>排行榜每个交易日收盘后更新</span><button className="market-publish" onClick={()=>setPublishing(true)}>＋ 发布我的策略</button></div></div>
-    <div className="market-list"><div className="market-row market-title"><span>排名 / 策略</span><span>验证状态</span><span>胜率</span><span>扣费净收益</span><span>最大回撤</span><span>样本</span><span>订阅</span><span/></div>{rows.map(item=><div className="market-row" key={item.name}><span className="market-name"><i>{item.rank<=3?`TOP ${item.rank}`:`#${item.rank}`}</i><b>{item.name}</b><small>{item.author} · {item.tags.join(' / ')}</small></span><span><em className={item.mode==='模拟盘'?'verified':'backtested'}>{item.mode}</em><small>{item.days}个交易日</small></span><strong className="market-win">{item.win}%</strong><strong className="market-return">+{item.returns}%</strong><strong className="market-drawdown">-{item.drawdown}%</strong><span><b>{item.cycles}次闭环</b><em className={`risk-badge ${item.risk==='高风险'?'high':item.risk==='中风险'?'medium':'low'}`}>{item.risk}</em></span><span><b>{item.price===0?'免费':`¥${item.price}/月`}</b><small>{item.followers}人关注</small></span><button onClick={()=>setSelected(item)}>查看策略 →</button></div>)}</div>
-    {selected&&<div className="market-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setSelected(null)}}><div className="strategy-detail"><button className="detail-close" onClick={()=>setSelected(null)}>×</button><span className="eyebrow">STRATEGY PROFILE · #{selected.rank}</span><h2>{selected.name}</h2><p>{selected.summary}</p><div className="detail-author"><span>创建者</span><b>{selected.author}</b><em>{selected.mode} · {selected.days}个交易日</em></div><div className="detail-metrics"><div><span>闭环胜率</span><b>{selected.win}%</b></div><div><span>扣费净收益</span><b className="teal">+{selected.returns}%</b></div><div><span>最大回撤</span><b>-{selected.drawdown}%</b></div><div><span>有效样本</span><b>{selected.cycles}次</b></div></div><div className="detail-rules"><h3>策略说明</h3><p>费用、滑点、T+1可卖数量和尾盘恢复为系统硬风控，订阅者不能关闭。</p><p>模拟跟随只生成提醒和虚拟成交记录，不会连接或操作真实券商账户。</p></div><button className={subscribed.includes(selected.name)?'followed':''} onClick={()=>follow(selected.name)}>{subscribed.includes(selected.name)?'✓ 已加入模拟跟随':selected.price===0?'免费模拟跟随':`订阅并模拟跟随 · ¥${selected.price}/月`}</button><small>历史表现不代表未来收益 · 可随时停止跟随</small></div></div>}
-    {publishing&&<div className="market-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPublishing(false)}}><div className="publish-card"><button className="detail-close" onClick={()=>setPublishing(false)}>×</button><span className="eyebrow">PUBLISH STRATEGY</span><h2>发布我的策略智能体</h2><p>测试版将先把策略送入回测与模拟观察，不会直接进入真实交易。</p><label>策略名称<input value={draftName} onChange={e=>{setDraftName(e.target.value);setDraftMessage('')}} placeholder="例如：我的稳健反T兔"/></label><label>策略说明<textarea value={draftSummary} onChange={e=>{setDraftSummary(e.target.value);setDraftMessage('')}} placeholder="用直白语言说明买入、卖出、仓位和停止条件"/></label><div><label>分享方式<select><option>免费分享</option><option>付费订阅（审核后开放）</option></select></label><label>风险等级<select><option>低风险</option><option>中风险</option><option>高风险</option></select></label></div><button onClick={saveDraft}>保存草稿</button><small>{draftMessage||'至少完成20次有效闭环后，才会显示在公开排行榜。'}</small></div></div>}
+    <div className="market-stats"><div><span>透明研究规则</span><b>{builtInStrategies.length}</b><small>全部公开触发与风控条件</small></div><div><span>当前启用观察</span><b>{enabledBuiltIns.length}</b><small>只记录模拟观察结果</small></div><div><span>用户公开排行</span><b>未开放</b><small>完成真实性审计后再上线</small></div><div><span>收费订阅</span><b className="amber-text">关闭</b><small>当前不会产生任何费用</small></div></div>
+    <div className="market-toolbar"><div><span>研究草稿仅保存在当前账户，不会冒充已验证策略。</span></div><div className="market-toolbar-actions"><button className="market-publish" onClick={()=>setPublishing(true)}>＋ 新建研究草稿</button></div></div>
+    {draftName&&<div className="market-list"><div className="market-row market-title"><span>我的研究草稿</span><span>状态</span><span/><span/><span/><span/><span/><span/></div><div className="market-row"><span className="market-name"><i>DRAFT</i><b>{draftName}</b><small>{draftSummary||'尚未填写说明'}</small></span><span><em className="backtested">仅草稿</em><small>未回测 · 未发布</small></span><span/><span/><span/><span/><span/><button onClick={()=>setPublishing(true)}>继续编辑 →</button></div></div>}
+    {publishing&&<div className="market-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPublishing(false)}}><div className="publish-card"><button className="detail-close" onClick={()=>setPublishing(false)}>×</button><span className="eyebrow">PRIVATE RESEARCH DRAFT</span><h2>记录我的策略想法</h2><p>这里只保存研究草稿，不会公开发布、生成收费订阅或连接真实交易。</p><label>策略名称<input value={draftName} onChange={e=>{setDraftName(e.target.value);setDraftMessage('')}} placeholder="例如：我的稳健反T观察"/></label><label>策略说明<textarea value={draftSummary} onChange={e=>{setDraftSummary(e.target.value);setDraftMessage('')}} placeholder="用直白语言说明买入、卖出、仓位和停止条件"/></label><div><label>当前阶段<select disabled><option>研究草稿</option></select></label><label>执行权限<select disabled><option>不可执行</option></select></label></div><button onClick={saveDraft}>保存研究草稿</button><small>{draftMessage||'后续只有通过真实回测、样本外验证和人工审核，才考虑开放分享。'}</small></div></div>}
   </section>;
 }
 
