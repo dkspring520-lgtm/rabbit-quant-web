@@ -196,6 +196,15 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
   assert.match(source, /最终盲测未打开/);
   assert.match(styles, /\.zijin-round4-standard\{/);
   assert.match(styles, /\.zijin-round4-result\{/);
+  assert.match(source, /function FourRabbitAutomationDashboard/);
+  assert.match(source, /训练对象：601899 紫金矿业/);
+  assert.match(source, /独立研究，不自动修改通用 V4/);
+  assert.match(source, /训练兔/);
+  assert.match(source, /挑战兔/);
+  assert.match(source, /风控兔/);
+  assert.match(source, /正式兔/);
+  assert.match(styles, /\.zijin-auto-dashboard\{/);
+  assert.match(styles, /\.zijin-auto-rabbits\{/);
 });
 
 test("Zijin experiment deep link survives authentication and a missing saved watchlist stock", async () => {

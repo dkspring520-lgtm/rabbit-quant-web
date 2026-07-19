@@ -51,7 +51,24 @@ type ZijinTrainingProgress = {
   totalCandidates:number;
   message:string;
   updatedAt:string;
-  meta?:{source:"runtime"|"bundled";servedAt:string;stale:boolean};
+  meta?:{source:"runtime"|"bundled";servedAt:string;stale:boolean;automationSource?:"runtime"|"bundled"|null;automationStale?:boolean};
+  automation?:{
+    schemaVersion:number;
+    stock:{code:string;name:string};
+    scheduler:{enabled:boolean;mode:"change-driven";status:"idle"|"running"|"failed";reason:string;lastCheckAt:string;heartbeatAt:string;nextCheckAt:string;staleAfterSeconds:number};
+    run:{id:string|null;stage:string;progress:number;startedAt:string|null;elapsedSeconds:number;currentTask:string};
+    input:{data:{path:string;size:number;mtimeNs:number;sha256:string};protocol:{path:string;size:number;mtimeNs:number;sha256:string};sealed2026:boolean};
+    rabbits:{
+      training:{status:string;task:string;completed:number;total:number};
+      challenger:{status:string;task:string;completed:number;total:number};
+      risk:{status:string;task:string;completed:number;total:number};
+      official:{status:string;task:string;completed:number;total:number};
+      overallProgress:number;
+    };
+    lastRun:null|{id:string;status:string;startedAt:string;completedAt:string;elapsedSeconds?:number;qualifiedHypotheses?:number;ledgerRecords?:number;dataSha256:string;protocolSha256:string;reportHash?:string;error?:string};
+    history:{path:string|null;appendOnly:boolean;hashChained:boolean};
+    updatedAt:string;
+  }|null;
   latest:{
     tradingDays?:number;
     trainingTrades?:number; trainingWinRate?:number|null; trainingAverageNetPct?:number;
@@ -96,6 +113,27 @@ function RabbitProgressMeter({
       <span className="rabbit-progress-orbit" style={normalized===null?undefined:{left:`clamp(18px, ${normalized}%, calc(100% - 18px))`}}><img src="/rabbit-logo-compact.png" alt=""/><i/></span>
     </div>
     {stages.length>0&&<div className="rabbit-progress-stages">{stages.map((stage,index)=>{const threshold=stages.length===1?100:index/(stages.length-1)*100;const reached=normalized!==null&&normalized>=threshold;const current=normalized!==null&&index===Math.min(stages.length-1,Math.floor(normalized/Math.max(1,100/Math.max(1,stages.length-1))));return <span className={`${reached?"done ":""}${current?"current":""}`} key={stage}><i/>{stage}</span>})}</div>}
+  </section>;
+}
+
+function FourRabbitAutomationDashboard({progress}:{progress:ZijinTrainingProgress}) {
+  const automation=progress.automation;
+  if(!automation)return <section className="zijin-auto-dashboard unavailable"><b>四兔自动研究状态尚未接入</b><span>当前只保留已审计的历史训练结论，不显示估算进度。</span></section>;
+  const stale=Boolean(progress.meta?.automationStale);
+  const running=automation.scheduler.status==="running";
+  const rabbits=[
+    {id:"training",name:"训练兔",scope:"601899 专属选参",...automation.rabbits.training},
+    {id:"challenger",name:"挑战兔",scope:"未见样本盲测",...automation.rabbits.challenger},
+    {id:"risk",name:"风控兔",scope:"费用与过拟合审计",...automation.rabbits.risk},
+    {id:"official",name:"正式兔",scope:"仅管理影子观察资格",...automation.rabbits.official},
+  ];
+  const statusText=(status:string)=>status==="running"?"运行中":status==="completed"?"本轮完成":status==="qualified"?"待人工评审":status==="blocked"?"未获准":status==="failed"?"运行失败":"等待中";
+  const timeLabel=(value:string|undefined)=>{if(!value)return "--";const date=new Date(value);return Number.isNaN(date.getTime())?"--":date.toLocaleString("zh-CN",{hour12:false});};
+  return <section className={`zijin-auto-dashboard ${stale?"stale":automation.scheduler.status}`} aria-label="紫金矿业四兔自动研究看板">
+    <header><div><span>ZIJIN AUTO RESEARCH · 真实调度</span><h3>四兔现在在做什么</h3><p><b>训练对象：601899 紫金矿业</b> · 独立研究，不自动修改通用 V4。</p></div><em>{stale?"心跳超时":running?"正在运行":"等待变化"}</em></header>
+    <div className="zijin-auto-summary"><p><span>当前任务</span><b>{automation.run.currentTask||automation.scheduler.reason}</b></p><p><span>调度方式</span><b>数据或实验协议变化后运行</b></p><p><span>最近心跳</span><b>{timeLabel(automation.scheduler.heartbeatAt)}</b></p><p><span>本轮耗时</span><b>{automation.run.elapsedSeconds?`${automation.run.elapsedSeconds} 秒`:"尚未运行"}</b></p></div>
+    <div className="zijin-auto-rabbits">{rabbits.map(rabbit=><article className={rabbit.status} key={rabbit.id}><div><i aria-hidden="true">兔</i><span><b>{rabbit.name}</b><small>{rabbit.scope}</small></span><em>{statusText(rabbit.status)}</em></div><p>{rabbit.task}</p><footer><span>{rabbit.completed}/{rabbit.total}</span><i><b style={{width:`${Math.max(0,Math.min(100,rabbit.total?rabbit.completed/rabbit.total*100:0))}%`}}/></i></footer></article>)}</div>
+    <footer><span>最近结果：{automation.lastRun?`${automation.lastRun.qualifiedHypotheses??0} 个模型通过 · 账本 ${automation.lastRun.ledgerRecords??0} 条`:"尚无自动运行记录"}</span><span>2026 数据：{automation.input.sealed2026?"封存，不参与选参":"未封存"}</span><span>不会自动晋级：需盲测、影子盘和人工批准</span></footer>
   </section>;
 }
 
@@ -1708,6 +1746,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
         status={trainingStale?'error':zijinTrainingProgress?.status==='running'?'running':zijinTrainingProgress?.status==='completed'?'completed':'paused'}
         stages={['整理数据','因果训练','样本外验证','最终盲测','人工评审']}
       />
+      {zijinTrainingProgress&&<FourRabbitAutomationDashboard progress={zijinTrainingProgress}/>}
       {zijinTrainingProgress?<>
         <div className={`zijin-training-state-note ${trainingStale?'warning':zijinTrainingProgress.status}`}><b>{trainingStale?'训练可能中断':zijinTrainingProgress.status==="running"?'服务器正在计算':'本轮已结束'}</b><span>{trainingStale?'页面保留最后一次真实进度，不会自动补数。':zijinTrainingProgress.status==="running"?'页面每 2 秒读取服务器状态；切换页面不会影响后台训练。':'100% 表示本轮审计流程完成，不代表系统仍在持续训练。页面每 30 秒检查是否有新任务。'}</span></div>
         <div className="zijin-training-stats"><p><span>现在做到哪一步</span><b>{zijinTrainingProgress.stage==="training"?"用旧数据找规则":zijinTrainingProgress.stage==="validation"?"用陌生年份复核":zijinTrainingProgress.stage==="blind-test"?"最后一次盲测":zijinTrainingProgress.stage==="completed"?"本轮已经结束":"整理数据"}</b><small>{zijinTrainingProgress.totalCandidates?`${zijinTrainingProgress.processedCandidates}/${zijinTrainingProgress.totalCandidates} 组规则已检查`:"正在读取历史库"}</small></p><p><span>旧数据上的表现</span><b>{zijinTrainingProgress.latest.trainingWinRate==null?'--':`${(zijinTrainingProgress.latest.trainingWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.trainingTrades??0} 笔 · 每笔平均 {zijinTrainingProgress.latest.trainingAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>换一年还能不能用</span><b>{validationFinished&&!validationRan?'未检查':zijinTrainingProgress.latest.validationWinRate==null?'--':`${(zijinTrainingProgress.latest.validationWinRate*100).toFixed(1)}%`}</b><small>{validationFinished&&!validationRan?'第一关没过，所以没有读取 2025':`${zijinTrainingProgress.latest.validationTrades??0} 笔 · 每笔平均 ${zijinTrainingProgress.latest.validationAverageNetPct?.toFixed(3)??'--'}%`}</small></p><p><span>最后保密测试</span><b>{blindFinished&&!blindRan?'未检查':zijinTrainingProgress.latest.blindWinRate==null?'--':`${(zijinTrainingProgress.latest.blindWinRate*100).toFixed(1)}%`}</b><small>{blindFinished&&!blindRan?'2025 没通过，所以没有读取 2026':`${zijinTrainingProgress.latest.blindTrades??0} 笔 · 每笔平均 ${zijinTrainingProgress.latest.blindAverageNetPct?.toFixed(3)??'--'}%`}</small></p></div>

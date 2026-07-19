@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "scheduler": {
+    "enabled": true,
+    "mode": "change-driven",
+    "status": "idle",
+    "reason": "第4轮已完成；数据与实验协议未变化，等待新样本或新假设",
+    "lastCheckAt": "2026-07-19T15:31:00.4507581Z",
+    "heartbeatAt": "2026-07-19T15:31:00.4507581Z",
+    "nextCheckAt": "2026-07-19T16:01:00.4507581Z",
+    "staleAfterSeconds": 120
+  },
+  "run": {
+    "id": "r4-20260719T114433-283500",
+    "stage": "completed",
+    "progress": 100,
+    "startedAt": null,
+    "elapsedSeconds": 79,
+    "currentTask": "等待新数据或经过预登记的新实验协议"
+  },
+  "input": {
+    "data": {
+      "path": "zijin-peer-panel-2022-2026.parquet",
+      "size": 26692028,
+      "mtimeNs": 1784319648062326500,
+      "sha256": "49fecf05c16036fbb681cfa27a751107d4ac375ee02d49231434674b6a42cf45"
+    },
+    "protocol": {
+      "path": "scripts/zijin-round4-protocol.json",
+      "size": 0,
+      "mtimeNs": 0,
+      "sha256": "2f7adb1e28480cbbfb41a561d5ccf6706ef7e1a604ed4a50cc5ba768aeb37bfa"
+    },
+    "sealed2026": true
+  },
+  "rabbits": {
+    "training": {
+      "status": "completed",
+      "task": "只针对601899，完成4个预登记假设的因果参数评估",
+      "completed": 4,
+      "total": 4
+    },
+    "challenger": {
+      "status": "completed",
+      "task": "完成滚动样本外验证；没有读取封存的2026分钟数据",
+      "completed": 4,
+      "total": 4
+    },
+    "risk": {
+      "status": "completed",
+      "task": "已核查费用、PBO、DSR与跨季度稳定性，结果未过门槛",
+      "completed": 1,
+      "total": 1
+    },
+    "official": {
+      "status": "blocked",
+      "task": "0个模型获准进入影子观察；当前仍由V4正式策略运行",
+      "completed": 0,
+      "total": 4
+    },
+    "overallProgress": 100
+  },
+  "lastRun": {
+    "id": "r4-20260719T114433-283500",
+    "status": "completed",
+    "startedAt": "2026-07-19T11:44:33Z",
+    "completedAt": "2026-07-19T11:45:52Z",
+    "elapsedSeconds": 79.08,
+    "qualifiedHypotheses": 0,
+    "ledgerRecords": 256,
+    "dataSha256": "49fecf05c16036fbb681cfa27a751107d4ac375ee02d49231434674b6a42cf45",
+    "protocolSha256": "2f7adb1e28480cbbfb41a561d5ccf6706ef7e1a604ed4a50cc5ba768aeb37bfa"
+  },
+  "history": {
+    "path": ".zijin-auto-runtime/run-history.jsonl",
+    "appendOnly": true,
+    "hashChained": true
+  },
+  "updatedAt": "2026-07-19T15:31:00.4507581Z"
+}

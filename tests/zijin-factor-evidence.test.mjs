@@ -10,6 +10,8 @@ const externalReadinessUrl = new URL("../public/research/zijin-external-factor-r
 const round2RegimeAuditUrl = new URL("../public/research/zijin-round2-regime-audit.json", import.meta.url);
 const composeUrl = new URL("../compose.web.yml", import.meta.url);
 const trainingStateSyncUrl = new URL("../scripts/sync-zijin-training-state.mjs", import.meta.url);
+const automationStateUrl = new URL("../public/research/zijin-automation-status.json", import.meta.url);
+const automationStateSyncUrl = new URL("../scripts/sync-zijin-automation-state.mjs", import.meta.url);
 const trainingProgressApiUrl = new URL("../app/api/research/zijin-training-progress/route.ts", import.meta.url);
 
 test("Zijin historical evidence is causal, isolated and split before blind testing", async () => {
@@ -99,17 +101,30 @@ test("Zijin training progress reports real completed work and all audit stages",
 test("production preserves and dynamically serves the latest Zijin training state", async () => {
   const compose = await readFile(composeUrl, "utf8");
   const syncScript = await readFile(trainingStateSyncUrl, "utf8");
+  const automationSyncScript = await readFile(automationStateSyncUrl, "utf8");
   const apiRoute = await readFile(trainingProgressApiUrl, "utf8");
   assert.match(compose, /\/opt\/rabbit-quant-state:\/training-state/);
   assert.match(compose, /ZIJIN_TRAINING_STATE_PATH: \/training-state\/zijin-training-progress\.json/);
   assert.match(compose, /sync-zijin-training-state\.mjs/);
+  assert.match(compose, /ZIJIN_AUTOMATION_STATE_PATH: \/training-state\/zijin-automation-status\.json/);
+  assert.match(compose, /sync-zijin-automation-state\.mjs/);
   assert.match(syncScript, /stock\?\.code === "601899"/);
   assert.match(syncScript, /keep newer runtime state/);
   assert.match(syncScript, /updatedAt\(current\) > updatedAt\(progress\)/);
   assert.match(syncScript, /copyFile\(source, target\)/);
   assert.match(apiRoute, /ZIJIN_TRAINING_STATE_PATH/);
+  assert.match(apiRoute, /ZIJIN_AUTOMATION_STATE_PATH/);
+  assert.match(apiRoute, /automationStale/);
   assert.match(apiRoute, /"Cache-Control": "no-store/);
   assert.match(apiRoute, /Date\.now\(\) - updatedAt > 10 \* 60 \* 1000/);
+  assert.match(automationSyncScript, /scheduler\?\.mode === "change-driven"/);
+  assert.match(automationSyncScript, /keep newer runtime state/);
+  const automation = JSON.parse(await readFile(automationStateUrl, "utf8"));
+  assert.equal(automation.stock.code, "601899");
+  assert.equal(automation.scheduler.mode, "change-driven");
+  assert.equal(automation.input.sealed2026, true);
+  assert.equal(automation.rabbits.official.status, "blocked");
+  assert.equal(automation.lastRun.qualifiedHypotheses, 0);
 });
 
 test("Zijin pattern discovery rejects unstable price-volume rules without future leakage", async () => {
