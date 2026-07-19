@@ -11,6 +11,11 @@ test("round four ledger is append-only and rejects 2026 selection trials", async
   assert.match(source, /duplicate trialId/);
   assert.match(source, /2026 is sealed and cannot be used by a selection trial/);
   assert.match(source, /trial factors differ from the preregistered hypothesis/);
+  assert.match(source, /def verify_ledger/);
+  assert.match(source, /previousRecordHash/);
+  assert.match(source, /recordHash/);
+  assert.match(source, /ledger hash chain is broken/);
+  assert.match(source, /ledger record hash mismatch/);
 });
 
 test("round four implements CSCV PBO and Deflated Sharpe controls", async () => {
@@ -24,7 +29,7 @@ test("round four implements CSCV PBO and Deflated Sharpe controls", async () => 
   assert.match(source, /complete trialPeriodReturns matrix/);
   assert.match(source, /valid selectedTrialIndex from the complete trial matrix/);
   assert.match(source, /selected_returns = trial_period_returns\[selected_trial_index\]/);
-  assert.match(source, /all_trial_sharpes = \[annualized_sharpe\(row\)/);
+  assert.match(source, /all_trial_sharpes = \[annualized_sharpe\(row, periods_per_year\)/);
   assert.doesNotMatch(source, /summary\.get\("pbo"/);
   assert.doesNotMatch(source, /summary\.get\("deflatedSharpeProbability"/);
   assert.doesNotMatch(source, /summary\.get\("selectedReturns"/);
@@ -36,4 +41,23 @@ test("round four evaluation cannot promote directly to V4 or shadow trading", as
   assert.match(source, /beatsAllBaselines/);
   assert.match(source, /门槛未通过时不得读取2026数据/);
   assert.doesNotMatch(source, /nextStage.*shadow-observation/);
+  assert.match(source, /def open_final_blind_once/);
+  assert.match(source, /2026 final blind has already been opened once/);
+  assert.match(source, /state_path\.open\("x"/);
+});
+
+test("round four executor runs four separate hypotheses and exact baselines", async () => {
+  const executor = await readFile(new URL("../scripts/run_zijin_round4_experiments.py", import.meta.url), "utf8");
+  const v4Baseline = await readFile(new URL("../scripts/round4-v4-baseline.mjs", import.meta.url), "utf8");
+  assert.match(executor, /def run_hypothesis/);
+  assert.match(executor, /for index, hypothesis in enumerate\(protocol\["hypotheses"\]\)/);
+  assert.match(executor, /standard\.append_trial/);
+  assert.match(executor, /choose_training_config/);
+  assert.match(executor, /trialPeriodReturns/);
+  assert.match(executor, /"no-trade"/);
+  assert.match(executor, /"simple-vwap"/);
+  assert.match(executor, /"smart-t-v4"/);
+  assert.match(executor, /reads2026.*False/);
+  assert.match(v4Baseline, /runSmartTReplay/);
+  assert.match(v4Baseline, /cycleNetPcts/);
 });

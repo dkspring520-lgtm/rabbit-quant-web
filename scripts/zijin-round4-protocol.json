@@ -41,7 +41,12 @@
         "peerBreadth3",
         "priorDayReturnPct",
         "priorZijinPeerAlphaPct"
-      ]
+      ],
+      "parameterGrid": {
+        "gapAbsPct": [0.3, 0.6],
+        "repairPct": [0.08, 0.16],
+        "minimumVolumeRatio": [0.8, 1.2]
+      }
     },
     {
       "id": "vwap-mean-reversion",
@@ -58,7 +63,12 @@
         "intradayPosition",
         "reboundFromLowPct",
         "drawdownFromHighPct"
-      ]
+      ],
+      "parameterGrid": {
+        "vwapBiasAbsPct": [0.18, 0.3],
+        "zscoreAbs": [0.8, 1.2],
+        "minimumVolumeRatio": [0.8, 1.2]
+      }
     },
     {
       "id": "peak-exhaustion",
@@ -75,7 +85,12 @@
         "intradayPosition",
         "drawdownFromHighPct",
         "peerBreadth3"
-      ]
+      ],
+      "parameterGrid": {
+        "vwapBiasPct": [0.18, 0.3],
+        "minimumIntradayPosition": [0.65, 0.78],
+        "minimumVolumeRatio": [0.8, 1.2]
+      }
     },
     {
       "id": "sector-divergence",
@@ -92,7 +107,12 @@
         "copperReturn3Pct",
         "zijinAlpha3Pct",
         "priorZijinPeerAlphaPct"
-      ]
+      ],
+      "parameterGrid": {
+        "alphaAbsPct": [0.08, 0.16],
+        "peerBreadthBoundary": [0.33, 0.5],
+        "minimumPeerCoverage": [0.66, 0.83]
+      }
     }
   ],
   "validation": {
@@ -146,6 +166,7 @@
   },
   "trialLedger": {
     "format": "jsonl-append-only",
+    "integrity": "sha256-hash-chain",
     "requiredFields": [
       "trialId",
       "hypothesisId",

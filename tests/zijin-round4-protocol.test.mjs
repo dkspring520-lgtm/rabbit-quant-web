@@ -30,6 +30,8 @@ test("Zijin round four tests four independent compact hypotheses", async () => {
     assert.ok(hypothesis.features.length >= 8, `${hypothesis.id} has too few factors`);
     assert.ok(hypothesis.features.length <= 12, `${hypothesis.id} has too many factors`);
     assert.equal(new Set(hypothesis.features).size, hypothesis.features.length);
+    assert.ok(hypothesis.parameterGrid);
+    assert.equal(Object.values(hypothesis.parameterGrid).reduce((count, values) => count * values.length, 1), 8);
   }
 });
 
@@ -41,6 +43,7 @@ test("Zijin round four uses rolling OOS, honest baselines, and multiple-testing 
   assert.equal(protocol.multipleTesting.trialLedgerRequired, true);
   assert.equal(protocol.multipleTesting.probabilityOfBacktestOverfitting.method, "CSCV");
   assert.equal(protocol.multipleTesting.deflatedSharpe.usesAllRecordedTrials, true);
+  assert.equal(protocol.trialLedger.integrity, "sha256-hash-chain");
 });
 
 test("Zijin round four can only reach shadow observation after every gate", async () => {
