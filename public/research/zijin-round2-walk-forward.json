@@ -1,0 +1,416 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "marketCode": "601899.SH",
+    "name": "紫金矿业"
+  },
+  "round": 2,
+  "mode": "research-only",
+  "affectsV4": false,
+  "status": "failed",
+  "dataset": {
+    "firstDate": "20220104",
+    "lastDateLoaded": "20251231",
+    "minuteRows": 1634703,
+    "tradingDays": 969,
+    "stockCount": 7,
+    "causalCandidates": 29335,
+    "loaded2026Rows": 0,
+    "allowedCodes": [
+      "601899",
+      "603993",
+      "600362",
+      "000630",
+      "600547",
+      "600489",
+      "601600"
+    ],
+    "completeTargetDays": 969,
+    "meanPeerCoverage": 1.0,
+    "minimumPeerCoverage": 1.0
+  },
+  "methodology": {
+    "folds": "8 expanding quarterly out-of-sample folds (2024Q1..2025Q4)",
+    "cutoff": "20251231",
+    "blindTest": "2026 not loaded; prior audit set remains sealed from round two",
+    "selectionUsesValidationQuarter": false,
+    "causalFeatures": true,
+    "earliestFill": "下一分钟开盘价",
+    "sameBarConflict": "同柱止损优先",
+    "futureUse": "仅作为收益标签",
+    "roundTripCostPct": 0.12,
+    "costModelNote": "百分比近似成本；未按账户逐笔计算最低 5 元佣金",
+    "netProfitZonePct": [
+      0.64,
+      1.0
+    ],
+    "maxTradesPerDay": 2,
+    "modelConfigs": [
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 60
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 100
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 140
+      },
+      {
+        "maxDepth": 3,
+        "minSamplesLeaf": 180
+      },
+      {
+        "maxDepth": 4,
+        "minSamplesLeaf": 60
+      },
+      {
+        "maxDepth": 4,
+        "minSamplesLeaf": 100
+      },
+      {
+        "maxDepth": 4,
+        "minSamplesLeaf": 140
+      },
+      {
+        "maxDepth": 4,
+        "minSamplesLeaf": 180
+      }
+    ]
+  },
+  "folds": [
+    {
+      "id": "2024Q1",
+      "trainingEnd": "20231229",
+      "validationStart": "20240101",
+      "validationEnd": "20240331",
+      "trainingCandidates": 14306,
+      "validationCandidates": 1781,
+      "selectedModels": {
+        "positive": null,
+        "reverse": null
+      },
+      "result": {
+        "trades": 0,
+        "wins": 0,
+        "winRate": null,
+        "averageNetPct": 0.0,
+        "totalNetPct": 0.0,
+        "targetRate": null,
+        "averageHoldMinutes": 0.0
+      },
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2024Q2",
+      "trainingEnd": "20240329",
+      "validationStart": "20240401",
+      "validationEnd": "20240630",
+      "trainingCandidates": 16087,
+      "validationCandidates": 1994,
+      "selectedModels": {
+        "positive": null,
+        "reverse": {
+          "maxDepth": 4,
+          "minSamplesLeaf": 60,
+          "acceptedLeafCount": 1,
+          "training": {
+            "trades": 62,
+            "wins": 39,
+            "winRate": 0.629,
+            "averageNetPct": 0.131,
+            "totalNetPct": 8.1249,
+            "targetRate": 0.4677,
+            "averageHoldMinutes": 24.94
+          }
+        }
+      },
+      "result": {
+        "trades": 12,
+        "wins": 5,
+        "winRate": 0.4167,
+        "averageNetPct": -0.0963,
+        "totalNetPct": -1.1553,
+        "targetRate": 0.4167,
+        "averageHoldMinutes": 9.58
+      },
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2024Q3",
+      "trainingEnd": "20240628",
+      "validationStart": "20240701",
+      "validationEnd": "20240930",
+      "trainingCandidates": 18081,
+      "validationCandidates": 2046,
+      "selectedModels": {
+        "positive": null,
+        "reverse": {
+          "maxDepth": 4,
+          "minSamplesLeaf": 140,
+          "acceptedLeafCount": 1,
+          "training": {
+            "trades": 67,
+            "wins": 45,
+            "winRate": 0.6716,
+            "averageNetPct": 0.2053,
+            "totalNetPct": 13.7582,
+            "targetRate": 0.5522,
+            "averageHoldMinutes": 24.24
+          }
+        }
+      },
+      "result": {
+        "trades": 10,
+        "wins": 6,
+        "winRate": 0.6,
+        "averageNetPct": 0.0644,
+        "totalNetPct": 0.6438,
+        "targetRate": 0.5,
+        "averageHoldMinutes": 18.4
+      },
+      "positiveNet": true,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2024Q4",
+      "trainingEnd": "20240930",
+      "validationStart": "20241001",
+      "validationEnd": "20241231",
+      "trainingCandidates": 20127,
+      "validationCandidates": 1826,
+      "selectedModels": {
+        "positive": null,
+        "reverse": {
+          "maxDepth": 4,
+          "minSamplesLeaf": 100,
+          "acceptedLeafCount": 1,
+          "training": {
+            "trades": 42,
+            "wins": 30,
+            "winRate": 0.7143,
+            "averageNetPct": 0.1758,
+            "totalNetPct": 7.3848,
+            "targetRate": 0.5238,
+            "averageHoldMinutes": 30.48
+          }
+        }
+      },
+      "result": {
+        "trades": 1,
+        "wins": 0,
+        "winRate": 0.0,
+        "averageNetPct": -0.57,
+        "totalNetPct": -0.57,
+        "targetRate": 0.0,
+        "averageHoldMinutes": 3.0
+      },
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2025Q1",
+      "trainingEnd": "20241231",
+      "validationStart": "20250101",
+      "validationEnd": "20250331",
+      "trainingCandidates": 21953,
+      "validationCandidates": 1767,
+      "selectedModels": {
+        "positive": null,
+        "reverse": {
+          "maxDepth": 4,
+          "minSamplesLeaf": 60,
+          "acceptedLeafCount": 1,
+          "training": {
+            "trades": 45,
+            "wins": 30,
+            "winRate": 0.6667,
+            "averageNetPct": 0.1383,
+            "totalNetPct": 6.2252,
+            "targetRate": 0.4889,
+            "averageHoldMinutes": 29.96
+          }
+        }
+      },
+      "result": {
+        "trades": 4,
+        "wins": 2,
+        "winRate": 0.5,
+        "averageNetPct": 0.0065,
+        "totalNetPct": 0.0261,
+        "targetRate": 0.25,
+        "averageHoldMinutes": 41.25
+      },
+      "positiveNet": true,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2025Q2",
+      "trainingEnd": "20250331",
+      "validationStart": "20250401",
+      "validationEnd": "20250630",
+      "trainingCandidates": 23720,
+      "validationCandidates": 1659,
+      "selectedModels": {
+        "positive": {
+          "maxDepth": 4,
+          "minSamplesLeaf": 180,
+          "acceptedLeafCount": 1,
+          "training": {
+            "trades": 94,
+            "wins": 57,
+            "winRate": 0.6064,
+            "averageNetPct": 0.0424,
+            "totalNetPct": 3.9837,
+            "targetRate": 0.2766,
+            "averageHoldMinutes": 41.18
+          }
+        },
+        "reverse": null
+      },
+      "result": {
+        "trades": 9,
+        "wins": 2,
+        "winRate": 0.2222,
+        "averageNetPct": -0.2688,
+        "totalNetPct": -2.4196,
+        "targetRate": 0.1111,
+        "averageHoldMinutes": 39.11
+      },
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2025Q3",
+      "trainingEnd": "20250630",
+      "validationStart": "20250701",
+      "validationEnd": "20250930",
+      "trainingCandidates": 25379,
+      "validationCandidates": 2084,
+      "selectedModels": {
+        "positive": null,
+        "reverse": {
+          "maxDepth": 4,
+          "minSamplesLeaf": 60,
+          "acceptedLeafCount": 1,
+          "training": {
+            "trades": 64,
+            "wins": 40,
+            "winRate": 0.625,
+            "averageNetPct": 0.0864,
+            "totalNetPct": 5.5308,
+            "targetRate": 0.2656,
+            "averageHoldMinutes": 35.66
+          }
+        }
+      },
+      "result": {
+        "trades": 5,
+        "wins": 3,
+        "winRate": 0.6,
+        "averageNetPct": -0.051,
+        "totalNetPct": -0.2549,
+        "targetRate": 0.0,
+        "averageHoldMinutes": 40.2
+      },
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    },
+    {
+      "id": "2025Q4",
+      "trainingEnd": "20250930",
+      "validationStart": "20251001",
+      "validationEnd": "20251231",
+      "trainingCandidates": 27463,
+      "validationCandidates": 1872,
+      "selectedModels": {
+        "positive": null,
+        "reverse": {
+          "maxDepth": 4,
+          "minSamplesLeaf": 60,
+          "acceptedLeafCount": 1,
+          "training": {
+            "trades": 73,
+            "wins": 42,
+            "winRate": 0.5753,
+            "averageNetPct": 0.0886,
+            "totalNetPct": 6.4658,
+            "targetRate": 0.411,
+            "averageHoldMinutes": 20.96
+          }
+        }
+      },
+      "result": {
+        "trades": 9,
+        "wins": 3,
+        "winRate": 0.3333,
+        "averageNetPct": -0.1564,
+        "totalNetPct": -1.4073,
+        "targetRate": 0.3333,
+        "averageHoldMinutes": 12.11
+      },
+      "positiveNet": false,
+      "causalBoundaryPassed": true
+    }
+  ],
+  "overallOutOfSample": {
+    "trades": 50,
+    "wins": 21,
+    "winRate": 0.42,
+    "averageNetPct": -0.1027,
+    "totalNetPct": -5.1372,
+    "targetRate": 0.3,
+    "averageHoldMinutes": 22.58
+  },
+  "bootstrap95LowerPct": -0.2539,
+  "positiveFoldCount": 2,
+  "gates": {
+    "minimumTrades": {
+      "target": 80,
+      "actual": 50,
+      "passed": false
+    },
+    "winRate": {
+      "target": 0.65,
+      "actual": 0.42,
+      "passed": false
+    },
+    "averageNetPct": {
+      "target": "> 0",
+      "actual": -0.1027,
+      "passed": false
+    },
+    "positiveFolds": {
+      "target": 6,
+      "actual": 2,
+      "passed": false
+    },
+    "bootstrap95LowerPct": {
+      "target": "> 0",
+      "actual": -0.2539,
+      "passed": false
+    },
+    "causalBoundaries": {
+      "target": 8,
+      "actual": 8,
+      "passed": true
+    },
+    "foldCoverage": {
+      "target": 8,
+      "actual": 8,
+      "passed": true
+    }
+  },
+  "conclusion": {
+    "passed": false,
+    "message": "第二轮滚动验证未通过；保留失败证据，不进入 V4，也不降低 65% 门槛。",
+    "nextAction": "检查失败季度与因子稳定性；有新增数据后开启第三轮，不重复使用 2026 调参。"
+  },
+  "generatedAt": "2026-07-19T11:56:59+0800",
+  "elapsedSeconds": 342.54
+}
