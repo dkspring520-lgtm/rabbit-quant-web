@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 const bundledState = resolve(process.cwd(), "public/research/zijin-training-progress.json");
 const runtimeState = process.env.ZIJIN_TRAINING_STATE_PATH || "/training-state/zijin-training-progress.json";
+const bundledAutomationState = resolve(process.cwd(), "public/research/zijin-automation-status.json");
+const runtimeAutomationState = process.env.ZIJIN_AUTOMATION_STATE_PATH || "/training-state/zijin-automation-status.json";
 
 function parseProgressTime(value: unknown) {
   if (typeof value !== "string") return Number.NaN;
@@ -18,6 +20,36 @@ async function readProgress(path: string) {
   return payload;
 }
 
+async function readAutomation(path: string) {
+  const payload = JSON.parse(await readFile(path, "utf8"));
+  if (payload?.stock?.code !== "601899" || !payload.scheduler || !payload.rabbits) {
+    throw new Error("invalid Zijin automation state");
+  }
+  return payload;
+}
+
+async function latestAutomation() {
+  const candidates = runtimeAutomationState === bundledAutomationState
+    ? [bundledAutomationState]
+    : [runtimeAutomationState, bundledAutomationState];
+  for (const path of candidates) {
+    try {
+      const payload = await readAutomation(path);
+      const heartbeatAt = parseProgressTime(payload.scheduler?.heartbeatAt ?? payload.updatedAt);
+      const staleAfter = Number(payload.scheduler?.staleAfterSeconds || 120) * 1000;
+      return {
+        payload,
+        source: path === runtimeAutomationState ? "runtime" : "bundled",
+        stale: payload.scheduler?.status === "running"
+          && (!Number.isFinite(heartbeatAt) || Date.now() - heartbeatAt > staleAfter),
+      };
+    } catch {
+      // Try the bundled state when a server-side scheduler has not written a state yet.
+    }
+  }
+  return null;
+}
+
 export async function GET() {
   const candidates = runtimeState === bundledState ? [bundledState] : [runtimeState, bundledState];
   for (const path of candidates) {
@@ -26,12 +58,16 @@ export async function GET() {
       const updatedAt = parseProgressTime(payload.updatedAt);
       const stale = payload.status === "running"
         && (!Number.isFinite(updatedAt) || Date.now() - updatedAt > 10 * 60 * 1000);
+      const automation = await latestAutomation();
       return Response.json({
         ...payload,
+        automation: automation?.payload ?? null,
         meta: {
           source: path === runtimeState ? "runtime" : "bundled",
           servedAt: new Date().toISOString(),
           stale,
+          automationSource: automation?.source ?? null,
+          automationStale: automation?.stale ?? false,
         },
       }, {
         headers: {
