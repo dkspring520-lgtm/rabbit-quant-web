@@ -26,6 +26,7 @@ import { aShareSession } from "@/lib/a-share-session.mjs";
 import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
+import { clientPollingInterval, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
 import PublicLanding from "./public-landing";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
@@ -1084,6 +1085,7 @@ export default function Home() {
     if (!localAuth || !stock?.code) return;
     let cancelled = false;
     const load = async () => {
+      if (!shouldRunClientPolling(document.visibilityState)) return;
       try {
         const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`);
         if (!response.ok) throw new Error("行情服务暂不可用");
@@ -1094,15 +1096,17 @@ export default function Home() {
       }
     };
     void load();
-    const timer = window.setInterval(load, 30_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    const timer = window.setInterval(load, clientPollingInterval("activeQuote", false));
+    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
+    document.addEventListener("visibilitychange",onVisibility);
+    return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
   }, [localAuth, stock?.code]);
   useEffect(() => {
     if (!localAuth || !stock?.code) return;
     let cancelled = false;
     let inFlight = false;
     const load = async () => {
-      if (inFlight || document.visibilityState !== "visible") return;
+      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
       inFlight = true;
       try {
         const change=currentMarket?.quote.changePercent;
@@ -1116,15 +1120,15 @@ export default function Home() {
       } finally { inFlight=false; }
     };
     void load();
-    const timer=window.setInterval(()=>void load(),15_000);
+    const timer=window.setInterval(()=>void load(),clientPollingInterval("marketContext",marketSession.live));
     return()=>{cancelled=true;window.clearInterval(timer)};
-  },[localAuth,stock?.code,currentMarket?.quote.changePercent]);
+  },[localAuth,stock?.code,currentMarket?.quote.changePercent,marketSession.live]);
   useEffect(() => {
     if (!localAuth || !stockList.length) return;
     let cancelled = false;
     let inFlight=false;
     const load=async()=>{
-      if(inFlight)return;
+      if(inFlight||!shouldRunClientPolling(document.visibilityState))return;
       inFlight=true;
       try{
         const results=await Promise.allSettled(stockList.map(async item=>{
@@ -1140,17 +1144,19 @@ export default function Home() {
       }catch{}finally{inFlight=false;}
     };
     void load();
-    // Inactive tabs remain monitored. Five seconds is sufficient for the
-    // one-minute signal engine while avoiding ten simultaneous one-second feeds.
-    const timer=window.setInterval(()=>void load(),5_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [localAuth, stockList]);
+    // The control-plane keeps monitoring when the page is hidden or closed.
+    // The browser only refreshes visible UI, avoiding redundant background work.
+    const timer=window.setInterval(()=>void load(),clientPollingInterval("watchlist",marketSession.live));
+    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
+    document.addEventListener("visibilitychange",onVisibility);
+    return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
+  }, [localAuth, stockList, marketSession.live]);
   useEffect(() => {
     if (!localAuth || !stockList.length) return;
     let cancelled = false;
     let inFlight = false;
     const load = async () => {
-      if (inFlight || document.visibilityState !== "visible") return;
+      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
       inFlight = true;
       try {
         const params = new URLSearchParams({
@@ -1169,7 +1175,7 @@ export default function Home() {
       } finally { inFlight = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), marketSession.live ? 60_000 : 180_000);
+    const timer = window.setInterval(() => void load(), clientPollingInterval("eventRadar",marketSession.live));
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [localAuth, stockList, marketSession.live]);
   useEffect(() => {
@@ -1177,7 +1183,7 @@ export default function Home() {
     let cancelled = false;
     let inFlight = false;
     const load = async () => {
-      if (inFlight || document.visibilityState !== "visible") return;
+      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
       inFlight = true;
       try {
         const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-realtime`, { cache: "no-store" });
@@ -1189,8 +1195,8 @@ export default function Home() {
       } finally { inFlight = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), marketSession.live ? 1_000 : 30_000);
-    const onVisibility=()=>{if(document.visibilityState==="visible")void load()};
+    const timer = window.setInterval(() => void load(), clientPollingInterval("activeQuote",marketSession.live));
+    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
   }, [localAuth, stock?.code, marketSession.live]);
