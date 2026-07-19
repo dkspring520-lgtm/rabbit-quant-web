@@ -1045,6 +1045,6 @@
   .alert-log-summary b{font-size:18px}
   .alert-log-summary em{grid-column:1/-1;padding:10px;border-top:1px solid var(--line)}
   .alert-log-list{overscroll-behavior:contain}
-  .alert-log-row{grid-template-columns:92px 116px 82px minmax(230px,1fr) 100px;min-width:680px}
+  .alert-log-row{grid-template-columns:92px 116px 82px minmax(220px,1fr) 132px 90px;min-width:790px}
   .alert-log-row>span{padding:10px}
 }

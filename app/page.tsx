@@ -41,6 +41,7 @@ type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; 
 type AlertSettings = { sound:boolean; system:boolean };
 type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string };
+type AlertDeliveryRecord = { id:number; eventKey:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
 type MemberRecord = { id:string; username:string; displayName:string; role:"admin"|"member"; status:"active"|"paused"; createdAt:string; lastLoginAt:string|null; monitorCount:number; alertCount:number };
 type ZijinTrainingProgress = {
   schemaVersion:number;
@@ -1502,6 +1503,7 @@ function AuthView({onAuthenticated,onBack,onDemo}:{onAuthenticated:(name:string,
 function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:string}[];activeCode:string;onClose:()=>void}){
   const [code,setCode]=useState('');
   const [logs,setLogs]=useState<MonitorScanLog[]>([]);
+  const [deliveries,setDeliveries]=useState<AlertDeliveryRecord[]>([]);
   const [health,setHealth]=useState<{ok:boolean;tradingWindow:boolean;scanner:{running:boolean;lastCompletedAt:string|null;monitored:number;inserted:number;logged:number;marketErrors:number;error:string|null}}|null>(null);
   const [healthError,setHealthError]=useState('');
   const [loading,setLoading]=useState(true);
@@ -1510,9 +1512,10 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
     setLoading(true);setError('');setHealthError('');
     try{
       const query=new URLSearchParams({limit:'120'});if(code)query.set('code',code);
-      const [response,healthResponse]=await Promise.all([
+      const [response,healthResponse,alertsResponse]=await Promise.all([
         fetch(`/api/control/alert-log?${query}`,{credentials:'include',cache:'no-store'}),
         fetch('/api/control/health',{credentials:'include',cache:'no-store'}).catch(()=>null),
+        fetch('/api/control/alerts?afterId=0&limit=100',{credentials:'include',cache:'no-store'}).catch(()=>null),
       ]);
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(payload.error||'提醒日志接口暂不可用');
@@ -1522,6 +1525,8 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
         if(healthPayload?.scanner)setHealth(healthPayload);
         else {setHealth(null);setHealthError('服务器未返回扫描器状态')}
       }else {setHealth(null);setHealthError('暂时无法读取后台心跳')}
+      if(alertsResponse?.ok){const alertsPayload=await alertsResponse.json().catch(()=>null);setDeliveries(Array.isArray(alertsPayload?.alerts)?alertsPayload.alerts:[])}
+      else setDeliveries([]);
     }catch(error){setLogs([]);setError(error instanceof Error?error.message:'无法读取提醒日志')}
     finally{setLoading(false)}
   };
@@ -1537,13 +1542,23 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
   const heartbeatStale=Boolean(health?.tradingWindow&&(heartbeatAge===null||heartbeatAge>90_000));
   const healthTone=health?.scanner.error||heartbeatStale?'error':health?.scanner.running?'running':health?'healthy':'unknown';
   const healthLabel=health?.scanner.error?'扫描异常':heartbeatStale?'心跳超时':health?.scanner.running?'正在扫描':health?.tradingWindow?'后台正常':'休市待命';
+  const deliveryByEvent=new Map(deliveries.map(item=>[item.eventKey,item]));
+  const deliveryText=(item:MonitorScanLog)=>{
+    if(!isAlertResult(item.result))return {label:'无需发送',detail:'仅保留扫描证据',tone:'quiet'};
+    const delivery=item.eventKey?deliveryByEvent.get(item.eventKey):null;
+    if(!delivery)return {label:'等待入队',detail:'尚未生成提醒记录',tone:'pending'};
+    if(delivery.deliveryStatus==='failed')return {label:'发送失败',detail:delivery.deliveryError||'未记录失败原因',tone:'error'};
+    if(delivery.deliveryStatus==='notified')return {label:'通知已送达',detail:delivery.deliveryChannel||'浏览器通知',tone:'sent'};
+    if(delivery.deliveryStatus==='displayed')return {label:'页面已显示',detail:delivery.deliveryChannel||'站内提醒',tone:'sent'};
+    return {label:'等待浏览器领取',detail:'关闭浏览器时不会语音或弹窗',tone:'pending'};
+  };
   return <div className="account-overlay alert-log-overlay" role="dialog" aria-modal="true" aria-label="提醒追踪日志" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>
     <section className="alert-log-dialog">
       <header><div><span>MONITOR AUDIT</span><h2>提醒追踪日志</h2><p>服务器逐只扫描的时间、价格、判断理由与数据来源。没有触发也会留下原因，方便追查漏报。</p></div><button type="button" onClick={onClose} aria-label="关闭提醒追踪日志">×</button></header>
       <div className="alert-log-toolbar"><label><span>查看股票</span><select value={code} onChange={event=>setCode(event.target.value)}><option value="">全部监控股票</option>{stocks.map(item=><option key={item.code} value={item.code}>{item.code} {item.name}{item.code===activeCode?'（当前）':''}</option>)}</select></label><button type="button" onClick={()=>void load()} disabled={loading}>{loading?'读取中…':'刷新记录'}</button></div>
       <div className={`alert-log-health ${healthTone}`}><i/><div><small>后台监控状态</small><b>{healthError||healthLabel}</b></div><p><span>最近完成</span><strong>{lastCompletedAt&&!Number.isNaN(lastCompletedAt.getTime())?lastCompletedAt.toLocaleString('zh-CN',{hour12:false}):'尚无记录'}</strong></p><p><span>本轮扫描</span><strong>{health?`${health.scanner.monitored} 只 · 记录 ${health.scanner.logged} 条`:'—'}</strong></p><p><span>行情异常</span><strong>{health?`${health.scanner.marketErrors} 次`:'—'}</strong></p></div>
       <div className="alert-log-summary"><p><small>读取记录</small><b>{logs.length}</b></p><p><small>触发提醒</small><b>{alertCount}</b></p><p><small>行情异常</small><b>{errorCount}</b></p><em>仅保留最近 7 天；切换页面或关闭浏览器不影响服务器扫描。</em></div>
-      {error?<div className="alert-log-state error"><b>暂时无法读取</b><span>{error}</span><small>这不是“0 条记录”；请确认服务器已部署提醒日志接口。</small></div>:loading?<div className="alert-log-state"><b>正在读取服务器记录…</b></div>:logs.length===0?<div className="alert-log-state"><b>尚无扫描记录</b><span>服务器开始监控后，这里会显示每只股票未触发、触发或行情失败的原因。</span></div>:<div className="alert-log-list"><div className="alert-log-row head"><span>股票</span><span>时间 / 价格</span><span>结果</span><span>判断原因</span><span>数据源</span></div>{logs.map(item=><div className={`alert-log-row ${isAlertResult(item.result)?'alert':isErrorResult(item.result)?'error':item.result}`} key={item.id}><span><b>{item.code}</b><small>{item.name}</small></span><span><b>{item.marketTime?.length>=4?`${item.marketTime.slice(0,2)}:${item.marketTime.slice(2)}`:'--:--'}</b><small>{item.marketDate} · {item.price==null?'--':`¥${Number(item.price).toFixed(2)}`}</small></span><span><em>{resultLabel(item.result)}</em></span><span><b>{item.reason||'服务器未返回判断原因'}</b><small>{new Date(item.createdAt).toLocaleString('zh-CN')}</small></span><span><small>{item.provider||'--'}</small></span></div>)}</div>}
+      {error?<div className="alert-log-state error"><b>暂时无法读取</b><span>{error}</span><small>这不是“0 条记录”；请确认服务器已部署提醒日志接口。</small></div>:loading?<div className="alert-log-state"><b>正在读取服务器记录…</b></div>:logs.length===0?<div className="alert-log-state"><b>尚无扫描记录</b><span>服务器开始监控后，这里会显示每只股票未触发、触发或行情失败的原因。</span></div>:<div className="alert-log-list"><div className="alert-log-row head"><span>股票</span><span>时间 / 价格</span><span>结果</span><span>判断原因</span><span>发送结果</span><span>数据源</span></div>{logs.map(item=>{const delivery=deliveryText(item);return <div className={`alert-log-row ${isAlertResult(item.result)?'alert':isErrorResult(item.result)?'error':item.result}`} key={item.id}><span><b>{item.code}</b><small>{item.name}</small></span><span><b>{item.marketTime?.length>=4?`${item.marketTime.slice(0,2)}:${item.marketTime.slice(2)}`:'--:--'}</b><small>{item.marketDate} · {item.price==null?'--':`¥${Number(item.price).toFixed(2)}`}</small></span><span><em>{resultLabel(item.result)}</em></span><span><b>{item.reason||'服务器未返回判断原因'}</b><small>{new Date(item.createdAt).toLocaleString('zh-CN')}</small></span><span className={`delivery ${delivery.tone}`}><b>{delivery.label}</b><small>{delivery.detail}</small></span><span><small>{item.provider||'--'}</small></span></div>})}</div>}
     </section>
   </div>;
 }
