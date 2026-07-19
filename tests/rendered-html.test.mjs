@@ -259,6 +259,19 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
   assert.match(source, /本轮因果审计完成｜没有可晋级参数/);
 });
 
+test("generic four-rabbit research separates market training from watchlist reconciliation", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(source, /通用 V4 四兔研究中心/);
+  assert.match(source, /历史全市场样本/);
+  assert.match(source, /影子逐笔核对/);
+  assert.match(source, /未见股票与日期盲测/);
+  assert.match(source, /费用、滑点、回撤、PBO 和 DSR/);
+  assert.match(source, /不能静默改参数/);
+  assert.doesNotMatch(source, /冠军策略/);
+  assert.match(styles, /\.training-scope-strip\{/);
+});
+
 test("single-stock research keeps advanced evidence collapsed by default", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(source, /const \[researchExpanded,setResearchExpanded\]=useState\(false\)/);
