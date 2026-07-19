@@ -448,8 +448,6 @@ export default function Home() {
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
-  const [trainingRunning, setTrainingRunning] = useState(false);
-  const [trainingProgress, setTrainingProgress] = useState(0);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,...JSON.parse(saved)}:{sound:false,system:false};}catch{return {sound:false,system:false};}});
   const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
@@ -745,6 +743,7 @@ export default function Home() {
     state:agent.id==="training"?`${personalStrategyStats.sessions}日已读取`:agent.id==="challenger"?`${personalStrategyStats.cycles}闭环已核对`:agent.id==="risk"?(personalStrategyStats.maxDrawdown<.03?"风控绿灯":"需要关注"):"正式版锁定",
     value:agent.id==="training"?`${personalStrategyStats.sessions}/20`:agent.id==="challenger"?`${personalStrategyStats.cycles}/20`:agent.id==="risk"?`${(personalStrategyStats.maxDrawdown*100).toFixed(2)}%`:"V4",
   })),[personalStrategyStats]);
+  const localEvidenceCoverage=Math.min(100,Math.min(personalStrategyStats.sessions/20*100,personalStrategyStats.cycles/20*100));
   const openingAssessment = useMemo(() => {
     const price=activeQuote?.price;
     const quotedOpen=activeQuote?.open;
@@ -875,27 +874,6 @@ export default function Home() {
     const timer=window.setInterval(update,1_000);
     return()=>window.clearInterval(timer);
   },[]);
-  useEffect(() => {
-    if (!trainingRunning) return;
-    const timer=window.setTimeout(()=>{setTrainingProgress(100);setTrainingRunning(false);},0);
-    return()=>window.clearTimeout(timer);
-  }, [trainingRunning]);
-  useEffect(()=>{
-    if(!localAuth||marketSession.tone!=="closed"||trainingRunning||personalStrategyStats.sessions===0)return;
-    const day=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Shanghai"}).format(clockNow??new Date());
-    const key=`rabbit-research-run:${accountName.toLowerCase()}:${day}`;
-    try{if(localStorage.getItem(key)==="completed")return;}catch{}
-    const timer=window.setTimeout(()=>{
-      setTrainingProgress(0);
-      setTrainingRunning(true);
-    },0);
-    return()=>window.clearTimeout(timer);
-  },[localAuth,marketSession.tone,trainingRunning,personalStrategyStats.sessions,clockNow,accountName]);
-  useEffect(()=>{
-    if(trainingProgress!==100)return;
-    const day=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Shanghai"}).format(clockNow??new Date());
-    try{localStorage.setItem(`rabbit-research-run:${accountName.toLowerCase()}:${day}`,"completed");}catch{}
-  },[trainingProgress,clockNow,accountName]);
   const playAlertTone=(risk=false)=>{
     try{
       const AudioContextClass=window.AudioContext||(window as typeof window & {webkitAudioContext:typeof AudioContext}).webkitAudioContext;
@@ -1408,17 +1386,17 @@ export default function Home() {
           {deskHistoryRows.length?deskHistoryRows.map((row,index)=><div className="history-row" key={`${row.time}-${row.direction}-${index}`}><span>{row.time}</span><span className={row.tone??""}>{row.direction}</span><span>{row.price}</span><span>{row.quantity}</span><span className={row.spread.startsWith("+")?"accent":""}>{row.spread}</span><span>{row.status}</span></div>):<div className="history-empty"><b>{panel==="今日T循环"?"暂无已确认闭环":panel==="历史信号"?"当前尚无候选或正式信号":"当前尚无正式模拟动作"}</b><span>{panel==="今日T循环"?"这里只读取“持仓对账”中本机已补录并能等量配对的真实成交，不再展示固定演示流水。":panel==="历史信号"?"反弹/回落观察会保留原因；通过趋势、量价、成本与风控后才升级为正式动作。":"只有 Smart‑T V4 正式过滤通过的模拟动作才会出现在这里。"}</span></div>}
         </div>
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
-          <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四兔盘后研究</span><small>{trainingRunning?'正在核对真实完整分时':trainingProgress===100?'今日研究已完成':'收盘后自动 · 可手动运行'}</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
+          <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四兔研究证据</span><small>当前股票 · {personalStrategyStats.sessions} 日 / {personalStrategyStats.cycles} 闭环</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
           {agentOpen && <div className="training-console">
-            <div className="training-control"><div><span>当前股票 · {stockAgent.name}{stockAgent.canExecute?"":"（研究观察版）"}</span><b>{trainingRunning?'真实分时核对中':trainingProgress===100?'本轮已完成':'等待盘后研究'}</b></div><button onClick={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} disabled={trainingRunning}>{trainingRunning?'研究中…':trainingProgress===100?'重新核对':'运行盘后研究'}</button></div>
-            <div className="training-progress"><div style={{width:`${trainingProgress}%`}}/><span>{trainingProgress}%</span></div>
+            <div className="training-control"><div><span>当前股票 · {stockAgent.name}{stockAgent.canExecute?"":"（研究观察版）"}</span><b>真实证据覆盖度</b></div><button onClick={()=>setActiveView("智能训练")}>查看研究中心</button></div>
+            <div className="training-progress"><div style={{width:`${localEvidenceCoverage}%`}}/><span>{localEvidenceCoverage.toFixed(0)}%</span></div>
             <div className="training-metrics"><p><span>完整样本</span><b>{personalStrategyStats.sessions} 日</b></p><p><span>{stockAgent.canExecute?"正式闭环":"V4 对照闭环"}</span><b>{personalStrategyStats.cycles}</b></p><p><span>{stockAgent.canExecute?"扣费胜率":"V4 对照胜率"}</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b></p><p><span>扣费净盈亏</span><b className={personalStrategyStats.net>=0?'teal':'negative'}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b></p><p><span>最差回撤</span><b>-{(personalStrategyStats.maxDrawdown*100).toFixed(2)}%</b></p></div>
-            <div className="training-log"><span>本机</span><p>{trainingRunning?`训练兔正在核对 ${personalStrategyStats.sessions} 个真实完整交易日`:`已核对 ${personalStrategyStats.cycles} 个扣费闭环；样本不足时不生成可晋升候选`}</p><em>自动晋升关闭</em></div>
+            <div className="training-log"><span>本机证据</span><p>已读取 {personalStrategyStats.sessions} 个完整交易日并核对 {personalStrategyStats.cycles} 个扣费闭环；这不是服务器训练进度。</p><em>自动晋升关闭</em></div>
           </div>}
           <div className="agent-grid">{liveAgents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView running={trainingRunning} progress={trainingProgress} evidence={personalStrategyStats} onRun={()=>{setTrainingProgress(trainingProgress===100?0:trainingProgress);setTrainingRunning(true)}} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={setActiveStock} />}
+      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{setActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={setActiveStock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -1537,7 +1515,7 @@ function HomeView({onNavigate,onOpenZijin,stockCount}:{onNavigate:(view:string)=
       <div><b>紫金矿业实验室</b><small>查看五年分钟样本训练、样本外验证与当前通过状态；独立研究，不自动写入 Smart-T V4。</small></div>
       <em>查看训练进度 →</em>
     </button>
-    <div className="home-strip"><button className="home-widget" onClick={()=>onNavigate('持仓对账')}><span>今日闭环</span><b>查看账本</b><small>只统计已录入且完成配对的成交 →</small></button><button className="home-widget" onClick={()=>onNavigate('多股监控')}><span>监控股票</span><b>{stockCount} 只</b><small>盘中持续扫描 · 打开看板 →</small></button><button className="home-widget profit-widget" onClick={()=>onNavigate('持仓对账')}><span>已确认净收益</span><b>按流水计算</b><small>没有真实成交记录时不展示演示收益 →</small></button><button className="home-widget" onClick={()=>onNavigate('智能训练')}><span>四兔研究</span><b>盘后自动</b><small>真实完整分时 · 查看研究证据 →</small></button></div>
+    <div className="home-strip"><button className="home-widget" onClick={()=>onNavigate('持仓对账')}><span>今日闭环</span><b>查看账本</b><small>只统计已录入且完成配对的成交 →</small></button><button className="home-widget" onClick={()=>onNavigate('多股监控')}><span>监控股票</span><b>{stockCount} 只</b><small>盘中持续扫描 · 打开看板 →</small></button><button className="home-widget profit-widget" onClick={()=>onNavigate('持仓对账')}><span>已确认净收益</span><b>按流水计算</b><small>没有真实成交记录时不展示演示收益 →</small></button><button className="home-widget" onClick={()=>onNavigate('智能训练')}><span>四兔研究</span><b>查看证据</b><small>真实样本覆盖 · 不显示假训练进度 →</small></button></div>
     <div className="home-workflow"><div className="workflow-head"><div><span className="eyebrow">DAILY WORKFLOW</span><h2>每天只看四件事</h2></div><p>减少指标堆叠，把操作顺序固定下来。</p></div><div className="workflow-grid">{[{n:'01',title:'先看市场',copy:'集合竞价与市场雷达先决定今天能不能做、优先正T还是反T。',action:'多股监控',icon:'⌁'},{n:'02',title:'再等信号',copy:'价格、VWAP、量能和确认分同时满足，才显示可执行机会。',action:'操盘台',icon:'⌗'},{n:'03',title:'当天闭环',copy:'首笔成交后冻结同向信号，等量反向成交并恢复原底仓。',action:'持仓对账',icon:'⇄'},{n:'04',title:'收盘复盘',copy:'使用真实费用和可卖数量回放，训练参数只进入候选区。',action:'智能训练',icon:'◇'}].map(item=><button key={item.n} onClick={()=>onNavigate(item.action)}><span>{item.n}</span><i>{item.icon}</i><h3>{item.title}</h3><p>{item.copy}</p><em>{item.action} →</em></button>)}</div></div>
     <div className="home-risk"><span>重要提示</span><p>做T不保证盈利。所有信号仅用于策略研究和提醒；自动交易接口保持关闭，候选策略必须人工晋升。</p><button onClick={()=>onNavigate('模拟回测')}>查看可信回测</button></div>
   </section>;
@@ -1861,24 +1839,24 @@ function StrategyMarketView({accountName}:{accountName:string}){
   </section>;
 }
 
-function TrainingView({running,progress,evidence,onRun}:{running:boolean;progress:number;evidence:{sessions:number;cycles:number;wins:number;net:number;maxDrawdown:number;confidence:string;winRate:number|null};onRun:()=>void}) {
-  const reviewReady=progress===100&&!running;
+function TrainingView({evidence}:{evidence:{sessions:number;cycles:number;wins:number;net:number;maxDrawdown:number;confidence:string;winRate:number|null}}) {
   const sampleCoverage=Math.min(100,evidence.sessions/20*100);
   const validationCoverage=Math.min(100,evidence.cycles/20*100);
+  const evidenceCoverage=Math.min(sampleCoverage,validationCoverage);
   const canReview=evidence.sessions>=20&&evidence.cycles>=20;
-  const primaryAction=()=>reviewReady?document.getElementById('promotion-review')?.scrollIntoView({behavior:'smooth',block:'center'}):onRun();
+  const primaryAction=()=>document.getElementById('promotion-review')?.scrollIntoView({behavior:'smooth',block:'center'});
   return <section className="module-view training-view">
-    <div className="module-head"><div><span className="eyebrow">SMART-T FUSION V4 · RESEARCH PIPELINE</span><h1>通用 V4 四兔研究中心</h1><p>四兔的目标是形成可审计的 V4.x 候选版本；当前页面展示本股票的真实核对证据，不把“打开网页”伪装成云端持续训练。</p></div><button className="lab-run" onClick={primaryAction} disabled={running}>{running?'正在核对真实样本…':reviewReady?'查看本轮证据':'核对当前股票'}<span>→</span></button></div>
+    <div className="module-head"><div><span className="eyebrow">SMART-T FUSION V4 · RESEARCH PIPELINE</span><h1>通用 V4 四兔研究中心</h1><p>四兔的目标是形成可审计的 V4.x 候选版本；当前页面展示本股票的真实核对证据，不把“打开网页”伪装成云端持续训练。</p></div><button className="lab-run" onClick={primaryAction}>查看当前证据<span>→</span></button></div>
     <div className="training-scope-strip" aria-label="通用四兔研究范围"><p><span>训练范围</span><b>历史全市场样本</b><small>用于提出 V4.x 候选，不只学习操盘台里的几只股票。</small></p><p><span>当日监控股</span><b>影子逐笔核对</b><small>只验证理论提醒与实际模拟成交是否一致。</small></p><p><span>正式 V4</span><b>始终人工审批</b><small>四兔不能静默改参数，也不会自动下单。</small></p></div>
     <div className="training-purpose"><div><span>训练目标</span><h2>让 V4 在扣除费用后更稳，而不是把历史胜率刷高</h2><p>候选参数包括 VWAP 偏离、连续确认、最低净价差、单次仓位、连续失败熔断和尾盘恢复时间。任何候选都必须通过未见股票与日期、费用滑点和过拟合检查，再由人工决定是否进入影子观察。</p></div><div className="training-role-grid"><p><b>训练兔</b><span>历史全市场提出候选</span></p><p><b>挑战兔</b><span>未见股票与日期盲测</span></p><p><b>风控兔</b><span>成本、回撤、PBO/DSR 否决</span></p><p><b>正式兔</b><span>只管理影子观察资格</span></p></div></div>
     <RabbitProgressMeter
-      label="四兔策略训练"
-      detail={`当前股票 · 最近 ${evidence.sessions} 个完整交易日 · Smart-T V4 ${evidence.confidence}`}
-      progress={progress}
-      status={running?'running':progress===100?'completed':'paused'}
-      stages={['读取真实分时','训练兔统计','挑战兔验证','风控兔检查','人工评审门']}
+      label="当前股票证据覆盖"
+      detail={`最近 ${evidence.sessions} 个完整交易日 · ${evidence.cycles} 个扣费闭环 · Smart-T V4 ${evidence.confidence}`}
+      progress={evidenceCoverage}
+      status={canReview?'completed':'paused'}
+      stages={['读取真实分时','统计候选','核对闭环','计算费用回撤','等待通用训练']}
     />
-    <div className="lab-grid">{agents.map((agent,index)=>{const isTraining=agent.id==="training";const isChallenger=agent.id==="challenger";const isRisk=agent.id==="risk";const value=isTraining?sampleCoverage:isChallenger?validationCoverage:isRisk?Math.min(100,evidence.maxDrawdown*1000):(canReview?100:0);const label=isTraining?`${evidence.sessions}/20 日`:isChallenger?`${evidence.cycles}/20 闭环`:isRisk?`${(evidence.maxDrawdown*100).toFixed(2)}%`:(canReview?'可评审':'正式版锁定');return <article className={`lab-agent ${isRisk&&evidence.maxDrawdown<.03?'risk-safe':''}`} key={agent.name}><div><span className={`agent-icon a${index}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><p><b>{agent.name}</b><small>{isTraining?'候选参数研究':isChallenger?'未见样本验证':isRisk?'费用与风险审计':'正式版本门控'}</small></p><em>{isTraining?(running?'核对中':'本股证据已读取'):isChallenger?'等待通用盲测':isRisk?(evidence.maxDrawdown<.03?'本股风控绿灯':'本股风控关注'):'需人工批准'}</em></div><strong>{label}<small>{isTraining?'当前股票交易日':isChallenger?'当前股票扣费闭环':isRisk?'当前股票最差回撤':'自动晋升关闭'}</small></strong><i><span style={{width:`${value}%`}}/></i><p>{isTraining?'通用训练应使用历史全市场数据；这里仅显示当前股票证据。':isChallenger?'候选必须换未见股票与日期考试，不能只背训练样本。':isRisk?'费用、滑点、回撤、PBO 和 DSR 任一不合格即可否决。':'只有通过盲测、风控和影子核对后，才允许人工评审。'}</p></article>})}</div>
+    <div className="lab-grid">{agents.map((agent,index)=>{const isTraining=agent.id==="training";const isChallenger=agent.id==="challenger";const isRisk=agent.id==="risk";const value=isTraining?sampleCoverage:isChallenger?validationCoverage:isRisk?Math.min(100,evidence.maxDrawdown*1000):(canReview?100:0);const label=isTraining?`${evidence.sessions}/20 日`:isChallenger?`${evidence.cycles}/20 闭环`:isRisk?`${(evidence.maxDrawdown*100).toFixed(2)}%`:(canReview?'可评审':'正式版锁定');return <article className={`lab-agent ${isRisk&&evidence.maxDrawdown<.03?'risk-safe':''}`} key={agent.name}><div><span className={`agent-icon a${index}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><p><b>{agent.name}</b><small>{isTraining?'候选参数研究':isChallenger?'未见样本验证':isRisk?'费用与风险审计':'正式版本门控'}</small></p><em>{isTraining?'本股证据已读取':isChallenger?'等待通用盲测':isRisk?(evidence.maxDrawdown<.03?'本股风控绿灯':'本股风控关注'):'需人工批准'}</em></div><strong>{label}<small>{isTraining?'当前股票交易日':isChallenger?'当前股票扣费闭环':isRisk?'当前股票最差回撤':'自动晋升关闭'}</small></strong><i><span style={{width:`${value}%`}}/></i><p>{isTraining?'通用训练应使用历史全市场数据；这里仅显示当前股票证据。':isChallenger?'候选必须换未见股票与日期考试，不能只背训练样本。':isRisk?'费用、滑点、回撤、PBO 和 DSR 任一不合格即可否决。':'只有通过盲测、风控和影子核对后，才允许人工评审。'}</p></article>})}</div>
     <div className="lab-results"><div className="lab-metrics"><h2>当前真实证据</h2><div><p><span>完整交易日</span><b>{evidence.sessions}</b></p><p><span>正式闭环</span><b>{evidence.cycles}</b></p><p><span>盈利闭环</span><b>{evidence.wins}</b></p><p><span>扣费胜率</span><b>{evidence.winRate===null?'—':`${(evidence.winRate*100).toFixed(1)}%`}</b></p><p><span>扣费净盈亏</span><b className={evidence.net>=0?'positive':'negative'}>{evidence.cycles?money(evidence.net):'—'}</b></p><p><span>最大回撤</span><b>-{(evidence.maxDrawdown*100).toFixed(2)}%</b></p></div><small>这些数值来自当前股票已取得的完整分时回放，不再展示固定演示胜率、收益或候选编号。</small></div><div className="promotion-card" id="promotion-review"><span>Smart-T V4 研究门</span><h2>{canReview?'可以进入人工评审':'继续积累真实样本'}</h2><p>{canReview?'样本数量达到最低评审门槛；仍需核对不同市场环境、费用与风险。':'至少需要 20 个完整交易日且形成 20 个有效闭环，才讨论候选参数。'}</p><button disabled>{canReview?'人工评审功能待开放':'样本不足 · 不生成候选'}</button><small>自动晋升永久关闭；四兔不会直接改动操盘台正式版本。</small></div></div>
     <div className="lab-log"><h2>当前股票核对记录</h2>{[['本机','训练兔',`读取 ${evidence.sessions} 个完整交易日；不等于已完成全市场选参`],['本机','挑战兔',evidence.cycles?`本股核对 ${evidence.cycles} 个扣费闭环，盈利 ${evidence.wins} 个`:'本股当前没有足够正式闭环'],['本机','风控兔',`本股最差历史回撤 ${(evidence.maxDrawdown*100).toFixed(2)}%；通用候选仍需独立 PBO/DSR 审计`],['本机','正式兔',canReview?'本股达到基础样本数量，通用 V4 仍保持锁定':'样本不足，不生成可晋升版本']].map(row=><div className={`log-${row[1]}`} key={`${row[1]}-${row[2]}`}><time>{row[0]}</time><i/><b>{row[1]}</b><span>{row[2]}</span></div>)}</div>
   </section>;
