@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 
 const bundledState = resolve(process.cwd(), "public/research/zijin-training-progress.json");
 const runtimeState = process.env.ZIJIN_TRAINING_STATE_PATH || "/training-state/zijin-training-progress.json";
@@ -35,13 +36,11 @@ async function latestAutomation() {
   for (const path of candidates) {
     try {
       const payload = await readAutomation(path);
-      const heartbeatAt = parseProgressTime(payload.scheduler?.heartbeatAt ?? payload.updatedAt);
-      const staleAfter = Number(payload.scheduler?.staleAfterSeconds || 120) * 1000;
+      const health = evaluateZijinSchedulerHealth(payload.scheduler);
       return {
         payload,
         source: path === runtimeAutomationState ? "runtime" : "bundled",
-        stale: payload.scheduler?.status === "running"
-          && (!Number.isFinite(heartbeatAt) || Date.now() - heartbeatAt > staleAfter),
+        health,
       };
     } catch {
       // Try the bundled state when a server-side scheduler has not written a state yet.
@@ -67,7 +66,8 @@ export async function GET() {
           servedAt: new Date().toISOString(),
           stale,
           automationSource: automation?.source ?? null,
-          automationStale: automation?.stale ?? false,
+          automationStale: automation?.health.status === "offline",
+          automationHealth: automation?.health ?? null,
         },
       }, {
         headers: {
