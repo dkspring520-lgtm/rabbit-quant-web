@@ -185,6 +185,12 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
   assert.match(source, /后续不重复使用 2026 盲测调参/);
   assert.match(styles, /\.zijin-implementation-steps\{/);
   assert.match(styles, /\.zijin-training-verdict\{/);
+  assert.match(source, /className="zijin-round4-standard"/);
+  assert.match(source, /第四轮 · 标准量化实验/);
+  assert.match(source, /2026 数据/);
+  assert.match(source, /试验次数账本/);
+  assert.match(source, /Deflated Sharpe/);
+  assert.match(styles, /\.zijin-round4-standard\{/);
 });
 
 test("Zijin experiment deep link survives authentication and a missing saved watchlist stock", async () => {

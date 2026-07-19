@@ -220,8 +220,35 @@ def deflated_sharpe_probability(
     }
 
 
+def calculate_multiple_testing_controls(summary: dict[str, Any]) -> dict[str, Any]:
+    """Calculate PBO and Deflated Sharpe from raw OOS return series.
+
+    The evaluator intentionally ignores caller-supplied PBO/DSR headline
+    values.  Promotion evidence must be reproducible from the complete trial
+    matrix so a failed experiment cannot be made to pass by editing a summary.
+    """
+    trial_period_returns = summary.get("trialPeriodReturns")
+    if not isinstance(trial_period_returns, list) or not trial_period_returns:
+        raise ValueError("evaluation requires the complete trialPeriodReturns matrix")
+    selected_trial_index = summary.get("selectedTrialIndex")
+    if not isinstance(selected_trial_index, int) or not 0 <= selected_trial_index < len(trial_period_returns):
+        raise ValueError("evaluation requires a valid selectedTrialIndex from the complete trial matrix")
+
+    pbo = probability_of_backtest_overfitting(trial_period_returns)
+    all_trial_sharpes = [annualized_sharpe(row) for row in trial_period_returns]
+    selected_returns = trial_period_returns[selected_trial_index]
+    deflated = deflated_sharpe_probability(selected_returns, all_trial_sharpes)
+    return {
+        "pbo": pbo,
+        "deflatedSharpe": deflated,
+        "recordedTrials": len(trial_period_returns),
+        "selectedTrialIndex": selected_trial_index,
+    }
+
+
 def evaluate_promotion(summary: dict[str, Any], protocol: dict[str, Any]) -> dict[str, Any]:
     gates = protocol["promotionGates"]
+    multiple_testing = calculate_multiple_testing_controls(summary)
     quarters = summary.get("outerQuarters", [])
     base_values = [float(item["netPct"]) for item in quarters]
     stress_values = [float(item["stressNetPct"]) for item in quarters]
@@ -236,8 +263,8 @@ def evaluate_promotion(summary: dict[str, Any], protocol: dict[str, Any]) -> dic
         "stressCostNonNegative": _mean(stress_values) >= gates["stressCostMeanNetPctAtLeast"],
         "winRate": float(summary.get("outOfSampleWinRate", 0)) >= gates["minimumOutOfSampleWinRate"],
         "quarterStability": positive_ratio >= gates["minimumPositiveQuarterRatio"],
-        "pbo": float(summary.get("pbo", 1)) <= protocol["multipleTesting"]["probabilityOfBacktestOverfitting"]["maximum"],
-        "deflatedSharpe": float(summary.get("deflatedSharpeProbability", 0)) >= protocol["multipleTesting"]["deflatedSharpe"]["minimumProbability"],
+        "pbo": multiple_testing["pbo"]["pbo"] <= protocol["multipleTesting"]["probabilityOfBacktestOverfitting"]["maximum"],
+        "deflatedSharpe": multiple_testing["deflatedSharpe"]["probability"] >= protocol["multipleTesting"]["deflatedSharpe"]["minimumProbability"],
         "allBaselinesPresent": all(item in baseline_map for item in required_baselines),
         "beatsAllBaselines": all(strategy_net > baseline_map.get(item, math.inf) for item in required_baselines),
     }
@@ -250,7 +277,11 @@ def evaluate_promotion(summary: dict[str, Any], protocol: dict[str, Any]) -> dic
             "meanNetPct": strategy_net,
             "meanStressNetPct": _mean(stress_values),
             "positiveQuarterRatio": positive_ratio,
+            "pbo": multiple_testing["pbo"]["pbo"],
+            "deflatedSharpeProbability": multiple_testing["deflatedSharpe"]["probability"],
+            "recordedTrials": multiple_testing["recordedTrials"],
         },
+        "multipleTesting": multiple_testing,
         "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。",
     }
 

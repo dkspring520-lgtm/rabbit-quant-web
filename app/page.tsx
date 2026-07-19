@@ -18,6 +18,7 @@ import zijinExternalFactorReadiness from "@/public/research/zijin-external-facto
 import zijinRound2RegimeAudit from "@/public/research/zijin-round2-regime-audit.json";
 import zijinRound2WalkForward from "@/public/research/zijin-round2-walk-forward.json";
 import zijinRound3Nested from "@/public/research/zijin-round3-summary.json";
+import zijinRound4Protocol from "@/scripts/zijin-round4-protocol.json";
 import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
@@ -1651,6 +1652,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const round2Passed=zijinRound2WalkForward.conclusion.passed;
   const round3Walk=zijinRound3Nested.overallOutOfSample;
   const round3Passed=zijinRound3Nested.conclusion.passed;
+  const round4FactorCount=zijinRound4Protocol.hypotheses.map(item=>item.features.length);
   return <section className="stock-research-view">
     <div className="research-head"><div><span className="eyebrow">SINGLE STOCK RESEARCH</span><h1>先看结论，再看细节</h1><p>这里负责研究一只股票的习惯；实时买卖提醒仍在操盘台。</p></div><button onClick={onOpenConsole}>去看今日信号 →</button></div>
     {researchExpanded&&<div className="research-purpose"><b>这个页面只回答 3 个问题</b><div><p><i>01</i><span><strong>它平时怎么走？</strong><small>看振幅、趋势、量能和日内习惯</small></span></p><p><i>02</i><span><strong>什么做 T 条件更适合？</strong><small>根据历史记录形成观察方案</small></span></p><p><i>03</i><span><strong>今天的信号靠谱吗？</strong><small>把历史股性作为操盘台的参考背景</small></span></p></div><em>看实时买卖信号请进入“操盘台”</em></div>}
@@ -1687,6 +1689,12 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
           <div className={round3Passed?'':'blocked'}><span>第三轮样本外成绩</span><b>{round3Walk.trades} 次 · 胜率 {round3Walk.winRate==null?'--':`${(round3Walk.winRate*100).toFixed(1)}%`}</b><small>扣费后每次平均 {round3Walk.averageNetPct>=0?'+':''}{round3Walk.averageNetPct.toFixed(4)}%；压力成本下 {zijinRound3Nested.stressAverageNetPct>=0?'+':''}{zijinRound3Nested.stressAverageNetPct.toFixed(4)}%</small></div>
           <div className="blocked"><span>现在的真实结论</span><b>{round3Passed?'通过研究门槛，仍待人工评审':'第三轮未通过，继续与 V4 隔离'}</b><small>{zijinRound3Nested.positiveFoldCount}/8 个季度为正；内层达标季度 {zijinRound3Nested.gates.innerEligibleFolds.actual}/8，不能把训练内好看当成可用规律</small></div>
         </div>
+        <details className="zijin-round4-standard">
+          <summary><span><b>第四轮 · 标准量化实验</b><small>协议已冻结，尚未开始选参</small></span><em>展开实验规则</em></summary>
+          <div className="zijin-round4-plain"><p><span>2026 数据</span><b>完全封存</b><small>滚动样本外全部通过后，才允许进行一次最终盲测。</small></p><p><span>独立研究</span><b>{zijinRound4Protocol.hypotheses.length} 个假设</b><small>{zijinRound4Protocol.hypotheses.map(item=>item.name).join('、')}</small></p><p><span>控制复杂度</span><b>{Math.min(...round4FactorCount)}–{Math.max(...round4FactorCount)} 个因子</b><small>每个模型只使用预先登记的核心因子，不边测边增加。</small></p><p><span>对照基准</span><b>{zijinRound4Protocol.baselines.length} 组</b><small>{zijinRound4Protocol.baselines.map(item=>item.name).join('、')}</small></p></div>
+          <div className="zijin-round4-gates"><b>怎样才算通过</b><span>扣费后正期望 · 压力成本不亏 · 跨季度稳定 · 胜率至少 {(zijinRound4Protocol.promotionGates.minimumOutOfSampleWinRate*100).toFixed(0)}% · PBO ≤ {(zijinRound4Protocol.multipleTesting.probabilityOfBacktestOverfitting.maximum*100).toFixed(0)}% · Deflated Sharpe ≥ {(zijinRound4Protocol.multipleTesting.deflatedSharpe.minimumProbability*100).toFixed(0)}% · 同时战胜三个基准</span></div>
+          <div className="zijin-round4-ledger"><p><span>试验次数账本</span><b>逐次追加，不允许改写</b><small>每次参数、代码版本、训练区间、验证区间和结果都会生成哈希记录。</small></p><p><span>最终去向</span><b>仅影子观察</b><small>通过盲测后仍需人工评审；不会自动修改 V4，也不会直接实盘。</small></p><p><span>模拟盘核对</span><b>理论与成交逐笔对账</b><small>漏单、拒单、费用和滑点全部记录；无法配对的信号按失败处理。</small></p></div>
+        </details>
         <footer><span>任务 {zijinTrainingProgress.runId} · 更新 {new Date(zijinTrainingProgress.updatedAt.replace(/([+-]\d{2})(\d{2})$/,'$1:$2')).toLocaleString('zh-CN')} · {zijinTrainingProgress.meta?.source==='runtime'?'服务器实时状态':'内置审计快照'}</span><b>{trainingStale?"需检查训练进程":zijinTrainingProgress.status==="running"?"训练中":zijinTrainingProgress.latest.passedValidationGate?"通过验证，等待人工评审":"未通过门槛，不进入 V4"}</b></footer>
       </>:<footer><span>训练数据仍在服务器保留，页面会自动重试</span><b>连接中</b></footer>}
     </div>}

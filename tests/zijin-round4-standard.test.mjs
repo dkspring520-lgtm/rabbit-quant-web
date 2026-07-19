@@ -20,6 +20,14 @@ test("round four implements CSCV PBO and Deflated Sharpe controls", async () => 
   assert.match(source, /"method": "CSCV"/);
   assert.match(source, /def deflated_sharpe_probability/);
   assert.match(source, /expectedMaximumSharpe/);
+  assert.match(source, /def calculate_multiple_testing_controls/);
+  assert.match(source, /complete trialPeriodReturns matrix/);
+  assert.match(source, /valid selectedTrialIndex from the complete trial matrix/);
+  assert.match(source, /selected_returns = trial_period_returns\[selected_trial_index\]/);
+  assert.match(source, /all_trial_sharpes = \[annualized_sharpe\(row\)/);
+  assert.doesNotMatch(source, /summary\.get\("pbo"/);
+  assert.doesNotMatch(source, /summary\.get\("deflatedSharpeProbability"/);
+  assert.doesNotMatch(source, /summary\.get\("selectedReturns"/);
 });
 
 test("round four evaluation cannot promote directly to V4 or shadow trading", async () => {
