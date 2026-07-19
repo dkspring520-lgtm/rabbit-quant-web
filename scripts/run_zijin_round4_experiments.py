@@ -462,7 +462,7 @@ def main() -> None:
             "opened": False,
         },
         "ledger": {
-            "path": str(ledger_path),
+            "path": ledger_path.resolve().relative_to(ROOT.resolve()).as_posix(),
             "records": len(ledger_rows),
             "runRecords": sum(row.get("runId") == run_id for row in ledger_rows),
             "chainTip": ledger_rows[-1]["recordHash"] if ledger_rows else standard.GENESIS_HASH,

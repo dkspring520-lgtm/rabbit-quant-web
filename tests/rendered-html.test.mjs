@@ -190,7 +190,12 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
   assert.match(source, /2026 数据/);
   assert.match(source, /试验次数账本/);
   assert.match(source, /Deflated Sharpe/);
+  assert.match(source, /滚动样本外真实结论/);
+  assert.match(source, /过拟合风险 PBO/);
+  assert.match(source, /多次试验后可信度 DSR/);
+  assert.match(source, /最终盲测未打开/);
   assert.match(styles, /\.zijin-round4-standard\{/);
+  assert.match(styles, /\.zijin-round4-result\{/);
 });
 
 test("Zijin experiment deep link survives authentication and a missing saved watchlist stock", async () => {
