@@ -24,6 +24,7 @@ from typing import Any, Iterable, Sequence
 ROOT = Path(__file__).resolve().parent
 DEFAULT_PROTOCOL = ROOT / "zijin-round4-protocol.json"
 NORMAL = NormalDist()
+GENESIS_HASH = "0" * 64
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -50,6 +51,9 @@ def validate_protocol(protocol: dict[str, Any]) -> None:
         count = len(hypothesis.get("features", []))
         if not 8 <= count <= 12:
             raise ValueError(f"{hypothesis.get('id')} must use 8-12 factors, got {count}")
+        grid = hypothesis.get("parameterGrid")
+        if not isinstance(grid, dict) or not grid or any(not isinstance(values, list) or not values for values in grid.values()):
+            raise ValueError(f"{hypothesis.get('id')} must freeze a non-empty parameter grid")
 
 
 def normalized_date(value: Any) -> str:
@@ -111,7 +115,36 @@ def prepare_trial(trial: dict[str, Any], protocol: dict[str, Any]) -> dict[str, 
 def read_ledger(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    verify_ledger(rows)
+    return rows
+
+
+def ledger_record_hash(record: dict[str, Any]) -> str:
+    payload = {key: value for key, value in record.items() if key != "recordHash"}
+    return canonical_hash(payload)
+
+
+def verify_ledger(rows: Sequence[dict[str, Any]]) -> str:
+    """Verify the complete hash chain before any append.
+
+    A changed or deleted historical line breaks the chain.  We intentionally
+    refuse to repair it in place: corrections must be new append-only records.
+    """
+    previous = GENESIS_HASH
+    seen_trial_ids: set[str] = set()
+    for index, row in enumerate(rows, start=1):
+        if row.get("previousRecordHash") != previous:
+            raise ValueError(f"ledger hash chain is broken at line {index}")
+        actual = ledger_record_hash(row)
+        if row.get("recordHash") != actual:
+            raise ValueError(f"ledger record hash mismatch at line {index}")
+        trial_id = str(row.get("trialId", ""))
+        if not trial_id or trial_id in seen_trial_ids:
+            raise ValueError(f"duplicate or empty trialId at line {index}")
+        seen_trial_ids.add(trial_id)
+        previous = actual
+    return previous
 
 
 def append_trial(path: Path, trial: dict[str, Any], protocol: dict[str, Any]) -> dict[str, Any]:
@@ -119,12 +152,42 @@ def append_trial(path: Path, trial: dict[str, Any], protocol: dict[str, Any]) ->
     existing = read_ledger(path)
     if any(row.get("trialId") == prepared["trialId"] for row in existing):
         raise ValueError(f"duplicate trialId: {prepared['trialId']}")
+    prepared["protocolHash"] = canonical_hash(protocol)
+    prepared["previousRecordHash"] = existing[-1]["recordHash"] if existing else GENESIS_HASH
+    prepared["recordHash"] = ledger_record_hash(prepared)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(prepared, ensure_ascii=False, sort_keys=True) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
     return prepared
+
+
+def open_final_blind_once(
+    state_path: Path,
+    report: dict[str, Any],
+    protocol: dict[str, Any],
+) -> dict[str, Any]:
+    """Create the one-shot 2026 seal only after every frozen gate passed."""
+    if state_path.exists():
+        raise ValueError("2026 final blind has already been opened once")
+    evaluation = evaluate_promotion(report, protocol)
+    if not evaluation["passedRollingOutOfSample"]:
+        raise ValueError("rolling out-of-sample gates failed; 2026 remains sealed")
+    state = {
+        "experimentId": protocol["experimentId"],
+        "protocolHash": canonical_hash(protocol),
+        "rollingReportHash": canonical_hash(report),
+        "openedAt": datetime.now(timezone.utc).isoformat(),
+        "status": "opened-once",
+    }
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    # Exclusive creation is the operating-system guard against a second open.
+    with state_path.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(state, ensure_ascii=False, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    return state
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -235,9 +298,10 @@ def calculate_multiple_testing_controls(summary: dict[str, Any]) -> dict[str, An
         raise ValueError("evaluation requires a valid selectedTrialIndex from the complete trial matrix")
 
     pbo = probability_of_backtest_overfitting(trial_period_returns)
-    all_trial_sharpes = [annualized_sharpe(row) for row in trial_period_returns]
+    periods_per_year = int(summary.get("periodsPerYear", 4))
+    all_trial_sharpes = [annualized_sharpe(row, periods_per_year) for row in trial_period_returns]
     selected_returns = trial_period_returns[selected_trial_index]
-    deflated = deflated_sharpe_probability(selected_returns, all_trial_sharpes)
+    deflated = deflated_sharpe_probability(selected_returns, all_trial_sharpes, periods_per_year)
     return {
         "pbo": pbo,
         "deflatedSharpe": deflated,
@@ -301,6 +365,21 @@ def command_evaluate(args: argparse.Namespace) -> None:
     print(output)
 
 
+def command_verify_ledger(args: argparse.Namespace) -> None:
+    rows = read_ledger(Path(args.ledger))
+    print(json.dumps({
+        "valid": True,
+        "records": len(rows),
+        "chainTip": rows[-1]["recordHash"] if rows else GENESIS_HASH,
+    }, ensure_ascii=False))
+
+
+def command_open_blind(args: argparse.Namespace) -> None:
+    protocol = load_protocol(Path(args.protocol))
+    state = open_final_blind_once(Path(args.state), load_json(Path(args.input)), protocol)
+    print(json.dumps(state, ensure_ascii=False, indent=2))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Zijin round-four standard experiment controls")
     parser.add_argument("--protocol", default=str(DEFAULT_PROTOCOL))
@@ -313,6 +392,13 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--input", required=True)
     evaluate.add_argument("--output")
     evaluate.set_defaults(handler=command_evaluate)
+    verify = subparsers.add_parser("verify-ledger", help="verify the immutable trial hash chain")
+    verify.add_argument("--ledger", required=True)
+    verify.set_defaults(handler=command_verify_ledger)
+    blind = subparsers.add_parser("open-final-blind", help="open the sealed 2026 blind exactly once")
+    blind.add_argument("--input", required=True, help="passed rolling OOS report")
+    blind.add_argument("--state", required=True, help="exclusive one-shot seal file")
+    blind.set_defaults(handler=command_open_blind)
     return parser
 
 
