@@ -224,7 +224,7 @@
 .alert-log-state b{color:var(--text);font-size:18px}
 .alert-log-state.error b{color:#ff6969}
 .alert-log-list{margin-top:16px;overflow:auto;border:1px solid var(--line)}
-.alert-log-row{display:grid;grid-template-columns:130px 150px 100px minmax(320px,1fr) 130px;min-width:900px;border-bottom:1px solid var(--line)}
+.alert-log-row{display:grid;grid-template-columns:130px 150px 100px minmax(300px,1fr) 150px 120px;min-width:1040px;border-bottom:1px solid var(--line)}
 .alert-log-row:last-child{border-bottom:0}
 .alert-log-row>span{display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;padding:12px 14px}
 .alert-log-row b{font-size:13px;line-height:1.45;overflow-wrap:anywhere}
@@ -233,3 +233,7 @@
 .alert-log-row.head{position:sticky;top:0;z-index:1;background:#0b1513;color:var(--muted);font-size:12px}
 .alert-log-row.alert em{border-color:rgba(59,214,197,.45);background:rgba(59,214,197,.09);color:var(--cyan)}
 .alert-log-row.error em{border-color:rgba(255,94,94,.42);background:rgba(255,94,94,.08);color:#ff7a7a}
+.alert-log-row .delivery.sent b{color:var(--cyan)}
+.alert-log-row .delivery.pending b{color:#e5b84e}
+.alert-log-row .delivery.error b{color:#ff7a7a}
+.alert-log-row .delivery.quiet b{color:var(--muted)}
