@@ -40,6 +40,7 @@ type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; count
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean };
 type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
+type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string };
 type MemberRecord = { id:string; username:string; displayName:string; role:"admin"|"member"; status:"active"|"paused"; createdAt:string; lastLoginAt:string|null; monitorCount:number; alertCount:number };
 type ZijinTrainingProgress = {
   schemaVersion:number;
@@ -449,6 +450,7 @@ export default function Home() {
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
+  const [alertLogOpen,setAlertLogOpen]=useState(false);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,...JSON.parse(saved)}:{sound:false,system:false};}catch{return {sound:false,system:false};}});
   const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
@@ -990,8 +992,11 @@ export default function Home() {
           const sell=String(action?.side??observation?.direction??item.title).includes('卖')||String(observation?.direction??'').includes('反T');
           const level=item.level==='formal'?'signal':'candidate';
           queueAlert({level,rabbit:sell?'sell':'buy',title:item.title,message:item.message});
-          if(serverAlertsInitialized.current&&item.level!=='watch'&&alertSettings.sound)speakAlert(`${item.title}，${item.level==='formal'?'正式信号':'候选观察'}`);
-          if(serverAlertsInitialized.current&&item.level!=='watch'&&alertSettings.system&&'Notification' in window&&Notification.permission==='granted')new Notification(`双兔助手 · ${item.title}`,{body:item.message,tag:`server-${item.id}`});
+          const shouldDeliver=serverAlertsInitialized.current&&item.level!=='watch';
+          const deliveryChannels:string[]=[];
+          if(shouldDeliver&&alertSettings.sound){speakAlert(`${item.title}，${item.level==='formal'?'正式信号':'候选观察'}`);deliveryChannels.push('speech')}
+          if(shouldDeliver&&alertSettings.system&&'Notification' in window&&Notification.permission==='granted'){new Notification(`双兔助手 · ${item.title}`,{body:item.message,tag:`server-${item.id}`});deliveryChannels.push('system')}
+          if(shouldDeliver)void fetch(`/api/control/alerts/${item.id}/delivery`,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({status:deliveryChannels.length?'notified':'displayed',channel:deliveryChannels.length?deliveryChannels.join('+'):'in-app'})}).catch(()=>{});
           void fetch(`/api/control/alerts/${item.id}/ack`,{method:'POST',credentials:'include'}).catch(()=>{});
         }
         serverAlertsInitialized.current=true;
@@ -1348,7 +1353,7 @@ export default function Home() {
             <small>{visibleStockAgentEvaluation.phase==="opening"?"早盘专属层":"全天因子层"} · 振幅 {visibleStockAgentEvaluation.metrics.rangePct.toFixed(2)}% · 距VWAP {visibleStockAgentEvaluation.metrics.vwapBiasPct>=0?"+":""}{visibleStockAgentEvaluation.metrics.vwapBiasPct.toFixed(2)}% · 量比 {visibleStockAgentEvaluation.metrics.volumeRatio==null?"待数据":`${visibleStockAgentEvaluation.metrics.volumeRatio.toFixed(2)}×`}</small>
             <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
-          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、正式候选、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button></div></div>
+          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、正式候选、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button onClick={()=>setAlertLogOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存后台扫描记录':'查看最近7天后台扫描与提醒原因'}>提醒记录</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button></div></div>
           <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div><small>{decisionModel.reason}</small><em>{decisionModel.confirmed}/4</em></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <div className={`stock-state ${stockState.level}`}>
@@ -1428,6 +1433,7 @@ export default function Home() {
         <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button>{accountRole==='admin'&&!demoMode&&<button onClick={()=>{setAccountOpen(false);setMemberAdminOpen(true)}}>会员后台</button>}<button onClick={()=>{void fetch('/api/control/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});try{localStorage.removeItem('rabbit-auth-session');localStorage.removeItem('rabbit-account-role');sessionStorage.removeItem('rabbit-auth-session')}catch{} remoteSyncReady.current=false;setAccountOpen(false);setDemoMode(false);setAuthScreen('landing');setLocalAuth(false)}}>{demoMode?'退出演示':'退出登录'}</button></div>
       </div></div>}
       {memberAdminOpen&&<MemberAdminView onClose={()=>setMemberAdminOpen(false)}/>}
+      {alertLogOpen&&<AlertLogView stocks={stockList} activeCode={stock.code} onClose={()=>setAlertLogOpen(false)}/>}
       {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><span><a href="/terms">用户协议</a> · <a href="/privacy">隐私政策</a> · Rabbit Quant V1.0</span></footer>
@@ -1491,6 +1497,39 @@ function AuthView({onAuthenticated,onBack,onDemo}:{onAuthenticated:(name:string,
     <section className="auth-brand-panel"><div className="auth-brand"><img className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志"/><span><b aria-label="双兔助手 做T神器"><span aria-hidden="true">双兔助手</span></b><small>做T神器 · RABBIT QUANT</small></span></div><div className="auth-message"><span className="eyebrow">RABBIT SMART‑T</span><h1>把复杂的盘面，<br/><em>变成简单的操作。</em></h1><p>多股监控、正反T决策、当日仓位闭环与四兔持续训练。</p></div><div className="auth-points"><span><i/>市场雷达硬门控</span><span><i/>T+1可卖数量校验</span><span><i/>收盘恢复计划底仓</span></div><small className="auth-disclaimer">策略研究工具 · 不构成投资建议</small></section>
     <section className="auth-form-panel"><div className="auth-card"><div className="auth-card-head"><span>{resetMode?'RESET PASSWORD':mode==='login'?'WELCOME BACK':'CREATE ACCOUNT'}</span><h2>{resetMode?'使用一次性重置码':mode==='login'?'登录做T神器':'创建服务器账户'}</h2><p>{resetMode?'输入管理员提供的 30 分钟有效重置码，并设置新密码。':mode==='login'?'继续查看你的监控、回测和训练记录。':'注册后可在电脑和手机使用同一监控清单。'}</p></div><div className="auth-tabs"><button className={mode==='login'&&!resetMode?'active':''} onClick={()=>{setMode('login');setResetMode(false);setError('')}}>登录</button><button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setResetMode(false);setError('')}}>注册</button></div><label className="auth-field"><span>账号</span><input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" placeholder="用户名或邮箱"/></label>{resetMode&&<label className="auth-field"><span>一次性重置码</span><input value={resetToken} onChange={e=>setResetToken(e.target.value)} autoComplete="one-time-code" placeholder="粘贴管理员提供的重置码"/></label>}<label className="auth-field"><span>{resetMode?'新密码':'密码'}</span><div><input value={password} onChange={e=>setPassword(e.target.value)} type={showPassword?'text':'password'} autoComplete={mode==='login'&&!resetMode?'current-password':'new-password'} placeholder="至少 8 个字符"/><button onClick={()=>setShowPassword(!showPassword)} type="button">{showPassword?'隐藏':'显示'}</button></div></label>{mode==='register'&&!resetMode&&<><div className="password-strength"><span>密码强度</span><i className={strength>0?'on':''}/><i className={strength>1?'on':''}/><i className={strength>2?'on':''}/><i className={strength>3?'on':''}/><b>{strength<2?'较弱':strength<4?'可用':'较强'}</b></div><label className="auth-field"><span>确认密码</span><input value={confirm} onChange={e=>setConfirm(e.target.value)} type={showPassword?'text':'password'} autoComplete="new-password" placeholder="再次输入密码"/></label><label className="terms-check"><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/><span>我已阅读并同意《用户协议》和《隐私政策》，理解本工具不构成投资建议。</span></label></>}{mode==='login'&&!resetMode&&<div className="auth-options"><label><input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)}/><span>记住登录</span></label><button type="button" onClick={()=>void requestReset()}>忘记密码？</button></div>}{resetMode&&<div className="auth-options"><span>重置后旧设备会自动退出</span><button type="button" onClick={()=>{setResetMode(false);setError('')}}>返回登录</button></div>}{error&&<div className="auth-error"><i>!</i>{error}</div>}<button className="auth-submit" onClick={submit} disabled={busy}>{busy?'正在验证…':resetMode?'更新密码':mode==='login'?'登录':'注册并进入'}<span>→</span></button><div className="auth-local-note"><i>i</i><p><b>服务器账户</b><span>账号、监控股票和持仓设置保存在服务器，可跨设备同步；密码仅保存为不可逆哈希。</span></p></div></div><footer className="auth-footer">© 2026 Rabbit Quant · 用户协议 · 隐私政策</footer></section>
   </main>;
+}
+
+function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:string}[];activeCode:string;onClose:()=>void}){
+  const [code,setCode]=useState('');
+  const [logs,setLogs]=useState<MonitorScanLog[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState('');
+  const load=async()=>{
+    setLoading(true);setError('');
+    try{
+      const query=new URLSearchParams({limit:'120'});if(code)query.set('code',code);
+      const response=await fetch(`/api/control/alert-log?${query}`,{credentials:'include',cache:'no-store'});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error||'提醒日志接口暂不可用');
+      setLogs(Array.isArray(payload.logs)?payload.logs:[]);
+    }catch(error){setLogs([]);setError(error instanceof Error?error.message:'无法读取提醒日志')}
+    finally{setLoading(false)}
+  };
+  useEffect(()=>{void load()},[code]);
+  useEffect(()=>{const close=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose()};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close)},[onClose]);
+  const isAlertResult=(result:string)=>result==='formal'||result==='candidate';
+  const isErrorResult=(result:string)=>result==='market_error'||result==='no_data';
+  const resultLabel=(result:string)=>result==='formal'?'正式信号':result==='candidate'?'候选提醒':result==='watch'?'观察记录':result==='market_error'?'行情异常':result==='no_data'?'暂无分时':'未触发';
+  const alertCount=logs.filter(item=>isAlertResult(item.result)).length;
+  const errorCount=logs.filter(item=>isErrorResult(item.result)).length;
+  return <div className="account-overlay alert-log-overlay" role="dialog" aria-modal="true" aria-label="提醒追踪日志" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>
+    <section className="alert-log-dialog">
+      <header><div><span>MONITOR AUDIT</span><h2>提醒追踪日志</h2><p>服务器逐只扫描的时间、价格、判断理由与数据来源。没有触发也会留下原因，方便追查漏报。</p></div><button type="button" onClick={onClose} aria-label="关闭提醒追踪日志">×</button></header>
+      <div className="alert-log-toolbar"><label><span>查看股票</span><select value={code} onChange={event=>setCode(event.target.value)}><option value="">全部监控股票</option>{stocks.map(item=><option key={item.code} value={item.code}>{item.code} {item.name}{item.code===activeCode?'（当前）':''}</option>)}</select></label><button type="button" onClick={()=>void load()} disabled={loading}>{loading?'读取中…':'刷新记录'}</button></div>
+      <div className="alert-log-summary"><p><small>读取记录</small><b>{logs.length}</b></p><p><small>触发提醒</small><b>{alertCount}</b></p><p><small>行情异常</small><b>{errorCount}</b></p><em>仅保留最近 7 天；切换页面或关闭浏览器不影响服务器扫描。</em></div>
+      {error?<div className="alert-log-state error"><b>暂时无法读取</b><span>{error}</span><small>这不是“0 条记录”；请确认服务器已部署提醒日志接口。</small></div>:loading?<div className="alert-log-state"><b>正在读取服务器记录…</b></div>:logs.length===0?<div className="alert-log-state"><b>尚无扫描记录</b><span>服务器开始监控后，这里会显示每只股票未触发、触发或行情失败的原因。</span></div>:<div className="alert-log-list"><div className="alert-log-row head"><span>股票</span><span>时间 / 价格</span><span>结果</span><span>判断原因</span><span>数据源</span></div>{logs.map(item=><div className={`alert-log-row ${isAlertResult(item.result)?'alert':isErrorResult(item.result)?'error':item.result}`} key={item.id}><span><b>{item.code}</b><small>{item.name}</small></span><span><b>{item.marketTime?.length>=4?`${item.marketTime.slice(0,2)}:${item.marketTime.slice(2)}`:'--:--'}</b><small>{item.marketDate} · {item.price==null?'--':`¥${Number(item.price).toFixed(2)}`}</small></span><span><em>{resultLabel(item.result)}</em></span><span><b>{item.reason||'服务器未返回判断原因'}</b><small>{new Date(item.createdAt).toLocaleString('zh-CN')}</small></span><span><small>{item.provider||'--'}</small></span></div>)}</div>}
+    </section>
+  </div>;
 }
 
 function MemberAdminView({onClose}:{onClose:()=>void}){
