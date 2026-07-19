@@ -60,6 +60,44 @@ type ZijinTrainingProgress = {
     qualifiedCandidates?:number; validationRan?:boolean; blindRan?:boolean; nextAction?:string;
   };
 };
+
+type RabbitProgressStatus = "running"|"completed"|"paused"|"error";
+
+function RabbitProgressMeter({
+  label,
+  detail,
+  progress,
+  status="running",
+  stages=[],
+  compact=false,
+}: {
+  label:string;
+  detail:string;
+  progress:number|null;
+  status?:RabbitProgressStatus;
+  stages?:string[];
+  compact?:boolean;
+}) {
+  const normalized=progress===null?null:Math.max(0,Math.min(100,Math.round(progress)));
+  const statusLabel=status==="completed"?"已完成":status==="paused"?"等待中":status==="error"?"需检查":"运行中";
+  return <section
+    className={`rabbit-progress ${status} ${compact?"compact":""} ${normalized===null?"indeterminate":""}`}
+    role="progressbar"
+    aria-label={label}
+    aria-valuemin={0}
+    aria-valuemax={100}
+    {...(normalized===null?{}:{"aria-valuenow":normalized})}
+  >
+    <header><div><span><i/>{label}</span><b>{detail}</b></div><strong>{normalized===null?"扫描中":`${normalized}%`}<small>{statusLabel}</small></strong></header>
+    <div className="rabbit-progress-rail">
+      <div className="rabbit-progress-grid"/>
+      <i className="rabbit-progress-fill" style={normalized===null?undefined:{width:`${normalized}%`}}/>
+      <span className="rabbit-progress-orbit" style={normalized===null?undefined:{left:`clamp(18px, ${normalized}%, calc(100% - 18px))`}}><img src="/rabbit-logo-compact.png" alt=""/><i/></span>
+    </div>
+    {stages.length>0&&<div className="rabbit-progress-stages">{stages.map((stage,index)=>{const threshold=stages.length===1?100:index/(stages.length-1)*100;const reached=normalized!==null&&normalized>=threshold;const current=normalized!==null&&index===Math.min(stages.length-1,Math.floor(normalized/Math.max(1,100/Math.max(1,stages.length-1))));return <span className={`${reached?"done ":""}${current?"current":""}`} key={stage}><i/>{stage}</span>})}</div>}
+  </section>;
+}
+
 type AccountPreferences = { stock:string; baseShares:number; risk:string };
 type StockPositionMap = Record<string, StockPosition>;
 const DEFAULT_PREFERENCES:AccountPreferences={stock:"601899 紫金矿业",baseShares:0,risk:"稳健"};
@@ -1660,8 +1698,13 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     <div className="research-overview-actions"><div><b>核心内容已展开</b><span>{researchExpanded?'正在显示训练证据、人工复盘和全部研究数据。':'训练证据、人工复盘和专业数据已收起。'}</span></div><button type="button" aria-expanded={researchExpanded} onClick={()=>setResearchExpanded(value=>!value)}>{researchExpanded?'收起研究详情':'展开研究详情'}</button></div>
     {stock.code==="601899"&&<article className={`research-compact-training ${trainingStale?'stale':zijinTrainingProgress?.status??'loading'}`}><div><span>紫金专属研究</span><b>{!zijinTrainingProgress?'正在读取训练记录':trainingStale?'训练状态待检查':zijinTrainingProgress.status==='running'?'本轮训练进行中':zijinTrainingProgress.latest.passedValidationGate?'验证通过，等待评审':'本轮未通过，继续隔离'}</b><small>只展示真实训练结果，不会自动修改 V4。</small></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></article>}
     {stock.code==="601899"&&researchExpanded&&<div id="zijin-experiment-progress" className={`zijin-training-live zijin-training-prominent ${trainingStale?'stale':zijinTrainingProgress?.status??'loading'}`}>
-      <div className="zijin-training-title"><div><span><i/>紫金矿业 · 四兔真实训练进度</span><b>{!zijinTrainingProgress?'正在连接服务器训练记录…':trainingStale?'训练记录超过 10 分钟没有更新｜请检查训练进程':zijinTrainingProgress.status==="running"?zijinTrainingProgress.message:zijinTrainingProgress.latest.passedValidationGate?'本轮因果审计完成｜通过验证，等待人工评审':'本轮因果审计完成｜没有可晋级参数'}</b></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></div>
-      <div className="zijin-training-track"><i style={{width:`${zijinTrainingProgress?.progress??0}%`}}/></div>
+      <RabbitProgressMeter
+        label="紫金矿业 · 四兔真实训练"
+        detail={!zijinTrainingProgress?'正在连接服务器训练记录…':trainingStale?'训练记录超过 10 分钟没有更新｜请检查训练进程':zijinTrainingProgress.status==="running"?zijinTrainingProgress.message:zijinTrainingProgress.latest.passedValidationGate?'本轮因果审计完成｜通过验证，等待人工评审':'本轮因果审计完成｜没有可晋级参数'}
+        progress={zijinTrainingProgress?.progress??null}
+        status={trainingStale?'error':zijinTrainingProgress?.status==='running'?'running':zijinTrainingProgress?.status==='completed'?'completed':'paused'}
+        stages={['整理数据','因果训练','样本外验证','最终盲测','人工评审']}
+      />
       {zijinTrainingProgress?<>
         <div className={`zijin-training-state-note ${trainingStale?'warning':zijinTrainingProgress.status}`}><b>{trainingStale?'训练可能中断':zijinTrainingProgress.status==="running"?'服务器正在计算':'本轮已结束'}</b><span>{trainingStale?'页面保留最后一次真实进度，不会自动补数。':zijinTrainingProgress.status==="running"?'页面每 2 秒读取服务器状态；切换页面不会影响后台训练。':'100% 表示本轮审计流程完成，不代表系统仍在持续训练。页面每 30 秒检查是否有新任务。'}</span></div>
         <div className="zijin-training-stats"><p><span>现在做到哪一步</span><b>{zijinTrainingProgress.stage==="training"?"用旧数据找规则":zijinTrainingProgress.stage==="validation"?"用陌生年份复核":zijinTrainingProgress.stage==="blind-test"?"最后一次盲测":zijinTrainingProgress.stage==="completed"?"本轮已经结束":"整理数据"}</b><small>{zijinTrainingProgress.totalCandidates?`${zijinTrainingProgress.processedCandidates}/${zijinTrainingProgress.totalCandidates} 组规则已检查`:"正在读取历史库"}</small></p><p><span>旧数据上的表现</span><b>{zijinTrainingProgress.latest.trainingWinRate==null?'--':`${(zijinTrainingProgress.latest.trainingWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.trainingTrades??0} 笔 · 每笔平均 {zijinTrainingProgress.latest.trainingAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>换一年还能不能用</span><b>{validationFinished&&!validationRan?'未检查':zijinTrainingProgress.latest.validationWinRate==null?'--':`${(zijinTrainingProgress.latest.validationWinRate*100).toFixed(1)}%`}</b><small>{validationFinished&&!validationRan?'第一关没过，所以没有读取 2025':`${zijinTrainingProgress.latest.validationTrades??0} 笔 · 每笔平均 ${zijinTrainingProgress.latest.validationAverageNetPct?.toFixed(3)??'--'}%`}</small></p><p><span>最后保密测试</span><b>{blindFinished&&!blindRan?'未检查':zijinTrainingProgress.latest.blindWinRate==null?'--':`${(zijinTrainingProgress.latest.blindWinRate*100).toFixed(1)}%`}</b><small>{blindFinished&&!blindRan?'2025 没通过，所以没有读取 2026':`${zijinTrainingProgress.latest.blindTrades??0} 笔 · 每笔平均 ${zijinTrainingProgress.latest.blindAverageNetPct?.toFixed(3)??'--'}%`}</small></p></div>
@@ -1792,7 +1835,6 @@ function StrategyMarketView({accountName}:{accountName:string}){
 }
 
 function TrainingView({running,progress,evidence,onRun}:{running:boolean;progress:number;evidence:{sessions:number;cycles:number;wins:number;net:number;maxDrawdown:number;confidence:string;winRate:number|null};onRun:()=>void}) {
-  const currentStage=progress<40?1:progress<70?2:progress<90?3:4;
   const reviewReady=progress===100&&!running;
   const sampleCoverage=Math.min(100,evidence.sessions/20*100);
   const validationCoverage=Math.min(100,evidence.cycles/20*100);
@@ -1801,7 +1843,13 @@ function TrainingView({running,progress,evidence,onRun}:{running:boolean;progres
   return <section className="module-view training-view">
     <div className="module-head"><div><span className="eyebrow">SMART-T FUSION V4 · RESEARCH PIPELINE</span><h1>四兔盘后研究中心</h1><p>收盘后首次打开网站会自动检查当前股票的完整分时样本；它不是云端常驻任务，也不会自动改策略或下单。</p></div><button className="lab-run" onClick={primaryAction} disabled={running}>{running?'正在检查真实样本…':reviewReady?'查看本轮证据':'运行盘后研究'}<span>→</span></button></div>
     <div className="training-purpose"><div><span>训练目标</span><h2>让 V4 在扣除费用后更稳，而不是把历史胜率刷高</h2><p>候选参数包括 VWAP 偏离、连续确认、最低净价差、单次仓位、连续失败熔断和尾盘恢复时间。任何候选都必须通过未见样本和风控检查，再由人工决定是否进入模拟观察。</p></div><div className="training-role-grid"><p><b>训练兔</b><span>历史分时寻找候选</span></p><p><b>挑战兔</b><span>未见样本防过拟合</span></p><p><b>正式兔</b><span>只运行已批准版本</span></p><p><b>风控兔</b><span>异常一票否决</span></p></div></div>
-    <div className={`lab-progress ${!running&&progress<100?'paused':''}`}><div className="lab-progress-head"><span>当前股票 · 最近 {evidence.sessions} 个完整交易日 · Smart-T V4 {evidence.confidence}</span><b>{running?'正在核对':progress===100?'本轮检查完成':'等待盘后运行'} · {progress}%</b></div><i><em style={{width:`${progress}%`}}/></i><div className="lab-stages"><span className={progress>0?'done':''}>读取真实分时</span><span className={`${progress>=40?'done ':''}${currentStage===1&&!running?'current':''}`}>训练兔统计</span><span className={`${progress>=70?'done ':''}${currentStage===2&&!running?'current':''}`}>挑战兔验证</span><span className={`${progress>=90?'done ':''}${currentStage===3&&!running?'current':''}`}>风控兔检查</span><span className={`${progress===100?'done ':''}${currentStage===4&&!running?'current':''}`}>人工评审门</span></div></div>
+    <RabbitProgressMeter
+      label="四兔策略训练"
+      detail={`当前股票 · 最近 ${evidence.sessions} 个完整交易日 · Smart-T V4 ${evidence.confidence}`}
+      progress={progress}
+      status={running?'running':progress===100?'completed':'paused'}
+      stages={['读取真实分时','训练兔统计','挑战兔验证','风控兔检查','人工评审门']}
+    />
     <div className="lab-grid">{agents.map((agent,index)=>{const value=index===0?sampleCoverage:index===1?validationCoverage:index===2?(canReview?100:0):Math.min(100,evidence.maxDrawdown*1000);const label=index===0?`${evidence.sessions}/20 日`:index===1?`${evidence.cycles}/20 闭环`:index===2?(canReview?'可评审':'正式版锁定'):`${(evidence.maxDrawdown*100).toFixed(2)}%`;return <article className={`lab-agent ${index===3&&evidence.maxDrawdown<.03?'risk-safe':''}`} key={agent.name}><div><span className={`agent-icon a${index}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><p><b>{agent.name}</b><small>{index===0?'真实分时覆盖':index===1?'有效闭环验证':index===2?'正式版本门控':'最大回撤检查'}</small></p><em>{index===0?(running?'统计中':'已读取'):index===1?'样本外检查':index===2?'需人工批准':evidence.maxDrawdown<.03?'风控绿灯':'风控关注'}</em></div><strong>{label}<small>{index===0?'自动样本':index===1?'扣费闭环':index===2?'自动晋升关闭':'最差历史回撤'}</small></strong><i><span style={{width:`${value}%`}}/></i><p>{index===0?'统计真实完整交易日，不制造随机样本。':index===1?'验证扣费后闭环表现，未交易日不算亏损。':index===2?'只有人工确认后才允许进入模拟观察。':'回撤、费用和仓位异常拥有一票否决权。'}</p></article>})}</div>
     <div className="lab-results"><div className="lab-metrics"><h2>当前真实证据</h2><div><p><span>完整交易日</span><b>{evidence.sessions}</b></p><p><span>正式闭环</span><b>{evidence.cycles}</b></p><p><span>盈利闭环</span><b>{evidence.wins}</b></p><p><span>扣费胜率</span><b>{evidence.winRate===null?'—':`${(evidence.winRate*100).toFixed(1)}%`}</b></p><p><span>扣费净盈亏</span><b className={evidence.net>=0?'positive':'negative'}>{evidence.cycles?money(evidence.net):'—'}</b></p><p><span>最大回撤</span><b>-{(evidence.maxDrawdown*100).toFixed(2)}%</b></p></div><small>这些数值来自当前股票已取得的完整分时回放，不再展示固定演示胜率、收益或候选编号。</small></div><div className="promotion-card" id="promotion-review"><span>Smart-T V4 研究门</span><h2>{canReview?'可以进入人工评审':'继续积累真实样本'}</h2><p>{canReview?'样本数量达到最低评审门槛；仍需核对不同市场环境、费用与风险。':'至少需要 20 个完整交易日且形成 20 个有效闭环，才讨论候选参数。'}</p><button disabled>{canReview?'人工评审功能待开放':'样本不足 · 不生成候选'}</button><small>自动晋升永久关闭；四兔不会直接改动操盘台正式版本。</small></div></div>
     <div className="lab-log"><h2>本轮研究记录</h2>{[['本机','训练兔',`读取 ${evidence.sessions} 个完整交易日`],['本机','挑战兔',evidence.cycles?`核对 ${evidence.cycles} 个扣费闭环，盈利 ${evidence.wins} 个`:'当前没有足够正式闭环'],['本机','风控兔',`最差历史回撤 ${(evidence.maxDrawdown*100).toFixed(2)}%`],['本机','正式兔',canReview?'达到人工评审数量门槛，正式版仍锁定':'样本不足，不生成可晋升版本']].map(row=><div className={`log-${row[1]}`} key={`${row[1]}-${row[2]}`}><time>{row[0]}</time><i/><b>{row[1]}</b><span>{row[2]}</span></div>)}</div>
@@ -1900,6 +1948,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
   const [runStatus, setRunStatus] = useState("等待运行");
   const [accountNotice, setAccountNotice] = useState("");
   const [batchFetchProgress, setBatchFetchProgress] = useState({ready:0,attempted:0});
+  const [replayProgress, setReplayProgress] = useState({value:0,detail:"等待选择测试"});
   const [lastAction, setLastAction] = useState<"idle"|"single"|"batch">("idle");
   const batchRunSequence = useRef(0);
   const recentBatchCodes = useRef<string[]>([]);
@@ -1912,6 +1961,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
     setSource(null);
     setError("");
     setRunStatus("等待运行");
+    setReplayProgress({value:0,detail:"等待选择测试"});
     setLastAction("idle");
     onSelectStock(index);
   };
@@ -1938,9 +1988,11 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
     setLastAction("single");
     setAccountNotice("");
     setRunning(true); setRunMode("single"); setError(""); setResult(null); setBatch(null); setSource(null);
+    setReplayProgress({value:6,detail:`正在连接 ${stock.code} 公开分时数据`});
     setRunStatus(`第 ${attempt} 次：正在获取 ${stock.code} ${stock.name} 最新完整分时…`);
     try {
       const fetched=await fetchStock(stock.code);
+      setReplayProgress({value:28,detail:"行情已返回，正在核验完整交易日"});
       const sessions=[...(fetched.intradaySessions ?? [])].sort((left,right)=>right.date.localeCompare(left.date));
       if(!sessions.length) {
         setResult(null);
@@ -1955,6 +2007,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
       setAvailableSessionDates(sessions.map(session=>session.date));
       const selected=sessions.find(session=>session.date===requestedSessionDate) ?? sessions[0];
       const data=sessionData(fetched,selected);
+      setReplayProgress({value:46,detail:`已锁定 ${selected.date}，准备逐分钟因果回放`});
       setSingleRunDate(selected.date);
       setSource(data);
       const configuredQuantity=Math.min(baseShares,sellable);
@@ -1968,7 +2021,9 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
         setSellable(fallbackShares);
         setAccountNotice(`原模拟底仓不足 300 股，本次已使用标准模拟底仓 ${fallbackShares.toLocaleString("zh-CN")} 股；仅用于回测，不写入持仓对账。`);
       }
+      setReplayProgress({value:68,detail:"逐分钟推进策略，不读取未来高低点"});
       const calculated=replay(data,replayAccount);
+      setReplayProgress({value:88,detail:"正在扣除佣金、印花税与双向滑点"});
       setResult(calculated);
       setBatch(null);
       const candidateCount=calculated.diagnostics?.candidates ?? 0;
@@ -1976,11 +2031,13 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
       setRunStatus(calculated.trades
         ? `全日回放完成：形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
         : `全日回放完成：展示 ${observationCount} 个候补观察点，出现 ${candidateCount} 次候选判定，0 个通过正式过滤`);
+      setReplayProgress({value:100,detail:calculated.trades?`报告完成 · ${calculated.trades} 个闭环`:`报告完成 · ${candidateCount} 次候选判定`});
       setTimeout(()=>document.getElementById("single-backtest-result")?.scrollIntoView({behavior:"smooth",block:"start"}),0);
     } catch {
       setResult(null); setBatch(null); setSource(null);
       setError("公开行情源暂不可用，未生成测试结果。请稍后重试。");
       setRunStatus("行情获取失败");
+      setReplayProgress({value:0,detail:"行情获取失败，本次没有生成结果"});
     } finally { setRunning(false); setRunMode(null); }
   };
   const runBatch = async () => {
@@ -1993,6 +2050,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
     setAccountNotice("随机批次统一使用 ¥200,000 现金及约 ¥90,000 的逐股标准模拟底仓，不读取当前股票的真实持仓。");
     setBatchFetchProgress({ready:0,attempted:0});
     setRunning(true); setRunMode("batch"); setError(""); setRunStatus("正在读取全 A 股股票池…");
+    setReplayProgress({value:4,detail:"正在读取全 A 股股票池"});
     try {
       let universeResponse:StockUniverseResponse={provider:"representative-fallback",total:representativeBacktestItems.length,fallback:true,stocks:representativeBacktestItems};
       try {
@@ -2005,6 +2063,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
       } catch {
         universeResponse={provider:"representative-fallback",total:representativeBacktestItems.length,fallback:true,stocks:representativeBacktestItems};
       }
+      setReplayProgress({value:12,detail:`股票池已就绪 · ${universeResponse.total.toLocaleString("zh-CN")} 只`});
       let recentCodes=recentBatchCodes.current;
       if(!recentCodes.length && typeof window!=="undefined"){
         try {
@@ -2027,9 +2086,11 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
         attempted+=wave.length;
         available.push(...fetched.flatMap(entry=>entry.status==="fulfilled" && (entry.value.data.intradaySessions ?? []).length ? [entry.value] : []));
         setBatchFetchProgress({ready:available.length,attempted});
+        setReplayProgress({value:12+Math.round(Math.min(10,available.length)/10*48),detail:`正在取得真实完整分时 · ${available.length}/10`});
         setRunStatus(`真实分时已取得 ${available.length}/10 · 已尝试 ${attempted} 只${available.length<10?"，正在自动补抽":"，开始逐股因果回放"}`);
       }
       if(!available.length) throw new Error("no random batch minute data");
+      setReplayProgress({value:64,detail:`真实分时已就绪 · 开始回放 ${available.length} 只股票`});
       const trials=available.flatMap(selected=>{
         const sessionPool=[...selected.data.intradaySessions!]
           .sort((left,right)=>right.date.localeCompare(left.date))
@@ -2052,6 +2113,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
         return {samples:items.length,completed:cycleNets.length,wins:cycleNets.filter(value=>value>0).length,gross:items.reduce((sum,item)=>sum+item.gross,0),fees:items.reduce((sum,item)=>sum+item.fees,0),executionCost:items.reduce((sum,item)=>sum+item.executionCost,0),net:items.reduce((sum,item)=>sum+item.net,0),tradingRounds:items.filter(item=>item.trades>0).length,profitableRounds:roundNets.filter(value=>value>0).length,losingRounds:roundNets.filter(value=>value<0).length,profitFactor:negative?positive/negative:null,maxDrawdown:Math.max(...items.map(item=>item.maxDrawdown))};
       };
       const metrics=summarize(results); const legacy=summarize(legacyResults);
+      setReplayProgress({value:86,detail:"逐股回放完成 · 正在核算费用与稳定性"});
       const roundNets=results.map(item=>item.net).sort((a,b)=>a-b);
       const stockFeedback=available.map(selected=>{
         const stockTrials=trials.filter(item=>item.selected.item.code===selected.item.code);
@@ -2146,10 +2208,12 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
       if(typeof window!=="undefined")window.sessionStorage.setItem("smart-t-recent-random-batch-codes",JSON.stringify(updatedRecentCodes));
       setBatch({...metrics,seed,rounds:trials.length,stocks:available.length,attemptedStocks:attempted,replacementStocks,overlapWithPrevious,uniqueSessions,noTrade:results.filter(item=>item.trades===0).length,referenceStocks,candidateStocks,candidateDecisions,keyObservations,averageNet:metrics.net/Math.max(1,trials.length),medianNet,providers:[...new Set(available.map(item=>item.data.provider))],universeSize:universeResponse.total,universeProvider:universeResponse.provider,fallbackUniverse:universeResponse.fallback,industries,legacy,stockFeedback});
       setRunStatus(`随机${available.length}股测试完成：观察参考 ${referenceStocks}/${available.length} 股，正式候选 ${candidateStocks}/${available.length} 股，正式触发 ${metrics.tradingRounds}/${available.length} 股`);
+      setReplayProgress({value:100,detail:`批次报告完成 · ${metrics.tradingRounds}/${available.length} 只形成正式交易`});
     } catch {
       setResult(null); setBatch(null); setSource(null);
       setError("公开行情池当前没有取得任何可用的完整 1 分钟分时；本次没有伪造或补齐数据，请稍后重试。");
       setRunStatus("随机10股测试未完成");
+      setReplayProgress({value:0,detail:"未取得可用完整分时，本次测试已停止"});
     } finally { setRunning(false); setRunMode(null); }
   };
   const fullDayMinutes=source?.minutes ?? [];
@@ -2218,6 +2282,14 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}<span>→</span></button>
         <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:'全A股随机10股真实分时批次'}</button></div>
+        <RabbitProgressMeter
+          label={runMode==='batch'?'全 A 股随机批次测试':'单股完整交易日回测'}
+          detail={replayProgress.detail}
+          progress={replayProgress.value}
+          status={running?'running':error?'error':replayProgress.value===100?'completed':'paused'}
+          stages={runMode==='batch'?['读取股票池','获取真实分时','逐股因果回放','成本核算','生成报告']:['获取行情','校验交易日','逐分钟回放','费用核算','生成报告']}
+          compact
+        />
         <div className={`single-run-status ${running?'running':error?'error':result||batch?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在测试全A股随机10股批次…':`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='batch'&&batch?`${batch.fallbackUniverse?'代表池回退':'全A股'}随机10股完成 · 正式触发 ${batch.tradingRounds}/${batch.stocks} 股`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：${result.diagnostics?.candidates ?? 0} 次候选判定，0 个正式闭环`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${formatDate(singleRunDate)} 完整交易日`:''}</small></span></div>
         <p className="seed-note">单股测试按所选股票回放；批量测试优先从当前全 A 股普通股票列表中无放回随机抽取 10 只，并尽量分散行业。行情缺失会自动补抽；全市场列表不可用时会明确显示“代表池回退”。</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
