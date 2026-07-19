@@ -72,7 +72,7 @@ def progress(path: Path, stage: str, percent: int, message: str, **latest: Any) 
     write_json(path, {
         "schemaVersion": 1,
         "experimentId": "zijin-round4-standard-quant",
-        "status": "completed" if stage == "completed" else "running",
+        "status": "failed" if stage == "failed" else ("completed" if stage == "completed" else "running"),
         "stage": stage,
         "progress": max(0, min(100, int(percent))),
         "message": message,
@@ -97,8 +97,10 @@ def parameter_configs(hypothesis: dict[str, Any]) -> list[dict[str, float]]:
 
 def load_samples(input_path: Path, cache_dir: Path, protocol_hash: str) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     cache_dir.mkdir(parents=True, exist_ok=True)
-    samples_path = cache_dir / "causal-samples-through-2025.parquet"
-    panel_path = cache_dir / "target-minutes-through-2025.parquet"
+    # The source may be Parquet, but the research host must not require an
+    # optional pandas Parquet writer just to persist our derived cache.
+    samples_path = cache_dir / "causal-samples-through-2025.pkl"
+    panel_path = cache_dir / "target-minutes-through-2025.pkl"
     metadata_path = cache_dir / "cache-audit.json"
     fingerprint = {
         "input": str(input_path.resolve()),
@@ -110,7 +112,7 @@ def load_samples(input_path: Path, cache_dir: Path, protocol_hash: str) -> tuple
     if samples_path.exists() and panel_path.exists() and metadata_path.exists():
         audit = json.loads(metadata_path.read_text(encoding="utf-8"))
         if audit.get("fingerprint") == fingerprint:
-            return pd.read_parquet(samples_path), pd.read_parquet(panel_path), audit
+            return pd.read_pickle(samples_path), pd.read_pickle(panel_path), audit
 
     panel = round2.load_panel(input_path.resolve(), "20251231")
     if panel.empty or str(panel["tradeDate"].max()) > "20251231":
@@ -119,8 +121,8 @@ def load_samples(input_path: Path, cache_dir: Path, protocol_hash: str) -> tuple
     if samples.empty:
         raise RuntimeError("no causal samples were generated")
     target = panel[panel["code"] == peer.TARGET_CODE].copy()
-    samples.to_parquet(samples_path, index=False)
-    target.to_parquet(panel_path, index=False)
+    samples.to_pickle(samples_path)
+    target.to_pickle(panel_path)
     audit = {
         "fingerprint": fingerprint,
         "firstDate": str(panel["tradeDate"].min()),
@@ -476,4 +478,19 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        failure_path = ROOT / "public/research/zijin-round4-progress.json"
+        if "--progress" in sys.argv:
+            position = sys.argv.index("--progress")
+            if position + 1 < len(sys.argv):
+                failure_path = Path(sys.argv[position + 1])
+        progress(
+            failure_path,
+            "failed",
+            0,
+            f"实验已停止：{error}",
+            errorType=type(error).__name__,
+        )
+        raise
