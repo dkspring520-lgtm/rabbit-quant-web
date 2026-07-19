@@ -22,6 +22,8 @@ import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
 import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
+import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
+import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import PublicLanding from "./public-landing";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
@@ -351,6 +353,7 @@ export default function Home() {
   const [demoMode,setDemoMode]=useState(false);
   const [accountName, setAccountName] = useState("jay cc");
   const [accountRole, setAccountRole] = useState("member");
+  const monitorLimit=watchlistLimitForRole(accountRole);
   const remoteSyncReady = useRef(false);
   const [remoteSyncEpoch,setRemoteSyncEpoch]=useState(0);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -393,7 +396,17 @@ export default function Home() {
   const [eventRadarError, setEventRadarError] = useState("");
   const [starredRevision, setStarredRevision] = useState(0);
   const [indicatorsVisible, setIndicatorsVisible] = useState(true);
+  const [draggedStockCode, setDraggedStockCode] = useState<string | null>(null);
+  const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
+  const workspaceRef = useRef<HTMLElement | null>(null);
   const stock = stockList[activeStock] || stockList[0];
+  useEffect(()=>{
+    const syncFullscreenState=()=>setWorkspaceFullscreen(document.fullscreenElement===workspaceRef.current);
+    const closeFallback=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!document.fullscreenElement)setWorkspaceFullscreen(false)};
+    document.addEventListener('fullscreenchange',syncFullscreenState);
+    document.addEventListener('keydown',closeFallback);
+    return()=>{document.removeEventListener('fullscreenchange',syncFullscreenState);document.removeEventListener('keydown',closeFallback)};
+  },[]);
   useEffect(()=>{
     if(!authReady||!localAuth||!isZijinExperimentDeepLink())return;
     const prepared=ensureZijinExperimentStock(stockList);
@@ -450,6 +463,34 @@ export default function Home() {
       }catch{}
       return updated;
     });
+  };
+  const saveStockOrder=(next:typeof initialStocks)=>{
+    const selectedCode=stockList[activeStock]?.code;
+    setStockList(next);
+    const selectedIndex=next.findIndex(item=>item.code===selectedCode);
+    setActiveStock(selectedIndex>=0?selectedIndex:0);
+    try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next));}catch{}
+  };
+  const moveStock=(fromIndex:number,toIndex:number)=>{
+    if(fromIndex===toIndex||toIndex<0||toIndex>=stockList.length)return;
+    saveStockOrder(moveWatchlistItem(stockList,fromIndex,toIndex));
+  };
+  const dropStock=(targetCode:string)=>{
+    if(!draggedStockCode||draggedStockCode===targetCode)return;
+    saveStockOrder(moveWatchlistItemByCode(stockList,draggedStockCode,targetCode));
+    setDraggedStockCode(null);
+  };
+  const toggleWorkspaceFullscreen=async()=>{
+    const target=workspaceRef.current;
+    if(!target)return;
+    if(!target.requestFullscreen){setWorkspaceFullscreen(value=>!value);return;}
+    try{
+      if(document.fullscreenElement===target)await document.exitFullscreen?.();
+      else{
+        if(document.fullscreenElement)await document.exitFullscreen?.();
+        await target.requestFullscreen?.();
+      }
+    }catch{}
   };
   const rawMinutePoints = useMemo(() => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [], [currentTrial, currentMarket]);
   const minutePoints = useMemo(() => rawMinutePoints.filter(point=>isAShareRegularTradingMinute(point.time)), [rawMinutePoints]);
@@ -922,17 +963,18 @@ export default function Home() {
         if(monitorResponse.ok){
           const remote=await monitorResponse.json();
           if(Array.isArray(remote.monitors)&&remote.monitors.length){
-            const list=prepareWatchlistForCurrentEntry(remote.monitors.map((item:{code:string;name:string})=>({code:item.code,name:item.name,price:'--',change:'0.00%'})));
-            const positions=Object.fromEntries(remote.monitors.map((item:{code:string;position:StockPosition})=>[item.code,normalizeStockPosition(item.position??{},item.code)]));
+            const allowedMonitors=enforceWatchlistLimit(remote.monitors,accountRole);
+            const list=enforceWatchlistLimit(prepareWatchlistForCurrentEntry(allowedMonitors.map((item:{code:string;name:string})=>({code:item.code,name:item.name,price:'--',change:'0.00%'}))),accountRole);
+            const positions=Object.fromEntries(allowedMonitors.map((item:{code:string;position:StockPosition})=>[item.code,normalizeStockPosition(item.position??{},item.code)]));
             setStockList(list);setStockPositions(positions);
             localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list));
-            for(const item of remote.monitors)saveStockPosition(localStorage,accountName,normalizeStockPosition(item.position??{},item.code));
+            for(const item of allowedMonitors)saveStockPosition(localStorage,accountName,normalizeStockPosition(item.position??{},item.code));
           }
         }
       }catch{}finally{if(!cancelled){remoteSyncReady.current=true;setRemoteSyncEpoch(value=>value+1)}}
     })();
     return()=>{cancelled=true};
-  },[localAuth,demoMode,accountName]);
+  },[localAuth,demoMode,accountName,accountRole]);
   useEffect(()=>{
     if(!remoteSyncReady.current||!localAuth||demoMode||!accountName||!stockList.length)return;
     const timer=window.setTimeout(()=>{void Promise.all([
@@ -1143,9 +1185,14 @@ export default function Home() {
       {activeView === "首页" ? <HomeView onNavigate={setActiveView} onOpenZijin={openZijinExperiment} stockCount={stockList.length} /> : activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
         {stockList.map((item, index) => (
-          <div className={`ticker-item ${activeStock === index ? 'selected' : ''}`} key={item.code}>{(()=>{const quote=marketQuotes[item.code];const radar=eventsByCode[item.code];const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>:radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>:radar?<small className="ticker-event quiet">暂无新增</small>:eventRadarError?<small className="ticker-event pending">雷达待更新</small>:<small className="ticker-event pending">扫描中</small>;return <><button onClick={() => setActiveStock(index)}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>})()}</div>
+          <div
+            className={`ticker-item ${activeStock === index ? 'selected' : ''} ${draggedStockCode===item.code?'dragging':''}`}
+            key={item.code}
+            onDragOver={(event)=>event.preventDefault()}
+            onDrop={()=>dropStock(item.code)}
+          >{(()=>{const quote=marketQuotes[item.code];const radar=eventsByCode[item.code];const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>:radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>:radar?<small className="ticker-event quiet">暂无新增</small>:eventRadarError?<small className="ticker-event pending">雷达待更新</small>:<small className="ticker-event pending">扫描中</small>;return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>{setDraggedStockCode(item.code);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',item.code)}} onDragEnd={()=>setDraggedStockCode(null)} title="按住拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => setActiveStock(index)}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>})()}</div>
         ))}
-        <button className="ticker-add" onClick={()=>setOnboardingOpen(true)}>＋ 管理监控</button>
+        <button className="ticker-add" onClick={()=>setOnboardingOpen(true)}>＋ 管理监控 · {stockList.length}/{monitorLimit}</button>
       </section>
 
       <div className={`session-ribbon ${marketSession.tone}`} role="status" aria-live="polite">
@@ -1165,7 +1212,7 @@ export default function Home() {
         <div className="opening-assessment"><span>开盘状态</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {openingAssessment.confirmation}</small></div>
       </section>
 
-      <section className="workspace">
+      <section className={`workspace ${workspaceFullscreen?'workspace-fullscreen':''}`} ref={workspaceRef}>
         <div className="chart-zone">
           <div className="chart-tools">
             <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="teal-line"/>均线参考</span>}<span className="causal-marker-legend"><i/>提醒按确认分钟实时落点 · 不回填峰谷</span></div>
@@ -1173,7 +1220,7 @@ export default function Home() {
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
-            <button className="tool-button" onClick={()=>setIndicatorsVisible(value=>!value)} aria-pressed={indicatorsVisible}>{indicatorsVisible ? "隐藏指标" : "显示指标"}</button><button className="tool-button" onClick={()=>void document.documentElement.requestFullscreen?.().catch(()=>{})}>全屏</button>
+            <button className="tool-button" onClick={()=>setIndicatorsVisible(value=>!value)} aria-pressed={indicatorsVisible}>{indicatorsVisible ? "隐藏指标" : "显示指标"}</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出全屏":"全屏"}</button>
           </div>
           <div className="chart-wrap">
             <div className="y-axis">{chartModel ? chartModel.ticks.map(value=><span key={value}>{value.toFixed(2)}</span>) : [0,1,2,3,4].map(value=><span key={value}>--</span>)}</div>
@@ -1297,13 +1344,13 @@ export default function Home() {
       {accountOpen && <div className="account-overlay" role="dialog" aria-modal="true" aria-label="账户中心" onMouseDown={e=>{if(e.target===e.currentTarget)setAccountOpen(false)}}><div className="account-dialog">
         <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>{demoMode?'免注册演示已进入':'服务器账户已登录'}</span><h2>{accountName}</h2><p>{demoMode?'临时演示会话':accountRole==='admin'?'管理员账户':'会员账户 · 跨设备同步'}</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
         <div className="account-plan"><div><span>当前状态</span><b>{demoMode?'免注册演示':accountRole==='admin'?'运营管理员':'个人体验版'}</b><small>{demoMode?'不跨设备同步，刷新后可能丢失':'监控清单、持仓设置和提醒偏好已保存到服务器'}</small></div><em>{demoMode?'演示中':'已激活'}</em></div>
-        <div className="account-stats"><div><span>监控股票</span><b>{stockList.length} / 10</b></div><div><span>后台监控</span><b>{demoMode?'关闭':'已连接'}</b></div><div><span>策略版本</span><b>V4</b></div></div>
+        <div className="account-stats"><div><span>监控股票</span><b>{stockList.length} / {monitorLimit}</b></div><div><span>后台监控</span><b>{demoMode?'关闭':'已连接'}</b></div><div><span>策略版本</span><b>V4</b></div></div>
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>当前股票计划底仓<small>{stock.code} · 用于当日闭环校验</small></span><b>{activePosition.plannedBase.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
         <div className="account-security"><i>✓</i><p><b>{demoMode?'演示边界':'密码与会话安全'}</b><span>{demoMode?'演示不连接券商、不执行下单，也不会冒充正式账户。':'密码使用 scrypt 加盐哈希保存；登录会话使用 HttpOnly Cookie，前端不会读取密码或会话令牌。'}</span></p></div>
         <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button>{accountRole==='admin'&&!demoMode&&<button onClick={()=>{setAccountOpen(false);setMemberAdminOpen(true)}}>会员后台</button>}<button onClick={()=>{void fetch('/api/control/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});try{localStorage.removeItem('rabbit-auth-session');localStorage.removeItem('rabbit-account-role');sessionStorage.removeItem('rabbit-auth-session')}catch{} remoteSyncReady.current=false;setAccountOpen(false);setDemoMode(false);setAuthScreen('landing');setLocalAuth(false)}}>{demoMode?'退出演示':'退出登录'}</button></div>
       </div></div>}
       {memberAdminOpen&&<MemberAdminView onClose={()=>setMemberAdminOpen(false)}/>}
-      {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} onSave={(next,list,positions)=>{setPreferences(next);setHasPersistedPreferences(true);setStockList(list);setStockPositions(positions);setActiveStock(current=>Math.min(current,list.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list))}catch{}setOnboardingOpen(false)}}/>}
+      {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><span><a href="/terms">用户协议</a> · <a href="/privacy">隐私政策</a> · Rabbit Quant V1.0</span></footer>
     </main>
@@ -1402,7 +1449,7 @@ function HomeView({onNavigate,onOpenZijin,stockCount}:{onNavigate:(view:string)=
   </section>;
 }
 
-function OnboardingView({accountName,initial,initialList,initialPositions,onSave}:{accountName:string;initial:AccountPreferences;initialList:typeof initialStocks;initialPositions:StockPositionMap;onSave:(value:AccountPreferences,list:typeof initialStocks,positions:StockPositionMap)=>void}){
+function OnboardingView({accountName,initial,initialList,initialPositions,maxStocks,onSave}:{accountName:string;initial:AccountPreferences;initialList:typeof initialStocks;initialPositions:StockPositionMap;maxStocks:number;onSave:(value:AccountPreferences,list:typeof initialStocks,positions:StockPositionMap)=>void}){
   const [stock,setStock]=useState(initial.stock);
   const [risk,setRisk]=useState(initial.risk);
   const [list,setList]=useState(initialList);
@@ -1417,7 +1464,7 @@ function OnboardingView({accountName,initial,initialList,initialPositions,onSave
     const existing=current[selectedCode]??migrateLegacyPosition(initial,selectedCode);
     return {...current,[selectedCode]:normalizeStockPosition({...existing,[field]:Math.max(0,Math.floor(value))},selectedCode)};
   });
-  const add=()=>{const code=newCode.replace(/\D/g,'').slice(0,6);const name=newName.trim();if(code.length!==6||!name){setListError('请输入6位股票代码和股票名称');return}if(list.some(item=>item.code===code)){setListError('该股票已经在监控列表中');return}const next=[...list,{code,name,price:'--',change:'0.00%'}];setList(next);setPositions(current=>({...current,[code]:normalizeStockPosition({},code)}));setStock(`${code} ${name}`);setNewCode('');setNewName('');setListError('')};
+  const add=()=>{const code=newCode.replace(/\D/g,'').slice(0,6);const name=newName.trim();if(list.length>=maxStocks){setListError(`当前会员最多同时监控 ${maxStocks} 只股票；删除一只后可继续添加`);return}if(code.length!==6||!name){setListError('请输入6位股票代码和股票名称');return}if(list.some(item=>item.code===code)){setListError('该股票已经在监控列表中');return}const next=[...list,{code,name,price:'--',change:'0.00%'}];setList(next);setPositions(current=>({...current,[code]:normalizeStockPosition({},code)}));setStock(`${code} ${name}`);setNewCode('');setNewName('');setListError('')};
   const remove=(code:string)=>{if(list.length<=1){setListError('至少需要保留一只监控股票');return}const next=list.filter(item=>item.code!==code);setList(next);setPositions(current=>{const updated={...current};delete updated[code];return updated});if(stock.startsWith(code))setStock(`${next[0].code} ${next[0].name}`);setListError('')};
   const save=()=>{
     const savedPositions:StockPositionMap=Object.fromEntries(list.map(item=>{
@@ -1427,7 +1474,7 @@ function OnboardingView({accountName,initial,initialList,initialPositions,onSave
     const defaultPosition=savedPositions[selectedCode]??normalizeStockPosition({},selectedCode);
     onSave({stock,baseShares:defaultPosition.plannedBase,risk},list,savedPositions);
   };
-  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>每只股票独立保存持仓，切换股票不会串用底仓。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>setNewCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="off" placeholder="6位代码"/><input value={newName} onChange={e=>setNewName(e.target.value)} autoComplete="off" placeholder="股票名称"/><button onClick={add}>＋ 添加</button></div>{listError&&<small className="list-error">{listError}</small>}<small>先点击一只股票，再单独填写它的持仓；被选中的股票同时作为默认股票。</small></div></div><div className="onboarding-step"><b>02</b><div><span>{selectedStock?`${selectedStock.name}（${selectedCode}）持仓`:'当前股票持仓'}</span><div className="position-setup-grid"><label><span>计划底仓</span><div><input type="text" inputMode="numeric" value={selectedPosition.plannedBase||''} onChange={event=>updatePosition('plannedBase',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>收盘恢复目标</small></label><label><span>开盘实际持仓</span><div><input type="text" inputMode="numeric" value={selectedPosition.openingShares||''} onChange={event=>updatePosition('openingShares',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>今日开盘前实际数量</small></label><label><span>昨日可卖</span><div><input type="text" inputMode="numeric" value={selectedPosition.sellable||''} onChange={event=>updatePosition('sellable',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>受 T+1 规则约束</small></label></div><small>昨日可卖不会超过开盘实际持仓；不足 100 股时，本股不会生成正式做 T 执行信号。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={save}>保存全部股票持仓 <span>→</span></button></div></div>;
+  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>每只股票独立保存持仓，切换股票不会串用底仓。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票 · {list.length}/{maxStocks}</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>setNewCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="off" placeholder="6位代码" disabled={list.length>=maxStocks}/><input value={newName} onChange={e=>setNewName(e.target.value)} autoComplete="off" placeholder="股票名称" disabled={list.length>=maxStocks}/><button onClick={add} disabled={list.length>=maxStocks}>{list.length>=maxStocks?`已达 ${maxStocks} 只上限`:'＋ 添加'}</button></div>{listError&&<small className="list-error">{listError}</small>}<small>当前会员最多同时监控 {maxStocks} 只股票；先点击一只股票，再单独填写它的持仓。</small></div></div><div className="onboarding-step"><b>02</b><div><span>{selectedStock?`${selectedStock.name}（${selectedCode}）持仓`:'当前股票持仓'}</span><div className="position-setup-grid"><label><span>计划底仓</span><div><input type="text" inputMode="numeric" value={selectedPosition.plannedBase||''} onChange={event=>updatePosition('plannedBase',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>收盘恢复目标</small></label><label><span>开盘实际持仓</span><div><input type="text" inputMode="numeric" value={selectedPosition.openingShares||''} onChange={event=>updatePosition('openingShares',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>今日开盘前实际数量</small></label><label><span>昨日可卖</span><div><input type="text" inputMode="numeric" value={selectedPosition.sellable||''} onChange={event=>updatePosition('sellable',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>受 T+1 规则约束</small></label></div><small>昨日可卖不会超过开盘实际持仓；不足 100 股时，本股不会生成正式做 T 执行信号。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={save}>保存全部股票持仓 <span>→</span></button></div></div>;
 }
 
 function MultiWatchView({stocks,onOpen,onManage}:{stocks:typeof initialStocks;onOpen:(index:number)=>void;onManage:()=>void}) {
