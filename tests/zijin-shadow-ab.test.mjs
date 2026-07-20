@@ -5,6 +5,7 @@ import {
   appendIntegrity,
   computeVisibleFeatures,
   createShadowState,
+  deriveShadowStatus,
   evaluateShadowCandidate,
   processVisibleMinute,
   SHADOW_CONSTANTS,
@@ -36,6 +37,14 @@ test("A/B features are causal and ignore later minutes", () => {
   assert.deepEqual(after, before);
   assert.equal(before.visibleMinuteCount, 4);
   assert.equal(before.time, "0933");
+});
+
+test("shadow status follows the Shanghai session instead of the last cached minute", () => {
+  assert.equal(deriveShadowStatus("20260720", new Date("2026-07-20T21:40:00.000Z")), "waiting");
+  assert.equal(deriveShadowStatus("20260721", new Date("2026-07-21T01:20:00.000Z")), "waiting");
+  assert.equal(deriveShadowStatus("20260721", new Date("2026-07-21T01:40:00.000Z")), "observing");
+  assert.equal(deriveShadowStatus("20260721", new Date("2026-07-21T07:00:00.000Z")), "closed");
+  assert.equal(deriveShadowStatus("20260720", new Date("2026-07-21T02:00:00.000Z")), "degraded");
 });
 
 test("strict A and coverage B independently produce forward candidates", () => {
