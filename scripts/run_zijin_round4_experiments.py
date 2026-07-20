@@ -226,6 +226,120 @@ def hypothesis_rows(rows: pd.DataFrame, hypothesis_id: str, parameters: dict[str
                 | ((rows["direction"] == "reverse") & (rows["zijinAlpha3Pct"] >= alpha) & (rows["peerBreadth3"] <= 1 - breadth))
             )
         )
+    elif hypothesis_id == "opening-gap-repair-confirmed":
+        gap = float(parameters["gapAbsPct"])
+        repair = float(parameters["repairPct"])
+        confirmations = int(parameters["confirmationVotesRequired"])
+        positive_votes = (
+            (rows["return3Pct"] > 0).astype(int)
+            + (rows["ma5SlopePct"] > 0).astype(int)
+            + (rows["vwapBiasPct"] >= 0).astype(int)
+        )
+        reverse_votes = (
+            (rows["return3Pct"] < 0).astype(int)
+            + (rows["ma5SlopePct"] < 0).astype(int)
+            + (rows["vwapBiasPct"] <= 0).astype(int)
+        )
+        mask = (
+            (rows["minuteOfDay"] >= 9 * 60 + 33)
+            & (rows["minuteOfDay"] <= 10 * 60 + 30)
+            & (
+                (
+                    (rows["direction"] == "positive")
+                    & (rows["gapPct"] <= -gap)
+                    & (rows["openDeviationPct"] >= repair)
+                    & (positive_votes >= confirmations)
+                )
+                | (
+                    (rows["direction"] == "reverse")
+                    & (rows["gapPct"] >= gap)
+                    & (rows["openDeviationPct"] <= -repair)
+                    & (reverse_votes >= confirmations)
+                )
+            )
+        )
+    elif hypothesis_id == "vwap-reversion-confirmed":
+        bias = float(parameters["vwapBiasAbsPct"])
+        zscore = float(parameters["zscoreAbs"])
+        confirmations = int(parameters["confirmationVotesRequired"])
+        positive_votes = (
+            (rows["return3Pct"] > 0).astype(int)
+            + (rows["ma5SlopePct"] > 0).astype(int)
+            + (rows["intradayPosition"] <= 0.5).astype(int)
+        )
+        reverse_votes = (
+            (rows["return3Pct"] < 0).astype(int)
+            + (rows["ma5SlopePct"] < 0).astype(int)
+            + (rows["intradayPosition"] >= 0.5).astype(int)
+        )
+        mask = (
+            (rows["minuteOfDay"] >= 9 * 60 + 35)
+            & (rows["minuteOfDay"] <= 14 * 60 + 30)
+            & (
+                (
+                    (rows["direction"] == "positive")
+                    & (rows["vwapBiasPct"] <= -bias)
+                    & (rows["priceZscore"] <= -zscore)
+                    & (positive_votes >= confirmations)
+                )
+                | (
+                    (rows["direction"] == "reverse")
+                    & (rows["vwapBiasPct"] >= bias)
+                    & (rows["priceZscore"] >= zscore)
+                    & (reverse_votes >= confirmations)
+                )
+            )
+        )
+    elif hypothesis_id == "upside-exhaustion-confirmed":
+        bias = float(parameters["vwapBiasPct"])
+        position = float(parameters["minimumIntradayPosition"])
+        confirmations = int(parameters["confirmationVotesRequired"])
+        votes = (
+            (rows["return3Pct"] < 0).astype(int)
+            + (rows["ma5SlopePct"] < 0).astype(int)
+            + (rows["drawdownFromHighPct"] >= 0.08).astype(int)
+        )
+        mask = (
+            (rows["direction"] == "reverse")
+            & (rows["minuteOfDay"] >= 9 * 60 + 35)
+            & (rows["minuteOfDay"] <= 14 * 60 + 30)
+            & (rows["vwapBiasPct"] >= bias)
+            & (rows["intradayPosition"] >= position)
+            & (votes >= confirmations)
+        )
+    elif hypothesis_id == "peer-divergence-repair":
+        alpha = float(parameters["alphaAbsPct"])
+        breadth = float(parameters["peerBreadthBoundary"])
+        confirmations = int(parameters["confirmationVotesRequired"])
+        positive_votes = (
+            (rows["return3Pct"] > 0).astype(int)
+            + (rows["ma5SlopePct"] > 0).astype(int)
+            + (rows["vwapBiasPct"] <= 0).astype(int)
+        )
+        reverse_votes = (
+            (rows["return3Pct"] < 0).astype(int)
+            + (rows["ma5SlopePct"] < 0).astype(int)
+            + (rows["vwapBiasPct"] >= 0).astype(int)
+        )
+        mask = (
+            (rows["minuteOfDay"] >= 9 * 60 + 35)
+            & (rows["minuteOfDay"] <= 14 * 60 + 30)
+            & (rows["peerCoverage"] >= 0.8)
+            & (
+                (
+                    (rows["direction"] == "positive")
+                    & (rows["zijinAlpha3Pct"] <= -alpha)
+                    & (rows["peerBreadth3"] >= breadth)
+                    & (positive_votes >= confirmations)
+                )
+                | (
+                    (rows["direction"] == "reverse")
+                    & (rows["zijinAlpha3Pct"] >= alpha)
+                    & (rows["peerBreadth3"] <= 1 - breadth)
+                    & (reverse_votes >= confirmations)
+                )
+            )
+        )
     elif hypothesis_id == "range-vwap-confirmation":
         maximum_vwap_slope = float(parameters["maximumAbsoluteVwapSlopePct"])
         bias = float(parameters["vwapBiasAbsPct"])
@@ -415,16 +529,45 @@ def diagnostic_reference_parameters(hypothesis: dict[str, Any]) -> dict[str, flo
     """
     grid = hypothesis["parameterGrid"]
     hypothesis_id = str(hypothesis["id"])
+    if hypothesis_id == "opening-gap-repair-confirmed":
+        return {
+            "gapAbsPct": float(min(grid["gapAbsPct"])),
+            "repairPct": float(min(grid["repairPct"])),
+            "confirmationVotesRequired": int(min(grid["confirmationVotesRequired"])),
+        }
+    if hypothesis_id == "vwap-reversion-confirmed":
+        return {
+            "vwapBiasAbsPct": float(min(grid["vwapBiasAbsPct"])),
+            "zscoreAbs": float(min(grid["zscoreAbs"])),
+            "confirmationVotesRequired": int(min(grid["confirmationVotesRequired"])),
+        }
+    if hypothesis_id == "upside-exhaustion-confirmed":
+        return {
+            "vwapBiasPct": float(min(grid["vwapBiasPct"])),
+            "minimumIntradayPosition": float(min(grid["minimumIntradayPosition"])),
+            "confirmationVotesRequired": int(min(grid["confirmationVotesRequired"])),
+        }
+    if hypothesis_id == "peer-divergence-repair":
+        return {
+            "alphaAbsPct": float(min(grid["alphaAbsPct"])),
+            "peerBreadthBoundary": float(min(grid["peerBreadthBoundary"])),
+            "confirmationVotesRequired": int(min(grid["confirmationVotesRequired"])),
+        }
     if "range-vwap-reversion" in hypothesis_id:
         return {
             "maximumAbsoluteVwapSlopePct": float(max(grid["maximumAbsoluteVwapSlopePct"])),
             "vwapBiasAbsPct": float(min(grid["vwapBiasAbsPct"])),
             "minimumVolumeRatio": float(min(grid["minimumVolumeRatio"])),
         }
+    if "observable-trend-pullback" in hypothesis_id:
+        return {
+            "minimumAbsoluteVwapSlopePct": float(min(grid["minimumAbsoluteVwapSlopePct"])),
+            "maximumVwapDistancePct": float(max(grid["maximumVwapDistancePct"])),
+            "minimumVolumeRatio": float(min(grid["minimumVolumeRatio"])),
+        }
     return {
-        "minimumAbsoluteVwapSlopePct": float(min(grid["minimumAbsoluteVwapSlopePct"])),
-        "maximumVwapDistancePct": float(max(grid["maximumVwapDistancePct"])),
-        "minimumVolumeRatio": float(min(grid["minimumVolumeRatio"])),
+        key: float(min(values))
+        for key, values in grid.items()
     }
 
 
@@ -437,9 +580,11 @@ def sample_formation_diagnostic(
     reports: list[dict[str, Any]] = []
     for hypothesis in hypotheses:
         hypothesis_id = str(hypothesis["id"])
-        morning = hypothesis_id.startswith("morning-")
-        start_minute = 9 * 60 + 33 if morning else 13 * 60
-        end_minute = 10 * 60 + 30 if morning else 14 * 60 + 30
+        start_text, end_text = str(hypothesis["session"]).split("-", maxsplit=1)
+        start_hour, start_minute_part = (int(part) for part in start_text.split(":"))
+        end_hour, end_minute_part = (int(part) for part in end_text.split(":"))
+        start_minute = start_hour * 60 + start_minute_part
+        end_minute = end_hour * 60 + end_minute_part
         parameters = diagnostic_reference_parameters(hypothesis)
         rows = population
         stages: list[dict[str, Any]] = [{"id": "causal-anchor", "count": int(len(rows))}]
@@ -447,7 +592,15 @@ def sample_formation_diagnostic(
         rows = rows[(rows["minuteOfDay"] >= start_minute) & (rows["minuteOfDay"] <= end_minute)]
         stages.append({"id": "session", "count": int(len(rows))})
 
-        if "range-vwap-reversion" in hypothesis_id:
+        if hypothesis_id in {
+            "opening-gap-repair-confirmed",
+            "vwap-reversion-confirmed",
+            "upside-exhaustion-confirmed",
+            "peer-divergence-repair",
+        }:
+            rows = hypothesis_rows(rows, hypothesis_id, parameters)
+            stages.append({"id": "fixed-pattern-confirmation", "count": int(len(rows))})
+        elif "range-vwap-reversion" in hypothesis_id:
             maximum_slope = parameters["maximumAbsoluteVwapSlopePct"]
             rows = rows[(rows["vwapSlope5Pct"].abs() <= maximum_slope) & (rows["ma10SlopePct"].abs() <= 0.06)]
             stages.append({"id": "observable-regime", "count": int(len(rows))})
@@ -462,7 +615,7 @@ def sample_formation_diagnostic(
                 | ((rows["direction"] == "reverse") & (rows["ma5SlopePct"] < 0) & (rows["return3Pct"] < 0))
             ]
             stages.append({"id": "turn-confirmation", "count": int(len(rows))})
-        else:
+        elif "observable-trend-pullback" in hypothesis_id:
             rows = rows[rows["peerCoverage"] >= 0.8]
             stages.append({"id": "peer-coverage", "count": int(len(rows))})
             minimum_slope = parameters["minimumAbsoluteVwapSlopePct"]
@@ -489,9 +642,18 @@ def sample_formation_diagnostic(
                 )
             ]
             stages.append({"id": "continuation-confirmation", "count": int(len(rows))})
+        else:
+            rows = hypothesis_rows(rows, hypothesis_id, parameters)
+            stages.append({"id": "fixed-pattern", "count": int(len(rows))})
 
-        rows = rows[rows["volumeRatio"] >= parameters["minimumVolumeRatio"]]
-        stages.append({"id": "volume", "count": int(len(rows))})
+        if "minimumVolumeRatio" in parameters and hypothesis_id not in {
+            "opening-gap-repair-confirmed",
+            "vwap-reversion-confirmed",
+            "upside-exhaustion-confirmed",
+            "peer-divergence-repair",
+        }:
+            rows = rows[rows["volumeRatio"] >= parameters["minimumVolumeRatio"]]
+            stages.append({"id": "volume", "count": int(len(rows))})
         selected = independent(rows)
         stages.append({"id": "independent-limit", "count": int(len(selected))})
         drops = [
