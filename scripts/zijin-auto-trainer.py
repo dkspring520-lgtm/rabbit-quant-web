@@ -85,7 +85,9 @@ def rabbit_state(stage: str, progress: int, child: dict[str, Any], report: dict[
     completed_hypotheses = int(latest.get("completedHypotheses", 0) or 0)
     total_hypotheses = int(latest.get("totalHypotheses", 4) or 4)
     qualified = len((report or {}).get("qualifiedHypothesisIds", []))
-    finished = stage == "completed"
+    # `waiting` is the normal daemon state after an already completed run.
+    # It must not make the dashboard pretend that the training rabbit is busy.
+    finished = stage in {"completed", "waiting"}
     failed = stage == "failed"
     return {
         "training": {
