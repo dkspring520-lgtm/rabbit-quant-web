@@ -16,6 +16,7 @@ test("production runs Zijin research in an isolated restartable container", () =
   assert.match(compose, /\/opt\/rabbit-quant-research:\/training-data:ro/);
   assert.match(compose, /\/opt\/rabbit-quant-state:\/training-state/);
   assert.match(compose, /\/opt\/rabbit-quant-training-runtime:\/training-runtime/);
+  assert.match(compose, /ZIJIN_IDLE_HEARTBEAT_SECONDS:/);
   assert.match(dockerfile, /FROM python:3\.12-slim/);
   assert.match(dockerfile, /requirements\.trainer\.txt/);
 });

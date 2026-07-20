@@ -10,6 +10,7 @@ test("Zijin auto trainer is change-driven, locked and never promotes automatical
   assert.match(script, /if unchanged and not args\.force/);
   assert.match(script, /os\.O_CREAT \| os\.O_EXCL/);
   assert.match(script, /heartbeatAt/);
+  assert.match(script, /refresh_idle_heartbeat\(args\.state\)/);
   assert.match(script, /append_history/);
   assert.match(script, /previousRecordHash/);
   assert.match(script, /automaticPromotion": False/);
