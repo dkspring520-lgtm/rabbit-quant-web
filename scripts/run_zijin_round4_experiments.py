@@ -330,6 +330,74 @@ def hypothesis_rows(rows: pd.DataFrame, hypothesis_id: str, parameters: dict[str
             & (rows["peerCoverage"] >= 0.8)
             & (rows["peerBreadth3"] <= maximum_breadth)
         )
+    elif hypothesis_id in {
+        "morning-observable-range-vwap-reversion",
+        "afternoon-observable-range-vwap-reversion",
+    }:
+        morning = hypothesis_id.startswith("morning-")
+        start_minute = 9 * 60 + 33 if morning else 13 * 60
+        end_minute = 10 * 60 + 30 if morning else 14 * 60 + 30
+        maximum_vwap_slope = float(parameters["maximumAbsoluteVwapSlopePct"])
+        bias = float(parameters["vwapBiasAbsPct"])
+        volume = float(parameters["minimumVolumeRatio"])
+        mask = (
+            (rows["minuteOfDay"] >= start_minute)
+            & (rows["minuteOfDay"] <= end_minute)
+            & (rows["vwapSlope5Pct"].abs() <= maximum_vwap_slope)
+            & (rows["ma10SlopePct"].abs() <= 0.06)
+            & (rows["volumeRatio"] >= volume)
+            & (
+                (
+                    (rows["direction"] == "positive")
+                    & (rows["vwapBiasPct"] <= -bias)
+                    & (rows["priceZscore"] < 0)
+                    & (rows["ma5SlopePct"] > 0)
+                    & (rows["return3Pct"] > 0)
+                )
+                | (
+                    (rows["direction"] == "reverse")
+                    & (rows["vwapBiasPct"] >= bias)
+                    & (rows["priceZscore"] > 0)
+                    & (rows["ma5SlopePct"] < 0)
+                    & (rows["return3Pct"] < 0)
+                )
+            )
+        )
+    elif hypothesis_id in {
+        "morning-observable-trend-pullback",
+        "afternoon-observable-trend-pullback",
+    }:
+        morning = hypothesis_id.startswith("morning-")
+        start_minute = 9 * 60 + 33 if morning else 13 * 60
+        end_minute = 10 * 60 + 30 if morning else 14 * 60 + 30
+        minimum_vwap_slope = float(parameters["minimumAbsoluteVwapSlopePct"])
+        maximum_distance = float(parameters["maximumVwapDistancePct"])
+        volume = float(parameters["minimumVolumeRatio"])
+        mask = (
+            (rows["minuteOfDay"] >= start_minute)
+            & (rows["minuteOfDay"] <= end_minute)
+            & (rows["volumeRatio"] >= volume)
+            & (rows["peerCoverage"] >= 0.8)
+            & (rows["vwapBiasPct"].abs() <= maximum_distance)
+            & (
+                (
+                    (rows["direction"] == "positive")
+                    & (rows["vwapSlope5Pct"] >= minimum_vwap_slope)
+                    & (rows["ma10SlopePct"] >= 0.01)
+                    & (rows["ma5SlopePct"] > 0)
+                    & (rows["return3Pct"] > 0)
+                    & (rows["peerBreadth3"] >= 0.5)
+                )
+                | (
+                    (rows["direction"] == "reverse")
+                    & (rows["vwapSlope5Pct"] <= -minimum_vwap_slope)
+                    & (rows["ma10SlopePct"] <= -0.01)
+                    & (rows["ma5SlopePct"] < 0)
+                    & (rows["return3Pct"] < 0)
+                    & (rows["peerBreadth3"] <= 0.5)
+                )
+            )
+        )
     else:
         raise ValueError(f"unknown hypothesis: {hypothesis_id}")
     return rows[mask].copy()
