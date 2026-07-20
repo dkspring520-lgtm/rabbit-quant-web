@@ -226,7 +226,11 @@ def hypothesis_rows(rows: pd.DataFrame, hypothesis_id: str, parameters: dict[str
                 | ((rows["direction"] == "reverse") & (rows["zijinAlpha3Pct"] >= alpha) & (rows["peerBreadth3"] <= 1 - breadth))
             )
         )
-    elif hypothesis_id == "opening-gap-repair-confirmed":
+    elif hypothesis_id in {
+        "opening-gap-repair-confirmed",
+        "early-opening-gap-repair-positive",
+        "early-opening-gap-repair-reverse",
+    }:
         gap = float(parameters["gapAbsPct"])
         repair = float(parameters["repairPct"])
         confirmations = int(parameters["confirmationVotesRequired"])
@@ -240,9 +244,16 @@ def hypothesis_rows(rows: pd.DataFrame, hypothesis_id: str, parameters: dict[str
             + (rows["ma5SlopePct"] < 0).astype(int)
             + (rows["vwapBiasPct"] <= 0).astype(int)
         )
+        end_minute = 9 * 60 + 44 if hypothesis_id.startswith("early-opening-") else 10 * 60 + 30
+        direction_mask = pd.Series(True, index=rows.index)
+        if hypothesis_id.endswith("-positive"):
+            direction_mask = rows["direction"] == "positive"
+        elif hypothesis_id.endswith("-reverse"):
+            direction_mask = rows["direction"] == "reverse"
         mask = (
-            (rows["minuteOfDay"] >= 9 * 60 + 33)
-            & (rows["minuteOfDay"] <= 10 * 60 + 30)
+            direction_mask
+            & (rows["minuteOfDay"] >= 9 * 60 + 33)
+            & (rows["minuteOfDay"] <= end_minute)
             & (
                 (
                     (rows["direction"] == "positive")
@@ -529,7 +540,11 @@ def diagnostic_reference_parameters(hypothesis: dict[str, Any]) -> dict[str, flo
     """
     grid = hypothesis["parameterGrid"]
     hypothesis_id = str(hypothesis["id"])
-    if hypothesis_id == "opening-gap-repair-confirmed":
+    if hypothesis_id in {
+        "opening-gap-repair-confirmed",
+        "early-opening-gap-repair-positive",
+        "early-opening-gap-repair-reverse",
+    }:
         return {
             "gapAbsPct": float(min(grid["gapAbsPct"])),
             "repairPct": float(min(grid["repairPct"])),
@@ -594,6 +609,8 @@ def sample_formation_diagnostic(
 
         if hypothesis_id in {
             "opening-gap-repair-confirmed",
+            "early-opening-gap-repair-positive",
+            "early-opening-gap-repair-reverse",
             "vwap-reversion-confirmed",
             "upside-exhaustion-confirmed",
             "peer-divergence-repair",
@@ -648,6 +665,8 @@ def sample_formation_diagnostic(
 
         if "minimumVolumeRatio" in parameters and hypothesis_id not in {
             "opening-gap-repair-confirmed",
+            "early-opening-gap-repair-positive",
+            "early-opening-gap-repair-reverse",
             "vwap-reversion-confirmed",
             "upside-exhaustion-confirmed",
             "peer-divergence-repair",
@@ -874,6 +893,18 @@ def run_hypothesis(
         "selectedTrialIndex": len(trial_matrix) - 1,
     }
     evaluation = standard.evaluate_promotion(summary, protocol)
+    metrics_passed = bool(evaluation["passedRollingOutOfSample"])
+    promotion_policy = protocol.get("promotionPolicy", {})
+    current_run_can_promote = bool(promotion_policy.get("currentRunCanPromote", True))
+    evaluation["metricsPassedRollingOutOfSample"] = metrics_passed
+    evaluation["promotionEligible"] = current_run_can_promote
+    if not current_run_can_promote:
+        evaluation["passedRollingOutOfSample"] = False
+        evaluation["nextStage"] = "research-report-only"
+        evaluation["promotionBlockReason"] = promotion_policy.get(
+            "reason",
+            "This replication run is not eligible for promotion.",
+        )
     feasibility_gate = protocol.get("feasibilityGate", {})
     covered_outer_quarters = sum(1 for item in rolling_quarters if int(item["trades"]) > 0)
     minimum_trades = int(feasibility_gate.get("minimumOutOfSampleTrades", 0))
@@ -974,6 +1005,8 @@ def main() -> None:
         "sourceCommit": commit,
         "protocolHash": protocol_hash,
         "status": "qualified-for-final-blind" if qualified else "research-rejected",
+        "researchStage": protocol.get("researchStage", "selection"),
+        "promotionEligible": bool(protocol.get("promotionPolicy", {}).get("currentRunCanPromote", True)),
         "affectsV4": False,
         "reads2026": False,
         "dataset": audit,
@@ -995,6 +1028,7 @@ def main() -> None:
             "allowed": bool(qualified),
             "oneShotCommandRequired": True,
             "opened": False,
+            "blockedByReplicationPolicy": not bool(protocol.get("promotionPolicy", {}).get("currentRunCanPromote", True)),
         },
         "ledger": {
             "path": audit_path(ledger_path),

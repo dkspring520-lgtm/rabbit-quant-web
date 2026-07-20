@@ -5,6 +5,10 @@ import test from "node:test";
 const protocol = JSON.parse(
   await readFile(new URL("../scripts/zijin-round10-protocol.json", import.meta.url), "utf8"),
 );
+const runnerSource = await readFile(
+  new URL("../scripts/run_zijin_round4_experiments.py", import.meta.url),
+  "utf8",
+);
 
 function configurationCount(grid) {
   return Object.values(grid).reduce((count, values) => count * values.length, 1);
@@ -44,6 +48,7 @@ test("round ten splits positive and reverse research inside one fixed window", (
   for (const hypothesis of protocol.hypotheses) {
     assert.equal(hypothesis.features.length, 8);
     assert.equal(new Set(hypothesis.features).size, 8);
+    assert.equal(hypothesis.session, "09:33-09:44");
     assert.equal(hypothesis.fixedRules.session, "09:33-09:44");
     assert.equal(hypothesis.fixedRules.directionMustEqual, hypothesis.direction);
     assert.equal(hypothesis.fixedRules.entry, "next-minute-open");
@@ -62,9 +67,27 @@ test("round ten cannot tune itself into V4 or bypass multiple-testing controls",
   assert.equal(protocol.multipleTesting.deflatedSharpe.minimumProbability, 0.95);
   assert.equal(protocol.promotionPolicy.currentRunCanPromote, false);
   assert.equal(protocol.promotionPolicy.v4MustRemainUnchanged, true);
+  assert.equal(protocol.promotionGates.minimumOutOfSampleWinRate, 0.65);
+  assert.equal(protocol.feasibilityGate.doesNotGrantPromotion, true);
+  assert.equal(protocol.trialLedger.integrity, "sha256-hash-chain");
   assert.deepEqual(protocol.baselines.map((item) => item.id), [
     "no-trade",
     "simple-vwap",
     "smart-t-v4",
   ]);
+});
+
+test("the shared executor implements both fixed-direction hypotheses", () => {
+  assert.match(runnerSource, /early-opening-gap-repair-positive/);
+  assert.match(runnerSource, /early-opening-gap-repair-reverse/);
+  assert.match(runnerSource, /9 \* 60 \+ 44 if hypothesis_id\.startswith\("early-opening-"\)/);
+  assert.match(runnerSource, /direction_mask = rows\["direction"\] == "positive"/);
+  assert.match(runnerSource, /direction_mask = rows\["direction"\] == "reverse"/);
+});
+
+test("a replication run is forced into research-only output", () => {
+  assert.match(runnerSource, /current_run_can_promote = bool/);
+  assert.match(runnerSource, /evaluation\["passedRollingOutOfSample"\] = False/);
+  assert.match(runnerSource, /evaluation\["nextStage"\] = "research-report-only"/);
+  assert.match(runnerSource, /"blockedByReplicationPolicy"/);
 });

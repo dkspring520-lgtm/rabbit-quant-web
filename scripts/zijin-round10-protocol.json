@@ -56,6 +56,7 @@
     {
       "id": "early-opening-gap-repair-positive",
       "direction": "positive",
+      "session": "09:33-09:44",
       "name": "早盘低开修复正T",
       "features": [
         "minuteOfDay",
@@ -82,6 +83,7 @@
     {
       "id": "early-opening-gap-repair-reverse",
       "direction": "reverse",
+      "session": "09:33-09:44",
       "name": "早盘高开转弱反T",
       "features": [
         "minuteOfDay",
@@ -163,6 +165,40 @@
     "manualReviewRequired": true,
     "v4MustRemainUnchanged": true,
     "nextEligibleEvidence": "新取得且此前未查看的历史样本，或协议登记后的前瞻影子样本"
+  },
+  "promotionGates": {
+    "afterCostMeanNetPctGreaterThan": 0,
+    "stressCostMeanNetPctAtLeast": 0,
+    "minimumOutOfSampleWinRate": 0.65,
+    "minimumPositiveQuarterRatio": 0.75,
+    "mustBeatAllBaselines": true,
+    "finalBlindTestRequired": true,
+    "manualReviewRequired": true,
+    "nextStage": "research-report-only"
+  },
+  "feasibilityGate": {
+    "minimumOutOfSampleTrades": 30,
+    "minimumCoveredOuterQuarters": 6,
+    "doesNotGrantPromotion": true
+  },
+  "trialLedger": {
+    "format": "jsonl-append-only",
+    "integrity": "sha256-hash-chain",
+    "requiredFields": [
+      "trialId",
+      "hypothesisId",
+      "configHash",
+      "sourceCommit",
+      "createdAt",
+      "trainingRange",
+      "validationRange",
+      "featureNames",
+      "parameters",
+      "baseCostMetrics",
+      "stressCostMetrics",
+      "baselineMetrics",
+      "selectionDecision"
+    ]
   },
   "runOrder": [
     "append-preregistration-to-trial-ledger",
