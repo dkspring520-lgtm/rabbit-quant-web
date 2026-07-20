@@ -6,6 +6,7 @@ const bundledState = resolve(process.cwd(), "public/research/zijin-training-prog
 const runtimeState = process.env.ZIJIN_TRAINING_STATE_PATH || "/training-state/zijin-training-progress.json";
 const bundledAutomationState = resolve(process.cwd(), "public/research/zijin-automation-status.json");
 const runtimeAutomationState = process.env.ZIJIN_AUTOMATION_STATE_PATH || "/training-state/zijin-automation-status.json";
+const runtimeTrainerAlerts = process.env.ZIJIN_TRAINER_ALERTS_PATH || "/training-state/zijin-trainer-alerts.jsonl";
 
 function parseProgressTime(value: unknown) {
   if (typeof value !== "string") return Number.NaN;
@@ -49,6 +50,18 @@ async function latestAutomation() {
   return null;
 }
 
+async function latestTrainerAlert() {
+  try {
+    const lines = (await readFile(runtimeTrainerAlerts, "utf8")).split(/\r?\n/).filter(Boolean);
+    if (!lines.length) return null;
+    const payload = JSON.parse(lines.at(-1) || "null");
+    if (!payload?.at || !payload?.event || !payload?.reason) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   const candidates = runtimeState === bundledState ? [bundledState] : [runtimeState, bundledState];
   for (const path of candidates) {
@@ -58,6 +71,7 @@ export async function GET() {
       const stale = payload.status === "running"
         && (!Number.isFinite(updatedAt) || Date.now() - updatedAt > 10 * 60 * 1000);
       const automation = await latestAutomation();
+      const trainerAlert = await latestTrainerAlert();
       return Response.json({
         ...payload,
         automation: automation?.payload ?? null,
@@ -68,6 +82,7 @@ export async function GET() {
           automationSource: automation?.source ?? null,
           automationStale: automation?.health.status === "offline",
           automationHealth: automation?.health ?? null,
+          trainerAlert,
         },
       }, {
         headers: {

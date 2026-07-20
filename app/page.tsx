@@ -55,7 +55,7 @@ type ZijinTrainingProgress = {
   totalCandidates:number;
   message:string;
   updatedAt:string;
-  meta?:{source:"runtime"|"bundled";servedAt:string;stale:boolean;automationSource?:"runtime"|"bundled"|null;automationStale?:boolean;automationHealth?:{status:"running"|"waiting"|"offline"|"failed"|"disabled";label:string;detail:string;heartbeatAgeSeconds:number|null;overdueSeconds:number}|null};
+  meta?:{source:"runtime"|"bundled";servedAt:string;stale:boolean;automationSource?:"runtime"|"bundled"|null;automationStale?:boolean;automationHealth?:{status:"running"|"waiting"|"offline"|"failed"|"disabled";label:string;detail:string;heartbeatAgeSeconds:number|null;overdueSeconds:number}|null;trainerAlert?:{at:string;event:string;reason:string;action?:string}|null};
   automation?:{
     schemaVersion:number;
     stock:{code:string;name:string};
@@ -137,7 +137,7 @@ function FourRabbitAutomationDashboard({progress}:{progress:ZijinTrainingProgres
   const ageLabel=health.heartbeatAgeSeconds==null?"无法确认":health.heartbeatAgeSeconds<60?`${health.heartbeatAgeSeconds} 秒前`:health.heartbeatAgeSeconds<3600?`${Math.floor(health.heartbeatAgeSeconds/60)} 分钟前`:`${Math.floor(health.heartbeatAgeSeconds/3600)} 小时前`;
   return <section className={`zijin-auto-dashboard ${health.status}`} aria-label="紫金矿业四兔自动研究看板">
     <header><div><span>ZIJIN AUTO RESEARCH · 真实调度</span><h3>四兔现在在做什么</h3><p><b>训练对象：601899 紫金矿业</b> · 独立研究，不自动修改通用 V4。</p></div><em>{health.label}</em></header>
-    <div className={`zijin-scheduler-health ${health.status}`}><b>{health.label}</b><span>{health.detail}</span>{stale&&<small>这不是“仍在训练”，而是后台调度服务没有继续报到；第 4 轮历史结果仍然有效。</small>}</div>
+    <div className={`zijin-scheduler-health ${health.status}`}><b>{health.label}</b><span>{health.detail}</span>{stale&&<small>这不是“仍在训练”，而是后台调度服务没有继续报到；第 4 轮历史结果仍然有效。</small>}{progress.meta?.trainerAlert&&<small>最近自动恢复：{timeLabel(progress.meta.trainerAlert.at)} · {progress.meta.trainerAlert.reason}</small>}</div>
     <div className="zijin-auto-summary"><p><span>当前任务</span><b>{running?(automation.run.currentTask||automation.scheduler.reason):health.detail}</b></p><p><span>调度方式</span><b>数据或实验协议变化后运行</b></p><p><span>最近心跳</span><b>{timeLabel(automation.scheduler.heartbeatAt)}<small>{ageLabel}</small></b></p><p><span>本轮耗时</span><b>{automation.run.elapsedSeconds?`${automation.run.elapsedSeconds} 秒`:"尚未运行"}</b></p></div>
     <div className="zijin-auto-rabbits">{rabbits.map(rabbit=><article className={rabbit.status} key={rabbit.id}><div><i aria-hidden="true">兔</i><span><b>{rabbit.name}</b><small>{rabbit.scope}</small></span><em>{statusText(rabbit.status)}</em></div><p>{rabbit.task}</p><footer><span>{rabbit.completed}/{rabbit.total}</span><i><b style={{width:`${Math.max(0,Math.min(100,rabbit.total?rabbit.completed/rabbit.total*100:0))}%`}}/></i></footer></article>)}</div>
     <footer><span>最近结果：{automation.lastRun?`${automation.lastRun.qualifiedHypotheses??0} 个模型通过 · 账本 ${automation.lastRun.ledgerRecords??0} 条`:"尚无自动运行记录"}</span><span>2026 数据：{automation.input.sealed2026?"封存，不参与选参":"未封存"}</span><span>不会自动晋级：需盲测、影子盘和人工批准</span></footer>
