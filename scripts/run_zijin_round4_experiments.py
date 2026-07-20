@@ -296,6 +296,40 @@ def hypothesis_rows(rows: pd.DataFrame, hypothesis_id: str, parameters: dict[str
             & (rows["volumeRatio"] >= volume)
             & (rows["return3Pct"] < 0)
         )
+    elif hypothesis_id == "vwap-downside-reclaim-quality":
+        bias = float(parameters["vwapBiasAbsPct"])
+        maximum_negative_slope = float(parameters["maximumNegativeVwapSlopePct"])
+        minimum_breadth = float(parameters["minimumPeerBreadth"])
+        mask = (
+            (rows["direction"] == "positive")
+            & (rows["minuteOfDay"] >= 9 * 60 + 33)
+            & (rows["minuteOfDay"] <= 14 * 60 + 30)
+            & (rows["vwapBiasPct"] <= -bias)
+            & (rows["vwapSlope5Pct"] >= -maximum_negative_slope)
+            & (rows["ma5SlopePct"] > 0)
+            & (rows["return3Pct"] > 0)
+            & (rows["volumeRatio"] >= 0.7)
+            & (rows["intradayPosition"] <= 0.45)
+            & (rows["peerCoverage"] >= 0.8)
+            & (rows["peerBreadth3"] >= minimum_breadth)
+        )
+    elif hypothesis_id == "vwap-upside-rejection-quality":
+        bias = float(parameters["vwapBiasAbsPct"])
+        maximum_positive_slope = float(parameters["maximumPositiveVwapSlopePct"])
+        maximum_breadth = float(parameters["maximumPeerBreadth"])
+        mask = (
+            (rows["direction"] == "reverse")
+            & (rows["minuteOfDay"] >= 9 * 60 + 33)
+            & (rows["minuteOfDay"] <= 14 * 60 + 30)
+            & (rows["vwapBiasPct"] >= bias)
+            & (rows["vwapSlope5Pct"] <= maximum_positive_slope)
+            & (rows["ma5SlopePct"] < 0)
+            & (rows["return3Pct"] < 0)
+            & (rows["volumeRatio"] >= 0.7)
+            & (rows["intradayPosition"] >= 0.55)
+            & (rows["peerCoverage"] >= 0.8)
+            & (rows["peerBreadth3"] <= maximum_breadth)
+        )
     else:
         raise ValueError(f"unknown hypothesis: {hypothesis_id}")
     return rows[mask].copy()
@@ -470,11 +504,24 @@ def run_hypothesis(
         "selectedTrialIndex": len(trial_matrix) - 1,
     }
     evaluation = standard.evaluate_promotion(summary, protocol)
+    feasibility_gate = protocol.get("feasibilityGate", {})
+    covered_outer_quarters = sum(1 for item in rolling_quarters if int(item["trades"]) > 0)
+    minimum_trades = int(feasibility_gate.get("minimumOutOfSampleTrades", 0))
+    minimum_quarters = int(feasibility_gate.get("minimumCoveredOuterQuarters", 0))
+    feasibility = {
+        "passed": total_trades >= minimum_trades and covered_outer_quarters >= minimum_quarters,
+        "outOfSampleTrades": total_trades,
+        "minimumOutOfSampleTrades": minimum_trades,
+        "coveredOuterQuarters": covered_outer_quarters,
+        "minimumCoveredOuterQuarters": minimum_quarters,
+        "doesNotGrantPromotion": bool(feasibility_gate.get("doesNotGrantPromotion", True)),
+    }
     return {
         **summary,
         "name": hypothesis["name"],
         "features": hypothesis["features"],
         "candidateConfigurations": configs,
+        "feasibility": feasibility,
         "evaluation": evaluation,
     }
 
