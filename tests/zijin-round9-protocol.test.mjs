@@ -56,10 +56,8 @@ test("round nine preserves strict promotion and multiple-testing controls", () =
   assert.deepEqual(protocol.baselines.map((item) => item.id), ["no-trade", "simple-vwap", "smart-t-v4"]);
 });
 
-test("runner and scheduler preserve the frozen round nine protocol for reproducibility", () => {
+test("runner preserves the frozen round nine protocol for reproducibility", () => {
   for (const hypothesis of protocol.hypotheses) assert.match(runner, new RegExp(hypothesis.id));
   assert.match(runner, /fixed-pattern-confirmation/);
   assert.match(runner, /"futureBarsUsedForSelection": False/);
-  assert.match(scheduler, /zijin-round9-protocol\.json/);
-  assert.match(scheduler, /zijin-round9-report\.json/);
 });

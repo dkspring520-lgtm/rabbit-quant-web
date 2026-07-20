@@ -94,7 +94,6 @@ test("a replication run is forced into research-only output", () => {
   assert.match(runnerSource, /"blockedByReplicationPolicy"/);
 });
 
-test("production activates the frozen round ten replication protocol", () => {
-  assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round10-protocol\.json/);
-  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round10-report\.json/);
+test("round ten remains available as a frozen historical protocol", () => {
+  assert.doesNotMatch(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round10-protocol\.json/);
 });
