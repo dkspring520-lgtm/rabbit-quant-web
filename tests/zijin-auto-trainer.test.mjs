@@ -28,4 +28,6 @@ test("Zijin auto trainer publishes distinct real tasks for all four rabbits", ()
 
 test("an idle Zijin scheduler does not pretend that the training rabbit is running", () => {
   assert.match(script, /finished = stage in \{"completed", "waiting"\}/);
+  assert.match(script, /"completed" if finished or stage == "rolling-oos" else "running"/);
+  assert.match(script, /if finished:\s+completed_hypotheses = total_hypotheses/);
 });

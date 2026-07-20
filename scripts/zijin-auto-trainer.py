@@ -88,10 +88,12 @@ def rabbit_state(stage: str, progress: int, child: dict[str, Any], report: dict[
     # `waiting` is the normal daemon state after an already completed run.
     # It must not make the dashboard pretend that the training rabbit is busy.
     finished = stage in {"completed", "waiting"}
+    if finished:
+        completed_hypotheses = total_hypotheses
     failed = stage == "failed"
     return {
         "training": {
-            "status": "failed" if failed else ("completed" if stage in {"rolling-oos", "completed"} else "running"),
+            "status": "failed" if failed else ("completed" if finished or stage == "rolling-oos" else "running"),
             "task": "读取封存数据并评估预登记参数" if not finished else "参数评估完成",
             "completed": completed_hypotheses,
             "total": total_hypotheses,
