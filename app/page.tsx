@@ -108,6 +108,29 @@ type ZijinTrainingProgress = {
   };
 };
 
+type ZijinShadowAB = {
+  experimentId:string;
+  stock:{code:string;name:string};
+  registeredAt:string;
+  updatedAt:string;
+  status:"waiting"|"observing"|"closed"|"degraded";
+  affectsV4:false;
+  sendsAlerts:false;
+  usesFutureMinutes:false;
+  marketDate:string|null;
+  source:{provider:string|null;sourceTimestamp:string|null;fetchedAt:string|null;peerCoverage?:number;error:string|null};
+  costPolicy:{baseRoundTripPct:number;stressRoundTripPct:number};
+  targetPolicy:{minimumNetPct:number;maximumNetPct:number;maximumHoldMinutes:number};
+  models:Record<"A"|"B",{
+    id:string;label:string;sourceRound:number;sessionStart:string;sessionEnd:string;maxSignalsPerDay:number;
+    today:{candidates:number;entries:number;exits:number;wins:number;netPct:number;lastDecision:string;activeTrade:null|{pendingEntry?:boolean;entryTime?:string;entryPrice?:number}};
+    total:{candidateDays:number;candidates:number;resolvedTrades:number;wins:number;winRate:number|null;netPct:number;stressNetPct:number};
+    rejectionReasons:Record<string,number>;
+  }>;
+  integrity:{eventCount:number;lastHash:string};
+  meta?:{source:"runtime"|"bundled";servedAt:string;stale:boolean};
+};
+
 type RabbitProgressStatus = "running"|"completed"|"paused"|"error";
 
 function RabbitProgressMeter({
@@ -1738,6 +1761,8 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const [zijinTrainingProgress,setZijinTrainingProgress]=useState<ZijinTrainingProgress|null>(null);
   const [zijinTrainingConnection,setZijinTrainingConnection]=useState<"loading"|"ok"|"error">("loading");
   const [zijinTrainingFetchedAt,setZijinTrainingFetchedAt]=useState<string|null>(null);
+  const [zijinShadow,setZijinShadow]=useState<ZijinShadowAB|null>(null);
+  const [zijinShadowConnection,setZijinShadowConnection]=useState<"loading"|"ok"|"error">("loading");
   useEffect(()=>{
     if(stock.code!=="601899"){
       const resetTimer=window.setTimeout(()=>{setZijinTrainingProgress(null);setZijinTrainingConnection("loading");setZijinTrainingFetchedAt(null);},0);
@@ -1769,6 +1794,34 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     const onVisibility=()=>{if(document.visibilityState==='visible'){if(timer!==undefined)window.clearTimeout(timer);void load()}};
     document.addEventListener('visibilitychange',onVisibility);
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer);document.removeEventListener('visibilitychange',onVisibility)};
+  },[stock.code]);
+  useEffect(()=>{
+    if(stock.code!=="601899"){
+      const resetTimer=window.setTimeout(()=>{setZijinShadow(null);setZijinShadowConnection("loading");},0);
+      return()=>window.clearTimeout(resetTimer);
+    }
+    let active=true;
+    let timer:number|undefined;
+    const load=async()=>{
+      if(document.visibilityState!=="visible"){
+        if(active)timer=window.setTimeout(()=>void load(),30_000);
+        return;
+      }
+      try{
+        const response=await fetch(`/api/research/zijin-shadow-ab?t=${Date.now()}`,{cache:"no-store"});
+        if(!response.ok)throw new Error(`HTTP ${response.status}`);
+        const payload=await response.json() as ZijinShadowAB;
+        if(active&&payload.stock?.code==="601899"){
+          setZijinShadow(payload);
+          setZijinShadowConnection("ok");
+        }
+      }catch{
+        if(active)setZijinShadowConnection("error");
+      }
+      if(active)timer=window.setTimeout(()=>void load(),30_000);
+    };
+    void load();
+    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
   },[stock.code]);
   const storageKey=`rabbit-stock-research:${accountName.toLowerCase()}:${stock.code}`;
   const [notes,setNotes]=useState<StockResearchNote[]>(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];return Array.isArray(parsed)?parsed:[]}catch{return [];}});
@@ -1886,6 +1939,14 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
         stages={['整理数据','因果训练','样本外验证','最终盲测','人工评审']}
       />
       {zijinTrainingProgress&&<FourRabbitAutomationDashboard progress={zijinTrainingProgress}/>}
+      <details className={`zijin-shadow-ab ${zijinShadow?.status??"loading"}`} open>
+        <summary><span><b>第10轮 / 第11轮 · A/B前瞻观察</b><small>只记录登记之后的新分钟；不回填当天早先行情，不影响 V4，也不发送正式买卖提醒</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
+        {zijinShadow?<div className="zijin-shadow-body">
+          <header><div><span>比较目的</span><b>验证“少而精”能否保持 65% 以上，同时检查“覆盖优先”是否真的增加有效机会</b></div><p><span>真实前瞻事件</span><b>{zijinShadow.integrity.eventCount} 条</b><small>哈希链只追加，不覆盖</small></p><p><span>费用口径</span><b>{zijinShadow.costPolicy.baseRoundTripPct.toFixed(2)}%</b><small>压力成本 {zijinShadow.costPolicy.stressRoundTripPct.toFixed(2)}%</small></p></header>
+          <div className="zijin-shadow-models">{(["A","B"] as const).map(key=>{const model=zijinShadow.models[key];const reason=Object.entries(model.rejectionReasons).sort((left,right)=>right[1]-left[1])[0];return <article key={key}><div><span>{model.label}</span><em>第{model.sourceRound}轮 · {model.sessionStart.slice(0,2)}:{model.sessionStart.slice(2)}–{model.sessionEnd.slice(0,2)}:{model.sessionEnd.slice(2)}</em></div><p><span>前瞻闭环</span><b>{model.total.resolvedTrades} 笔</b></p><p><span>扣费胜率</span><b className={model.total.winRate==null?"neutral":model.total.winRate>=.65?"positive":"negative"}>{model.total.winRate==null?"待样本":`${(model.total.winRate*100).toFixed(1)}%`}</b></p><p><span>累计净收益</span><b className={model.total.netPct>0?"positive":model.total.netPct<0?"negative":"neutral"}>{model.total.netPct>=0?"+":""}{model.total.netPct.toFixed(3)}%</b></p><p><span>今日状态</span><b>{model.today.lastDecision}</b></p><small>{reason?`最常见未触发原因：${reason[0]}（${reason[1]}次）`:"尚未进入固定观察窗口或暂无拒绝记录"}</small></article>})}</div>
+          <footer><span>{zijinShadow.marketDate?`交易日 ${zijinShadow.marketDate}`:"等待首个交易日"} · 数据源 {zijinShadow.source.provider??"等待连接"}</span><b>胜率不足 65% 或样本不足时，任何一组都不会晋级</b></footer>
+        </div>:<div className="zijin-shadow-loading">正在读取服务器A/B观察记录；没有记录时不会显示虚构胜率。</div>}
+      </details>
       {zijinTrainingProgress?<>
         <div className={`zijin-training-state-note ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'warning':zijinTrainingProgress.status}`}><b>{zijinTrainingConnection==='error'?'状态接口连接失败':trainingStale?'训练任务可能中断':schedulerOffline?'自动调度器离线':zijinTrainingProgress.status==="running"?'服务器正在计算':'本轮已结束'}</b><span>{zijinTrainingConnection==='error'?'页面保留最后一次真实结果并自动重试，不会伪造心跳。':trainingStale?'页面保留最后一次真实进度，不会自动补数。':schedulerOffline?'第 4 轮已经真实完成，但后台没有按计划继续检查新数据；需要恢复服务器自动训练服务。':zijinTrainingProgress.status==="running"?'页面每 2 秒读取服务器状态；切换页面不会影响后台训练。':'100% 表示本轮审计流程完成，不代表系统仍在持续训练。页面每 30 秒检查是否有新任务。'}</span></div>
         <div className="zijin-training-stats"><p><span>服务器当前步骤</span><b>{activeResearchStageLabel}</b><small>{zijinTrainingProgress.status==='running'?`${zijinTrainingProgress.progress}% · ${zijinTrainingProgress.automation?.run.elapsedSeconds??0} 秒`:`最近任务 ${zijinTrainingProgress.runId}`}</small></p><p><span>最近样本外交易</span><b>{currentExperiment?`${currentExperimentTrades} 笔`:'--'}</b><small>{currentHypotheses.length} 个独立假设 · 不读取未来分钟</small></p><p><span>表现最好的一组</span><b>{currentBestHypothesis?`${(currentBestHypothesis.outOfSampleWinRate*100).toFixed(1)}%`:'--'}</b><small>{currentBestHypothesis?.name??'等待实验报告'} · 仅为样本外胜率</small></p><p><span>获准进入下一步</span><b>{currentExperiment?`${currentQualified}/${currentHypotheses.length}`:'--'}</b><small>{currentExperiment?`账本 ${currentExperiment.ledger.runRecords} 条 · ${currentExperiment.reads2026?'已读取':'2026 未读取'}`:'等待报告落盘'}</small></p></div>
