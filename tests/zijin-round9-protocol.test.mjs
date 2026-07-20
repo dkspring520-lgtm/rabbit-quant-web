@@ -57,14 +57,12 @@ test("round nine preserves strict promotion and multiple-testing controls", () =
   assert.deepEqual(protocol.baselines.map((item) => item.id), ["no-trade", "simple-vwap", "smart-t-v4"]);
 });
 
-test("runner understands round nine but production remains on frozen round eight", () => {
+test("runner and production scheduler activate the frozen round nine protocol", () => {
   for (const hypothesis of protocol.hypotheses) assert.match(runner, new RegExp(hypothesis.id));
   assert.match(runner, /fixed-pattern-confirmation/);
   assert.match(runner, /"futureBarsUsedForSelection": False/);
-  assert.match(scheduler, /zijin-round8-protocol\.json/);
-  assert.match(scheduler, /zijin-round8-report\.json/);
-  assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round8-protocol\.json/);
-  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round8-report\.json/);
-  assert.doesNotMatch(scheduler, /zijin-round9-protocol\.json/);
-  assert.doesNotMatch(compose, /zijin-round9-protocol\.json/);
+  assert.match(scheduler, /zijin-round9-protocol\.json/);
+  assert.match(scheduler, /zijin-round9-report\.json/);
+  assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round9-protocol\.json/);
+  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round9-report\.json/);
 });
