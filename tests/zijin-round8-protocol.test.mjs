@@ -47,13 +47,13 @@ test("round eight remains a small-grid feasibility experiment", () => {
   assert.equal(protocol.multipleTesting.deflatedSharpe.minimumProbability, 0.95);
 });
 
-test("runner and scheduler use the preregistered round eight experiment", () => {
+test("runner keeps round eight reproducible after the scheduler advances", () => {
   for (const hypothesis of protocol.hypotheses) assert.match(runner, new RegExp(hypothesis.id));
   assert.match(runner, /str\(hypothesis\["session"\]\)\.split/);
   assert.match(runner, /start_minute = start_hour \* 60 \+ start_minute_part/);
   assert.match(runner, /end_minute = end_hour \* 60 \+ end_minute_part/);
-  assert.match(scheduler, /zijin-round8-protocol\.json/);
-  assert.match(scheduler, /zijin-round8-report\.json/);
+  assert.match(scheduler, /zijin-round9-protocol\.json/);
+  assert.match(scheduler, /zijin-round9-report\.json/);
 });
 
 test("round eight emits a read-only sample formation audit", () => {
