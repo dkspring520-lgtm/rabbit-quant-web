@@ -25,3 +25,7 @@ test("Zijin auto trainer publishes distinct real tasks for all four rabbits", ()
   assert.match(script, /PBO、DSR/);
   assert.match(script, /影子观察/);
 });
+
+test("an idle Zijin scheduler does not pretend that the training rabbit is running", () => {
+  assert.match(script, /finished = stage in \{"completed", "waiting"\}/);
+});
