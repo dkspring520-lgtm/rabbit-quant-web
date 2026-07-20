@@ -168,10 +168,14 @@
 .stock-agent-switch{margin:0 0 9px;padding:9px 10px;border:1px solid rgba(46,207,192,.2);background:rgba(46,207,192,.035);display:flex;align-items:center;justify-content:space-between;gap:10px}.stock-agent-switch>div:first-child{min-width:0;display:grid;gap:2px}.stock-agent-switch span{font-size:8px;letter-spacing:.1em;color:var(--dim)}.stock-agent-switch b{font-size:11px;color:var(--teal)}.stock-agent-switch small{font-size:8px;line-height:1.4;color:var(--muted)}.stock-agent-switch-actions{display:flex;flex:0 0 auto;gap:5px}.stock-agent-switch-actions button{border:1px solid var(--line);background:#0a0d0c;color:var(--muted);padding:6px 8px;font-size:8px;cursor:pointer}.stock-agent-switch-actions button.active{border-color:rgba(46,207,192,.55);background:rgba(46,207,192,.12);color:var(--teal)}.stock-agent-switch-actions button.research.active{border-color:rgba(221,169,53,.55);background:rgba(221,169,53,.1);color:var(--amber)}
 @media(max-width:760px){.stock-agent-switch{align-items:flex-start;flex-direction:column}.stock-agent-switch-actions{width:100%}.stock-agent-switch-actions button{flex:1}}
 /* 操盘台股票排序与独立全屏 */
-.ticker-item{align-items:stretch;flex:0 0 auto;transition:opacity .15s ease,box-shadow .15s ease,background .15s ease}
+.ticker-item{position:relative;align-items:stretch;flex:1 0 250px;max-width:560px;min-width:0;transition:opacity .15s ease,background .15s ease}
+.ticker-item.selected{box-shadow:none}
+.ticker-item.selected:after{content:"";position:absolute;z-index:2;left:0;right:0;bottom:0;height:2px;background:var(--teal);pointer-events:none}
 .ticker-item.dragging{opacity:.42}
 .ticker-item.drag-over{background:rgba(40,215,196,.08);box-shadow:inset 3px 0 0 var(--teal)}
-.ticker .ticker-stock-button{padding-left:9px;padding-right:9px}
+.ticker .ticker-stock-button{flex:1;min-width:0;padding-left:9px;padding-right:9px}
+.ticker .ticker-stock-button>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ticker .ticker-event{flex:0 0 58px;text-align:center}
 .ticker-drag-handle{display:flex;align-items:center;padding:0 8px;color:#65736e;font-size:13px;cursor:grab;user-select:none;touch-action:none}
 .ticker-drag-handle:active{cursor:grabbing;color:var(--teal)}
 .ticker-order-controls{display:flex;align-items:center}
@@ -196,6 +200,7 @@
 @media(max-width:760px){
   .rabbit-progress{padding:12px 12px 10px}.rabbit-progress>header{gap:10px}.rabbit-progress>header b{font-size:9px}.rabbit-progress>header strong{font-size:18px}.rabbit-progress-stages{display:flex;gap:14px;overflow-x:auto;padding:0 1px 3px;scrollbar-width:none}.rabbit-progress-stages::-webkit-scrollbar{display:none}.rabbit-progress-stages span{flex:0 0 auto}.rabbit-progress-orbit{width:34px;height:34px}.rabbit-progress-orbit img{width:28px;height:28px}
   .ticker-drag-handle{display:none}
+  .ticker-item{flex:0 0 min(86vw,340px);max-width:none}
   .ticker .ticker-stock-button{padding-left:8px;padding-right:8px}
   .workspace.workspace-fullscreen{display:grid;grid-template-columns:1fr;height:100dvh;overflow-y:auto}
   .workspace.workspace-fullscreen .chart-zone{height:62dvh;min-height:420px}

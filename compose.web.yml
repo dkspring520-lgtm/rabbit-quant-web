@@ -15,7 +15,7 @@ services:
       CONTROL_PLANE_ORIGIN: http://control:3010
       ZIJIN_TRAINING_STATE_PATH: /training-state/zijin-training-progress.json
       ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
-      ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round9-report.json
+      ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round10-report.json
       ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
     volumes:
       - /opt/rabbit-quant-state:/training-state
@@ -41,8 +41,8 @@ services:
     environment:
       ZIJIN_TRAINING_INPUT: /training-data/zijin-peer-panel-2022-2026.parquet
       ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
-      ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round9-report.json
-      ZIJIN_TRAINING_PROTOCOL: /app/scripts/zijin-round9-protocol.json
+      ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round10-report.json
+      ZIJIN_TRAINING_PROTOCOL: /app/scripts/zijin-round10-protocol.json
       ZIJIN_TRAINING_RUNNER: /app/scripts/run_zijin_round4_experiments.py
       ZIJIN_TRAINING_RUNTIME: /training-runtime
       ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
