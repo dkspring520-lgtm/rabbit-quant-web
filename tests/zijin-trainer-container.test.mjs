@@ -20,6 +20,9 @@ test("production runs Zijin research in an isolated restartable container", () =
   assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round5-protocol\.json/);
   assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round5-report\.json/);
   assert.match(dockerfile, /FROM python:3\.12-slim/);
+  assert.match(dockerfile, /FROM node:22-bookworm-slim AS node-runtime/);
+  assert.match(dockerfile, /COPY --from=node-runtime \/usr\/local\/bin\/node \/usr\/local\/bin\/node/);
+  assert.match(dockerfile, /COPY lib \.\/lib/);
   assert.match(dockerfile, /requirements\.trainer\.txt/);
 });
 
