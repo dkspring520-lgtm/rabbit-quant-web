@@ -180,9 +180,10 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
   assert.match(source, /id="zijin-experiment-progress"/);
   assert.match(source, /className="zijin-implementation-steps"/);
   assert.match(source, /aria-label="紫金矿业实验实施进度"/);
-  assert.match(source, /选参完成 · 未通过/);
-  assert.match(source, /封存未运行/);
-  assert.match(source, /后续不重复使用 2026 盲测调参/);
+  assert.match(source, /服务器当前步骤/);
+  assert.match(source, /最近样本外交易/);
+  assert.match(source, /滚动样本外验证/);
+  assert.match(source, /2026 未读取/);
   assert.match(styles, /\.zijin-implementation-steps\{/);
   assert.match(styles, /\.zijin-training-verdict\{/);
   assert.match(source, /className="zijin-round4-standard"/);

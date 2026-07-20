@@ -114,9 +114,12 @@ test("production preserves and dynamically serves the latest Zijin training stat
   assert.match(syncScript, /copyFile\(source, target\)/);
   assert.match(apiRoute, /ZIJIN_TRAINING_STATE_PATH/);
   assert.match(apiRoute, /ZIJIN_AUTOMATION_STATE_PATH/);
+  assert.match(apiRoute, /ZIJIN_TRAINING_REPORT_PATH/);
+  assert.match(apiRoute, /currentExperiment/);
+  assert.match(apiRoute, /mergeCurrentRun/);
   assert.match(apiRoute, /automationStale/);
   assert.match(apiRoute, /"Cache-Control": "no-store/);
-  assert.match(apiRoute, /Date\.now\(\) - updatedAt > 10 \* 60 \* 1000/);
+  assert.match(apiRoute, /Date\.now\(\) - currentUpdatedAt > 10 \* 60 \* 1000/);
   assert.match(automationSyncScript, /scheduler\?\.mode === "change-driven"/);
   assert.match(automationSyncScript, /keep newer runtime state/);
   const automation = JSON.parse(await readFile(automationStateUrl, "utf8"));

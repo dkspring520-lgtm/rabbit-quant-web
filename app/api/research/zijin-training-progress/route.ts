@@ -6,6 +6,8 @@ const bundledState = resolve(process.cwd(), "public/research/zijin-training-prog
 const runtimeState = process.env.ZIJIN_TRAINING_STATE_PATH || "/training-state/zijin-training-progress.json";
 const bundledAutomationState = resolve(process.cwd(), "public/research/zijin-automation-status.json");
 const runtimeAutomationState = process.env.ZIJIN_AUTOMATION_STATE_PATH || "/training-state/zijin-automation-status.json";
+const bundledReport = resolve(process.cwd(), "public/research/zijin-round6-report.json");
+const runtimeReport = process.env.ZIJIN_TRAINING_REPORT_PATH || "/training-state/zijin-round6-report.json";
 const runtimeTrainerAlerts = process.env.ZIJIN_TRAINER_ALERTS_PATH || "/training-state/zijin-trainer-alerts.jsonl";
 
 function parseProgressTime(value: unknown) {
@@ -26,6 +28,14 @@ async function readAutomation(path: string) {
   const payload = JSON.parse(await readFile(path, "utf8"));
   if (payload?.stock?.code !== "601899" || !payload.scheduler || !payload.rabbits) {
     throw new Error("invalid Zijin automation state");
+  }
+  return payload;
+}
+
+async function readReport(path: string) {
+  const payload = JSON.parse(await readFile(path, "utf8"));
+  if (!payload?.experimentId || !payload?.runId || !Array.isArray(payload?.hypotheses)) {
+    throw new Error("invalid Zijin experiment report");
   }
   return payload;
 }
@@ -62,24 +72,64 @@ async function latestTrainerAlert() {
   }
 }
 
+async function latestReport() {
+  const candidates = runtimeReport === bundledReport ? [bundledReport] : [runtimeReport, bundledReport];
+  for (const path of candidates) {
+    try {
+      return {
+        payload: await readReport(path),
+        source: path === runtimeReport ? "runtime" : "bundled",
+      };
+    } catch {
+      // Fall back to the audited report bundled with the current release.
+    }
+  }
+  return null;
+}
+
+function mergeCurrentRun(payload: any, automation: any) {
+  if (!automation?.scheduler || !automation?.run) return payload;
+  const schedulerStatus = automation.scheduler.status;
+  const status = schedulerStatus === "running"
+    ? "running"
+    : schedulerStatus === "failed"
+      ? "failed"
+      : automation.lastRun?.status === "completed"
+        ? "completed"
+        : payload.status;
+  return {
+    ...payload,
+    runId: automation.run.id || automation.lastRun?.id || payload.runId,
+    status,
+    stage: automation.run.stage || payload.stage,
+    progress: Number.isFinite(automation.run.progress) ? automation.run.progress : payload.progress,
+    message: automation.run.currentTask || automation.scheduler.reason || payload.message,
+    updatedAt: automation.updatedAt || payload.updatedAt,
+  };
+}
+
 export async function GET() {
   const candidates = runtimeState === bundledState ? [bundledState] : [runtimeState, bundledState];
   for (const path of candidates) {
     try {
       const payload = await readProgress(path);
-      const updatedAt = parseProgressTime(payload.updatedAt);
-      const stale = payload.status === "running"
-        && (!Number.isFinite(updatedAt) || Date.now() - updatedAt > 10 * 60 * 1000);
       const automation = await latestAutomation();
+      const report = await latestReport();
       const trainerAlert = await latestTrainerAlert();
+      const current = mergeCurrentRun(payload, automation?.payload);
+      const currentUpdatedAt = parseProgressTime(current.updatedAt);
+      const currentStale = current.status === "running"
+        && (!Number.isFinite(currentUpdatedAt) || Date.now() - currentUpdatedAt > 10 * 60 * 1000);
       return Response.json({
-        ...payload,
+        ...current,
         automation: automation?.payload ?? null,
+        currentExperiment: report?.payload ?? null,
         meta: {
           source: path === runtimeState ? "runtime" : "bundled",
           servedAt: new Date().toISOString(),
-          stale,
+          stale: currentStale,
           automationSource: automation?.source ?? null,
+          reportSource: report?.source ?? null,
           automationStale: automation?.health.status === "offline",
           automationHealth: automation?.health ?? null,
           trainerAlert,

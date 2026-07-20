@@ -15,6 +15,7 @@ services:
       CONTROL_PLANE_ORIGIN: http://control:3010
       ZIJIN_TRAINING_STATE_PATH: /training-state/zijin-training-progress.json
       ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
+      ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round6-report.json
       ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
     volumes:
       - /opt/rabbit-quant-state:/training-state
