@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round10-early-opening-direction-split",
+  "round": 10,
+  "status": "preregistered",
+  "researchStage": "replication-only",
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "purpose": "复核第九轮事后诊断中出现的早盘迹象：只研究09:33至09:44，并把正T与反T拆开评估。该窗口来自已查看结果，因此本轮必须计入新的试验次数，不能把复用数据伪装成全新样本外证据。",
+  "discoveryDisclosure": {
+    "sourceExperimentId": "zijin-round9-fixed-pattern-confirmation",
+    "sourceArtifact": "public/research/zijin-round9-opening-postmortem.json",
+    "discoveredByPostmortem": true,
+    "discoveredWindow": "09:33-09:44",
+    "sourceWindowMetrics": {
+      "trades": 46,
+      "winRate": 0.5,
+      "averageNetPct": 0.0917,
+      "targetTouchRate": 0.5217
+    },
+    "sameDataIsPristineOutOfSample": false,
+    "additionalTrialRequired": true,
+    "maySupportPromotion": false
+  },
+  "affectsV4": false,
+  "automaticPromotion": false,
+  "dataPolicy": {
+    "researchStart": "2022-01-01",
+    "selectionEnd": "2025-12-31",
+    "reusedResearchDataLabel": "discovery-affected-repeated-research",
+    "sealedFinalBlindPeriod": {
+      "start": "2026-01-01",
+      "end": "2026-12-31",
+      "locked": true,
+      "allowParameterSelection": false,
+      "allowFeatureSelection": false,
+      "allowRepeatedInspection": false,
+      "unlockCondition": "取得新的、未参与发现或选参的独立样本，并先通过全部滚动样本外、PBO、DSR和三基准门槛"
+    },
+    "decisionTimestamp": "minute_t_close",
+    "fillTimestamp": "minute_t_plus_1_open",
+    "futureMinuteFeaturesAllowed": false,
+    "futureMinutesAllowedOnlyForOutcomeLabels": true,
+    "fullDayRegimeClassificationForbidden": true,
+    "embargoTradingDays": 1
+  },
+  "fixedWindow": {
+    "start": "09:33",
+    "end": "09:44",
+    "mayExpandAfterRun": false,
+    "laterOpeningSignalsExcluded": true
+  },
+  "hypotheses": [
+    {
+      "id": "early-opening-gap-repair-positive",
+      "direction": "positive",
+      "name": "早盘低开修复正T",
+      "features": [
+        "minuteOfDay",
+        "gapPct",
+        "openDeviationPct",
+        "vwapBiasPct",
+        "return3Pct",
+        "ma5SlopePct",
+        "volumeRatio",
+        "peerBreadth3"
+      ],
+      "fixedRules": {
+        "session": "09:33-09:44",
+        "directionMustEqual": "positive",
+        "entry": "next-minute-open",
+        "volumeIsHardGate": false
+      },
+      "parameterGrid": {
+        "gapAbsPct": [0.3, 0.6],
+        "repairPct": [0.08, 0.16],
+        "confirmationVotesRequired": [1, 2]
+      }
+    },
+    {
+      "id": "early-opening-gap-repair-reverse",
+      "direction": "reverse",
+      "name": "早盘高开转弱反T",
+      "features": [
+        "minuteOfDay",
+        "gapPct",
+        "openDeviationPct",
+        "vwapBiasPct",
+        "return3Pct",
+        "ma5SlopePct",
+        "volumeRatio",
+        "peerBreadth3"
+      ],
+      "fixedRules": {
+        "session": "09:33-09:44",
+        "directionMustEqual": "reverse",
+        "entry": "next-minute-open",
+        "volumeIsHardGate": false
+      },
+      "parameterGrid": {
+        "gapAbsPct": [0.3, 0.6],
+        "repairPct": [0.08, 0.16],
+        "confirmationVotesRequired": [1, 2]
+      }
+    }
+  ],
+  "validation": {
+    "method": "nested-anchored-walk-forward-quarterly",
+    "innerSelection": "chronological-only",
+    "outerEvaluation": "quarterly-replication-with-discovery-disclosure",
+    "minimumOuterQuarters": 8,
+    "minimumPositiveOuterQuarters": 6,
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18,
+    "resultsArePromotionEligible": false
+  },
+  "outcomePolicy": {
+    "minimumNetTargetPct": 0.64,
+    "maximumNetTargetPct": 1.0,
+    "maximumHoldMinutes": 60,
+    "entry": "next-minute-open",
+    "selectionUsesFutureOutcome": false
+  },
+  "baselines": [
+    {
+      "id": "no-trade",
+      "name": "不交易"
+    },
+    {
+      "id": "simple-vwap",
+      "name": "简单VWAP规则"
+    },
+    {
+      "id": "smart-t-v4",
+      "name": "当前Smart-T V4"
+    }
+  ],
+  "multipleTesting": {
+    "trialLedgerRequired": true,
+    "ledgerMode": "append-only-sha256-chain",
+    "includePriorRoundsInTrialCount": true,
+    "countEachDirectionSeparately": true,
+    "countPostmortemDerivedWindowAsAdditionalTrial": true,
+    "probabilityOfBacktestOverfitting": {
+      "method": "CSCV",
+      "maximum": 0.2
+    },
+    "deflatedSharpe": {
+      "minimumProbability": 0.95,
+      "usesAllRecordedTrials": true
+    }
+  },
+  "promotionPolicy": {
+    "currentRunCanPromote": false,
+    "reason": "09:33至09:44窗口由第九轮已查看结果发现，2022至2025只能用于重复研究，不能充当新的独立样本外证据。",
+    "minimumOutOfSampleWinRate": 0.65,
+    "afterCostMeanNetPctGreaterThan": 0,
+    "stressCostMeanNetPctAtLeast": 0,
+    "minimumPositiveQuarterRatio": 0.75,
+    "mustBeatAllBaselines": true,
+    "manualReviewRequired": true,
+    "v4MustRemainUnchanged": true,
+    "nextEligibleEvidence": "新取得且此前未查看的历史样本，或协议登记后的前瞻影子样本"
+  },
+  "runOrder": [
+    "append-preregistration-to-trial-ledger",
+    "evaluate-positive-direction",
+    "evaluate-reverse-direction",
+    "calculate-costed-rolling-oos",
+    "calculate-pbo-and-dsr",
+    "compare-three-baselines",
+    "publish-research-only-report"
+  ]
+}
