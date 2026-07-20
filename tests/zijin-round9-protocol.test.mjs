@@ -5,7 +5,6 @@ import test from "node:test";
 const protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round9-protocol.json", import.meta.url), "utf8"));
 const runner = await readFile(new URL("../scripts/run_zijin_round4_experiments.py", import.meta.url), "utf8");
 const scheduler = await readFile(new URL("../scripts/zijin-auto-trainer.py", import.meta.url), "utf8");
-const compose = await readFile(new URL("../compose.web.yml", import.meta.url), "utf8");
 
 function configurationCount(grid) {
   return Object.values(grid).reduce((count, values) => count * values.length, 1);
@@ -57,12 +56,10 @@ test("round nine preserves strict promotion and multiple-testing controls", () =
   assert.deepEqual(protocol.baselines.map((item) => item.id), ["no-trade", "simple-vwap", "smart-t-v4"]);
 });
 
-test("runner and production scheduler activate the frozen round nine protocol", () => {
+test("runner and scheduler preserve the frozen round nine protocol for reproducibility", () => {
   for (const hypothesis of protocol.hypotheses) assert.match(runner, new RegExp(hypothesis.id));
   assert.match(runner, /fixed-pattern-confirmation/);
   assert.match(runner, /"futureBarsUsedForSelection": False/);
   assert.match(scheduler, /zijin-round9-protocol\.json/);
   assert.match(scheduler, /zijin-round9-report\.json/);
-  assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round9-protocol\.json/);
-  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round9-report\.json/);
 });

@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "experimentId": "zijin-round10-early-opening-direction-split",
   "round": 10,
+  "independentHypothesisCount": 2,
   "status": "preregistered",
   "researchStage": "replication-only",
   "stock": {
