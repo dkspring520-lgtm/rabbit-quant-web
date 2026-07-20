@@ -9,6 +9,7 @@ const runnerSource = await readFile(
   new URL("../scripts/run_zijin_round4_experiments.py", import.meta.url),
   "utf8",
 );
+const compose = await readFile(new URL("../compose.web.yml", import.meta.url), "utf8");
 
 function configurationCount(grid) {
   return Object.values(grid).reduce((count, values) => count * values.length, 1);
@@ -91,4 +92,9 @@ test("a replication run is forced into research-only output", () => {
   assert.match(runnerSource, /evaluation\["passedRollingOutOfSample"\] = False/);
   assert.match(runnerSource, /evaluation\["nextStage"\] = "research-report-only"/);
   assert.match(runnerSource, /"blockedByReplicationPolicy"/);
+});
+
+test("production activates the frozen round ten replication protocol", () => {
+  assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round10-protocol\.json/);
+  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round10-report\.json/);
 });
