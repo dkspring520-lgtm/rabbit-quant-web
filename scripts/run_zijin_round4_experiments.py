@@ -501,7 +501,19 @@ def sample_formation_diagnostic(
             }
             for index in range(1, len(stages))
         ]
-        bottleneck = max(drops, key=lambda item: item["removed"], default={"stage": "none", "removed": 0})
+        # Session boundaries and the independent-sample limiter are frozen
+        # protocol mechanics, not signal-quality failures. Excluding them keeps
+        # the diagnostic focused on the first model gate worth investigating.
+        model_drops = [
+            item
+            for item in drops
+            if item["stage"] not in {"session", "independent-limit"}
+        ]
+        bottleneck = max(
+            model_drops,
+            key=lambda item: item["removed"],
+            default={"stage": "none", "removed": 0},
+        )
         target_touched = int(selected["targetTouched"].sum()) if not selected.empty else 0
         reports.append({
             "hypothesisId": hypothesis_id,
