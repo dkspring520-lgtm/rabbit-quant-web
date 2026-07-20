@@ -1,0 +1,51 @@
+{
+  "protocolVersion": 1,
+  "experiment": "紫金矿业第12轮反T相对弱势前瞻影子",
+  "registeredAt": "2026-07-21",
+  "status": "prospective-shadow-only",
+  "researchDisclosure": {
+    "historicalSelectionAffected": true,
+    "historicalYearsReused": [2022, 2023, 2024, 2025],
+    "historicalHeadlineIsProof": false,
+    "open2026History": false,
+    "backfillAfterRegistration": false,
+    "affectsV4": false,
+    "automaticPromotion": false
+  },
+  "frozenRule": {
+    "direction": "reverse",
+    "session": ["09:33", "14:30"],
+    "maximumSignalsPerDay": 2,
+    "entry": "minute-t decision, minute-t+1 public price shadow sell-first",
+    "conditions": {
+      "reverseAnchor": "return3 or exact MA5 slope crosses from non-negative to negative, with a causal reverse-location anchor",
+      "intradayPositionMaximum": 0.4412,
+      "zijinAlphaVwapPctMinimum": 0.3034,
+      "return5PctMaximum": -0.1104
+    },
+    "exit": {
+      "minimumNetTargetPct": 0.64,
+      "maximumNetTargetPct": 1.0,
+      "trailingGivebackPct": 0.15,
+      "stopNetPct": -0.45,
+      "maximumHoldMinutes": 60,
+      "forcedCloseTime": "14:50"
+    }
+  },
+  "historicalFeasibilityOnly": {
+    "trades2024To2025": 34,
+    "winRate": 0.6765,
+    "averageNetPct": 0.2248,
+    "stressAverageNetPct": 0.1648,
+    "positiveQuarters": "6/8"
+  },
+  "prospectiveGate": {
+    "minimumResolvedTrades": 30,
+    "minimumWinRate": 0.65,
+    "minimumAverageNetPct": 0,
+    "minimumStressAverageNetPct": 0,
+    "minimumPositiveQuarterRatio": 0.75,
+    "manualReviewRequired": true,
+    "notes": "PBO/DSR在前瞻样本和候选模型数量足够前不伪造数值；历史结果不能直接晋级。"
+  }
+}
