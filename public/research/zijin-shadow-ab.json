@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round10-vs-round11-forward-shadow",
+  "stock": { "code": "601899", "name": "紫金矿业" },
+  "registeredAt": "2026-07-21T00:00:00.000Z",
+  "updatedAt": "2026-07-21T00:00:00.000Z",
+  "status": "waiting",
+  "affectsV4": false,
+  "sendsAlerts": false,
+  "usesFutureMinutes": false,
+  "fillPolicy": "minute-t-close decision; minute-t+1 price shadow fill",
+  "costPolicy": { "baseRoundTripPct": 0.12, "stressRoundTripPct": 0.18 },
+  "targetPolicy": { "minimumNetPct": 0.64, "maximumNetPct": 1.0, "maximumHoldMinutes": 60 },
+  "marketDate": null,
+  "lastProcessedMinute": null,
+  "source": { "provider": null, "sourceTimestamp": null, "fetchedAt": null, "error": null },
+  "models": {
+    "A": { "id": "round10-positive-strict", "label": "A · 少而精", "sourceRound": 10, "sessionStart": "0933", "sessionEnd": "0944", "maxSignalsPerDay": 1, "today": { "candidates": 0, "entries": 0, "exits": 0, "wins": 0, "netPct": 0, "lastDecision": "等待观察窗口", "activeTrade": null }, "total": { "candidateDays": 0, "candidates": 0, "resolvedTrades": 0, "wins": 0, "winRate": null, "netPct": 0, "stressNetPct": 0 }, "rejectionReasons": {} },
+    "B": { "id": "round11-positive-coverage", "label": "B · 覆盖优先", "sourceRound": 11, "sessionStart": "0933", "sessionEnd": "1015", "maxSignalsPerDay": 2, "today": { "candidates": 0, "entries": 0, "exits": 0, "wins": 0, "netPct": 0, "lastDecision": "等待观察窗口", "activeTrade": null }, "total": { "candidateDays": 0, "candidates": 0, "resolvedTrades": 0, "wins": 0, "winRate": null, "netPct": 0, "stressNetPct": 0 }, "rejectionReasons": {} }
+  },
+  "integrity": { "eventCount": 0, "lastHash": "GENESIS" }
+}
