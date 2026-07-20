@@ -54,3 +54,12 @@ test("runner and scheduler use the preregistered round eight experiment", () => 
   assert.match(scheduler, /zijin-round8-protocol\.json/);
   assert.match(scheduler, /zijin-round8-report\.json/);
 });
+
+test("round eight emits a read-only sample formation audit", () => {
+  assert.match(runner, /def sample_formation_diagnostic\(/);
+  assert.match(runner, /"diagnosticOnly": True/);
+  assert.match(runner, /"canSelectParameters": False/);
+  assert.match(runner, /"sampleFormationDiagnostic": formation_diagnostic/);
+  assert.match(runner, /"netTargetPct": \[core\.MIN_NET_TARGET_PCT, core\.MAX_NET_TARGET_PCT\]/);
+  assert.match(runner, /"futureBarsUsedForSelection": False/);
+});

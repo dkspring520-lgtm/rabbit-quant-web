@@ -81,6 +81,17 @@ type ZijinTrainingProgress = {
     experimentId:string;runId:string;status:string;reads2026:boolean;affectsV4:boolean;elapsedSeconds:number;generatedAt:string;
     qualifiedHypothesisIds:string[];
     ledger:{records:number;runRecords:number;verified:boolean;chainTip:string};
+    sampleFormationDiagnostic?:{
+      diagnosticOnly:boolean;canSelectParameters:boolean;
+      population:{start:string;end:string;causalAnchors:number};
+      outcomeLabel:{entry:string;netTargetPct:[number,number];roundTripCostPct:number;maximumHoldMinutes:number;futureBarsUsedForSelection:boolean};
+      hypotheses:Array<{
+        hypothesisId:string;name:string;session:string;diagnosticOnly:boolean;
+        stages:Array<{id:string;count:number}>;
+        primaryBottleneck:{stage:string;removed:number};
+        targetTouched:number;targetTouchRate:number|null;medianHoldMinutes:number|null;
+      }>;
+    };
     hypotheses:Array<{
       hypothesisId:string;name:string;outOfSampleWinRate:number;
       outerQuarters:Array<{trades:number;wins:number;netPct:number;stressNetPct:number}>;
@@ -1832,6 +1843,13 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const currentExperimentTrades=currentHypotheses.reduce((total,item)=>total+item.outerQuarters.reduce((sum,quarter)=>sum+quarter.trades,0),0);
   const currentBestHypothesis=currentHypotheses.reduce<(typeof currentHypotheses)[number]|null>((best,item)=>!best||item.outOfSampleWinRate>best.outOfSampleWinRate?item:best,null);
   const currentQualified=currentExperiment?.qualifiedHypothesisIds.length??0;
+  const formationDiagnostic=currentExperiment?.sampleFormationDiagnostic??null;
+  const formationStageLabels:Record<string,string>={
+    "causal-anchor":"因果拐点候选","session":"进入指定时段","observable-regime":"符合震荡状态",
+    "vwap-location":"达到 VWAP 偏离","turn-confirmation":"出现转向确认","peer-coverage":"板块数据完整",
+    "observable-trend":"形成可见趋势","vwap-distance":"回踩距离合适","continuation-confirmation":"趋势延续确认",
+    "volume":"量能达标","independent-limit":"去除同日重复",
+  };
   const activeResearchStage=zijinTrainingProgress?.automation?.run.stage??zijinTrainingProgress?.stage??"loading";
   const activeResearchStageLabel=({
     loading:"核验训练文件", "loading-source":"读取封存分钟库", "building-samples":"生成因果样本", "caching-samples":"保存因果样本",
@@ -1856,6 +1874,14 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       {zijinTrainingProgress?<>
         <div className={`zijin-training-state-note ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'warning':zijinTrainingProgress.status}`}><b>{zijinTrainingConnection==='error'?'状态接口连接失败':trainingStale?'训练任务可能中断':schedulerOffline?'自动调度器离线':zijinTrainingProgress.status==="running"?'服务器正在计算':'本轮已结束'}</b><span>{zijinTrainingConnection==='error'?'页面保留最后一次真实结果并自动重试，不会伪造心跳。':trainingStale?'页面保留最后一次真实进度，不会自动补数。':schedulerOffline?'第 4 轮已经真实完成，但后台没有按计划继续检查新数据；需要恢复服务器自动训练服务。':zijinTrainingProgress.status==="running"?'页面每 2 秒读取服务器状态；切换页面不会影响后台训练。':'100% 表示本轮审计流程完成，不代表系统仍在持续训练。页面每 30 秒检查是否有新任务。'}</span></div>
         <div className="zijin-training-stats"><p><span>服务器当前步骤</span><b>{activeResearchStageLabel}</b><small>{zijinTrainingProgress.status==='running'?`${zijinTrainingProgress.progress}% · ${zijinTrainingProgress.automation?.run.elapsedSeconds??0} 秒`:`最近任务 ${zijinTrainingProgress.runId}`}</small></p><p><span>最近样本外交易</span><b>{currentExperiment?`${currentExperimentTrades} 笔`:'--'}</b><small>{currentHypotheses.length} 个独立假设 · 不读取未来分钟</small></p><p><span>表现最好的一组</span><b>{currentBestHypothesis?`${(currentBestHypothesis.outOfSampleWinRate*100).toFixed(1)}%`:'--'}</b><small>{currentBestHypothesis?.name??'等待实验报告'} · 仅为样本外胜率</small></p><p><span>获准进入下一步</span><b>{currentExperiment?`${currentQualified}/${currentHypotheses.length}`:'--'}</b><small>{currentExperiment?`账本 ${currentExperiment.ledger.runRecords} 条 · ${currentExperiment.reads2026?'已读取':'2026 未读取'}`:'等待报告落盘'}</small></p></div>
+        {formationDiagnostic&&<details className="zijin-sample-diagnostic">
+          <summary><span><b>为什么有的实验是 0 笔？</b><small>逐层查看候选在哪个门槛被过滤；本区只解释结果，不参与选参</small></span><em>净目标 {formationDiagnostic.outcomeLabel.netTargetPct[0].toFixed(2)}%–{formationDiagnostic.outcomeLabel.netTargetPct[1].toFixed(2)}%</em></summary>
+          <div className="zijin-sample-diagnostic-grid">{formationDiagnostic.hypotheses.map(item=>{
+            const first=item.stages[0]?.count??0;
+            const final=item.stages.at(-1)?.count??0;
+            return <article key={item.hypothesisId}><header><span><b>{item.name}</b><small>{item.session} · 2024–2025 样本</small></span><em>{final} 笔</em></header><div>{item.stages.map((stage,index)=><p key={stage.id}><span>{formationStageLabels[stage.id]??stage.id}</span><b>{stage.count}</b><i style={{width:`${first?Math.max(2,stage.count/first*100):0}%`}}/></p>)}</div><footer><span>主要卡在：<b>{formationStageLabels[item.primaryBottleneck.stage]??item.primaryBottleneck.stage}</b></span><small>{item.targetTouchRate==null?'无样本可评估':`其中 ${(item.targetTouchRate*100).toFixed(1)}% 曾达到净目标区间`} · 下一分钟开盘成交 · 最长 {formationDiagnostic.outcomeLabel.maximumHoldMinutes} 分钟</small></footer></article>})}</div>
+          <p className="zijin-sample-diagnostic-note">2026 继续封存；未来分钟只用于事后收益标签，不用于当时选点，也不会因为这张诊断表自动放宽参数。</p>
+        </details>}
         <div className="zijin-implementation-steps" aria-label="紫金矿业实验实施进度">
           <p className="done"><i>1</i><span><b>历史数据隔离</b><small>只加载 2025-12-31 及以前分钟数据</small></span><em>已完成</em></p>
           <p className={zijinTrainingProgress.status==='running'&&['loading','loading-source','building-samples','caching-samples','loading-cache','baselines','rolling-oos'].includes(activeResearchStage)?'pending':'done'}><i>2</i><span><b>独立假设实验</b><small>{currentHypotheses.length||2} 个假设分别运行，不混在一起调参</small></span><em>{zijinTrainingProgress.status==='running'?'运行中':'已完成'}</em></p>
