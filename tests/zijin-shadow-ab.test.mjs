@@ -10,11 +10,13 @@ import {
   processVisibleMinute,
   SHADOW_CONSTANTS,
   SHADOW_MODELS,
+  upgradeShadowState,
 } from "../lib/zijin-shadow-ab.mjs";
 
 const compose = await readFile(new URL("../compose.web.yml", import.meta.url), "utf8");
 const observer = await readFile(new URL("../scripts/zijin-shadow-ab-observer.mjs", import.meta.url), "utf8");
 const route = await readFile(new URL("../app/api/research/zijin-shadow-ab/route.ts", import.meta.url), "utf8");
+const round12Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round12-protocol.json", import.meta.url), "utf8"));
 
 const minutes = [
   { time: "0930", price: 99.00, volume: 100 },
@@ -39,6 +41,24 @@ test("A/B features are causal and ignore later minutes", () => {
   assert.equal(before.time, "0933");
 });
 
+test("round-12 features are causal and match the frozen live fields", () => {
+  const prices = [100, 102, 101.5, 99, 100, 100.2, 100.1, 99.7, 99.6, 98.4];
+  const reverseMinutes = prices.map((price, index) => ({ time: `09${String(30 + index).padStart(2, "0")}`, price, volume: 100 }));
+  const peerPrices = [50, 52, 51.5, 49, 49.8, 49.7, 49.4, 49, 48.9, 48.8];
+  const reversePeers = Array.from({ length: 6 }, (_, peerIndex) => ({
+    code: `reverse-peer-${peerIndex}`,
+    minutes: peerPrices.map((price, index) => ({ time: reverseMinutes[index].time, price: price + peerIndex * 0.1, volume: 100 })),
+  }));
+  const before = computeVisibleFeatures({ minutes: reverseMinutes, index: 7, previousClose: 100, peers: reversePeers });
+  const changedFuture = reverseMinutes.map((point, index) => index > 7 ? { ...point, price: point.price * 20 } : point);
+  const after = computeVisibleFeatures({ minutes: changedFuture, index: 7, previousClose: 100, peers: reversePeers });
+  assert.deepEqual(after, before);
+  assert.ok(before.intradayPosition <= 0.4412);
+  assert.ok(before.zijinAlphaVwapPct >= 0.3034);
+  assert.ok(before.return5Pct <= -0.1104);
+  assert.equal(evaluateShadowCandidate("C", before).passed, true);
+});
+
 test("shadow status follows the Shanghai session instead of the last cached minute", () => {
   assert.equal(deriveShadowStatus("20260720", new Date("2026-07-20T21:40:00.000Z")), "waiting");
   assert.equal(deriveShadowStatus("20260721", new Date("2026-07-21T01:20:00.000Z")), "waiting");
@@ -53,6 +73,20 @@ test("strict A and coverage B independently produce forward candidates", () => {
   const features = computeVisibleFeatures({ minutes, index: 3, previousClose: 100, peers });
   assert.equal(evaluateShadowCandidate("A", features).passed, true);
   assert.equal(evaluateShadowCandidate("B", features).passed, true);
+});
+
+test("legacy A/B state upgrades in place and preserves its evidence", () => {
+  const legacy = createShadowState("2026-07-21T01:32:00.000Z");
+  delete legacy.models.C;
+  legacy.schemaVersion = 1;
+  legacy.models.A.total.resolvedTrades = 3;
+  legacy.integrity.eventCount = 9;
+  const upgraded = upgradeShadowState(legacy);
+  assert.equal(upgraded.schemaVersion, 2);
+  assert.equal(upgraded.models.A.total.resolvedTrades, 3);
+  assert.equal(upgraded.integrity.eventCount, 9);
+  assert.equal(upgraded.models.C.id, "round12-reverse-relative-weakness");
+  assert.equal(upgraded.models.C.side, "short");
 });
 
 test("candidate fills only on next visible minute and then resolves after costs", () => {
@@ -70,6 +104,36 @@ test("candidate fills only on next visible minute and then resolves after costs"
   assert.equal(state.models.A.total.resolvedTrades, 1);
   assert.equal(state.models.A.total.wins, 1);
   assert.ok(state.models.A.total.netPct >= SHADOW_CONSTANTS.MIN_NET_TARGET_PCT);
+});
+
+test("round-12 reverse candidate sells next minute and profits only after price falls", () => {
+  const prices = [100, 102, 101.5, 99, 100, 100.2, 100.1, 99.7, 99.6, 98.4];
+  const reverseMinutes = prices.map((price, index) => ({ time: `09${String(30 + index).padStart(2, "0")}`, price, volume: 100 }));
+  const peerPrices = [50, 52, 51.5, 49, 49.8, 49.7, 49.4, 49, 48.9, 48.8];
+  const reversePeers = Array.from({ length: 6 }, (_, peerIndex) => ({
+    code: `reverse-peer-${peerIndex}`,
+    minutes: peerPrices.map((price, index) => ({ time: reverseMinutes[index].time, price: price + peerIndex * 0.1, volume: 100 })),
+  }));
+  const state = createShadowState("2026-07-21T01:32:00.000Z");
+  const candidate = processVisibleMinute(state, { marketDate: "20260721", minutes: reverseMinutes, index: 7, previousClose: 100, peers: reversePeers });
+  assert.equal(candidate.filter((event) => event.model === "C")[0]?.event, "candidate");
+  const entry = processVisibleMinute(state, { marketDate: "20260721", minutes: reverseMinutes, index: 8, previousClose: 100, peers: reversePeers });
+  assert.deepEqual(entry.filter((event) => event.model === "C").map((event) => [event.event, event.side, event.price]), [["entry", "short", 99.6]]);
+  const exit = processVisibleMinute(state, { marketDate: "20260721", minutes: reverseMinutes, index: 9, previousClose: 100, peers: reversePeers });
+  const reverseExit = exit.find((event) => event.model === "C");
+  assert.equal(reverseExit?.event, "exit");
+  assert.equal(reverseExit?.side, "short");
+  assert.ok(reverseExit?.netPct >= SHADOW_CONSTANTS.MIN_NET_TARGET_PCT);
+  assert.equal(state.models.C.total.wins, 1);
+});
+
+test("round-12 protocol forbids historical proof, V4 mutation and automatic promotion", () => {
+  assert.equal(round12Protocol.researchDisclosure.historicalSelectionAffected, true);
+  assert.equal(round12Protocol.researchDisclosure.open2026History, false);
+  assert.equal(round12Protocol.researchDisclosure.affectsV4, false);
+  assert.equal(round12Protocol.researchDisclosure.automaticPromotion, false);
+  assert.equal(round12Protocol.prospectiveGate.minimumWinRate, 0.65);
+  assert.equal(round12Protocol.prospectiveGate.minimumResolvedTrades, 30);
 });
 
 test("audit records form an append-only SHA-256 chain", () => {
