@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -173,17 +174,40 @@ def state_payload(
     }
 
 
+def lock_owner_id() -> str:
+    return os.environ.get("HOSTNAME", "").strip() or socket.gethostname()
+
+
+def process_exists(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def acquire_lock(path: Path, stale_seconds: int = 7200) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         try:
+            fields = path.read_text(encoding="utf-8").strip().split()
+            recorded_pid = int(fields[0]) if fields else -1
+            recorded_owner = fields[2] if len(fields) >= 3 else None
             age = time.time() - path.stat().st_mtime
-            if age > stale_seconds:
+            abandoned = (
+                recorded_owner is None
+                or recorded_owner != lock_owner_id()
+                or not process_exists(recorded_pid)
+                or age > stale_seconds
+            )
+            if abandoned:
                 path.unlink()
                 return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except OSError:
+        except (OSError, ValueError):
             pass
         raise RuntimeError("已有训练进程持有互斥锁")
 
@@ -228,7 +252,7 @@ def run_once(args: argparse.Namespace) -> int:
         "--report", str(child_report), "--progress", str(child_progress),
     ]
     try:
-        os.write(lock_fd, f"{os.getpid()} {run_id}\n".encode())
+        os.write(lock_fd, f"{os.getpid()} {run_id} {lock_owner_id()}\n".encode())
         atomic_json(args.state, state_payload(
             status="running", reason="训练兔正在载入封存数据", run_id=run_id, stage="loading", progress=1,
             started_at=started_at, checked_at=iso(checked), next_check_at=iso(next_check),
