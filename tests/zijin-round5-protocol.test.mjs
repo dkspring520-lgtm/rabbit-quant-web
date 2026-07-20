@@ -43,6 +43,9 @@ test("runner implements the two frozen regime gates causally", () => {
   assert.match(runner, /minute_t_plus_1_open|minute t\+1 open/);
   assert.match(runner, /except FileNotFoundError/);
   assert.match(runner, /ZIJIN_SOURCE_COMMIT/);
+  assert.match(runner, /def audit_path\(path: Path\)/);
+  assert.match(runner, /except ValueError/);
+  assert.match(runner, /return resolved\.as_posix\(\)/);
 });
 
 test("automatic scheduler changes protocol instead of repeatedly tuning a rejected round", () => {

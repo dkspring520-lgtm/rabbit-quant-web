@@ -69,6 +69,15 @@ def write_json(path: Path, value: Any) -> None:
     os.replace(temporary, path)
 
 
+def audit_path(path: Path) -> str:
+    """Return a stable report path for both source-tree and mounted files."""
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
+
 def progress(path: Path, stage: str, percent: int, message: str, **latest: Any) -> None:
     write_json(path, {
         "schemaVersion": 1,
@@ -516,7 +525,7 @@ def main() -> None:
             "opened": False,
         },
         "ledger": {
-            "path": ledger_path.resolve().relative_to(ROOT.resolve()).as_posix(),
+            "path": audit_path(ledger_path),
             "records": len(ledger_rows),
             "runRecords": sum(row.get("runId") == run_id for row in ledger_rows),
             "chainTip": ledger_rows[-1]["recordHash"] if ledger_rows else standard.GENESIS_HASH,
