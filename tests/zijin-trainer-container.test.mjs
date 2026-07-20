@@ -17,12 +17,16 @@ test("production runs Zijin research in an isolated restartable container", () =
   assert.match(compose, /\/opt\/rabbit-quant-state:\/training-state/);
   assert.match(compose, /\/opt\/rabbit-quant-training-runtime:\/training-runtime/);
   assert.match(compose, /ZIJIN_IDLE_HEARTBEAT_SECONDS:/);
+  assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round5-protocol\.json/);
+  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round5-report\.json/);
   assert.match(dockerfile, /FROM python:3\.12-slim/);
   assert.match(dockerfile, /requirements\.trainer\.txt/);
 });
 
 test("trainer supervisor turns stale heartbeat into a Docker restart and an audit alert", () => {
   assert.match(supervisor, /scheduler_health/);
+  assert.match(supervisor, /ZIJIN_TRAINING_PROTOCOL/);
+  assert.match(supervisor, /--protocol/);
   assert.match(supervisor, /heartbeat-timeout/);
   assert.match(supervisor, /exit-for-docker-restart/);
   assert.match(supervisor, /os\.fsync/);

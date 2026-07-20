@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Round-four experiment controls for the Zijin single-stock laboratory.
+"""Preregistered experiment controls for the Zijin single-stock laboratory.
 
 This module deliberately does not search for a passing configuration. It
 validates preregistered trials, writes an append-only ledger, estimates PBO and
@@ -38,15 +38,17 @@ def load_protocol(path: Path = DEFAULT_PROTOCOL) -> dict[str, Any]:
 
 
 def validate_protocol(protocol: dict[str, Any]) -> None:
-    if protocol.get("round") != 4 or protocol.get("status") != "preregistered":
-        raise ValueError("round four must use the frozen preregistered protocol")
+    round_number = int(protocol.get("round", 0) or 0)
+    if round_number < 4 or protocol.get("status") != "preregistered":
+        raise ValueError("research rounds must use a frozen preregistered protocol")
     if protocol.get("affectsV4") or protocol.get("automaticPromotion"):
-        raise ValueError("round four cannot mutate or automatically promote V4")
+        raise ValueError("research cannot mutate or automatically promote V4")
     if protocol["dataPolicy"]["selectionEnd"] > "2025-12-31":
         raise ValueError("2026 must remain sealed during feature and parameter selection")
     hypotheses = protocol.get("hypotheses", [])
-    if len(hypotheses) != 4:
-        raise ValueError("exactly four independent hypotheses are required")
+    expected_count = int(protocol.get("independentHypothesisCount", 4 if round_number == 4 else 0) or 0)
+    if expected_count < 1 or len(hypotheses) != expected_count:
+        raise ValueError(f"exactly {expected_count} independent hypotheses are required")
     for hypothesis in hypotheses:
         count = len(hypothesis.get("features", []))
         if not 8 <= count <= 12:

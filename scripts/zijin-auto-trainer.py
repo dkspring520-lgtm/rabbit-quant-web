@@ -21,10 +21,10 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PROTOCOL = ROOT / "scripts" / "zijin-round4-protocol.json"
+DEFAULT_PROTOCOL = ROOT / "scripts" / "zijin-round5-protocol.json"
 DEFAULT_RUNNER = ROOT / "scripts" / "run_zijin_round4_experiments.py"
 DEFAULT_STATE = ROOT / "public" / "research" / "zijin-automation-status.json"
-DEFAULT_REPORT = ROOT / "public" / "research" / "zijin-round4-report.json"
+DEFAULT_REPORT = ROOT / "public" / "research" / "zijin-round5-report.json"
 GENESIS = "0" * 64
 
 
@@ -95,8 +95,9 @@ def append_history(path: Path, record: dict[str, Any]) -> dict[str, Any]:
 
 def rabbit_state(stage: str, progress: int, child: dict[str, Any], report: dict[str, Any] | None = None) -> dict[str, Any]:
     latest = child.get("latest") if isinstance(child.get("latest"), dict) else {}
+    report_total = len((report or {}).get("hypotheses", []))
     completed_hypotheses = int(latest.get("completedHypotheses", 0) or 0)
-    total_hypotheses = int(latest.get("totalHypotheses", 4) or 4)
+    total_hypotheses = int(latest.get("totalHypotheses", report_total or 4) or report_total or 4)
     qualified = len((report or {}).get("qualifiedHypothesisIds", []))
     # `waiting` is the normal daemon state after an already completed run.
     # It must not make the dashboard pretend that the training rabbit is busy.
@@ -127,7 +128,7 @@ def rabbit_state(stage: str, progress: int, child: dict[str, Any], report: dict[
             "status": "qualified" if qualified else ("blocked" if finished else "locked"),
             "task": "仅允许合格模型进入影子观察" if not finished else ("存在合格候选，等待人工评审" if qualified else "没有模型获准晋级"),
             "completed": qualified,
-            "total": 4,
+            "total": total_hypotheses,
         },
         "overallProgress": max(0, min(100, int(progress))),
     }
@@ -215,7 +216,10 @@ def run_once(args: argparse.Namespace) -> int:
     run_dir = args.runtime / "runs" / run_id
     child_progress = run_dir / "progress.json"
     child_report = run_dir / "report.json"
-    ledger = args.runtime / "ledger" / "round4-trials.jsonl"
+    protocol_document = load_json(args.protocol, {}) or {}
+    experiment_id = str(protocol_document.get("experimentId") or "zijin-experiment")
+    safe_experiment_id = "".join(character if character.isalnum() or character in "-_" else "-" for character in experiment_id)
+    ledger = args.runtime / "ledger" / f"{safe_experiment_id}-trials.jsonl"
     shared_runtime = args.runtime / "shared"
     run_dir.mkdir(parents=True, exist_ok=True)
     command = [

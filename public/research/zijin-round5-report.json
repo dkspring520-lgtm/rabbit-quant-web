@@ -1,0 +1,877 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round5-regime-gated",
+  "runId": "r5-20260720T012704-866000",
+  "sourceCommit": "c36df9a22e502787e48c74bfda7e83fae785412c",
+  "protocolHash": "b309a904604d1ad3a3a602dc0fc16b543af5352bde3a2cd06900775ed9ad09fd",
+  "status": "research-rejected",
+  "affectsV4": false,
+  "reads2026": false,
+  "dataset": {
+    "fingerprint": {
+      "input": "D:\\BaiduNetdiskDownload\\zijin-601899\\zijin-peer-panel-2022-2026.parquet",
+      "size": 26692028,
+      "mtimeNs": 1784319648062326600,
+      "protocolHash": "b309a904604d1ad3a3a602dc0fc16b543af5352bde3a2cd06900775ed9ad09fd",
+      "selectionEnd": "20251231"
+    },
+    "firstDate": "20220104",
+    "lastDate": "20251231",
+    "minuteRows": 1634703,
+    "tradingDays": 969,
+    "causalCandidates": 29335,
+    "stockCount": 7,
+    "loaded2026Rows": 0,
+    "completeTargetDays": 969,
+    "meanPeerCoverage": 1.0,
+    "minimumPeerCoverage": 1.0
+  },
+  "methodology": {
+    "hypothesesIndependent": true,
+    "selection": "anchored quarterly walk-forward; each quarter selects only from earlier dates",
+    "decisionData": "minute t and earlier only",
+    "fill": "minute t+1 open",
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18,
+    "outerFolds": [
+      "2024Q1",
+      "2024Q2",
+      "2024Q3",
+      "2024Q4",
+      "2025Q1",
+      "2025Q2",
+      "2025Q3",
+      "2025Q4"
+    ]
+  },
+  "baselinesByQuarter": {
+    "2024Q1": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.2042,
+        "trades": 110,
+        "winRate": 0.3273
+      },
+      "smart-t-v4": {
+        "netPct": -0.4132737058357522,
+        "trades": 14,
+        "winRate": 0.21428571428571427
+      }
+    },
+    "2024Q2": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.0749,
+        "trades": 118,
+        "winRate": 0.3983
+      },
+      "smart-t-v4": {
+        "netPct": -0.22984775431282867,
+        "trades": 31,
+        "winRate": 0.3870967741935484
+      }
+    },
+    "2024Q3": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1475,
+        "trades": 126,
+        "winRate": 0.3333
+      },
+      "smart-t-v4": {
+        "netPct": -0.1914640254922806,
+        "trades": 17,
+        "winRate": 0.23529411764705882
+      }
+    },
+    "2024Q4": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.0538,
+        "trades": 121,
+        "winRate": 0.4793
+      },
+      "smart-t-v4": {
+        "netPct": -0.3356761361078906,
+        "trades": 16,
+        "winRate": 0.1875
+      }
+    },
+    "2025Q1": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.2024,
+        "trades": 113,
+        "winRate": 0.3451
+      },
+      "smart-t-v4": {
+        "netPct": -0.20857168035766704,
+        "trades": 18,
+        "winRate": 0.3333333333333333
+      }
+    },
+    "2025Q2": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1232,
+        "trades": 116,
+        "winRate": 0.3448
+      },
+      "smart-t-v4": {
+        "netPct": -0.2458189797692117,
+        "trades": 14,
+        "winRate": 0.14285714285714285
+      }
+    },
+    "2025Q3": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1062,
+        "trades": 126,
+        "winRate": 0.3651
+      },
+      "smart-t-v4": {
+        "netPct": -0.09594335737274653,
+        "trades": 17,
+        "winRate": 0.47058823529411764
+      }
+    },
+    "2025Q4": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1789,
+        "trades": 120,
+        "winRate": 0.325
+      },
+      "smart-t-v4": {
+        "netPct": -0.08955127777429786,
+        "trades": 27,
+        "winRate": 0.4444444444444444
+      }
+    }
+  },
+  "hypotheses": [
+    {
+      "hypothesisId": "range-vwap-confirmation",
+      "periodsPerYear": 4,
+      "outerQuarters": [
+        {
+          "id": "2024Q1",
+          "validationStart": "20240101",
+          "validationEnd": "20240331",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "maximumAbsoluteVwapSlopePct": 0.02,
+            "vwapBiasAbsPct": 0.45,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 19,
+          "wins": 4,
+          "winRate": 0.2105,
+          "netPct": -0.2129,
+          "stressNetPct": -0.2729
+        },
+        {
+          "id": "2024Q2",
+          "validationStart": "20240401",
+          "validationEnd": "20240630",
+          "selectedConfigIndex": 5,
+          "parameters": {
+            "maximumAbsoluteVwapSlopePct": 0.02,
+            "vwapBiasAbsPct": 0.3,
+            "minimumVolumeRatio": 0.9
+          },
+          "trades": 13,
+          "wins": 4,
+          "winRate": 0.3077,
+          "netPct": -0.0448,
+          "stressNetPct": -0.1048
+        },
+        {
+          "id": "2024Q3",
+          "validationStart": "20240701",
+          "validationEnd": "20240930",
+          "selectedConfigIndex": 5,
+          "parameters": {
+            "maximumAbsoluteVwapSlopePct": 0.02,
+            "vwapBiasAbsPct": 0.3,
+            "minimumVolumeRatio": 0.9
+          },
+          "trades": 22,
+          "wins": 7,
+          "winRate": 0.3182,
+          "netPct": -0.0541,
+          "stressNetPct": -0.1141
+        },
+        {
+          "id": "2024Q4",
+          "validationStart": "20241001",
+          "validationEnd": "20241231",
+          "selectedConfigIndex": 5,
+          "parameters": {
+            "maximumAbsoluteVwapSlopePct": 0.02,
+            "vwapBiasAbsPct": 0.3,
+            "minimumVolumeRatio": 0.9
+          },
+          "trades": 17,
+          "wins": 7,
+          "winRate": 0.4118,
+          "netPct": -0.1511,
+          "stressNetPct": -0.2111
+        },
+        {
+          "id": "2025Q1",
+          "validationStart": "20250101",
+          "validationEnd": "20250331",
+          "selectedConfigIndex": 5,
+          "parameters": {
+            "maximumAbsoluteVwapSlopePct": 0.02,
+            "vwapBiasAbsPct": 0.3,
+            "minimumVolumeRatio": 0.9
+          },
+          "trades": 19,
+          "wins": 6,
+          "winRate": 0.3158,
+          "netPct": -0.2132,
+          "stressNetPct": -0.2732
+        },
+        {
+          "id": "2025Q2",
+          "validationStart": "20250401",
+          "validationEnd": "20250630",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "maximumAbsoluteVwapSlopePct": 0.02,
+            "vwapBiasAbsPct": 0.45,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 26,
+          "wins": 11,
+          "winRate": 0.4231,
+          "netPct": -0.0159,
+          "stressNetPct": -0.0759
+        },
+        {
+          "id": "2025Q3",
+          "validationStart": "20250701",
+          "validationEnd": "20250930",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "maximumAbsoluteVwapSlopePct": 0.02,
+            "vwapBiasAbsPct": 0.45,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 16,
+          "wins": 7,
+          "winRate": 0.4375,
+          "netPct": -0.0518,
+          "stressNetPct": -0.1118
+        },
+        {
+          "id": "2025Q4",
+          "validationStart": "20251001",
+          "validationEnd": "20251231",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "maximumAbsoluteVwapSlopePct": 0.02,
+            "vwapBiasAbsPct": 0.45,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 21,
+          "wins": 5,
+          "winRate": 0.2381,
+          "netPct": -0.3347,
+          "stressNetPct": -0.3947
+        }
+      ],
+      "outOfSampleWinRate": 0.3333333333333333,
+      "baselines": [
+        {
+          "id": "no-trade",
+          "netPct": 0.0
+        },
+        {
+          "id": "simple-vwap",
+          "netPct": -0.1363875
+        },
+        {
+          "id": "smart-t-v4",
+          "netPct": -0.2262683646278344
+        }
+      ],
+      "trialPeriodReturns": [
+        [
+          -0.1218,
+          -0.0795,
+          0.0823,
+          -0.148,
+          -0.1744,
+          -0.0956,
+          -0.2569,
+          -0.3246
+        ],
+        [
+          -0.0714,
+          -0.0719,
+          -0.0197,
+          -0.1545,
+          -0.187,
+          -0.2129,
+          -0.2989,
+          -0.4991
+        ],
+        [
+          -0.0524,
+          -0.2167,
+          -0.1986,
+          0.0232,
+          -0.1114,
+          0.0697,
+          -0.2274,
+          -0.303
+        ],
+        [
+          0.4272,
+          -0.1069,
+          -0.2745,
+          0.1972,
+          -0.1295,
+          -0.1377,
+          -0.2491,
+          -0.3927
+        ],
+        [
+          -0.1806,
+          -0.0702,
+          0.0078,
+          -0.137,
+          -0.1672,
+          -0.0683,
+          -0.1271,
+          -0.3487
+        ],
+        [
+          -0.198,
+          -0.0448,
+          -0.0541,
+          -0.1511,
+          -0.2132,
+          -0.0219,
+          -0.2242,
+          -0.4828
+        ],
+        [
+          -0.2129,
+          -0.1286,
+          -0.1141,
+          -0.0399,
+          -0.1274,
+          -0.0159,
+          -0.0518,
+          -0.3347
+        ],
+        [
+          -0.1056,
+          -0.1323,
+          -0.1698,
+          -0.0209,
+          -0.1772,
+          0.0387,
+          -0.1319,
+          -0.4246
+        ],
+        [
+          -0.2129,
+          -0.0448,
+          -0.0541,
+          -0.1511,
+          -0.2132,
+          -0.0159,
+          -0.0518,
+          -0.3347
+        ]
+      ],
+      "selectedTrialIndex": 8,
+      "name": "震荡日 VWAP 偏离确认",
+      "features": [
+        "minuteOfDay",
+        "vwapBiasPct",
+        "vwapSlope5Pct",
+        "ma10SlopePct",
+        "priceZscore",
+        "return3Pct",
+        "volumeRatio",
+        "atrPct",
+        "intradayPosition",
+        "peerBreadth3"
+      ],
+      "candidateConfigurations": [
+        {
+          "maximumAbsoluteVwapSlopePct": 0.01,
+          "vwapBiasAbsPct": 0.3,
+          "minimumVolumeRatio": 0.6
+        },
+        {
+          "maximumAbsoluteVwapSlopePct": 0.01,
+          "vwapBiasAbsPct": 0.3,
+          "minimumVolumeRatio": 0.9
+        },
+        {
+          "maximumAbsoluteVwapSlopePct": 0.01,
+          "vwapBiasAbsPct": 0.45,
+          "minimumVolumeRatio": 0.6
+        },
+        {
+          "maximumAbsoluteVwapSlopePct": 0.01,
+          "vwapBiasAbsPct": 0.45,
+          "minimumVolumeRatio": 0.9
+        },
+        {
+          "maximumAbsoluteVwapSlopePct": 0.02,
+          "vwapBiasAbsPct": 0.3,
+          "minimumVolumeRatio": 0.6
+        },
+        {
+          "maximumAbsoluteVwapSlopePct": 0.02,
+          "vwapBiasAbsPct": 0.3,
+          "minimumVolumeRatio": 0.9
+        },
+        {
+          "maximumAbsoluteVwapSlopePct": 0.02,
+          "vwapBiasAbsPct": 0.45,
+          "minimumVolumeRatio": 0.6
+        },
+        {
+          "maximumAbsoluteVwapSlopePct": 0.02,
+          "vwapBiasAbsPct": 0.45,
+          "minimumVolumeRatio": 0.9
+        }
+      ],
+      "evaluation": {
+        "passedRollingOutOfSample": false,
+        "nextStage": "research-rejected",
+        "checks": {
+          "enoughOuterQuarters": true,
+          "afterCostPositive": false,
+          "stressCostNonNegative": false,
+          "winRate": false,
+          "quarterStability": false,
+          "pbo": false,
+          "deflatedSharpe": false,
+          "allBaselinesPresent": true,
+          "beatsAllBaselines": false
+        },
+        "metrics": {
+          "meanNetPct": -0.1348125,
+          "meanStressNetPct": -0.1948125,
+          "positiveQuarterRatio": 0.0,
+          "pbo": 0.7285714285714285,
+          "deflatedSharpeProbability": 1.6653345369377348e-16,
+          "recordedTrials": 9
+        },
+        "multipleTesting": {
+          "pbo": {
+            "method": "CSCV",
+            "partitions": 8,
+            "combinations": 70,
+            "pbo": 0.7285714285714285,
+            "medianLogit": -0.9555114450274363
+          },
+          "deflatedSharpe": {
+            "observedSharpe": -2.5691599856075165,
+            "expectedMaximumSharpe": 0.9214301468433159,
+            "probability": 1.6653345369377348e-16
+          },
+          "recordedTrials": 9,
+          "selectedTrialIndex": 8
+        },
+        "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。"
+      }
+    },
+    {
+      "hypothesisId": "trend-pullback-continuation",
+      "periodsPerYear": 4,
+      "outerQuarters": [
+        {
+          "id": "2024Q1",
+          "validationStart": "20240101",
+          "validationEnd": "20240331",
+          "selectedConfigIndex": 0,
+          "parameters": {
+            "minimumAbsoluteVwapSlopePct": 0.01,
+            "minimumAbsoluteMa10SlopePct": 0.03,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "netPct": 0.0,
+          "stressNetPct": 0.0
+        },
+        {
+          "id": "2024Q2",
+          "validationStart": "20240401",
+          "validationEnd": "20240630",
+          "selectedConfigIndex": 0,
+          "parameters": {
+            "minimumAbsoluteVwapSlopePct": 0.01,
+            "minimumAbsoluteMa10SlopePct": 0.03,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 1,
+          "wins": 1,
+          "winRate": 1.0,
+          "netPct": 1.0,
+          "stressNetPct": 0.94
+        },
+        {
+          "id": "2024Q3",
+          "validationStart": "20240701",
+          "validationEnd": "20240930",
+          "selectedConfigIndex": 0,
+          "parameters": {
+            "minimumAbsoluteVwapSlopePct": 0.01,
+            "minimumAbsoluteMa10SlopePct": 0.03,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "netPct": 0.0,
+          "stressNetPct": 0.0
+        },
+        {
+          "id": "2024Q4",
+          "validationStart": "20241001",
+          "validationEnd": "20241231",
+          "selectedConfigIndex": 0,
+          "parameters": {
+            "minimumAbsoluteVwapSlopePct": 0.01,
+            "minimumAbsoluteMa10SlopePct": 0.03,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "netPct": 0.0,
+          "stressNetPct": 0.0
+        },
+        {
+          "id": "2025Q1",
+          "validationStart": "20250101",
+          "validationEnd": "20250331",
+          "selectedConfigIndex": 0,
+          "parameters": {
+            "minimumAbsoluteVwapSlopePct": 0.01,
+            "minimumAbsoluteMa10SlopePct": 0.03,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "netPct": 0.0,
+          "stressNetPct": 0.0
+        },
+        {
+          "id": "2025Q2",
+          "validationStart": "20250401",
+          "validationEnd": "20250630",
+          "selectedConfigIndex": 0,
+          "parameters": {
+            "minimumAbsoluteVwapSlopePct": 0.01,
+            "minimumAbsoluteMa10SlopePct": 0.03,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "netPct": 0.0,
+          "stressNetPct": 0.0
+        },
+        {
+          "id": "2025Q3",
+          "validationStart": "20250701",
+          "validationEnd": "20250930",
+          "selectedConfigIndex": 0,
+          "parameters": {
+            "minimumAbsoluteVwapSlopePct": 0.01,
+            "minimumAbsoluteMa10SlopePct": 0.03,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "netPct": 0.0,
+          "stressNetPct": 0.0
+        },
+        {
+          "id": "2025Q4",
+          "validationStart": "20251001",
+          "validationEnd": "20251231",
+          "selectedConfigIndex": 0,
+          "parameters": {
+            "minimumAbsoluteVwapSlopePct": 0.01,
+            "minimumAbsoluteMa10SlopePct": 0.03,
+            "minimumVolumeRatio": 0.6
+          },
+          "trades": 0,
+          "wins": 0,
+          "winRate": null,
+          "netPct": 0.0,
+          "stressNetPct": 0.0
+        }
+      ],
+      "outOfSampleWinRate": 1.0,
+      "baselines": [
+        {
+          "id": "no-trade",
+          "netPct": 0.0
+        },
+        {
+          "id": "simple-vwap",
+          "netPct": -0.1363875
+        },
+        {
+          "id": "smart-t-v4",
+          "netPct": -0.2262683646278344
+        }
+      ],
+      "trialPeriodReturns": [
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "selectedTrialIndex": 8,
+      "name": "趋势日顺势回踩确认",
+      "features": [
+        "minuteOfDay",
+        "vwapBiasPct",
+        "vwapSlope5Pct",
+        "ma5SlopePct",
+        "ma10SlopePct",
+        "return3Pct",
+        "volumeRatio",
+        "atrPct",
+        "intradayPosition",
+        "peerBreadth3"
+      ],
+      "candidateConfigurations": [
+        {
+          "minimumAbsoluteVwapSlopePct": 0.01,
+          "minimumAbsoluteMa10SlopePct": 0.03,
+          "minimumVolumeRatio": 0.6
+        },
+        {
+          "minimumAbsoluteVwapSlopePct": 0.01,
+          "minimumAbsoluteMa10SlopePct": 0.03,
+          "minimumVolumeRatio": 0.9
+        },
+        {
+          "minimumAbsoluteVwapSlopePct": 0.01,
+          "minimumAbsoluteMa10SlopePct": 0.06,
+          "minimumVolumeRatio": 0.6
+        },
+        {
+          "minimumAbsoluteVwapSlopePct": 0.01,
+          "minimumAbsoluteMa10SlopePct": 0.06,
+          "minimumVolumeRatio": 0.9
+        },
+        {
+          "minimumAbsoluteVwapSlopePct": 0.02,
+          "minimumAbsoluteMa10SlopePct": 0.03,
+          "minimumVolumeRatio": 0.6
+        },
+        {
+          "minimumAbsoluteVwapSlopePct": 0.02,
+          "minimumAbsoluteMa10SlopePct": 0.03,
+          "minimumVolumeRatio": 0.9
+        },
+        {
+          "minimumAbsoluteVwapSlopePct": 0.02,
+          "minimumAbsoluteMa10SlopePct": 0.06,
+          "minimumVolumeRatio": 0.6
+        },
+        {
+          "minimumAbsoluteVwapSlopePct": 0.02,
+          "minimumAbsoluteMa10SlopePct": 0.06,
+          "minimumVolumeRatio": 0.9
+        }
+      ],
+      "evaluation": {
+        "passedRollingOutOfSample": false,
+        "nextStage": "research-rejected",
+        "checks": {
+          "enoughOuterQuarters": true,
+          "afterCostPositive": true,
+          "stressCostNonNegative": true,
+          "winRate": true,
+          "quarterStability": false,
+          "pbo": false,
+          "deflatedSharpe": true,
+          "allBaselinesPresent": true,
+          "beatsAllBaselines": true
+        },
+        "metrics": {
+          "meanNetPct": 0.125,
+          "meanStressNetPct": 0.1175,
+          "positiveQuarterRatio": 0.125,
+          "pbo": 0.5,
+          "deflatedSharpeProbability": 0.9999630513728192,
+          "recordedTrials": 9
+        },
+        "multipleTesting": {
+          "pbo": {
+            "method": "CSCV",
+            "partitions": 8,
+            "combinations": 70,
+            "pbo": 0.5,
+            "medianLogit": -0.93885094951439
+          },
+          "deflatedSharpe": {
+            "observedSharpe": 0.7559289460184544,
+            "expectedMaximumSharpe": 0.5419267572274137,
+            "probability": 0.9999630513728192
+          },
+          "recordedTrials": 9,
+          "selectedTrialIndex": 8
+        },
+        "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。"
+      }
+    }
+  ],
+  "qualifiedHypothesisIds": [],
+  "finalBlind": {
+    "sealed": true,
+    "allowed": false,
+    "oneShotCommandRequired": true,
+    "opened": false
+  },
+  "ledger": {
+    "path": ".round5-runtime/zijin-round5-trials.jsonl",
+    "records": 256,
+    "runRecords": 128,
+    "chainTip": "c96bc20873251a0afc7cf0acfebc29233db8a20168b079ab9afa53dcfd036e15",
+    "verified": true
+  },
+  "elapsedSeconds": 162.27,
+  "generatedAt": "2026-07-20T01:29:46.842787+00:00"
+}
