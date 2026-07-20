@@ -22,10 +22,10 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PROTOCOL = ROOT / "scripts" / "zijin-round5-protocol.json"
+DEFAULT_PROTOCOL = ROOT / "scripts" / "zijin-round6-protocol.json"
 DEFAULT_RUNNER = ROOT / "scripts" / "run_zijin_round4_experiments.py"
 DEFAULT_STATE = ROOT / "public" / "research" / "zijin-automation-status.json"
-DEFAULT_REPORT = ROOT / "public" / "research" / "zijin-round5-report.json"
+DEFAULT_REPORT = ROOT / "public" / "research" / "zijin-round6-report.json"
 GENESIS = "0" * 64
 
 

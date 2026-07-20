@@ -1,0 +1,877 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round6-exhaustion-confirmation",
+  "runId": "r6-20260720T025816-564700",
+  "sourceCommit": "e00a8f50ab6362fe369b189c863548ee0c44338f",
+  "protocolHash": "dd9256e5407eb99d3631e7970d071190c33e0cbc9800c9ff3dc66e55d55bfd87",
+  "status": "research-rejected",
+  "affectsV4": false,
+  "reads2026": false,
+  "dataset": {
+    "fingerprint": {
+      "input": "D:\\BaiduNetdiskDownload\\zijin-601899\\zijin-peer-panel-2022-2026.parquet",
+      "size": 26692028,
+      "mtimeNs": 1784319648062326600,
+      "protocolHash": "dd9256e5407eb99d3631e7970d071190c33e0cbc9800c9ff3dc66e55d55bfd87",
+      "selectionEnd": "20251231"
+    },
+    "firstDate": "20220104",
+    "lastDate": "20251231",
+    "minuteRows": 1634703,
+    "tradingDays": 969,
+    "causalCandidates": 29335,
+    "stockCount": 7,
+    "loaded2026Rows": 0,
+    "completeTargetDays": 969,
+    "meanPeerCoverage": 1.0,
+    "minimumPeerCoverage": 1.0
+  },
+  "methodology": {
+    "hypothesesIndependent": true,
+    "selection": "anchored quarterly walk-forward; each quarter selects only from earlier dates",
+    "decisionData": "minute t and earlier only",
+    "fill": "minute t+1 open",
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18,
+    "outerFolds": [
+      "2024Q1",
+      "2024Q2",
+      "2024Q3",
+      "2024Q4",
+      "2025Q1",
+      "2025Q2",
+      "2025Q3",
+      "2025Q4"
+    ]
+  },
+  "baselinesByQuarter": {
+    "2024Q1": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.2042,
+        "trades": 110,
+        "winRate": 0.3273
+      },
+      "smart-t-v4": {
+        "netPct": -0.4132737058357522,
+        "trades": 14,
+        "winRate": 0.21428571428571427
+      }
+    },
+    "2024Q2": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.0749,
+        "trades": 118,
+        "winRate": 0.3983
+      },
+      "smart-t-v4": {
+        "netPct": -0.22984775431282867,
+        "trades": 31,
+        "winRate": 0.3870967741935484
+      }
+    },
+    "2024Q3": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1475,
+        "trades": 126,
+        "winRate": 0.3333
+      },
+      "smart-t-v4": {
+        "netPct": -0.1914640254922806,
+        "trades": 17,
+        "winRate": 0.23529411764705882
+      }
+    },
+    "2024Q4": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.0538,
+        "trades": 121,
+        "winRate": 0.4793
+      },
+      "smart-t-v4": {
+        "netPct": -0.3356761361078906,
+        "trades": 16,
+        "winRate": 0.1875
+      }
+    },
+    "2025Q1": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.2024,
+        "trades": 113,
+        "winRate": 0.3451
+      },
+      "smart-t-v4": {
+        "netPct": -0.20857168035766704,
+        "trades": 18,
+        "winRate": 0.3333333333333333
+      }
+    },
+    "2025Q2": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1232,
+        "trades": 116,
+        "winRate": 0.3448
+      },
+      "smart-t-v4": {
+        "netPct": -0.2458189797692117,
+        "trades": 14,
+        "winRate": 0.14285714285714285
+      }
+    },
+    "2025Q3": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1062,
+        "trades": 126,
+        "winRate": 0.3651
+      },
+      "smart-t-v4": {
+        "netPct": -0.09594335737274653,
+        "trades": 17,
+        "winRate": 0.47058823529411764
+      }
+    },
+    "2025Q4": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1789,
+        "trades": 120,
+        "winRate": 0.325
+      },
+      "smart-t-v4": {
+        "netPct": -0.08955127777429786,
+        "trades": 27,
+        "winRate": 0.4444444444444444
+      }
+    }
+  },
+  "hypotheses": [
+    {
+      "hypothesisId": "drop-exhaustion-confirmation",
+      "periodsPerYear": 4,
+      "outerQuarters": [
+        {
+          "id": "2024Q1",
+          "validationStart": "20240101",
+          "validationEnd": "20240331",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "vwapBiasAbsPct": 0.35,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 6,
+          "wins": 2,
+          "winRate": 0.3333,
+          "netPct": -0.3088,
+          "stressNetPct": -0.3688
+        },
+        {
+          "id": "2024Q2",
+          "validationStart": "20240401",
+          "validationEnd": "20240630",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 0.75,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 27,
+          "wins": 6,
+          "winRate": 0.2222,
+          "netPct": -0.2694,
+          "stressNetPct": -0.3294
+        },
+        {
+          "id": "2024Q3",
+          "validationStart": "20240701",
+          "validationEnd": "20240930",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "vwapBiasAbsPct": 0.35,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 7,
+          "wins": 3,
+          "winRate": 0.4286,
+          "netPct": -0.0249,
+          "stressNetPct": -0.0849
+        },
+        {
+          "id": "2024Q4",
+          "validationStart": "20241001",
+          "validationEnd": "20241231",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 5,
+          "wins": 0,
+          "winRate": 0.0,
+          "netPct": -0.57,
+          "stressNetPct": -0.63
+        },
+        {
+          "id": "2025Q1",
+          "validationStart": "20250101",
+          "validationEnd": "20250331",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 7,
+          "wins": 3,
+          "winRate": 0.4286,
+          "netPct": -0.0686,
+          "stressNetPct": -0.1286
+        },
+        {
+          "id": "2025Q2",
+          "validationStart": "20250401",
+          "validationEnd": "20250630",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 6,
+          "wins": 4,
+          "winRate": 0.6667,
+          "netPct": 0.1228,
+          "stressNetPct": 0.0628
+        },
+        {
+          "id": "2025Q3",
+          "validationStart": "20250701",
+          "validationEnd": "20250930",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 8,
+          "wins": 3,
+          "winRate": 0.375,
+          "netPct": -0.266,
+          "stressNetPct": -0.326
+        },
+        {
+          "id": "2025Q4",
+          "validationStart": "20251001",
+          "validationEnd": "20251231",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 7,
+          "wins": 3,
+          "winRate": 0.4286,
+          "netPct": -0.1399,
+          "stressNetPct": -0.1999
+        }
+      ],
+      "outOfSampleWinRate": 0.3287671232876712,
+      "baselines": [
+        {
+          "id": "no-trade",
+          "netPct": 0.0
+        },
+        {
+          "id": "simple-vwap",
+          "netPct": -0.1363875
+        },
+        {
+          "id": "smart-t-v4",
+          "netPct": -0.2262683646278344
+        }
+      ],
+      "trialPeriodReturns": [
+        [
+          -0.1285,
+          -0.2036,
+          -0.0907,
+          -0.1386,
+          0.0989,
+          -0.1535,
+          -0.1042,
+          -0.101
+        ],
+        [
+          -0.156,
+          -0.2694,
+          -0.1221,
+          -0.2789,
+          -0.1194,
+          -0.0829,
+          -0.1366,
+          -0.3119
+        ],
+        [
+          -0.3287,
+          -0.0923,
+          -0.1131,
+          -0.3765,
+          -0.0971,
+          -0.1228,
+          -0.1569,
+          -0.021
+        ],
+        [
+          -0.3461,
+          -0.0504,
+          0.0565,
+          -0.57,
+          -0.0686,
+          0.1228,
+          -0.266,
+          -0.1399
+        ],
+        [
+          -0.1255,
+          -0.2304,
+          -0.1051,
+          -0.1473,
+          0.0609,
+          -0.1307,
+          -0.0682,
+          -0.0878
+        ],
+        [
+          -0.2227,
+          -0.2694,
+          -0.1333,
+          -0.2879,
+          -0.1695,
+          -0.0538,
+          -0.0679,
+          -0.3119
+        ],
+        [
+          -0.3086,
+          -0.115,
+          -0.1483,
+          -0.3822,
+          -0.1451,
+          -0.1194,
+          -0.1075,
+          -0.002
+        ],
+        [
+          -0.3088,
+          -0.0504,
+          -0.0249,
+          -0.57,
+          -0.1839,
+          0.1827,
+          -0.2226,
+          -0.1399
+        ],
+        [
+          -0.3088,
+          -0.2694,
+          -0.0249,
+          -0.57,
+          -0.0686,
+          0.1228,
+          -0.266,
+          -0.1399
+        ]
+      ],
+      "selectedTrialIndex": 8,
+      "name": "急跌衰竭确认",
+      "features": [
+        "minuteOfDay",
+        "vwapBiasPct",
+        "vwapSlope5Pct",
+        "ma5SlopePct",
+        "return3Pct",
+        "volumeRatio",
+        "atrPct",
+        "intradayPosition",
+        "priceZscore",
+        "peerBreadth3"
+      ],
+      "candidateConfigurations": [
+        {
+          "vwapBiasAbsPct": 0.2,
+          "priceZscoreAbs": 0.75,
+          "minimumVolumeRatio": 0.7
+        },
+        {
+          "vwapBiasAbsPct": 0.2,
+          "priceZscoreAbs": 0.75,
+          "minimumVolumeRatio": 1.1
+        },
+        {
+          "vwapBiasAbsPct": 0.2,
+          "priceZscoreAbs": 1.25,
+          "minimumVolumeRatio": 0.7
+        },
+        {
+          "vwapBiasAbsPct": 0.2,
+          "priceZscoreAbs": 1.25,
+          "minimumVolumeRatio": 1.1
+        },
+        {
+          "vwapBiasAbsPct": 0.35,
+          "priceZscoreAbs": 0.75,
+          "minimumVolumeRatio": 0.7
+        },
+        {
+          "vwapBiasAbsPct": 0.35,
+          "priceZscoreAbs": 0.75,
+          "minimumVolumeRatio": 1.1
+        },
+        {
+          "vwapBiasAbsPct": 0.35,
+          "priceZscoreAbs": 1.25,
+          "minimumVolumeRatio": 0.7
+        },
+        {
+          "vwapBiasAbsPct": 0.35,
+          "priceZscoreAbs": 1.25,
+          "minimumVolumeRatio": 1.1
+        }
+      ],
+      "evaluation": {
+        "passedRollingOutOfSample": false,
+        "nextStage": "research-rejected",
+        "checks": {
+          "enoughOuterQuarters": true,
+          "afterCostPositive": false,
+          "stressCostNonNegative": false,
+          "winRate": false,
+          "quarterStability": false,
+          "pbo": false,
+          "deflatedSharpe": false,
+          "allBaselinesPresent": true,
+          "beatsAllBaselines": false
+        },
+        "metrics": {
+          "meanNetPct": -0.1906,
+          "meanStressNetPct": -0.2506,
+          "positiveQuarterRatio": 0.125,
+          "pbo": 0.4714285714285714,
+          "deflatedSharpeProbability": 1.6008527836675057e-11,
+          "recordedTrials": 9
+        },
+        "multipleTesting": {
+          "pbo": {
+            "method": "CSCV",
+            "partitions": 8,
+            "combinations": 70,
+            "pbo": 0.4714285714285714,
+            "medianLogit": 0.4519851237430575
+          },
+          "deflatedSharpe": {
+            "observedSharpe": -1.9273777134542736,
+            "expectedMaximumSharpe": 1.4845732816511727,
+            "probability": 1.6008527836675057e-11
+          },
+          "recordedTrials": 9,
+          "selectedTrialIndex": 8
+        },
+        "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。"
+      }
+    },
+    {
+      "hypothesisId": "spike-exhaustion-confirmation",
+      "periodsPerYear": 4,
+      "outerQuarters": [
+        {
+          "id": "2024Q1",
+          "validationStart": "20240101",
+          "validationEnd": "20240331",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "vwapBiasAbsPct": 0.35,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 0.7
+          },
+          "trades": 15,
+          "wins": 6,
+          "winRate": 0.4,
+          "netPct": -0.1495,
+          "stressNetPct": -0.2095
+        },
+        {
+          "id": "2024Q2",
+          "validationStart": "20240401",
+          "validationEnd": "20240630",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "vwapBiasAbsPct": 0.35,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 0.7
+          },
+          "trades": 20,
+          "wins": 9,
+          "winRate": 0.45,
+          "netPct": -0.0317,
+          "stressNetPct": -0.0917
+        },
+        {
+          "id": "2024Q3",
+          "validationStart": "20240701",
+          "validationEnd": "20240930",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 11,
+          "wins": 4,
+          "winRate": 0.3636,
+          "netPct": -0.1227,
+          "stressNetPct": -0.1827
+        },
+        {
+          "id": "2024Q4",
+          "validationStart": "20241001",
+          "validationEnd": "20241231",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 5,
+          "wins": 3,
+          "winRate": 0.6,
+          "netPct": 0.0076,
+          "stressNetPct": -0.0524
+        },
+        {
+          "id": "2025Q1",
+          "validationStart": "20250101",
+          "validationEnd": "20250331",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "vwapBiasAbsPct": 0.35,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 0.7
+          },
+          "trades": 14,
+          "wins": 1,
+          "winRate": 0.0714,
+          "netPct": -0.396,
+          "stressNetPct": -0.456
+        },
+        {
+          "id": "2025Q2",
+          "validationStart": "20250401",
+          "validationEnd": "20250630",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 9,
+          "wins": 4,
+          "winRate": 0.4444,
+          "netPct": -0.0896,
+          "stressNetPct": -0.1496
+        },
+        {
+          "id": "2025Q3",
+          "validationStart": "20250701",
+          "validationEnd": "20250930",
+          "selectedConfigIndex": 3,
+          "parameters": {
+            "vwapBiasAbsPct": 0.2,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 7,
+          "wins": 3,
+          "winRate": 0.4286,
+          "netPct": -0.0398,
+          "stressNetPct": -0.0998
+        },
+        {
+          "id": "2025Q4",
+          "validationStart": "20251001",
+          "validationEnd": "20251231",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "vwapBiasAbsPct": 0.35,
+            "priceZscoreAbs": 1.25,
+            "minimumVolumeRatio": 1.1
+          },
+          "trades": 7,
+          "wins": 6,
+          "winRate": 0.8571,
+          "netPct": 0.357,
+          "stressNetPct": 0.297
+        }
+      ],
+      "outOfSampleWinRate": 0.4090909090909091,
+      "baselines": [
+        {
+          "id": "no-trade",
+          "netPct": 0.0
+        },
+        {
+          "id": "simple-vwap",
+          "netPct": -0.1363875
+        },
+        {
+          "id": "smart-t-v4",
+          "netPct": -0.2262683646278344
+        }
+      ],
+      "trialPeriodReturns": [
+        [
+          -0.1868,
+          -0.1015,
+          -0.1244,
+          -0.1161,
+          -0.2672,
+          -0.1365,
+          -0.1144,
+          -0.0542
+        ],
+        [
+          -0.1519,
+          -0.1206,
+          -0.1053,
+          -0.1512,
+          -0.0225,
+          -0.0829,
+          -0.1041,
+          -0.0559
+        ],
+        [
+          -0.1577,
+          -0.0147,
+          -0.1262,
+          -0.0061,
+          -0.4076,
+          -0.1325,
+          -0.1649,
+          0.0
+        ],
+        [
+          -0.0603,
+          0.0041,
+          -0.1227,
+          0.0076,
+          -0.457,
+          -0.0896,
+          -0.0398,
+          0.2411
+        ],
+        [
+          -0.2003,
+          -0.0898,
+          -0.1075,
+          -0.122,
+          -0.2865,
+          -0.1364,
+          -0.1144,
+          -0.0691
+        ],
+        [
+          -0.1728,
+          -0.1206,
+          -0.0964,
+          -0.0813,
+          0.017,
+          -0.1314,
+          -0.0994,
+          -0.0112
+        ],
+        [
+          -0.1495,
+          -0.0317,
+          -0.1489,
+          0.0451,
+          -0.396,
+          -0.1325,
+          -0.1649,
+          0.0322
+        ],
+        [
+          0.0246,
+          -0.0318,
+          -0.1616,
+          0.152,
+          -0.457,
+          -0.0896,
+          -0.0398,
+          0.357
+        ],
+        [
+          -0.1495,
+          -0.0317,
+          -0.1227,
+          0.0076,
+          -0.396,
+          -0.0896,
+          -0.0398,
+          0.357
+        ]
+      ],
+      "selectedTrialIndex": 8,
+      "name": "冲高衰竭确认",
+      "features": [
+        "minuteOfDay",
+        "vwapBiasPct",
+        "vwapSlope5Pct",
+        "ma5SlopePct",
+        "return3Pct",
+        "volumeRatio",
+        "atrPct",
+        "intradayPosition",
+        "priceZscore",
+        "peerBreadth3"
+      ],
+      "candidateConfigurations": [
+        {
+          "vwapBiasAbsPct": 0.2,
+          "priceZscoreAbs": 0.75,
+          "minimumVolumeRatio": 0.7
+        },
+        {
+          "vwapBiasAbsPct": 0.2,
+          "priceZscoreAbs": 0.75,
+          "minimumVolumeRatio": 1.1
+        },
+        {
+          "vwapBiasAbsPct": 0.2,
+          "priceZscoreAbs": 1.25,
+          "minimumVolumeRatio": 0.7
+        },
+        {
+          "vwapBiasAbsPct": 0.2,
+          "priceZscoreAbs": 1.25,
+          "minimumVolumeRatio": 1.1
+        },
+        {
+          "vwapBiasAbsPct": 0.35,
+          "priceZscoreAbs": 0.75,
+          "minimumVolumeRatio": 0.7
+        },
+        {
+          "vwapBiasAbsPct": 0.35,
+          "priceZscoreAbs": 0.75,
+          "minimumVolumeRatio": 1.1
+        },
+        {
+          "vwapBiasAbsPct": 0.35,
+          "priceZscoreAbs": 1.25,
+          "minimumVolumeRatio": 0.7
+        },
+        {
+          "vwapBiasAbsPct": 0.35,
+          "priceZscoreAbs": 1.25,
+          "minimumVolumeRatio": 1.1
+        }
+      ],
+      "evaluation": {
+        "passedRollingOutOfSample": false,
+        "nextStage": "research-rejected",
+        "checks": {
+          "enoughOuterQuarters": true,
+          "afterCostPositive": false,
+          "stressCostNonNegative": false,
+          "winRate": false,
+          "quarterStability": false,
+          "pbo": false,
+          "deflatedSharpe": false,
+          "allBaselinesPresent": true,
+          "beatsAllBaselines": false
+        },
+        "metrics": {
+          "meanNetPct": -0.05808750000000001,
+          "meanStressNetPct": -0.11808750000000001,
+          "positiveQuarterRatio": 0.25,
+          "pbo": 0.38571428571428573,
+          "deflatedSharpeProbability": 1.3390899500365094e-11,
+          "recordedTrials": 9
+        },
+        "multipleTesting": {
+          "pbo": {
+            "method": "CSCV",
+            "partitions": 8,
+            "combinations": 70,
+            "pbo": 0.38571428571428573,
+            "medianLogit": 0.9555114450274362
+          },
+          "deflatedSharpe": {
+            "observedSharpe": -0.594644215601359,
+            "expectedMaximumSharpe": 2.5481145486184302,
+            "probability": 1.3390899500365094e-11
+          },
+          "recordedTrials": 9,
+          "selectedTrialIndex": 8
+        },
+        "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。"
+      }
+    }
+  ],
+  "qualifiedHypothesisIds": [],
+  "finalBlind": {
+    "sealed": true,
+    "allowed": false,
+    "oneShotCommandRequired": true,
+    "opened": false
+  },
+  "ledger": {
+    "path": ".round6-runtime/zijin-round6-trials.jsonl",
+    "records": 128,
+    "runRecords": 128,
+    "chainTip": "4c2f5e01966ca5b62677a2a04cf6f333336ecf866230518ae45fc275eea134f4",
+    "verified": true
+  },
+  "elapsedSeconds": 161.11,
+  "generatedAt": "2026-07-20T03:00:57.679895+00:00"
+}
