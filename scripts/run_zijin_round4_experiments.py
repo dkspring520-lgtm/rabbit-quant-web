@@ -83,10 +83,19 @@ def progress(path: Path, stage: str, percent: int, message: str, **latest: Any) 
 
 
 def source_commit() -> str:
-    completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
-        capture_output=True, check=False,
-    )
+    configured = os.environ.get("ZIJIN_SOURCE_COMMIT", "").strip()
+    if configured:
+        return configured
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+            capture_output=True, check=False,
+        )
+    except FileNotFoundError:
+        # The production trainer intentionally uses python:slim and does not
+        # install Git. Protocol/data hashes still provide the immutable audit
+        # identity; the image label can be injected with ZIJIN_SOURCE_COMMIT.
+        return "container-image"
     return completed.stdout.strip() or "uncommitted"
 
 
