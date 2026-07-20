@@ -85,8 +85,8 @@ def terminate(child: subprocess.Popen[Any]) -> None:
 def main() -> None:
     data = env_path("ZIJIN_TRAINING_INPUT", "/training-data/zijin-peer-panel-2022-2026.parquet")
     state = env_path("ZIJIN_AUTOMATION_STATE_PATH", "/training-state/zijin-automation-status.json")
-    report = env_path("ZIJIN_TRAINING_REPORT_PATH", "/training-state/zijin-round5-report.json")
-    protocol = env_path("ZIJIN_TRAINING_PROTOCOL", "/app/scripts/zijin-round5-protocol.json")
+    report = env_path("ZIJIN_TRAINING_REPORT_PATH", "/training-state/zijin-round6-report.json")
+    protocol = env_path("ZIJIN_TRAINING_PROTOCOL", "/app/scripts/zijin-round6-protocol.json")
     runner = env_path("ZIJIN_TRAINING_RUNNER", "/app/scripts/run_zijin_round4_experiments.py")
     runtime = env_path("ZIJIN_TRAINING_RUNTIME", "/training-runtime")
     alerts = env_path("ZIJIN_TRAINER_ALERTS_PATH", "/training-state/zijin-trainer-alerts.jsonl")
