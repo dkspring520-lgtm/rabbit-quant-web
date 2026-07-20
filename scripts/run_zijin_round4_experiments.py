@@ -407,6 +407,134 @@ def independent(rows: pd.DataFrame) -> pd.DataFrame:
     return core.independent_rows(rows, max_per_day=2) if not rows.empty else rows.copy()
 
 
+def diagnostic_reference_parameters(hypothesis: dict[str, Any]) -> dict[str, float]:
+    """Choose the widest preregistered configuration for read-only diagnostics.
+
+    These values only explain where already-created causal candidates disappear.
+    They are never passed to model selection or promotion.
+    """
+    grid = hypothesis["parameterGrid"]
+    hypothesis_id = str(hypothesis["id"])
+    if "range-vwap-reversion" in hypothesis_id:
+        return {
+            "maximumAbsoluteVwapSlopePct": float(max(grid["maximumAbsoluteVwapSlopePct"])),
+            "vwapBiasAbsPct": float(min(grid["vwapBiasAbsPct"])),
+            "minimumVolumeRatio": float(min(grid["minimumVolumeRatio"])),
+        }
+    return {
+        "minimumAbsoluteVwapSlopePct": float(min(grid["minimumAbsoluteVwapSlopePct"])),
+        "maximumVwapDistancePct": float(max(grid["maximumVwapDistancePct"])),
+        "minimumVolumeRatio": float(min(grid["minimumVolumeRatio"])),
+    }
+
+
+def sample_formation_diagnostic(
+    samples: pd.DataFrame,
+    hypotheses: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Explain sample attrition without changing the frozen experiment."""
+    population = samples[(samples["date"] >= "20240101") & (samples["date"] <= "20251231")].copy()
+    reports: list[dict[str, Any]] = []
+    for hypothesis in hypotheses:
+        hypothesis_id = str(hypothesis["id"])
+        morning = hypothesis_id.startswith("morning-")
+        start_minute = 9 * 60 + 33 if morning else 13 * 60
+        end_minute = 10 * 60 + 30 if morning else 14 * 60 + 30
+        parameters = diagnostic_reference_parameters(hypothesis)
+        rows = population
+        stages: list[dict[str, Any]] = [{"id": "causal-anchor", "count": int(len(rows))}]
+
+        rows = rows[(rows["minuteOfDay"] >= start_minute) & (rows["minuteOfDay"] <= end_minute)]
+        stages.append({"id": "session", "count": int(len(rows))})
+
+        if "range-vwap-reversion" in hypothesis_id:
+            maximum_slope = parameters["maximumAbsoluteVwapSlopePct"]
+            rows = rows[(rows["vwapSlope5Pct"].abs() <= maximum_slope) & (rows["ma10SlopePct"].abs() <= 0.06)]
+            stages.append({"id": "observable-regime", "count": int(len(rows))})
+            bias = parameters["vwapBiasAbsPct"]
+            rows = rows[
+                ((rows["direction"] == "positive") & (rows["vwapBiasPct"] <= -bias) & (rows["priceZscore"] < 0))
+                | ((rows["direction"] == "reverse") & (rows["vwapBiasPct"] >= bias) & (rows["priceZscore"] > 0))
+            ]
+            stages.append({"id": "vwap-location", "count": int(len(rows))})
+            rows = rows[
+                ((rows["direction"] == "positive") & (rows["ma5SlopePct"] > 0) & (rows["return3Pct"] > 0))
+                | ((rows["direction"] == "reverse") & (rows["ma5SlopePct"] < 0) & (rows["return3Pct"] < 0))
+            ]
+            stages.append({"id": "turn-confirmation", "count": int(len(rows))})
+        else:
+            rows = rows[rows["peerCoverage"] >= 0.8]
+            stages.append({"id": "peer-coverage", "count": int(len(rows))})
+            minimum_slope = parameters["minimumAbsoluteVwapSlopePct"]
+            rows = rows[
+                ((rows["direction"] == "positive") & (rows["vwapSlope5Pct"] >= minimum_slope) & (rows["ma10SlopePct"] >= 0.01))
+                | ((rows["direction"] == "reverse") & (rows["vwapSlope5Pct"] <= -minimum_slope) & (rows["ma10SlopePct"] <= -0.01))
+            ]
+            stages.append({"id": "observable-trend", "count": int(len(rows))})
+            maximum_distance = parameters["maximumVwapDistancePct"]
+            rows = rows[rows["vwapBiasPct"].abs() <= maximum_distance]
+            stages.append({"id": "vwap-distance", "count": int(len(rows))})
+            rows = rows[
+                (
+                    (rows["direction"] == "positive")
+                    & (rows["ma5SlopePct"] > 0)
+                    & (rows["return3Pct"] > 0)
+                    & (rows["peerBreadth3"] >= 0.5)
+                )
+                | (
+                    (rows["direction"] == "reverse")
+                    & (rows["ma5SlopePct"] < 0)
+                    & (rows["return3Pct"] < 0)
+                    & (rows["peerBreadth3"] <= 0.5)
+                )
+            ]
+            stages.append({"id": "continuation-confirmation", "count": int(len(rows))})
+
+        rows = rows[rows["volumeRatio"] >= parameters["minimumVolumeRatio"]]
+        stages.append({"id": "volume", "count": int(len(rows))})
+        selected = independent(rows)
+        stages.append({"id": "independent-limit", "count": int(len(selected))})
+        drops = [
+            {
+                "stage": stages[index]["id"],
+                "removed": stages[index - 1]["count"] - stages[index]["count"],
+            }
+            for index in range(1, len(stages))
+        ]
+        bottleneck = max(drops, key=lambda item: item["removed"], default={"stage": "none", "removed": 0})
+        target_touched = int(selected["targetTouched"].sum()) if not selected.empty else 0
+        reports.append({
+            "hypothesisId": hypothesis_id,
+            "name": hypothesis["name"],
+            "session": hypothesis["session"],
+            "diagnosticOnly": True,
+            "referenceParameters": parameters,
+            "stages": stages,
+            "primaryBottleneck": bottleneck,
+            "targetTouched": target_touched,
+            "targetTouchRate": round(target_touched / len(selected), 4) if len(selected) else None,
+            "medianHoldMinutes": round(float(selected["holdMinutes"].median()), 1) if len(selected) else None,
+            "exitReasons": {
+                str(reason): int(count)
+                for reason, count in selected["exitReason"].value_counts().sort_index().items()
+            },
+        })
+    return {
+        "schemaVersion": 1,
+        "diagnosticOnly": True,
+        "canSelectParameters": False,
+        "population": {"start": "2024-01-01", "end": "2025-12-31", "causalAnchors": int(len(population))},
+        "outcomeLabel": {
+            "entry": "next-minute-open",
+            "netTargetPct": [core.MIN_NET_TARGET_PCT, core.MAX_NET_TARGET_PCT],
+            "roundTripCostPct": core.ROUND_TRIP_COST_PCT,
+            "maximumHoldMinutes": core.MAX_HOLD_MINUTES,
+            "futureBarsUsedForSelection": False,
+        },
+        "hypotheses": reports,
+    }
+
+
 def metrics(rows: pd.DataFrame) -> dict[str, Any]:
     selected = independent(rows)
     summary = core.summarize(selected)
@@ -642,6 +770,7 @@ def main() -> None:
     samples, target, audit = load_samples(args.input, args.runtime / "cache", args.progress)
     progress(args.progress, "baselines", 18, "计算不交易、简单 VWAP 和当前 V4 三个基准", causalCandidates=len(samples))
     baselines = build_baselines(samples, target, args.runtime)
+    formation_diagnostic = sample_formation_diagnostic(samples, protocol["hypotheses"])
     progress(args.progress, "baselines", 22, "三组对照已完成，开始逐个运行预登记假设", causalCandidates=len(samples))
 
     reports = []
@@ -684,6 +813,7 @@ def main() -> None:
             "outerFolds": [label for label, _, _ in FOLDS],
         },
         "baselinesByQuarter": baselines,
+        "sampleFormationDiagnostic": formation_diagnostic,
         "hypotheses": reports,
         "qualifiedHypothesisIds": [item["hypothesisId"] for item in qualified],
         "finalBlind": {
