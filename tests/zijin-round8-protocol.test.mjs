@@ -52,8 +52,8 @@ test("runner keeps round eight reproducible after the scheduler advances", () =>
   assert.match(runner, /str\(hypothesis\["session"\]\)\.split/);
   assert.match(runner, /start_minute = start_hour \* 60 \+ start_minute_part/);
   assert.match(runner, /end_minute = end_hour \* 60 \+ end_minute_part/);
-  assert.match(scheduler, /zijin-round9-protocol\.json/);
-  assert.match(scheduler, /zijin-round9-report\.json/);
+  assert.match(scheduler, /zijin-round11-protocol\.json/);
+  assert.match(scheduler, /zijin-round11-report\.json/);
 });
 
 test("round eight emits a read-only sample formation audit", () => {
