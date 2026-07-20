@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round8-observable-regime-session",
+  "round": 8,
+  "status": "preregistered",
+  "independentHypothesisCount": 4,
+  "stock": {"code": "601899", "name": "紫金矿业"},
+  "purpose": "只用决策分钟当时可见的数据，把可观测的震荡与趋势状态按上午、下午拆开验证；不使用事后完整日型，不预测最高点或最低点",
+  "affectsV4": false,
+  "automaticPromotion": false,
+  "dataPolicy": {
+    "selectionEnd": "2025-12-31",
+    "sealedFinalBlindPeriod": {
+      "start": "2026-01-01", "end": "2026-12-31",
+      "allowedUse": "仅在滚动样本外门槛全部通过后执行一次最终盲测",
+      "allowParameterSelection": false, "allowFeatureSelection": false, "allowRepeatedInspection": false
+    },
+    "decisionTimestamp": "minute_t_close",
+    "fillTimestamp": "minute_t_plus_1_open",
+    "futureMinutesAllowedOnlyForOutcomeLabels": true,
+    "embargoTradingDays": 1,
+    "fullDayRegimeClassificationForbidden": true
+  },
+  "hypotheses": [
+    {
+      "id": "morning-observable-range-vwap-reversion", "name": "上午可观测震荡回归", "session": "09:33-10:30",
+      "features": ["minuteOfDay", "vwapBiasPct", "vwapSlope5Pct", "ma10SlopePct", "ma5SlopePct", "return3Pct", "volumeRatio", "atrPct", "priceZscore", "intradayPosition"],
+      "fixedRules": {"maximumAbsoluteMa10SlopePct": 0.06, "requiresObservableTurn": true},
+      "parameterGrid": {"maximumAbsoluteVwapSlopePct": [0.02, 0.04], "vwapBiasAbsPct": [0.2, 0.35], "minimumVolumeRatio": [0.7, 1.0]}
+    },
+    {
+      "id": "afternoon-observable-range-vwap-reversion", "name": "下午可观测震荡回归", "session": "13:00-14:30",
+      "features": ["minuteOfDay", "vwapBiasPct", "vwapSlope5Pct", "ma10SlopePct", "ma5SlopePct", "return3Pct", "volumeRatio", "atrPct", "priceZscore", "intradayPosition"],
+      "fixedRules": {"maximumAbsoluteMa10SlopePct": 0.06, "requiresObservableTurn": true},
+      "parameterGrid": {"maximumAbsoluteVwapSlopePct": [0.02, 0.04], "vwapBiasAbsPct": [0.2, 0.35], "minimumVolumeRatio": [0.7, 1.0]}
+    },
+    {
+      "id": "morning-observable-trend-pullback", "name": "上午可观测趋势回踩", "session": "09:33-10:30",
+      "features": ["minuteOfDay", "vwapBiasPct", "vwapSlope5Pct", "ma10SlopePct", "ma5SlopePct", "return3Pct", "volumeRatio", "atrPct", "peerBreadth3", "peerCoverage"],
+      "fixedRules": {"minimumAbsoluteMa10SlopePct": 0.01, "minimumPeerCoverage": 0.8, "requiresObservableContinuation": true},
+      "parameterGrid": {"minimumAbsoluteVwapSlopePct": [0.02, 0.04], "maximumVwapDistancePct": [0.15, 0.3], "minimumVolumeRatio": [0.7, 1.0]}
+    },
+    {
+      "id": "afternoon-observable-trend-pullback", "name": "下午可观测趋势回踩", "session": "13:00-14:30",
+      "features": ["minuteOfDay", "vwapBiasPct", "vwapSlope5Pct", "ma10SlopePct", "ma5SlopePct", "return3Pct", "volumeRatio", "atrPct", "peerBreadth3", "peerCoverage"],
+      "fixedRules": {"minimumAbsoluteMa10SlopePct": 0.01, "minimumPeerCoverage": 0.8, "requiresObservableContinuation": true},
+      "parameterGrid": {"minimumAbsoluteVwapSlopePct": [0.02, 0.04], "maximumVwapDistancePct": [0.15, 0.3], "minimumVolumeRatio": [0.7, 1.0]}
+    }
+  ],
+  "validation": {
+    "method": "anchored-walk-forward-quarterly", "minimumTrainingTradingDays": 252,
+    "validationWindow": "calendar-quarter", "innerSelection": "chronological-only", "outerEvaluation": "quarterly-out-of-sample-only",
+    "minimumOuterQuarters": 8, "minimumPositiveOuterQuarters": 6,
+    "baseRoundTripCostPct": 0.12, "stressRoundTripCostPct": 0.18
+  },
+  "baselines": [
+    {"id": "no-trade", "name": "不交易", "purpose": "确认承担风险后确实增加净收益"},
+    {"id": "simple-vwap", "name": "简单VWAP规则", "purpose": "确认新过滤优于可解释基础规则"},
+    {"id": "smart-t-v4", "name": "当前Smart-T V4", "purpose": "确认专属模型相对线上基准具有稳定增益"}
+  ],
+  "multipleTesting": {
+    "trialLedgerRequired": true,
+    "probabilityOfBacktestOverfitting": {"method": "CSCV", "maximum": 0.2},
+    "deflatedSharpe": {"minimumProbability": 0.95, "usesAllRecordedTrials": true}
+  },
+  "promotionGates": {
+    "afterCostMeanNetPctGreaterThan": 0, "stressCostMeanNetPctAtLeast": 0,
+    "minimumOutOfSampleWinRate": 0.65, "minimumPositiveQuarterRatio": 0.75,
+    "mustBeatAllBaselines": true, "finalBlindTestRequired": true, "manualReviewRequired": true,
+    "nextStage": "shadow-observation-only"
+  },
+  "trialLedger": {
+    "format": "jsonl-append-only", "integrity": "sha256-hash-chain",
+    "requiredFields": ["trialId", "hypothesisId", "configHash", "sourceCommit", "createdAt", "trainingRange", "validationRange", "featureNames", "parameters", "baseCostMetrics", "stressCostMetrics", "baselineMetrics", "selectionDecision"]
+  },
+  "feasibilityGate": {
+    "mode": "frozen-small-grid", "configurationsPerHypothesis": 8,
+    "minimumOutOfSampleTrades": 40, "minimumCoveredOuterQuarters": 6, "doesNotGrantPromotion": true
+  },
+  "shadowReconciliation": {"continuousSimulationRequired": true, "reconcileEverySignal": true, "unmatchedSignalsCountAsFailures": true},
+  "stageOrder": ["preregistered", "feasibility-check", "rolling-out-of-sample", "final-2026-blind", "manual-review", "shadow-observation"]
+}

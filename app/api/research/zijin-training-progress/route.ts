@@ -7,7 +7,7 @@ const runtimeState = process.env.ZIJIN_TRAINING_STATE_PATH || "/training-state/z
 const bundledAutomationState = resolve(process.cwd(), "public/research/zijin-automation-status.json");
 const runtimeAutomationState = process.env.ZIJIN_AUTOMATION_STATE_PATH || "/training-state/zijin-automation-status.json";
 const bundledReport = resolve(process.cwd(), "public/research/zijin-round6-report.json");
-const runtimeReport = process.env.ZIJIN_TRAINING_REPORT_PATH || "/training-state/zijin-round7-report.json";
+const runtimeReport = process.env.ZIJIN_TRAINING_REPORT_PATH || "/training-state/zijin-round8-report.json";
 const runtimeTrainerAlerts = process.env.ZIJIN_TRAINER_ALERTS_PATH || "/training-state/zijin-trainer-alerts.jsonl";
 
 function parseProgressTime(value: unknown) {
