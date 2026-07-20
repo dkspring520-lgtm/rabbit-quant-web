@@ -5,6 +5,7 @@ import {
   createShadowState,
   deriveShadowStatus,
   processVisibleMinute,
+  upgradeShadowState,
 } from "../lib/zijin-shadow-ab.mjs";
 
 const origin = process.env.ZIJIN_SHADOW_MARKET_ORIGIN || "http://web:3000";
@@ -18,7 +19,9 @@ const peerCodes = (process.env.ZIJIN_SHADOW_PEERS || "600489,600547,603993,60116
 async function loadState() {
   try {
     const value = JSON.parse(await readFile(statePath, "utf8"));
-    if (value?.experimentId === "zijin-round10-vs-round11-forward-shadow" && value?.models?.A && value?.models?.B) return value;
+    if (value?.experimentId === "zijin-round10-vs-round11-forward-shadow" && value?.models?.A && value?.models?.B) {
+      return upgradeShadowState(value);
+    }
   } catch {
     // A missing state is expected on the first deployment.
   }

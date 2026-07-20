@@ -255,3 +255,7 @@
 .alert-log-row .delivery.pending b{color:#e5b84e}
 .alert-log-row .delivery.error b{color:#ff7a7a}
 .alert-log-row .delivery.quiet b{color:var(--muted)}
+
+/* Three frozen Zijin hypotheses remain equally visible without squeezing cards. */
+.zijin-shadow-models{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1180px){.zijin-shadow-models{grid-template-columns:1fr}}
