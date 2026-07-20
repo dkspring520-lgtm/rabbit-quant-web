@@ -114,7 +114,11 @@ def parameter_configs(hypothesis: dict[str, Any]) -> list[dict[str, float]]:
     return [dict(zip(keys, values, strict=True)) for values in itertools.product(*(grid[key] for key in keys))]
 
 
-def load_samples(input_path: Path, cache_dir: Path, protocol_hash: str) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+def load_samples(
+    input_path: Path,
+    cache_dir: Path,
+    progress_path: Path | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     cache_dir.mkdir(parents=True, exist_ok=True)
     # The source may be Parquet, but the research host must not require an
     # optional pandas Parquet writer just to persist our derived cache.
@@ -125,17 +129,26 @@ def load_samples(input_path: Path, cache_dir: Path, protocol_hash: str) -> tuple
         "input": str(input_path.resolve()),
         "size": input_path.stat().st_size,
         "mtimeNs": input_path.stat().st_mtime_ns,
-        "protocolHash": protocol_hash,
         "selectionEnd": "20251231",
+        "sampleBuilderVersion": 1,
     }
     if samples_path.exists() and panel_path.exists() and metadata_path.exists():
         audit = json.loads(metadata_path.read_text(encoding="utf-8"))
-        if audit.get("fingerprint") == fingerprint:
+        cached_fingerprint = audit.get("fingerprint") if isinstance(audit.get("fingerprint"), dict) else {}
+        cache_matches = all(cached_fingerprint.get(key) == value for key, value in fingerprint.items() if key != "sampleBuilderVersion")
+        cache_matches = cache_matches and int(cached_fingerprint.get("sampleBuilderVersion", 1)) == fingerprint["sampleBuilderVersion"]
+        if cache_matches:
+            if progress_path:
+                progress(progress_path, "loading-cache", 16, "已核验因果样本缓存，准备计算三组对照", causalCandidates=audit.get("causalCandidates", 0))
             return pd.read_pickle(samples_path), pd.read_pickle(panel_path), audit
 
+    if progress_path:
+        progress(progress_path, "loading-source", 4, "正在读取截至 2025-12-31 的历史分钟库；2026 保持封存")
     panel = round2.load_panel(input_path.resolve(), "20251231")
     if panel.empty or str(panel["tradeDate"].max()) > "20251231":
         raise RuntimeError("data isolation failed: the research loader reached 2026")
+    if progress_path:
+        progress(progress_path, "building-samples", 10, "历史分钟库已读取，正在生成只使用当时及此前数据的因果样本", minuteRows=int(len(panel)))
     samples, coverage = peer.build_samples(panel)
     if samples.empty:
         raise RuntimeError("no causal samples were generated")
@@ -154,6 +167,8 @@ def load_samples(input_path: Path, cache_dir: Path, protocol_hash: str) -> tuple
         **coverage,
     }
     write_json(metadata_path, audit)
+    if progress_path:
+        progress(progress_path, "caching-samples", 16, "因果样本已生成并保存，准备计算三组对照", causalCandidates=int(len(samples)))
     return samples, target, audit
 
 
@@ -509,21 +524,31 @@ def main() -> None:
     run_id = datetime.now(timezone.utc).strftime(f"r{protocol['round']}-%Y%m%dT%H%M%S") + f"-{time.time_ns() % 1_000_000:06d}"
     commit = source_commit()
     progress(args.progress, "loading", 2, "仅加载 2025-12-31 及以前数据；2026 保持封存", runId=run_id)
-    samples, target, audit = load_samples(args.input, args.runtime / "cache", protocol_hash)
+    samples, target, audit = load_samples(args.input, args.runtime / "cache", args.progress)
     progress(args.progress, "baselines", 18, "计算不交易、简单 VWAP 和当前 V4 三个基准", causalCandidates=len(samples))
     baselines = build_baselines(samples, target, args.runtime)
+    progress(args.progress, "baselines", 22, "三组对照已完成，开始逐个运行预登记假设", causalCandidates=len(samples))
 
     reports = []
+    hypothesis_total = len(protocol["hypotheses"])
     for index, hypothesis in enumerate(protocol["hypotheses"]):
+        start_percent = 22 + int(index * 60 / max(1, hypothesis_total))
         progress(
-            args.progress, "rolling-oos", 22 + index * 18,
+            args.progress, "rolling-oos", start_percent,
             f"正在运行独立假设：{hypothesis['name']}",
-            completedHypotheses=index, totalHypotheses=len(protocol["hypotheses"]), hypothesisId=hypothesis["id"],
+            completedHypotheses=index, totalHypotheses=hypothesis_total, hypothesisId=hypothesis["id"],
         )
         reports.append(run_hypothesis(hypothesis, samples, baselines, protocol, ledger_path, run_id, commit))
+        progress(
+            args.progress, "rolling-oos", 22 + int((index + 1) * 60 / max(1, hypothesis_total)),
+            f"独立假设已完成：{hypothesis['name']}",
+            completedHypotheses=index + 1, totalHypotheses=hypothesis_total, hypothesisId=hypothesis["id"],
+        )
 
+    progress(args.progress, "risk-audit", 90, "正在核查费用、跨季度稳定性、PBO 与 Deflated Sharpe", completedHypotheses=hypothesis_total, totalHypotheses=hypothesis_total)
     qualified = [item for item in reports if item["evaluation"]["passedRollingOutOfSample"]]
     ledger_rows = standard.read_ledger(ledger_path)
+    progress(args.progress, "ledger-audit", 96, "风险门槛已核查，正在验证不可覆盖试验账本", qualifiedHypotheses=len(qualified), ledgerRecords=len(ledger_rows))
     result = {
         "schemaVersion": 1,
         "experimentId": protocol["experimentId"],

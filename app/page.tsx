@@ -53,13 +53,13 @@ type ZijinTrainingProgress = {
   stock:{code:string;name:string};
   runId:string;
   status:"idle"|"running"|"completed"|"failed";
-  stage:"loading"|"features"|"training"|"validation"|"blind-test"|"completed"|"failed";
+  stage:string;
   progress:number;
   processedCandidates:number;
   totalCandidates:number;
   message:string;
   updatedAt:string;
-  meta?:{source:"runtime"|"bundled";servedAt:string;stale:boolean;automationSource?:"runtime"|"bundled"|null;automationStale?:boolean;automationHealth?:{status:"running"|"waiting"|"offline"|"failed"|"disabled";label:string;detail:string;heartbeatAgeSeconds:number|null;overdueSeconds:number}|null;trainerAlert?:{at:string;event:string;reason:string;action?:string}|null};
+  meta?:{source:"runtime"|"bundled";servedAt:string;stale:boolean;automationSource?:"runtime"|"bundled"|null;reportSource?:"runtime"|"bundled"|null;automationStale?:boolean;automationHealth?:{status:"running"|"waiting"|"offline"|"failed"|"disabled";label:string;detail:string;heartbeatAgeSeconds:number|null;overdueSeconds:number}|null;trainerAlert?:{at:string;event:string;reason:string;action?:string}|null};
   automation?:{
     schemaVersion:number;
     stock:{code:string;name:string};
@@ -77,6 +77,16 @@ type ZijinTrainingProgress = {
     history:{path:string|null;appendOnly:boolean;hashChained:boolean};
     updatedAt:string;
   }|null;
+  currentExperiment?:null|{
+    experimentId:string;runId:string;status:string;reads2026:boolean;affectsV4:boolean;elapsedSeconds:number;generatedAt:string;
+    qualifiedHypothesisIds:string[];
+    ledger:{records:number;runRecords:number;verified:boolean;chainTip:string};
+    hypotheses:Array<{
+      hypothesisId:string;name:string;outOfSampleWinRate:number;
+      outerQuarters:Array<{trades:number;wins:number;netPct:number;stressNetPct:number}>;
+      evaluation:{passedRollingOutOfSample:boolean;metrics:{meanNetPct:number;meanStressNetPct:number;positiveQuarterRatio:number;pbo:number;deflatedSharpeProbability:number}};
+    }>;
+  };
   latest:{
     tradingDays?:number;
     trainingTrades?:number; trainingWinRate?:number|null; trainingAverageNetPct?:number;
@@ -1817,16 +1827,27 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const round5FactorCount=zijinRound5Protocol.hypotheses.map(item=>item.features.length);
   const round6Qualified=zijinRound6Report.qualifiedHypothesisIds.length;
   const round6FactorCount=zijinRound6Protocol.hypotheses.map(item=>item.features.length);
+  const currentExperiment=zijinTrainingProgress?.currentExperiment??null;
+  const currentHypotheses=currentExperiment?.hypotheses??[];
+  const currentExperimentTrades=currentHypotheses.reduce((total,item)=>total+item.outerQuarters.reduce((sum,quarter)=>sum+quarter.trades,0),0);
+  const currentBestHypothesis=currentHypotheses.reduce<(typeof currentHypotheses)[number]|null>((best,item)=>!best||item.outOfSampleWinRate>best.outOfSampleWinRate?item:best,null);
+  const currentQualified=currentExperiment?.qualifiedHypothesisIds.length??0;
+  const activeResearchStage=zijinTrainingProgress?.automation?.run.stage??zijinTrainingProgress?.stage??"loading";
+  const activeResearchStageLabel=({
+    loading:"核验训练文件", "loading-source":"读取封存分钟库", "building-samples":"生成因果样本", "caching-samples":"保存因果样本",
+    "loading-cache":"核验因果样本缓存", baselines:"计算三组对照", "rolling-oos":"滚动样本外验证", "risk-audit":"风险与过拟合审计",
+    "ledger-audit":"验证试验账本", completed:"本轮已经结束", waiting:"在线等待新实验", failed:"训练需要检查",
+  } as Record<string,string>)[activeResearchStage]??"因果实验运行中";
   return <section className="stock-research-view">
     <div className="research-head"><div><span className="eyebrow">SINGLE STOCK RESEARCH</span><h1>先看结论，再看细节</h1><p>这里负责研究一只股票的习惯；实时买卖提醒仍在操盘台。</p></div><button onClick={onOpenConsole}>去看今日信号 →</button></div>
     {researchExpanded&&<div className="research-purpose"><b>这个页面只回答 3 个问题</b><div><p><i>01</i><span><strong>它平时怎么走？</strong><small>看振幅、趋势、量能和日内习惯</small></span></p><p><i>02</i><span><strong>什么做 T 条件更适合？</strong><small>根据历史记录形成观察方案</small></span></p><p><i>03</i><span><strong>今天的信号靠谱吗？</strong><small>把历史股性作为操盘台的参考背景</small></span></p></div><em>看实时买卖信号请进入“操盘台”</em></div>}
     <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSamples.length} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
     <div className="research-overview-actions"><div><b>核心内容已展开</b><span>{researchExpanded?'正在显示训练证据、人工复盘和全部研究数据。':'训练证据、人工复盘和专业数据已收起。'}</span></div><button type="button" aria-expanded={researchExpanded} onClick={()=>setResearchExpanded(value=>!value)}>{researchExpanded?'收起研究详情':'展开研究详情'}</button></div>
-    {stock.code==="601899"&&<article className={`research-compact-training ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'stale':zijinTrainingProgress?.status??'loading'}`}><div><span>紫金专属研究</span><b>{zijinTrainingConnection==='error'?'训练状态接口暂时无法连接':!zijinTrainingProgress?'正在读取训练记录':trainingStale?'训练任务心跳超时':schedulerOffline?'第 4 轮已结束 · 自动调度器离线':zijinTrainingProgress.status==='running'?'本轮训练进行中':zijinTrainingProgress.latest.passedValidationGate?'验证通过，等待评审':'本轮未通过 · 在线等待新实验'}</b><small>{zijinTrainingFetchedAt?`页面最近核对：${new Date(zijinTrainingFetchedAt).toLocaleString('zh-CN',{hour12:false})}`:'只展示真实训练结果，不会自动修改 V4。'}</small></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></article>}
+    {stock.code==="601899"&&<article className={`research-compact-training ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'stale':zijinTrainingProgress?.status??'loading'}`}><div><span>紫金专属研究</span><b>{zijinTrainingConnection==='error'?'训练状态接口暂时无法连接':!zijinTrainingProgress?'正在读取训练记录':trainingStale?'训练任务心跳超时':schedulerOffline?'最近一轮已结束 · 自动调度器离线':zijinTrainingProgress.status==='running'?activeResearchStageLabel:currentQualified?'发现候选，等待人工评审':'本轮未通过 · 在线等待新实验'}</b><small>{zijinTrainingFetchedAt?`页面最近核对：${new Date(zijinTrainingFetchedAt).toLocaleString('zh-CN',{hour12:false})}`:'只展示真实训练结果，不会自动修改 V4。'}</small></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></article>}
     {stock.code==="601899"&&researchExpanded&&<div id="zijin-experiment-progress" className={`zijin-training-live zijin-training-prominent ${trainingStale?'stale':zijinTrainingProgress?.status??'loading'}`}>
       <RabbitProgressMeter
         label="紫金矿业 · 四兔真实训练"
-        detail={zijinTrainingConnection==='error'?'页面暂时无法连接训练状态接口｜保留最后一次真实记录':!zijinTrainingProgress?'正在连接服务器训练记录…':trainingStale?'运行中的训练超过 10 分钟没有更新｜请检查训练进程':schedulerOffline?'第 4 轮已经结束｜自动调度服务目前离线':zijinTrainingProgress.status==="running"?zijinTrainingProgress.message:zijinTrainingProgress.latest.passedValidationGate?'本轮因果审计完成｜通过验证，等待人工评审':'本轮因果审计完成｜没有可晋级参数'}
+        detail={zijinTrainingConnection==='error'?'页面暂时无法连接训练状态接口｜保留最后一次真实记录':!zijinTrainingProgress?'正在连接服务器训练记录…':trainingStale?'运行中的训练超过 10 分钟没有更新｜请检查训练进程':schedulerOffline?'最近一轮已经结束｜自动调度服务目前离线':zijinTrainingProgress.status==="running"?zijinTrainingProgress.message:currentQualified?'本轮因果审计完成｜发现候选，等待人工评审':'本轮因果审计完成｜没有可晋级参数'}
         progress={zijinTrainingProgress?.progress??null}
         status={trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'error':zijinTrainingProgress?.status==='running'?'running':zijinTrainingProgress?.status==='completed'?'completed':'paused'}
         stages={['整理数据','因果训练','样本外验证','最终盲测','人工评审']}
@@ -1834,13 +1855,13 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       {zijinTrainingProgress&&<FourRabbitAutomationDashboard progress={zijinTrainingProgress}/>}
       {zijinTrainingProgress?<>
         <div className={`zijin-training-state-note ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'warning':zijinTrainingProgress.status}`}><b>{zijinTrainingConnection==='error'?'状态接口连接失败':trainingStale?'训练任务可能中断':schedulerOffline?'自动调度器离线':zijinTrainingProgress.status==="running"?'服务器正在计算':'本轮已结束'}</b><span>{zijinTrainingConnection==='error'?'页面保留最后一次真实结果并自动重试，不会伪造心跳。':trainingStale?'页面保留最后一次真实进度，不会自动补数。':schedulerOffline?'第 4 轮已经真实完成，但后台没有按计划继续检查新数据；需要恢复服务器自动训练服务。':zijinTrainingProgress.status==="running"?'页面每 2 秒读取服务器状态；切换页面不会影响后台训练。':'100% 表示本轮审计流程完成，不代表系统仍在持续训练。页面每 30 秒检查是否有新任务。'}</span></div>
-        <div className="zijin-training-stats"><p><span>现在做到哪一步</span><b>{zijinTrainingProgress.stage==="training"?"用旧数据找规则":zijinTrainingProgress.stage==="validation"?"用陌生年份复核":zijinTrainingProgress.stage==="blind-test"?"最后一次盲测":zijinTrainingProgress.stage==="completed"?"本轮已经结束":"整理数据"}</b><small>{zijinTrainingProgress.totalCandidates?`${zijinTrainingProgress.processedCandidates}/${zijinTrainingProgress.totalCandidates} 组规则已检查`:"正在读取历史库"}</small></p><p><span>旧数据上的表现</span><b>{zijinTrainingProgress.latest.trainingWinRate==null?'--':`${(zijinTrainingProgress.latest.trainingWinRate*100).toFixed(1)}%`}</b><small>{zijinTrainingProgress.latest.trainingTrades??0} 笔 · 每笔平均 {zijinTrainingProgress.latest.trainingAverageNetPct?.toFixed(3)??'--'}%</small></p><p><span>换一年还能不能用</span><b>{validationFinished&&!validationRan?'未检查':zijinTrainingProgress.latest.validationWinRate==null?'--':`${(zijinTrainingProgress.latest.validationWinRate*100).toFixed(1)}%`}</b><small>{validationFinished&&!validationRan?'第一关没过，所以没有读取 2025':`${zijinTrainingProgress.latest.validationTrades??0} 笔 · 每笔平均 ${zijinTrainingProgress.latest.validationAverageNetPct?.toFixed(3)??'--'}%`}</small></p><p><span>最后保密测试</span><b>{blindFinished&&!blindRan?'未检查':zijinTrainingProgress.latest.blindWinRate==null?'--':`${(zijinTrainingProgress.latest.blindWinRate*100).toFixed(1)}%`}</b><small>{blindFinished&&!blindRan?'2025 没通过，所以没有读取 2026':`${zijinTrainingProgress.latest.blindTrades??0} 笔 · 每笔平均 ${zijinTrainingProgress.latest.blindAverageNetPct?.toFixed(3)??'--'}%`}</small></p></div>
+        <div className="zijin-training-stats"><p><span>服务器当前步骤</span><b>{activeResearchStageLabel}</b><small>{zijinTrainingProgress.status==='running'?`${zijinTrainingProgress.progress}% · ${zijinTrainingProgress.automation?.run.elapsedSeconds??0} 秒`:`最近任务 ${zijinTrainingProgress.runId}`}</small></p><p><span>最近样本外交易</span><b>{currentExperiment?`${currentExperimentTrades} 笔`:'--'}</b><small>{currentHypotheses.length} 个独立假设 · 不读取未来分钟</small></p><p><span>表现最好的一组</span><b>{currentBestHypothesis?`${(currentBestHypothesis.outOfSampleWinRate*100).toFixed(1)}%`:'--'}</b><small>{currentBestHypothesis?.name??'等待实验报告'} · 仅为样本外胜率</small></p><p><span>获准进入下一步</span><b>{currentExperiment?`${currentQualified}/${currentHypotheses.length}`:'--'}</b><small>{currentExperiment?`账本 ${currentExperiment.ledger.runRecords} 条 · ${currentExperiment.reads2026?'已读取':'2026 未读取'}`:'等待报告落盘'}</small></p></div>
         <div className="zijin-implementation-steps" aria-label="紫金矿业实验实施进度">
-          <p className="done"><i>1</i><span><b>历史数据整理</b><small>4.3 年 1 分钟库已完成审计</small></span><em>已完成</em></p>
-          <p className={zijinTrainingProgress.stage==="training"?'pending':zijinTrainingProgress.latest.passedTrainingGate?'done':'failed'}><i>2</i><span><b>因果参数训练</b><small>{zijinTrainingProgress.processedCandidates}/{zijinTrainingProgress.totalCandidates} 组参数，不读取未来分钟</small></span><em>{zijinTrainingProgress.stage==="training"?'进行中':zijinTrainingProgress.latest.passedTrainingGate?'通过':'选参完成 · 未通过'}</em></p>
-          <p className={!validationFinished?'pending':!validationRan?'sealed':zijinTrainingProgress.latest.passedValidationGate?'done':'failed'}><i>3</i><span><b>样本外验证</b><small>只使用训练期未见过的 2025 数据</small></span><em>{!validationFinished?'等待':!validationRan?'封存未运行':zijinTrainingProgress.latest.passedValidationGate?'通过':'已执行 · 未通过'}</em></p>
-          <p className={!blindFinished?'pending':!blindRan?'sealed':zijinTrainingProgress.latest.passedValidationGate?'done':'failed'}><i>4</i><span><b>2026 最终盲测</b><small>只在 2025 通过后开启，避免反复偷看</small></span><em>{!blindFinished?'等待':!blindRan?'封存未运行':zijinTrainingProgress.latest.passedValidationGate?'完成':'已审计 · 不晋级'}</em></p>
-          <p className="pending"><i>5</i><span><b>接入 V4 影子观察</b><small>必须先通过样本外验证和人工评审</small></span><em>未开始</em></p>
+          <p className="done"><i>1</i><span><b>历史数据隔离</b><small>只加载 2025-12-31 及以前分钟数据</small></span><em>已完成</em></p>
+          <p className={zijinTrainingProgress.status==='running'&&['loading','loading-source','building-samples','caching-samples','loading-cache','baselines','rolling-oos'].includes(activeResearchStage)?'pending':'done'}><i>2</i><span><b>独立假设实验</b><small>{currentHypotheses.length||2} 个假设分别运行，不混在一起调参</small></span><em>{zijinTrainingProgress.status==='running'?'运行中':'已完成'}</em></p>
+          <p className={zijinTrainingProgress.status==='running'&&activeResearchStage==='rolling-oos'?'pending':zijinTrainingProgress.status==='running'?'sealed':'done'}><i>3</i><span><b>滚动样本外验证</b><small>每个季度只使用此前数据选择参数</small></span><em>{zijinTrainingProgress.status==='running'?'按阶段执行':'已完成'}</em></p>
+          <p className={zijinTrainingProgress.status==='running'&&['risk-audit','ledger-audit'].includes(activeResearchStage)?'pending':zijinTrainingProgress.status==='running'?'sealed':'done'}><i>4</i><span><b>费用与过拟合审计</b><small>核查压力成本、PBO、DSR 和试验账本</small></span><em>{zijinTrainingProgress.status==='running'?'等待/运行中':'已完成'}</em></p>
+          <p className={currentQualified?'pending':'failed'}><i>5</i><span><b>2026 与影子观察</b><small>只有前四步全部通过，才允许开启一次</small></span><em>{currentQualified?'待人工批准':'未晋级 · 继续封存'}</em></p>
         </div>
         <div className="zijin-training-verdict"><b>本轮真实结论</b><span>{zijinTrainingProgress.latest.passedValidationGate?'候选通过训练与样本外门槛，但仍只允许人工评审和模拟观察。':validationRan||blindRan?'旧轮次四阶段均已执行，但训练集和样本外净期望为负；结果只保留为失败证据，后续不重复使用 2026 盲测调参。':'训练集没有合格候选，2025 与 2026 数据继续封存；下一轮须先补充真实外部因子。'}</span><em>{zijinTrainingProgress.latest.nextAction??'补充真实外部因子后再开启新一轮因果训练'}</em></div>
         {!zijinTrainingProgress.latest.passedValidationGate&&<div className="zijin-next-round"><div><span>下一轮还缺什么</span><b>实时参考 {externalLiveSourcesReady}/{externalSourcesTotal} · 训练历史 {externalSourcesReady}/{externalSourcesTotal}</b><small>第二轮已完成；若继续研究，国际金价、铜价、大盘、港股紫金和公告事件仍须按真实发布时间对齐后再训练。</small></div><em>与 V4 隔离</em></div>}

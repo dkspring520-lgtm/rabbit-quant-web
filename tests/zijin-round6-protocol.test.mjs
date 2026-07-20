@@ -38,6 +38,16 @@ test("round six runner waits for an observable turn instead of labeling future e
   assert.match(runner, /minute_t_plus_1_open|minute t\+1 open/);
 });
 
+test("round six runner emits real phase progress and reuses causal samples across protocols", () => {
+  assert.match(runner, /"loading-source", 4/);
+  assert.match(runner, /"building-samples", 10/);
+  assert.match(runner, /"loading-cache", 16/);
+  assert.match(runner, /"risk-audit", 90/);
+  assert.match(runner, /"ledger-audit", 96/);
+  const sampleLoader = runner.slice(runner.indexOf("def load_samples"), runner.indexOf("def hypothesis_rows"));
+  assert.doesNotMatch(sampleLoader, /protocolHash/);
+});
+
 test("round six keeps commercial promotion gates strict", () => {
   assert.equal(protocol.promotionGates.minimumOutOfSampleWinRate, 0.65);
   assert.equal(protocol.promotionGates.minimumPositiveQuarterRatio, 0.75);
