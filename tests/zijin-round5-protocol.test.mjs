@@ -48,8 +48,8 @@ test("runner implements the two frozen regime gates causally", () => {
   assert.match(runner, /return resolved\.as_posix\(\)/);
 });
 
-test("automatic scheduler advances to a new preregistered protocol instead of retuning round five", () => {
-  assert.match(scheduler, /zijin-round9-protocol\.json/);
+test("automatic scheduler advances to the latest preregistered protocol instead of retuning round five", () => {
+  assert.match(scheduler, /zijin-round11-protocol\.json/);
   assert.match(scheduler, /if unchanged and not args\.force/);
   assert.match(scheduler, /safe_experiment_id/);
   assert.match(scheduler, /automaticPromotion": False/);
