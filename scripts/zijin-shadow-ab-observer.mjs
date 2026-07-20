@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import {
   appendIntegrity,
   createShadowState,
+  deriveShadowStatus,
   processVisibleMinute,
 } from "../lib/zijin-shadow-ab.mjs";
 
@@ -112,6 +113,7 @@ async function observe(state) {
   // Keep the service heartbeat fresh even when the market has no new minute.
   // lastProcessedMinute remains unchanged, so this cannot manufacture evidence.
   state.updatedAt = new Date().toISOString();
+  state.status = deriveShadowStatus(date);
   await appendEvents(state, allEvents, { provider: state.source.provider, sourceTimestamp: state.source.sourceTimestamp });
   await saveState(state);
 }
