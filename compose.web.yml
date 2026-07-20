@@ -15,6 +15,7 @@ services:
       CONTROL_PLANE_ORIGIN: http://control:3010
       ZIJIN_TRAINING_STATE_PATH: /training-state/zijin-training-progress.json
       ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
+      ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
     volumes:
       - /opt/rabbit-quant-state:/training-state
     depends_on:
@@ -30,6 +31,34 @@ services:
       timeout: 8s
       retries: 3
       start_period: 60s
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    container_name: rabbit-quant-zijin-trainer
+    restart: unless-stopped
+    environment:
+      ZIJIN_TRAINING_INPUT: /training-data/zijin-peer-panel-2022-2026.parquet
+      ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
+      ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round4-report.json
+      ZIJIN_TRAINING_RUNTIME: /training-runtime
+      ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
+      ZIJIN_CHECK_INTERVAL_MINUTES: "30"
+      ZIJIN_HEARTBEAT_SECONDS: "5"
+      ZIJIN_SUPERVISOR_INTERVAL_SECONDS: "10"
+      ZIJIN_STARTUP_GRACE_SECONDS: "90"
+      ZIJIN_IDLE_GRACE_SECONDS: "180"
+    volumes:
+      - /opt/rabbit-quant-research:/training-data:ro
+      - /opt/rabbit-quant-state:/training-state
+      - /opt/rabbit-quant-training-runtime:/training-runtime
+    healthcheck:
+      test: ["CMD", "python", "scripts/zijin-trainer-healthcheck.py", "--state", "/training-state/zijin-automation-status.json", "--grace-seconds", "180"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 120s
+    stop_grace_period: 20s
   control:
     build:
       context: .
