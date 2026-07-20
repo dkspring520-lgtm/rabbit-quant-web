@@ -85,7 +85,9 @@ def terminate(child: subprocess.Popen[Any]) -> None:
 def main() -> None:
     data = env_path("ZIJIN_TRAINING_INPUT", "/training-data/zijin-peer-panel-2022-2026.parquet")
     state = env_path("ZIJIN_AUTOMATION_STATE_PATH", "/training-state/zijin-automation-status.json")
-    report = env_path("ZIJIN_TRAINING_REPORT_PATH", "/training-state/zijin-round4-report.json")
+    report = env_path("ZIJIN_TRAINING_REPORT_PATH", "/training-state/zijin-round5-report.json")
+    protocol = env_path("ZIJIN_TRAINING_PROTOCOL", "/app/scripts/zijin-round5-protocol.json")
+    runner = env_path("ZIJIN_TRAINING_RUNNER", "/app/scripts/run_zijin_round4_experiments.py")
     runtime = env_path("ZIJIN_TRAINING_RUNTIME", "/training-runtime")
     alerts = env_path("ZIJIN_TRAINER_ALERTS_PATH", "/training-state/zijin-trainer-alerts.jsonl")
     interval_minutes = max(1, int(os.environ.get("ZIJIN_CHECK_INTERVAL_MINUTES", "30")))
@@ -95,7 +97,7 @@ def main() -> None:
     startup_grace = max(30, int(os.environ.get("ZIJIN_STARTUP_GRACE_SECONDS", "90")))
     idle_grace = max(30, int(os.environ.get("ZIJIN_IDLE_GRACE_SECONDS", "180")))
 
-    required = [data, ROOT / "scripts" / "zijin-round4-protocol.json", ROOT / "scripts" / "run_zijin_round4_experiments.py"]
+    required = [data, protocol, runner]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
         reason = "训练器缺少必要文件：" + "、".join(missing)
@@ -108,6 +110,8 @@ def main() -> None:
         sys.executable,
         str(ROOT / "scripts" / "zijin-auto-trainer.py"),
         str(data),
+        "--protocol", str(protocol),
+        "--runner", str(runner),
         "--state", str(state),
         "--report", str(report),
         "--runtime", str(runtime),

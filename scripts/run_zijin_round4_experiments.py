@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute the four preregistered Zijin hypotheses on sealed causal data.
+"""Execute preregistered Zijin hypotheses on sealed causal data.
 
 The runner loads no rows after 2025-12-31, evaluates four hypotheses
 independently, performs anchored quarterly walk-forward selection, records
@@ -43,6 +43,7 @@ FOLDS = [
 ]
 STRESS_DELTA_PCT = 0.06
 MIN_TRAIN_TRADES = 20
+EXPERIMENT_ID = "zijin-round4-standard-quant"
 
 
 def import_file(name: str, path: Path):
@@ -71,7 +72,7 @@ def write_json(path: Path, value: Any) -> None:
 def progress(path: Path, stage: str, percent: int, message: str, **latest: Any) -> None:
     write_json(path, {
         "schemaVersion": 1,
-        "experimentId": "zijin-round4-standard-quant",
+        "experimentId": EXPERIMENT_ID,
         "status": "failed" if stage == "failed" else ("completed" if stage == "completed" else "running"),
         "stage": stage,
         "progress": max(0, min(100, int(percent))),
@@ -190,6 +191,48 @@ def hypothesis_rows(rows: pd.DataFrame, hypothesis_id: str, parameters: dict[str
             & (
                 ((rows["direction"] == "positive") & (rows["zijinAlpha3Pct"] <= -alpha) & (rows["peerBreadth3"] >= breadth))
                 | ((rows["direction"] == "reverse") & (rows["zijinAlpha3Pct"] >= alpha) & (rows["peerBreadth3"] <= 1 - breadth))
+            )
+        )
+    elif hypothesis_id == "range-vwap-confirmation":
+        maximum_vwap_slope = float(parameters["maximumAbsoluteVwapSlopePct"])
+        bias = float(parameters["vwapBiasAbsPct"])
+        volume = float(parameters["minimumVolumeRatio"])
+        mask = (
+            (rows["minuteOfDay"] >= 9 * 60 + 35)
+            & (rows["minuteOfDay"] <= 14 * 60 + 30)
+            & (rows["vwapSlope5Pct"].abs() <= maximum_vwap_slope)
+            & (rows["ma10SlopePct"].abs() <= 0.06)
+            & (rows["volumeRatio"] >= volume)
+            & (
+                ((rows["direction"] == "positive") & (rows["vwapBiasPct"] <= -bias) & (rows["priceZscore"] < 0))
+                | ((rows["direction"] == "reverse") & (rows["vwapBiasPct"] >= bias) & (rows["priceZscore"] > 0))
+            )
+        )
+    elif hypothesis_id == "trend-pullback-continuation":
+        minimum_vwap_slope = float(parameters["minimumAbsoluteVwapSlopePct"])
+        minimum_ma10_slope = float(parameters["minimumAbsoluteMa10SlopePct"])
+        volume = float(parameters["minimumVolumeRatio"])
+        mask = (
+            (rows["minuteOfDay"] >= 9 * 60 + 35)
+            & (rows["minuteOfDay"] <= 14 * 60 + 30)
+            & (rows["volumeRatio"] >= volume)
+            & (
+                (
+                    (rows["direction"] == "positive")
+                    & (rows["vwapSlope5Pct"] >= minimum_vwap_slope)
+                    & (rows["ma10SlopePct"] >= minimum_ma10_slope)
+                    & (rows["vwapBiasPct"] <= 0)
+                    & (rows["return3Pct"] > 0)
+                    & (rows["peerBreadth3"] >= 0.5)
+                )
+                | (
+                    (rows["direction"] == "reverse")
+                    & (rows["vwapSlope5Pct"] <= -minimum_vwap_slope)
+                    & (rows["ma10SlopePct"] <= -minimum_ma10_slope)
+                    & (rows["vwapBiasPct"] >= 0)
+                    & (rows["return3Pct"] < 0)
+                    & (rows["peerBreadth3"] <= 0.5)
+                )
             )
         )
     else:
@@ -389,6 +432,7 @@ def build_baselines(samples: pd.DataFrame, target: pd.DataFrame, runtime_dir: Pa
 
 
 def main() -> None:
+    global EXPERIMENT_ID
     parser = argparse.ArgumentParser(description="Run four independent Zijin round-four experiments")
     parser.add_argument("input", type=Path, help="7-stock minute peer-panel parquet")
     parser.add_argument("--protocol", type=Path, default=PROTOCOL_PATH)
@@ -399,6 +443,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     protocol = standard.load_protocol(args.protocol)
+    EXPERIMENT_ID = str(protocol["experimentId"])
     protocol_hash = standard.canonical_hash(protocol)
     configs = {item["id"]: len(parameter_configs(item)) for item in protocol["hypotheses"]}
     if args.dry_run:
@@ -413,9 +458,9 @@ def main() -> None:
         return
 
     args.runtime.mkdir(parents=True, exist_ok=True)
-    ledger_path = args.ledger or args.runtime / "zijin-round4-trials.jsonl"
+    ledger_path = args.ledger or args.runtime / f"zijin-round{protocol['round']}-trials.jsonl"
     started = time.time()
-    run_id = datetime.now(timezone.utc).strftime("r4-%Y%m%dT%H%M%S") + f"-{time.time_ns() % 1_000_000:06d}"
+    run_id = datetime.now(timezone.utc).strftime(f"r{protocol['round']}-%Y%m%dT%H%M%S") + f"-{time.time_ns() % 1_000_000:06d}"
     commit = source_commit()
     progress(args.progress, "loading", 2, "仅加载 2025-12-31 及以前数据；2026 保持封存", runId=run_id)
     samples, target, audit = load_samples(args.input, args.runtime / "cache", protocol_hash)
@@ -427,7 +472,7 @@ def main() -> None:
         progress(
             args.progress, "rolling-oos", 22 + index * 18,
             f"正在运行独立假设：{hypothesis['name']}",
-            completedHypotheses=index, totalHypotheses=4, hypothesisId=hypothesis["id"],
+            completedHypotheses=index, totalHypotheses=len(protocol["hypotheses"]), hypothesisId=hypothesis["id"],
         )
         reports.append(run_hypothesis(hypothesis, samples, baselines, protocol, ledger_path, run_id, commit))
 
