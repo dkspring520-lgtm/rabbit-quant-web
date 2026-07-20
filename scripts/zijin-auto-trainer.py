@@ -50,6 +50,19 @@ def load_json(path: Path, fallback: Any = None) -> Any:
         return fallback
 
 
+def refresh_idle_heartbeat(path: Path) -> None:
+    value = load_json(path)
+    if not isinstance(value, dict):
+        return
+    scheduler = value.get("scheduler")
+    if not isinstance(scheduler, dict) or scheduler.get("status") != "idle":
+        return
+    now = iso()
+    scheduler["heartbeatAt"] = now
+    value["updatedAt"] = now
+    atomic_json(path, value)
+
+
 def fingerprint(path: Path) -> dict[str, Any]:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -292,6 +305,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--lock", type=Path)
     value.add_argument("--interval-minutes", type=int, default=30)
     value.add_argument("--heartbeat-seconds", type=int, default=5)
+    value.add_argument("--idle-heartbeat-seconds", type=int, default=30)
     value.add_argument("--force", action="store_true")
     value.add_argument("--daemon", action="store_true")
     value.add_argument("--dry-run", action="store_true")
@@ -319,7 +333,13 @@ def main() -> None:
         code = run_once(args)
         if not args.daemon:
             raise SystemExit(code)
-        time.sleep(max(60, args.interval_minutes * 60))
+        remaining = max(60, args.interval_minutes * 60)
+        idle_heartbeat = max(10, args.idle_heartbeat_seconds)
+        while remaining > 0:
+            pause = min(idle_heartbeat, remaining)
+            time.sleep(pause)
+            remaining -= pause
+            refresh_idle_heartbeat(args.state)
 
 
 if __name__ == "__main__":

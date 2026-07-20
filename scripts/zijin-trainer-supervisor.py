@@ -90,6 +90,7 @@ def main() -> None:
     alerts = env_path("ZIJIN_TRAINER_ALERTS_PATH", "/training-state/zijin-trainer-alerts.jsonl")
     interval_minutes = max(1, int(os.environ.get("ZIJIN_CHECK_INTERVAL_MINUTES", "30")))
     heartbeat_seconds = max(1, int(os.environ.get("ZIJIN_HEARTBEAT_SECONDS", "5")))
+    idle_heartbeat_seconds = max(10, int(os.environ.get("ZIJIN_IDLE_HEARTBEAT_SECONDS", "30")))
     monitor_seconds = max(2, int(os.environ.get("ZIJIN_SUPERVISOR_INTERVAL_SECONDS", "10")))
     startup_grace = max(30, int(os.environ.get("ZIJIN_STARTUP_GRACE_SECONDS", "90")))
     idle_grace = max(30, int(os.environ.get("ZIJIN_IDLE_GRACE_SECONDS", "180")))
@@ -114,6 +115,7 @@ def main() -> None:
         "--lock", str(runtime / "trainer.lock"),
         "--interval-minutes", str(interval_minutes),
         "--heartbeat-seconds", str(heartbeat_seconds),
+        "--idle-heartbeat-seconds", str(idle_heartbeat_seconds),
         "--daemon",
     ]
     child = subprocess.Popen(command, cwd=ROOT)
