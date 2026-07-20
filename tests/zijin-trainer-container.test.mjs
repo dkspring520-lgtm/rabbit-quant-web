@@ -17,9 +17,8 @@ test("production runs Zijin research in an isolated restartable container", () =
   assert.match(compose, /\/opt\/rabbit-quant-state:\/training-state/);
   assert.match(compose, /\/opt\/rabbit-quant-training-runtime:\/training-runtime/);
   assert.match(compose, /ZIJIN_IDLE_HEARTBEAT_SECONDS:/);
-  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round6-report\.json/);
-  assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round6-protocol\.json/);
-  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round6-report\.json/);
+  assert.match(compose, /ZIJIN_TRAINING_REPORT_PATH: \/training-state\/zijin-round7-report\.json/);
+  assert.match(compose, /ZIJIN_TRAINING_PROTOCOL: \/app\/scripts\/zijin-round7-protocol\.json/);
   assert.match(dockerfile, /FROM python:3\.12-slim/);
   assert.match(dockerfile, /FROM node:22-bookworm-slim AS node-runtime/);
   assert.match(dockerfile, /COPY --from=node-runtime \/usr\/local\/bin\/node \/usr\/local\/bin\/node/);
