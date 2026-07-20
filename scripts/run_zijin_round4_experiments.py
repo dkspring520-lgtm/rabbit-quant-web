@@ -269,6 +269,27 @@ def hypothesis_rows(rows: pd.DataFrame, hypothesis_id: str, parameters: dict[str
                 )
             )
         )
+    elif hypothesis_id == "morning-positive-vwap-stability":
+        maximum_distance = float(parameters["maximumVwapDistancePct"])
+        minimum_breadth = float(parameters["minimumPeerBreadth"])
+        minimum_volume = float(parameters["minimumVolumeRatio"])
+        confirmations = int(parameters["confirmationVotesRequired"])
+        confirmation_votes = (
+            (rows["return3Pct"] > 0).astype(int)
+            + (rows["ma5SlopePct"] > 0).astype(int)
+            + (rows["vwapSlope5Pct"] >= 0).astype(int)
+            + (rows["openDeviationPct"] >= 0).astype(int)
+        )
+        mask = (
+            (rows["direction"] == "positive")
+            & (rows["minuteOfDay"] >= 9 * 60 + 33)
+            & (rows["minuteOfDay"] <= 10 * 60 + 15)
+            & (rows["vwapBiasPct"].abs() <= maximum_distance)
+            & (rows["peerCoverage"] >= 0.8)
+            & (rows["peerBreadth3"] >= minimum_breadth)
+            & (rows["volumeRatio"] >= minimum_volume)
+            & (confirmation_votes >= confirmations)
+        )
     elif hypothesis_id == "vwap-reversion-confirmed":
         bias = float(parameters["vwapBiasAbsPct"])
         zscore = float(parameters["zscoreAbs"])
@@ -548,6 +569,13 @@ def diagnostic_reference_parameters(hypothesis: dict[str, Any]) -> dict[str, flo
         return {
             "gapAbsPct": float(min(grid["gapAbsPct"])),
             "repairPct": float(min(grid["repairPct"])),
+            "confirmationVotesRequired": int(min(grid["confirmationVotesRequired"])),
+        }
+    if hypothesis_id == "morning-positive-vwap-stability":
+        return {
+            "maximumVwapDistancePct": float(max(grid["maximumVwapDistancePct"])),
+            "minimumPeerBreadth": float(min(grid["minimumPeerBreadth"])),
+            "minimumVolumeRatio": float(min(grid["minimumVolumeRatio"])),
             "confirmationVotesRequired": int(min(grid["confirmationVotesRequired"])),
         }
     if hypothesis_id == "vwap-reversion-confirmed":

@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round11-positive-vwap-stability",
+  "round": 11,
+  "independentHypothesisCount": 1,
+  "status": "preregistered",
+  "researchStage": "mechanism-validation-only",
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "purpose": "检验一个新的、可解释的早盘正T机制：价格在VWAP附近由弱转强，同时得到量能和同业广度确认。目标是提高跨季度覆盖与稳定性，不追求通过门槛，不修改V4。",
+  "discoveryDisclosure": {
+    "sourceExperimentId": "zijin-round10-early-opening-direction-split",
+    "roundTenPositiveWinRate": 0.6667,
+    "roundTenPositiveTrades": 18,
+    "roundTenPositiveQuarterRatio": 0.375,
+    "problemStatementFrozenBeforeRun": "胜率已达到门槛，但样本覆盖和跨季度稳定性不足",
+    "sameDataIsPristineOutOfSample": false,
+    "additionalTrialRequired": true,
+    "maySupportPromotion": false
+  },
+  "affectsV4": false,
+  "automaticPromotion": false,
+  "dataPolicy": {
+    "researchStart": "2022-01-01",
+    "selectionEnd": "2025-12-31",
+    "reusedResearchDataLabel": "discovery-affected-repeated-research",
+    "sealedFinalBlindPeriod": {
+      "start": "2026-01-01",
+      "end": "2026-12-31",
+      "locked": true,
+      "allowParameterSelection": false,
+      "allowFeatureSelection": false,
+      "allowRepeatedInspection": false,
+      "unlockCondition": "先取得协议登记后新增的前瞻影子样本，并通过滚动样本外、PBO、DSR和三基准门槛"
+    },
+    "decisionTimestamp": "minute_t_close",
+    "fillTimestamp": "minute_t_plus_1_open",
+    "futureMinuteFeaturesAllowed": false,
+    "futureMinutesAllowedOnlyForOutcomeLabels": true,
+    "fullDayRegimeClassificationForbidden": true,
+    "embargoTradingDays": 1
+  },
+  "fixedWindow": {
+    "start": "09:33",
+    "end": "10:15",
+    "mayExpandAfterRun": false,
+    "reason": "覆盖开盘博弈和第一段稳定交易窗口，同时避免把全天走势用于盘中判断"
+  },
+  "hypotheses": [
+    {
+      "id": "morning-positive-vwap-stability",
+      "direction": "positive",
+      "session": "09:33-10:15",
+      "name": "早盘VWAP转强正T稳定性",
+      "features": [
+        "minuteOfDay",
+        "gapPct",
+        "openDeviationPct",
+        "vwapBiasPct",
+        "vwapSlope5Pct",
+        "return3Pct",
+        "ma5SlopePct",
+        "volumeRatio",
+        "peerBreadth3",
+        "peerCoverage"
+      ],
+      "fixedRules": {
+        "session": "09:33-10:15",
+        "directionMustEqual": "positive",
+        "entry": "next-minute-open",
+        "minimumPeerCoverage": 0.8,
+        "maximumSignalsPerDay": 2,
+        "volumeIsHardGate": true
+      },
+      "parameterGrid": {
+        "maximumVwapDistancePct": [0.18, 0.3],
+        "minimumPeerBreadth": [0.5, 0.67],
+        "minimumVolumeRatio": [0.7, 1.0],
+        "confirmationVotesRequired": [2, 3]
+      }
+    }
+  ],
+  "validation": {
+    "method": "nested-anchored-walk-forward-quarterly",
+    "innerSelection": "chronological-only",
+    "outerEvaluation": "quarterly-mechanism-validation-with-discovery-disclosure",
+    "minimumOuterQuarters": 8,
+    "minimumPositiveOuterQuarters": 6,
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18,
+    "resultsArePromotionEligible": false
+  },
+  "outcomePolicy": {
+    "minimumNetTargetPct": 0.64,
+    "maximumNetTargetPct": 1.0,
+    "maximumHoldMinutes": 60,
+    "entry": "next-minute-open",
+    "selectionUsesFutureOutcome": false
+  },
+  "baselines": [
+    { "id": "no-trade", "name": "不交易" },
+    { "id": "simple-vwap", "name": "简单VWAP规则" },
+    { "id": "smart-t-v4", "name": "当前Smart-T V4" }
+  ],
+  "multipleTesting": {
+    "trialLedgerRequired": true,
+    "ledgerMode": "append-only-sha256-chain",
+    "includePriorRoundsInTrialCount": true,
+    "countEachDirectionSeparately": false,
+    "countMechanismChangeAsAdditionalTrial": true,
+    "probabilityOfBacktestOverfitting": {
+      "method": "CSCV",
+      "maximum": 0.2
+    },
+    "deflatedSharpe": {
+      "minimumProbability": 0.95,
+      "usesAllRecordedTrials": true
+    }
+  },
+  "promotionPolicy": {
+    "currentRunCanPromote": false,
+    "reason": "本轮仍复用2022至2025研究数据，只能验证机制和暴露失败原因，不能充当新的独立样本外证据。",
+    "minimumOutOfSampleWinRate": 0.65,
+    "afterCostMeanNetPctGreaterThan": 0,
+    "stressCostMeanNetPctAtLeast": 0,
+    "minimumPositiveQuarterRatio": 0.75,
+    "mustBeatAllBaselines": true,
+    "manualReviewRequired": true,
+    "v4MustRemainUnchanged": true,
+    "nextEligibleEvidence": "协议登记后新增的前瞻影子样本"
+  },
+  "promotionGates": {
+    "afterCostMeanNetPctGreaterThan": 0,
+    "stressCostMeanNetPctAtLeast": 0,
+    "minimumOutOfSampleWinRate": 0.65,
+    "minimumPositiveQuarterRatio": 0.75,
+    "mustBeatAllBaselines": true,
+    "finalBlindTestRequired": true,
+    "manualReviewRequired": true,
+    "nextStage": "research-report-only"
+  },
+  "feasibilityGate": {
+    "minimumOutOfSampleTrades": 30,
+    "minimumCoveredOuterQuarters": 6,
+    "doesNotGrantPromotion": true
+  },
+  "trialLedger": {
+    "format": "jsonl-append-only",
+    "integrity": "sha256-hash-chain",
+    "requiredFields": [
+      "trialId",
+      "hypothesisId",
+      "configHash",
+      "sourceCommit",
+      "createdAt",
+      "trainingRange",
+      "validationRange",
+      "featureNames",
+      "parameters",
+      "baseCostMetrics",
+      "stressCostMetrics",
+      "baselineMetrics",
+      "selectionDecision"
+    ]
+  },
+  "runOrder": [
+    "append-preregistration-to-trial-ledger",
+    "evaluate-positive-vwap-stability",
+    "calculate-costed-rolling-oos",
+    "calculate-pbo-and-dsr",
+    "compare-three-baselines",
+    "publish-research-only-report"
+  ]
+}
