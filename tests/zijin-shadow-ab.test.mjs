@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   appendIntegrity,
+  causalExternalSnapshot,
   computeVisibleFeatures,
   createShadowState,
   deriveShadowStatus,
@@ -21,6 +22,7 @@ const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8")
 const round12Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round12-protocol.json", import.meta.url), "utf8"));
 const round13Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round13-protocol.json", import.meta.url), "utf8"));
 const round14Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round14-protocol.json", import.meta.url), "utf8"));
+const round15Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round15-protocol.json", import.meta.url), "utf8"));
 
 const minutes = [
   { time: "0930", price: 99.00, volume: 100 },
@@ -85,6 +87,7 @@ test("positive models shadow trade while reverse models are observation only", (
   assert.equal(SHADOW_MODELS.C.executionMode, "observe-only");
   assert.equal(SHADOW_MODELS.D.executionMode, "observe-only");
   assert.equal(SHADOW_MODELS.E.executionMode, "shadow-trade");
+  assert.equal(SHADOW_MODELS.F.executionMode, "shadow-trade");
 });
 
 test("legacy A/B state upgrades in place and preserves its evidence", () => {
@@ -103,6 +106,8 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   assert.equal(upgraded.models.D.side, "short");
   assert.equal(upgraded.models.E.id, "round14-positive-vwap-negative-deviation");
   assert.equal(upgraded.models.E.side, "long");
+  assert.equal(upgraded.models.F.id, "round15-positive-external-resonance");
+  assert.equal(upgraded.models.F.side, "long");
   assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 50);
   assert.equal(upgraded.prospectiveGate.minimumResearchCandidateWinRate, 0.65);
   assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.70);
@@ -206,6 +211,64 @@ test("external factors are recorded as prospective evidence without changing fro
   assert.equal(evaluateShadowCandidate("E", { ...base, externalContext: { coverage: { ready: 0, total: 5 } } }).passed, true);
 });
 
+test("round-15 only reads external evidence published by the signal minute", () => {
+  const externalContext = {
+    factors: [
+      { key: "gold", available: true, value: 0.8, sourceTimestamp: "2026-07-22T01:36:00.000Z" },
+      { key: "copper", available: true, value: -0.2, sourceTimestamp: "2026-07-22T01:36:00.000Z" },
+      { key: "market", available: true, value: 0.1, sourceTimestamp: "2026-07-22T01:36:00.000Z" },
+      { key: "hkZijin", available: true, value: 1.2, sourceTimestamp: "2026-07-22T01:38:00.000Z" },
+    ],
+    latestEvents: [
+      { publishedAt: "2026-07-22T01:38:00.000Z", sentiment: "negative", severity: "high" },
+    ],
+  };
+  const at0937 = causalExternalSnapshot(externalContext, "20260722", "0937");
+  assert.equal(at0937.ready, 3);
+  assert.equal(at0937.supportVotes, 3);
+  assert.equal(at0937.hardLock, false);
+  const at0938 = causalExternalSnapshot(externalContext, "20260722", "0938");
+  assert.equal(at0938.ready, 4);
+  assert.equal(at0938.supportVotes, 4);
+  assert.equal(at0938.hardLock, true);
+});
+
+test("round-15 accepts a causal external-resonance positive-T turn and rejects missing or adverse evidence", () => {
+  const externalContext = {
+    factors: [
+      { key: "gold", available: true, value: 0.8, sourceTimestamp: "2026-07-22T01:36:00.000Z" },
+      { key: "copper", available: true, value: -0.2, sourceTimestamp: "2026-07-22T01:36:00.000Z" },
+      { key: "market", available: true, value: 0.1, sourceTimestamp: "2026-07-22T01:36:00.000Z" },
+      { key: "hkZijin", available: true, value: 1.2, sourceTimestamp: "2026-07-22T01:36:00.000Z" },
+    ],
+    latestEvents: [],
+  };
+  const base = {
+    marketDate: "20260722", time: "0937",
+    return3Pct: 0.20, previousReturn3Pct: -0.20,
+    ma5Slope3Pct: -0.02, previousMa5Slope3Pct: -0.04,
+    intradayPosition: 0.23, vwapBiasPct: -0.45,
+    volumeRatio: 1, peerCoverage: 1, externalContext,
+  };
+  assert.equal(evaluateShadowCandidate("F", base).passed, true);
+  const futureOnly = {
+    ...externalContext,
+    factors: externalContext.factors.map((factor) => ({ ...factor, sourceTimestamp: "2026-07-22T01:38:00.000Z" })),
+  };
+  const missing = evaluateShadowCandidate("F", { ...base, externalContext: futureOnly });
+  assert.equal(missing.passed, false);
+  assert.ok(missing.failures.some((reason) => reason.includes("因果覆盖")));
+  const adverse = evaluateShadowCandidate("F", {
+    ...base,
+    externalContext: {
+      ...externalContext,
+      latestEvents: [{ publishedAt: "2026-07-22T01:36:00.000Z", sentiment: "利空", severity: "重大" }],
+    },
+  });
+  assert.equal(adverse.passed, false);
+  assert.ok(adverse.failures.some((reason) => reason.includes("重大利空")));
+});
+
 test("candidate fills only on next visible minute and then resolves after costs", () => {
   const state = createShadowState("2026-07-21T01:32:00.000Z");
   const candidateEvents = processVisibleMinute(state, { marketDate: "20260721", minutes, index: 3, previousClose: 100, peers });
@@ -281,10 +344,27 @@ test("round-14 is preregistered, causal, prospective-only and isolated from V4",
   assert.equal(round14Protocol.prospectiveGate.minimumWinRate, 0.70);
 });
 
-test("single-stock research shows model E with plain 65 and 70 percent gates", () => {
-  assert.match(page, /\["A","B","C","D","E"\]/);
-  assert.match(page, /第10–14轮 · 紫金真实前瞻观察/);
-  assert.match(page, /正T优先形成影子闭环；反T只记录候选/);
+test("round-15 is preregistered, causal, prospective-only and isolated from V4", () => {
+  assert.equal(round15Protocol.researchDisclosure.newEconomicHypothesis, true);
+  assert.equal(round15Protocol.researchDisclosure.usesTodayToTuneThresholds, false);
+  assert.equal(round15Protocol.researchDisclosure.usesHistoricalExternalFactors, false);
+  assert.equal(round15Protocol.researchDisclosure.open2026History, false);
+  assert.equal(round15Protocol.researchDisclosure.backfillAfterRegistration, false);
+  assert.equal(round15Protocol.researchDisclosure.affectsV4, false);
+  assert.equal(round15Protocol.researchDisclosure.sendsAlerts, false);
+  assert.equal(round15Protocol.researchDisclosure.automaticPromotion, false);
+  assert.equal(round15Protocol.frozenRule.entry, "minute-t decision, minute-t+1 public price shadow buy");
+  assert.deepEqual(round15Protocol.frozenRule.exit.minimumNetTargetPct, 0.64);
+  assert.deepEqual(round15Protocol.frozenRule.exit.maximumNetTargetPct, 1.0);
+  assert.equal(round15Protocol.prospectiveGate.minimumResolvedTrades, 50);
+  assert.equal(round15Protocol.prospectiveGate.minimumResearchCandidateWinRate, 0.65);
+  assert.equal(round15Protocol.prospectiveGate.minimumWinRate, 0.70);
+});
+
+test("single-stock research shows model F with plain 65 and 70 percent gates", () => {
+  assert.match(page, /\["A","B","C","D","E","F"\]/);
+  assert.match(page, /第10–15轮 · 紫金真实前瞻观察/);
+  assert.match(page, /新增外部共振正T/);
   assert.match(page, /反T仅为研究证据/);
   assert.match(page, /65% 保留研究 · 70% 申请评审/);
   assert.match(page, /积累新样本/);
