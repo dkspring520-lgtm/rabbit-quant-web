@@ -49,9 +49,11 @@ test("runner implements the two frozen regime gates causally", () => {
   assert.match(runner, /return resolved\.as_posix\(\)/);
 });
 
-test("automatic scheduler advances to the latest preregistered protocol instead of retuning round five", () => {
+test("automatic scheduler advances only for new research evidence instead of retuning old data", () => {
   assert.match(scheduler, /zijin-round11-protocol\.json/);
-  assert.match(scheduler, /if unchanged and not args\.force/);
+  assert.match(scheduler, /if completed_prior and not eligible_change/);
+  assert.match(scheduler, /researchInputSha256/);
+  assert.match(scheduler, /仅参数或阈值发生变化，不属于新假设/);
   assert.match(scheduler, /safe_experiment_id/);
   assert.match(scheduler, /automaticPromotion": False/);
 });

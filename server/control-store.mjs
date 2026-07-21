@@ -83,10 +83,30 @@ export function createControlStore(databasePath, options = {}) {
       market_time TEXT,
       payload TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
+      delivery_status TEXT NOT NULL DEFAULT 'stored',
+      delivery_channel TEXT,
+      delivered_at TEXT,
+      delivery_error TEXT,
       acknowledged_at TEXT,
       UNIQUE(user_id, event_key)
     );
     CREATE INDEX IF NOT EXISTS alerts_user_created_idx ON alerts(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS monitor_scan_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      market_date TEXT NOT NULL,
+      market_time TEXT NOT NULL,
+      price REAL,
+      result TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      provider TEXT,
+      event_key TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(user_id, code, market_date, market_time)
+    );
+    CREATE INDEX IF NOT EXISTS monitor_scan_user_created_idx ON monitor_scan_logs(user_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS reset_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -101,6 +121,16 @@ export function createControlStore(databasePath, options = {}) {
   const monitorColumns = db.prepare("PRAGMA table_info(monitors)").all();
   if (!monitorColumns.some(column => column.name === "sort_order")) {
     db.exec("ALTER TABLE monitors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0");
+  }
+  const alertColumns = db.prepare("PRAGMA table_info(alerts)").all();
+  const alertMigrations = [
+    ["delivery_status", "ALTER TABLE alerts ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'stored'"],
+    ["delivery_channel", "ALTER TABLE alerts ADD COLUMN delivery_channel TEXT"],
+    ["delivered_at", "ALTER TABLE alerts ADD COLUMN delivered_at TEXT"],
+    ["delivery_error", "ALTER TABLE alerts ADD COLUMN delivery_error TEXT"],
+  ];
+  for (const [name, sql] of alertMigrations) {
+    if (!alertColumns.some(column => column.name === name)) db.exec(sql);
   }
 
   const configuredAdmin = normalizeLogin(options.adminUsername ?? process.env.RABBIT_ADMIN_USER ?? "dkspring520@outlook.com");
@@ -216,7 +246,41 @@ export function createControlStore(databasePath, options = {}) {
         id: row.id, code: row.code, level: row.level, title: row.title, message: row.message,
         eventKey: row.event_key, marketTime: row.market_time, payload: safeJson(row.payload, {}),
         createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
+        deliveryStatus: row.delivery_status, deliveryChannel: row.delivery_channel,
+        deliveredAt: row.delivered_at, deliveryError: row.delivery_error,
       }));
+  }
+
+  function markAlertDelivery(userId, id, { status = "displayed", channel = "in-app", error = "" } = {}) {
+    const normalizedStatus = ["stored", "displayed", "notified", "failed"].includes(status) ? status : "displayed";
+    const deliveredAt = normalizedStatus === "failed" ? null : nowIso();
+    db.prepare(`UPDATE alerts SET delivery_status=?,delivery_channel=?,delivered_at=?,delivery_error=?
+      WHERE id=? AND user_id=?`).run(normalizedStatus, String(channel).slice(0, 40), deliveredAt, String(error).slice(0, 240) || null, Number(id), userId);
+    return db.prepare("SELECT id,delivery_status,delivery_channel,delivered_at,delivery_error FROM alerts WHERE id=? AND user_id=?").get(Number(id), userId);
+  }
+
+  function recordMonitorScan(userId, scan) {
+    const createdAt = nowIso();
+    db.prepare(`INSERT INTO monitor_scan_logs(user_id,code,name,market_date,market_time,price,result,reason,provider,event_key,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(user_id,code,market_date,market_time) DO UPDATE SET
+        price=excluded.price,result=excluded.result,reason=excluded.reason,provider=excluded.provider,
+        event_key=excluded.event_key,created_at=excluded.created_at`)
+      .run(userId, String(scan.code), String(scan.name ?? scan.code).slice(0, 30), String(scan.marketDate), String(scan.marketTime),
+        Number.isFinite(Number(scan.price)) ? Number(scan.price) : null, String(scan.result), String(scan.reason).slice(0, 500),
+        scan.provider ? String(scan.provider).slice(0, 80) : null, scan.eventKey ? String(scan.eventKey).slice(0, 240) : null, createdAt);
+    db.prepare("DELETE FROM monitor_scan_logs WHERE created_at<?").run(new Date(Date.now() - 7 * DAY).toISOString());
+  }
+
+  function listMonitorScans(userId, { code = "", limit = 100 } = {}) {
+    const cleanCode = String(code).replace(/\D/g, "").slice(0, 6);
+    const rows = cleanCode
+      ? db.prepare("SELECT * FROM monitor_scan_logs WHERE user_id=? AND code=? ORDER BY id DESC LIMIT ?").all(userId, cleanCode, Math.min(300, Math.max(1, Number(limit) || 100)))
+      : db.prepare("SELECT * FROM monitor_scan_logs WHERE user_id=? ORDER BY id DESC LIMIT ?").all(userId, Math.min(300, Math.max(1, Number(limit) || 100)));
+    return rows.map(row => ({
+      id: row.id, code: row.code, name: row.name, marketDate: row.market_date, marketTime: row.market_time,
+      price: row.price, result: row.result, reason: row.reason, provider: row.provider, eventKey: row.event_key, createdAt: row.created_at,
+    }));
   }
 
   function acknowledgeAlert(userId, id) {
@@ -270,6 +334,6 @@ export function createControlStore(databasePath, options = {}) {
   }
 
   return { db, register, login, authenticate, logout, getProfile, putProfile, listMonitors, replaceMonitors,
-    listActiveMonitors, addAlert, listAlerts, acknowledgeAlert, listMembers, setMemberStatus,
+    listActiveMonitors, addAlert, listAlerts, acknowledgeAlert, markAlertDelivery, recordMonitorScan, listMonitorScans, listMembers, setMemberStatus,
     requestReset, issueReset, resetPassword, close: () => db.close() };
 }
