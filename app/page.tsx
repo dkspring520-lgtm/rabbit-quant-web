@@ -17,6 +17,7 @@ import { aShareSession } from "@/lib/a-share-session.mjs";
 import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
+import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
 import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
 import { compactChartLabelKey, compactChartLabelKeys } from "@/lib/compact-chart-labels.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
@@ -447,7 +448,7 @@ function diversifyStockUniverse(items:StockUniverseItem[],seed:string,recentCode
   // rather than a hard template that controls the first ten positions.
   return randomizedUniqueQueue(items,seed,recentCodes,"code") as StockUniverseItem[];
 }
-const normalizeWatchlist = (list: { code:string; name:string; price:string; change:string }[]) => list.map(item => ({ ...item, name: canonicalStockNames[item.code] ?? item.name }));
+const normalizeWatchlist = (list: { code:string; name:string; price:string; change:string }[]) => normalizeWatchlistEntries(list, canonicalStockNames) as typeof initialStocks;
 const isZijinExperimentDeepLink = () => {
   if(typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).get("view") === "zijin-lab";
