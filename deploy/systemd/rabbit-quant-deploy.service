@@ -1,0 +1,15 @@
+[Unit]
+Description=Rabbit Quant safe production deployment
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+Environment=RABBIT_QUANT_REPO=/opt/rabbit-quant-web
+Environment=RABBIT_QUANT_BRANCH=codex/vps-production-20260716
+ExecStart=/usr/local/sbin/rabbit-quant-deploy
+TimeoutStartSec=30min
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

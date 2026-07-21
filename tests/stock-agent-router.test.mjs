@@ -14,6 +14,8 @@ const opening = [
 test("601899 is routed to an isolated non-executable agent", () => {
   const agent = resolveStockAgent("601899");
   assert.equal(agent.id, "zijin-agent");
+  assert.equal(agent.name, "紫金矿业研究模型（未毕业）");
+  assert.equal(agent.shortName, "紫金研究");
   assert.equal(agent.mode, "research-only");
   assert.equal(agent.canExecute, false);
   assert.equal(agent.affectsV4, false);
