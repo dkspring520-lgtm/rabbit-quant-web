@@ -18,6 +18,7 @@ const observer = await readFile(new URL("../scripts/zijin-shadow-ab-observer.mjs
 const route = await readFile(new URL("../app/api/research/zijin-shadow-ab/route.ts", import.meta.url), "utf8");
 const round12Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round12-protocol.json", import.meta.url), "utf8"));
 const round13Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round13-protocol.json", import.meta.url), "utf8"));
+const round14Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round14-protocol.json", import.meta.url), "utf8"));
 
 const minutes = [
   { time: "0930", price: 99.00, volume: 100 },
@@ -90,6 +91,8 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   assert.equal(upgraded.models.C.side, "short");
   assert.equal(upgraded.models.D.id, "round13-reverse-high-anchor");
   assert.equal(upgraded.models.D.side, "short");
+  assert.equal(upgraded.models.E.id, "round14-positive-vwap-negative-deviation");
+  assert.equal(upgraded.models.E.side, "long");
   assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 50);
   assert.equal(upgraded.prospectiveGate.minimumResearchCandidateWinRate, 0.65);
   assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.70);
@@ -124,6 +127,49 @@ test("round-13 rejects low-position reverse sells and accepts a causal high anch
   const rejected = evaluateShadowCandidate("D", lowPosition);
   assert.equal(rejected.passed, false);
   assert.ok(rejected.failures.some((reason) => reason.includes("高位区")));
+});
+
+test("round-14 accepts only a causal early VWAP recovery from a low anchor", () => {
+  const base = {
+    time: "0937",
+    return3Pct: 0.20,
+    previousReturn3Pct: -0.20,
+    ma5Slope3Pct: -0.02,
+    previousMa5Slope3Pct: -0.04,
+    intradayPosition: 0.23,
+    vwapBiasPct: -0.45,
+    volumeRatio: 1.0,
+    peerBreadth3: 0.67,
+    peerCoverage: 1,
+  };
+  assert.equal(evaluateShadowCandidate("E", base).passed, true);
+  const noTurn = evaluateShadowCandidate("E", { ...base, return3Pct: -0.10 });
+  assert.equal(noTurn.passed, false);
+  assert.ok(noTurn.failures.some((reason) => reason.includes("转强交叉")));
+  const nearVwap = evaluateShadowCandidate("E", { ...base, vwapBiasPct: -0.20 });
+  assert.equal(nearVwap.passed, false);
+  assert.ok(nearVwap.failures.some((reason) => reason.includes("VWAP")));
+});
+
+test("round-14 features and decision ignore all later minutes", () => {
+  const prices = [100, 100, 100, 99, 98, 98, 98.2, 98.4, 98.5, 99.6];
+  const recoveryMinutes = prices.map((price, index) => ({ time: `09${String(30 + index).padStart(2, "0")}`, price, volume: 100 }));
+  const recoveryPeers = Array.from({ length: 6 }, (_, peerIndex) => ({
+    code: `recovery-peer-${peerIndex}`,
+    minutes: recoveryMinutes.map((point, index) => ({ ...point, price: 50 + peerIndex + index * 0.04 })),
+  }));
+  const before = computeVisibleFeatures({ minutes: recoveryMinutes, index: 7, previousClose: 100, peers: recoveryPeers });
+  const changedFuture = recoveryMinutes.map((point, index) => index > 7 ? { ...point, price: point.price * 20 } : point);
+  const after = computeVisibleFeatures({ minutes: changedFuture, index: 7, previousClose: 100, peers: recoveryPeers });
+  assert.deepEqual(after, before);
+  assert.equal(evaluateShadowCandidate("E", before).passed, true);
+
+  const state = createShadowState("2026-07-21T01:32:00.000Z");
+  const candidate = processVisibleMinute(state, { marketDate: "20260722", minutes: recoveryMinutes, index: 7, previousClose: 100, peers: recoveryPeers });
+  assert.equal(candidate.find((event) => event.model === "E")?.event, "candidate");
+  const entry = processVisibleMinute(state, { marketDate: "20260722", minutes: recoveryMinutes, index: 8, previousClose: 100, peers: recoveryPeers });
+  assert.equal(entry.find((event) => event.model === "E")?.event, "entry");
+  assert.equal(entry.find((event) => event.model === "E")?.price, 98.5);
 });
 
 test("candidate fills only on next visible minute and then resolves after costs", () => {
@@ -183,6 +229,20 @@ test("round-13 is preregistered, prospective-only and isolated from V4", () => {
   assert.equal(round13Protocol.prospectiveGate.minimumResolvedTrades, 50);
   assert.equal(round13Protocol.prospectiveGate.minimumResearchCandidateWinRate, 0.65);
   assert.equal(round13Protocol.prospectiveGate.minimumWinRate, 0.70);
+});
+
+test("round-14 is preregistered, causal, prospective-only and isolated from V4", () => {
+  assert.equal(round14Protocol.researchDisclosure.newEconomicHypothesis, true);
+  assert.equal(round14Protocol.researchDisclosure.usesTodayToTuneThresholds, false);
+  assert.equal(round14Protocol.researchDisclosure.open2026History, false);
+  assert.equal(round14Protocol.researchDisclosure.backfillAfterRegistration, false);
+  assert.equal(round14Protocol.researchDisclosure.affectsV4, false);
+  assert.equal(round14Protocol.researchDisclosure.sendsAlerts, false);
+  assert.equal(round14Protocol.researchDisclosure.automaticPromotion, false);
+  assert.equal(round14Protocol.frozenRule.entry, "minute-t decision, minute-t+1 public price shadow buy");
+  assert.equal(round14Protocol.prospectiveGate.minimumResolvedTrades, 50);
+  assert.equal(round14Protocol.prospectiveGate.minimumResearchCandidateWinRate, 0.65);
+  assert.equal(round14Protocol.prospectiveGate.minimumWinRate, 0.70);
 });
 
 test("audit records form an append-only SHA-256 chain", () => {

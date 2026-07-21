@@ -1,0 +1,46 @@
+{
+  "protocolVersion": 1,
+  "experiment": "紫金矿业第14轮早盘VWAP负偏离因果回归前瞻影子",
+  "registeredAt": "2026-07-21",
+  "status": "prospective-shadow-only",
+  "researchDisclosure": {
+    "newEconomicHypothesis": true,
+    "usesTodayToTuneThresholds": false,
+    "open2026History": false,
+    "backfillAfterRegistration": false,
+    "affectsV4": false,
+    "sendsAlerts": false,
+    "automaticPromotion": false
+  },
+  "frozenRule": {
+    "direction": "positive",
+    "session": ["09:33", "10:30"],
+    "maximumSignalsPerDay": 2,
+    "entry": "minute-t decision, minute-t+1 public price shadow buy",
+    "conditions": {
+      "causalTurn": "return3 or exact MA5 slope crosses from non-positive to positive",
+      "vwapBiasPctMaximum": -0.35,
+      "intradayPositionMaximum": 0.30,
+      "volumeRatioMinimum": 0.70,
+      "peerBreadthMinimum": 0.33,
+      "peerCoverageMinimum": 0.80
+    },
+    "exit": {
+      "minimumNetTargetPct": 0.64,
+      "maximumNetTargetPct": 1.0,
+      "trailingGivebackPct": 0.15,
+      "stopNetPct": -0.45,
+      "maximumHoldMinutes": 60,
+      "forcedCloseTime": "14:50"
+    }
+  },
+  "prospectiveGate": {
+    "minimumResolvedTrades": 50,
+    "minimumResearchCandidateWinRate": 0.65,
+    "minimumWinRate": 0.70,
+    "minimumAverageNetPct": 0,
+    "minimumStressAverageNetPct": 0,
+    "manualReviewRequired": true,
+    "notes": "只累计登记并部署后的新分钟；65%至70%保留为研究候选，达到70%后才可进入晋级评审。不得回填、不得因当天结果改阈值、不得自动接入V4。"
+  }
+}
