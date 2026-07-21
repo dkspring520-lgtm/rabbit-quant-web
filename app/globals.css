@@ -262,3 +262,11 @@
 /* Three frozen Zijin hypotheses remain equally visible without squeezing cards. */
 .zijin-shadow-models{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:1180px){.zijin-shadow-models{grid-template-columns:1fr}}
+
+/* Keep every intraday label in the SVG coordinate system. The previous HTML
+   axes drifted away from the plotted prices whenever the chart letterboxed. */
+.chart-wrap{padding:8px 12px 6px}
+.intraday-axis-label{fill:var(--dim);font:10px var(--font-geist-mono);font-variant-numeric:tabular-nums}
+.intraday-time-label{font-size:9px}
+.intraday-price-flag rect{fill:var(--coral)}
+.intraday-price-flag text{fill:#fff;font:700 11px var(--font-geist-mono);font-variant-numeric:tabular-nums}
