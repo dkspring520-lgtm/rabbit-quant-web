@@ -90,8 +90,17 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   assert.equal(upgraded.models.C.side, "short");
   assert.equal(upgraded.models.D.id, "round13-reverse-high-anchor");
   assert.equal(upgraded.models.D.side, "short");
-  assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 30);
-  assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.65);
+  assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 50);
+  assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.70);
+});
+
+test("legacy commercial gates cannot weaken the current 70 percent graduation rule", () => {
+  const legacy = createShadowState("2026-07-21T01:32:00.000Z");
+  legacy.prospectiveGate.minimumResolvedTrades = 30;
+  legacy.prospectiveGate.minimumWinRate = 0.65;
+  const upgraded = upgradeShadowState(legacy);
+  assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 50);
+  assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.70);
 });
 
 test("round-13 rejects low-position reverse sells and accepts a causal high anchor", () => {

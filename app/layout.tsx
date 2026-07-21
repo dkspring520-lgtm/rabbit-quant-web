@@ -12,6 +12,7 @@ import "./marketplace.css";
 import "./public-landing.css";
 import "./legal.css";
 import "./mobile.css";
+import "./minimal.css";
 
 export const viewport: Viewport = {
   width: "device-width",

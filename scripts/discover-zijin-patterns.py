@@ -115,7 +115,15 @@ def load_minutes(path: Path) -> pd.DataFrame:
 
 
 def minute_number(value: str) -> int:
-    digits = "".join(character for character in str(value) if character.isdigit())
+    text = str(value).strip()
+    if ":" in text:
+        parts = text.split(":")
+        if len(parts) >= 2:
+            return int(parts[0]) * 60 + int(parts[1])
+    digits = "".join(character for character in text if character.isdigit())
+    if len(digits) <= 4:
+        digits = digits.zfill(4)
+        return int(digits[:2]) * 60 + int(digits[2:4])
     digits = digits.zfill(6)
     return int(digits[:2]) * 60 + int(digits[2:4])
 
