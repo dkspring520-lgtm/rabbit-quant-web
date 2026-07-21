@@ -8,9 +8,15 @@ STATE_DIR="${RABBIT_QUANT_DEPLOY_STATE:-/var/lib/rabbit-quant-deploy}"
 LOG_DIR="${RABBIT_QUANT_DEPLOY_LOG_DIR:-/var/log/rabbit-quant-deploy}"
 LOCK_FILE="${RABBIT_QUANT_BACKUP_LOCK:-/run/lock/rabbit-quant-backup.lock}"
 ALERT_WEBHOOK_URL="${RABBIT_QUANT_ALERT_WEBHOOK_URL:-}"
+OFFSITE_REMOTE="${RABBIT_QUANT_BACKUP_GIT_REMOTE:-}"
+OFFSITE_BRANCH="${RABBIT_QUANT_BACKUP_GIT_BRANCH:-encrypted-snapshots}"
+OFFSITE_RETENTION_DAYS="${RABBIT_QUANT_BACKUP_GIT_RETENTION_DAYS:-7}"
+OFFSITE_PASSPHRASE_FILE="${RABBIT_QUANT_BACKUP_PASSPHRASE_FILE:-/etc/rabbit-quant-backup.passphrase}"
 
 [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || RETENTION_DAYS=14
 (( RETENTION_DAYS >= 1 )) || RETENTION_DAYS=1
+[[ "$OFFSITE_RETENTION_DAYS" =~ ^[0-9]+$ ]] || OFFSITE_RETENTION_DAYS=7
+(( OFFSITE_RETENTION_DAYS >= 1 )) || OFFSITE_RETENTION_DAYS=1
 
 mkdir -p "$BACKUP_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")" "$STATE_DIR"
 exec 9>"$LOCK_FILE"
@@ -37,6 +43,46 @@ notify_ops() {
     curl --fail --silent --show-error --max-time 10 -H 'content-type: application/json' --data "$payload" "$ALERT_WEBHOOK_URL" >/dev/null \
       || log "运维通知发送失败；不改变备份结果。"
   fi
+}
+
+sync_offsite_backup() {
+  [[ -n "$OFFSITE_REMOTE" ]] || return 0
+  if [[ ! -s "$OFFSITE_PASSPHRASE_FILE" ]]; then
+    log "GitHub 异地备份已配置，但缺少加密密钥：$OFFSITE_PASSPHRASE_FILE"
+    return 1
+  fi
+
+  local encrypted_dir encrypted encrypted_name repo_dir
+  encrypted_dir="$BACKUP_DIR/encrypted"
+  encrypted_name="$(basename "$archive").gpg"
+  encrypted="$encrypted_dir/$encrypted_name"
+  repo_dir="$(mktemp -d "$work_dir/github.XXXXXX")"
+  mkdir -p "$encrypted_dir"
+  chmod 700 "$encrypted_dir"
+
+  gpg --batch --yes --pinentry-mode loopback \
+    --passphrase-file "$OFFSITE_PASSPHRASE_FILE" \
+    --symmetric --cipher-algo AES256 \
+    --output "$encrypted" "$archive"
+  chmod 600 "$encrypted"
+  (cd "$encrypted_dir" && sha256sum "$encrypted_name" > "$encrypted_name.sha256")
+  chmod 600 "$encrypted.sha256"
+
+  find "$encrypted_dir" -maxdepth 1 -type f \
+    \( -name 'rabbit-quant-*.tar.gz.gpg' -o -name 'rabbit-quant-*.tar.gz.gpg.sha256' \) \
+    -mtime "+$OFFSITE_RETENTION_DAYS" -delete
+
+  git -C "$repo_dir" init --quiet
+  git -C "$repo_dir" checkout --quiet -b "$OFFSITE_BRANCH"
+  git -C "$repo_dir" config user.name 'Rabbit Quant Backup'
+  git -C "$repo_dir" config user.email 'backup@zhuandianmi.com'
+  git -C "$repo_dir" remote add origin "$OFFSITE_REMOTE"
+  mkdir -p "$repo_dir/snapshots"
+  cp "$encrypted_dir"/* "$repo_dir/snapshots/"
+  git -C "$repo_dir" add snapshots
+  git -C "$repo_dir" commit --quiet -m "backup: $timestamp"
+  git -C "$repo_dir" push --quiet --force origin "HEAD:$OFFSITE_BRANCH"
+  log "GitHub 加密副本已更新：$OFFSITE_BRANCH/$encrypted_name。"
 }
 
 cleanup() {
@@ -75,6 +121,9 @@ gzip --test "$archive"
 tar --list --gzip --file "$archive" >/dev/null
 sha256sum "$archive" > "$archive.sha256"
 chmod 600 "$archive.sha256"
+
+current_stage="GitHub 加密异地备份"
+sync_offsite_backup
 
 current_stage="保留策略"
 find "$BACKUP_DIR" -maxdepth 1 -type f \( -name 'rabbit-quant-*.tar.gz' -o -name 'rabbit-quant-*.tar.gz.sha256' \) -mtime "+$RETENTION_DAYS" -delete
