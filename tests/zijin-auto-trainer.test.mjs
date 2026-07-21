@@ -7,7 +7,10 @@ const script = await readFile(new URL("../scripts/zijin-auto-trainer.py", import
 test("Zijin auto trainer is change-driven, locked and never promotes automatically", () => {
   assert.match(script, /dataSha256/);
   assert.match(script, /protocolSha256/);
-  assert.match(script, /if unchanged and not args\.force/);
+  assert.match(script, /researchInputSha256/);
+  assert.match(script, /externalFactorSha256/);
+  assert.match(script, /if completed_prior and not eligible_change/);
+  assert.match(script, /强制重跑请求同样被研究硬门禁拒绝/);
   assert.match(script, /os\.O_CREAT \| os\.O_EXCL/);
   assert.match(script, /recorded_owner != lock_owner_id\(\)/);
   assert.match(script, /not process_exists\(recorded_pid\)/);
@@ -18,6 +21,16 @@ test("Zijin auto trainer is change-driven, locked and never promotes automatical
   assert.match(script, /previousRecordHash/);
   assert.match(script, /automaticPromotion": False/);
   assert.match(script, /sealed2026": True/);
+});
+
+test("Zijin hard gate separates hypotheses from threshold tuning", () => {
+  assert.match(script, /def research_input_manifest/);
+  assert.match(script, /def external_input_manifest/);
+  assert.match(script, /"features": sorted/);
+  assert.match(script, /"externalFactors"/);
+  assert.match(script, /"threshold", "minimum", "maximum", "target", "grid", "weight"/);
+  assert.match(script, /仅参数或阈值发生变化，不属于新假设/);
+  assert.match(script, /--external-input/);
 });
 
 test("Zijin auto trainer publishes distinct real tasks for all four rabbits", () => {

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Change-driven, auditable scheduler for Zijin research experiments.
 
-The scheduler never promotes a model.  It runs only when the sealed data file
-or preregistered protocol changes (unless --force is supplied), maintains a
-heartbeat for the public dashboard, and appends one hash-chained run record.
+The scheduler never promotes a model. It opens a new experiment only for new
+sealed samples, a genuinely new hypothesis, or new external-factor data.
+Changing thresholds on the same data is deliberately not a rerun trigger.
 """
 
 from __future__ import annotations
@@ -76,6 +76,85 @@ def fingerprint(path: Path) -> dict[str, Any]:
 def canonical_hash(value: Any) -> str:
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _semantic_rule_subset(value: Any) -> Any:
+    """Keep mechanism declarations while excluding numeric tuning knobs."""
+    if isinstance(value, dict):
+        prepared: dict[str, Any] = {}
+        for key, child in value.items():
+            lowered = str(key).lower()
+            if any(token in lowered for token in ("threshold", "minimum", "maximum", "target", "grid", "weight")):
+                continue
+            semantic = _semantic_rule_subset(child)
+            if semantic not in (None, {}, []):
+                prepared[str(key)] = semantic
+        return prepared
+    if isinstance(value, list):
+        prepared = [_semantic_rule_subset(child) for child in value]
+        return [child for child in prepared if child not in (None, {}, [])]
+    if isinstance(value, (str, bool)):
+        return value
+    return None
+
+
+def research_input_manifest(protocol: dict[str, Any]) -> dict[str, Any]:
+    """Return only fields that define a new economic hypothesis/factor set."""
+    hypotheses: list[dict[str, Any]] = []
+    for raw in protocol.get("hypotheses", []):
+        if not isinstance(raw, dict):
+            continue
+        hypothesis = {
+            "id": raw.get("id") or raw.get("hypothesisId"),
+            "direction": raw.get("direction"),
+            "session": raw.get("session"),
+            "features": sorted(str(item) for item in raw.get("features", []) if item),
+            "factors": sorted(str(item) for item in raw.get("factors", []) if item),
+            "coreFactors": sorted(str(item) for item in raw.get("coreFactors", []) if item),
+            "externalFactors": _semantic_rule_subset(raw.get("externalFactors")),
+            "mechanism": _semantic_rule_subset(raw.get("mechanism")),
+            "entryLogic": _semantic_rule_subset(raw.get("entryLogic")),
+            "exitLogic": _semantic_rule_subset(raw.get("exitLogic")),
+            "fixedRules": _semantic_rule_subset(raw.get("fixedRules")),
+        }
+        hypotheses.append({key: value for key, value in hypothesis.items() if value not in (None, {}, [])})
+    hypotheses.sort(key=lambda item: str(item.get("id", "")))
+    return {
+        "hypotheses": hypotheses,
+        "externalFactors": _semantic_rule_subset(protocol.get("externalFactors")),
+        "externalDataSources": _semantic_rule_subset(protocol.get("externalDataSources")),
+    }
+
+
+def declared_external_inputs(protocol: dict[str, Any], protocol_path: Path, explicit: list[Path]) -> list[Path]:
+    """Resolve optional external-factor files declared by CLI or protocol."""
+    candidates: list[Path] = list(explicit)
+    for key in ("externalInputFiles", "externalFactorFiles"):
+        values = protocol.get(key, [])
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            raw = value.get("path") if isinstance(value, dict) else value
+            if isinstance(raw, str) and raw.strip():
+                candidates.append(Path(raw.strip()))
+    resolved: list[Path] = []
+    for candidate in candidates:
+        path = candidate if candidate.is_absolute() else protocol_path.parent / candidate
+        normalized = path.resolve()
+        if normalized not in resolved:
+            resolved.append(normalized)
+    return resolved
+
+
+def external_input_manifest(paths: list[Path]) -> list[dict[str, Any]]:
+    manifest: list[dict[str, Any]] = []
+    for path in paths:
+        if path.is_file():
+            item = fingerprint(path)
+            manifest.append({"path": item["path"], "size": item["size"], "sha256": item["sha256"]})
+        else:
+            manifest.append({"path": str(path), "missing": True})
+    return sorted(manifest, key=lambda item: str(item.get("path", "")))
 
 
 def append_history(path: Path, record: dict[str, Any]) -> dict[str, Any]:
@@ -217,17 +296,45 @@ def run_once(args: argparse.Namespace) -> int:
     next_check = checked + timedelta(minutes=args.interval_minutes)
     data_fp = fingerprint(args.input)
     protocol_fp = fingerprint(args.protocol)
+    protocol_document = load_json(args.protocol, {}) or {}
+    research_manifest = research_input_manifest(protocol_document)
+    research_input_sha = canonical_hash(research_manifest)
+    external_manifest = external_input_manifest(
+        declared_external_inputs(protocol_document, args.protocol, args.external_input)
+    )
+    external_input_sha = canonical_hash(external_manifest)
+    protocol_fp["researchInputSha256"] = research_input_sha
+    protocol_fp["externalFactorSha256"] = external_input_sha
     previous = load_json(args.state, {}) or {}
     last_run = previous.get("lastRun") if isinstance(previous, dict) else None
-    unchanged = bool(
-        last_run
-        and last_run.get("dataSha256") == data_fp["sha256"]
-        and last_run.get("protocolSha256") == protocol_fp["sha256"]
-        and last_run.get("status") == "completed"
+    completed_prior = bool(last_run and last_run.get("status") == "completed")
+    data_changed = bool(completed_prior and last_run.get("dataSha256") != data_fp["sha256"])
+    prior_research_sha = last_run.get("researchInputSha256") if completed_prior else None
+    prior_external_sha = last_run.get("externalFactorSha256") if completed_prior else None
+    research_changed = bool(prior_research_sha and prior_research_sha != research_input_sha)
+    external_changed = bool(prior_external_sha and prior_external_sha != external_input_sha)
+    legacy_protocol_changed = bool(
+        completed_prior
+        and prior_research_sha is None
+        and last_run.get("protocolSha256") != protocol_fp["sha256"]
     )
-    if unchanged and not args.force:
+    eligible_change = data_changed or research_changed or external_changed or legacy_protocol_changed
+    if completed_prior and not eligible_change:
+        last_run = {
+            **last_run,
+            "researchInputSha256": research_input_sha,
+            "externalFactorSha256": external_input_sha,
+        }
+        protocol_only_change = last_run.get("protocolSha256") != protocol_fp["sha256"]
+        idle_reason = (
+            "仅参数或阈值发生变化，不属于新假设；已阻止在同一批数据上继续调胜率"
+            if protocol_only_change
+            else "没有新增真实样本、新假设或外部因子，等待新的可检验证据"
+        )
+        if args.force:
+            idle_reason += "；强制重跑请求同样被研究硬门禁拒绝"
         atomic_json(args.state, state_payload(
-            status="idle", reason="数据与实验协议没有变化，等待新样本或新假设", run_id=None,
+            status="idle", reason=idle_reason, run_id=None,
             stage="waiting", progress=100, started_at=None, checked_at=iso(checked),
             next_check_at=iso(next_check), data=data_fp, protocol=protocol_fp,
             report=load_json(args.report), last_run=last_run, history_path=args.history,
@@ -240,7 +347,6 @@ def run_once(args: argparse.Namespace) -> int:
     run_dir = args.runtime / "runs" / run_id
     child_progress = run_dir / "progress.json"
     child_report = run_dir / "report.json"
-    protocol_document = load_json(args.protocol, {}) or {}
     experiment_id = str(protocol_document.get("experimentId") or "zijin-experiment")
     safe_experiment_id = "".join(character if character.isalnum() or character in "-_" else "-" for character in experiment_id)
     ledger = args.runtime / "ledger" / f"{safe_experiment_id}-trials.jsonl"
@@ -289,6 +395,8 @@ def run_once(args: argparse.Namespace) -> int:
             "elapsedSeconds": report.get("elapsedSeconds"),
             "dataSha256": data_fp["sha256"],
             "protocolSha256": protocol_fp["sha256"],
+            "researchInputSha256": research_input_sha,
+            "externalFactorSha256": external_input_sha,
             "qualifiedHypotheses": len(report.get("qualifiedHypothesisIds", [])),
             "ledgerRecords": report.get("ledger", {}).get("records"),
             "reportHash": canonical_hash(report),
@@ -304,7 +412,9 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as error:
         failed_run = {
             "id": run_id, "status": "failed", "startedAt": started_at, "completedAt": iso(),
-            "dataSha256": data_fp["sha256"], "protocolSha256": protocol_fp["sha256"], "error": str(error),
+            "dataSha256": data_fp["sha256"], "protocolSha256": protocol_fp["sha256"],
+            "researchInputSha256": research_input_sha, "externalFactorSha256": external_input_sha,
+            "error": str(error),
         }
         append_history(args.history, failed_run)
         atomic_json(args.state, state_payload(
@@ -334,6 +444,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--interval-minutes", type=int, default=30)
     value.add_argument("--heartbeat-seconds", type=int, default=5)
     value.add_argument("--idle-heartbeat-seconds", type=int, default=30)
+    value.add_argument("--external-input", type=Path, action="append", default=[])
     value.add_argument("--force", action="store_true")
     value.add_argument("--daemon", action="store_true")
     value.add_argument("--dry-run", action="store_true")
