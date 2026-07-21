@@ -1165,11 +1165,11 @@ export default function Home() {
       }
     };
     void load();
-    const timer = window.setInterval(load, clientPollingInterval("activeQuote", false));
+    const timer = window.setInterval(load, clientPollingInterval("referenceData", marketSession.live));
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stock?.code]);
+  }, [localAuth, stock?.code, marketSession.live]);
   useEffect(() => {
     if (!localAuth || !stock?.code) return;
     let cancelled = false;
