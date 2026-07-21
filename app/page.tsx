@@ -37,6 +37,7 @@ type AlertSettings = { sound:boolean; system:boolean };
 type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string };
 type AlertDeliveryRecord = { id:number; eventKey:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
+type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
 type MemberRecord = { id:string; username:string; displayName:string; role:"admin"|"member"; status:"active"|"paused"; createdAt:string; lastLoginAt:string|null; monitorCount:number; alertCount:number };
 type ZijinTrainingProgress = {
   schemaVersion:number;
@@ -486,6 +487,7 @@ export default function Home() {
   const [stockPositions, setStockPositions] = useState<StockPositionMap>({});
   const [activeStock, setActiveStock] = useState(0);
   const [stockList, setStockList] = useState(initialStocks);
+  const validatedWatchlistSignature = useRef("");
   const [profile, setProfile] = useState("平衡档");
   const [panel, setPanel] = useState("今日T循环");
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
@@ -526,6 +528,55 @@ export default function Home() {
   const [compactChartLabels, setCompactChartLabels] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const stock = stockList[activeStock] || stockList[0];
+  useEffect(()=>{
+    if(!localAuth||!accountName||!stockList.length)return;
+    const signature=stockList.map(item=>`${item.code}:${item.name}`).join('|');
+    if(validatedWatchlistSignature.current===signature)return;
+    validatedWatchlistSignature.current=signature;
+    let cancelled=false;
+    void fetch('/api/stock-identity',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({stocks:stockList.map(({code,name})=>({code,name}))})})
+      .then(async response=>{
+        if(!response.ok)throw new Error('证券身份校验暂不可用');
+        return response.json() as Promise<{stocks:StockIdentityResult[]}>;
+      })
+      .then(payload=>{
+        if(cancelled||!Array.isArray(payload.stocks))return;
+        const resolvedByInput=new Map(payload.stocks.filter(item=>item.status!=='unknown').map(item=>[item.inputCode,item]));
+        const correctedCodes=new Map<string,string>();
+        const unique=new Map<string,(typeof stockList)[number]>();
+        for(const item of stockList){
+          const resolved=resolvedByInput.get(item.code);
+          const next=resolved?{...item,code:resolved.code,name:resolved.name}:item;
+          correctedCodes.set(item.code,next.code);
+          if(!unique.has(next.code))unique.set(next.code,next);
+        }
+        const next=[...unique.values()];
+        const nextSignature=next.map(item=>`${item.code}:${item.name}`).join('|');
+        if(nextSignature===signature)return;
+        const selectedCode=correctedCodes.get(stockList[activeStock]?.code)??next[0]?.code;
+        setStockList(next);
+        setActiveStock(Math.max(0,next.findIndex(item=>item.code===selectedCode)));
+        setStockPositions(current=>{
+          const updated={...current};
+          for(const [oldCode,newCode] of correctedCodes){
+            if(oldCode!==newCode&&updated[oldCode]){
+              updated[newCode]=updated[newCode]??updated[oldCode];
+              delete updated[oldCode];
+            }
+          }
+          return updated;
+        });
+        setPreferences(current=>{
+          const preferredCode=current.stock.match(/\d{6}/)?.[0]??'';
+          const repairedCode=correctedCodes.get(preferredCode)??preferredCode;
+          const repaired=next.find(item=>item.code===repairedCode)??next[0];
+          return repaired?{...current,stock:`${repaired.code} ${repaired.name}`}:current;
+        });
+        try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next));}catch{}
+      })
+      .catch(()=>{});
+    return()=>{cancelled=true};
+  },[localAuth,accountName,stockList,activeStock]);
   const selectActiveStock=(index:number)=>{
     const nextIndex=Math.max(0,Math.min(index,stockList.length-1));
     const nextCode=stockList[nextIndex]?.code;
