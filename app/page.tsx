@@ -1691,7 +1691,7 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
     if(delivery.deliveryStatus==='failed')return {label:'发送失败',detail:delivery.deliveryError||'未记录失败原因',tone:'error'};
     if(delivery.deliveryStatus==='notified')return {label:'通知已送达',detail:delivery.deliveryChannel||'浏览器通知',tone:'sent'};
     if(delivery.deliveryStatus==='displayed')return {label:'页面已显示',detail:delivery.deliveryChannel||'站内提醒',tone:'sent'};
-    return {label:'等待浏览器领取',detail:'关闭浏览器时不会语音或弹窗',tone:'pending'};
+    return {label:'等待浏览器领取',detail:'服务器已记录；关闭浏览器时无法播放语音或浏览器弹窗',tone:'pending'};
   };
   return <div className="account-overlay alert-log-overlay" role="dialog" aria-modal="true" aria-label="提醒追踪日志" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>
     <section className="alert-log-dialog">
@@ -1806,10 +1806,10 @@ function MultiWatchView({stocks,onOpen,onManage}:{stocks:typeof initialStocks;on
   });
   return <section className="module-view watch-view">
     <div className="module-head"><div><span className="eyebrow">MULTI-ASSET QUOTE MONITOR</span><h1>多股监控</h1><p>已接入公开行情轮询，报价每 5 秒尝试更新；仅用于观察，不会自动生成买卖指令或下单。</p></div><div className="module-status"><i/>{quoteStatus==='updated'?'公开行情正常':quoteStatus==='partial'?'部分行情可用':quoteStatus==='error'?'行情暂不可用':'正在连接行情'} · {stocks.length}只监控中</div></div>
-    <div className="watch-summary"><div><span>监控股票</span><b>{stocks.length}</b><small>切换后台即暂停轮询</small></div><div><span>已取得报价</span><b className="teal">{Object.keys(quotes).filter(code=>stocks.some(stock=>stock.code===code)).length}</b><small>当前列表可用数量</small></div><div><span>刷新频率</span><b>5 秒</b><small>公开试用行情</small></div><div><span>最近更新</span><b>{updatedAt||'--:--:--'}</b><small>{quoteStatus==='partial'?'部分来源暂不可用':'页面可见时刷新'}</small></div><div><span>交易执行</span><b>关闭</b><small>不连接券商账户</small></div></div>
+    <div className="watch-summary"><div><span>监控股票</span><b>{stocks.length}</b><small>服务器持续后台扫描</small></div><div><span>已取得报价</span><b className="teal">{Object.keys(quotes).filter(code=>stocks.some(stock=>stock.code===code)).length}</b><small>当前列表可用数量</small></div><div><span>刷新频率</span><b>5 秒</b><small>公开试用行情</small></div><div><span>最近更新</span><b>{updatedAt||'--:--:--'}</b><small>{quoteStatus==='partial'?'部分来源暂不可用':'前台页面刷新'}</small></div><div><span>交易执行</span><b>关闭</b><small>不连接券商账户</small></div></div>
     <div className="watch-toolbar"><div><span>公开行情试用 · 数据时效不保证为交易级</span></div><button className="watch-add" onClick={onManage}>＋ 管理监控股票</button></div>
     <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>涨跌幅</span><span>日内振幅</span><span>日内位置</span><span>状态</span><span/></div>{allRows.map(row=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span className="watch-price"><b>{row.price}</b><small>公开行情</small></span><span><b className={row.changeValue!=null&&row.changeValue<0?'negative':row.changeValue!=null&&row.changeValue>0?'positive':'neutral'}>{row.change}</b><small>{row.change==='--'?'等待更新':'当日涨跌幅'}</small></span><span><b>{row.amplitude==null?'--':`${row.amplitude.toFixed(2)}%`}</b><small>高低波动</small></span><span className="day-position"><i><em style={{width:`${row.position??0}%`}}/></i><b>{row.position==null?'--':`${row.position.toFixed(0)}%`}</b></span><em className="watch-pill watch">仅监控</em><button onClick={()=>onOpen(stocks.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
-    <div className="watch-rule"><b>使用说明</b><span>多股页为 5 秒公开行情试用</span><span>操盘台为当前选股 1 秒轮询试用</span><span>页面切到后台会暂停请求</span><span>报价不构成交易建议，也不触发自动下单</span></div>
+    <div className="watch-rule"><b>使用说明</b><span>多股页为 5 秒公开行情试用</span><span>操盘台为当前选股 1 秒轮询试用</span><span>页面隐藏时仅暂停前端报价刷新；服务器继续扫描并记录</span><span>报价不构成交易建议，也不触发自动下单</span></div>
   </section>;
 }
 
