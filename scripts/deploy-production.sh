@@ -162,15 +162,27 @@ compose_up() {
   local trainer_image="$3"
   local app_commit_sha="${4:-development}"
   local app_build_time="${5:-unknown}"
-  RABBIT_QUANT_WEB_IMAGE="$web_image" \
-  RABBIT_QUANT_TRAINER_IMAGE="$trainer_image" \
-  APP_COMMIT_SHA="$app_commit_sha" \
-  APP_BUILD_TIME="$app_build_time" \
-    docker compose \
-      --project-name "$COMPOSE_PROJECT" \
-      --project-directory "$REPO_DIR" \
-      -f "$compose_file" \
-      up -d --no-build --force-recreate
+  local runtime_env
+  local compose_status
+
+  runtime_env="$(mktemp "$STATE_DIR/compose-runtime.XXXXXX")"
+  chmod 600 "$runtime_env"
+  printf '%s\n' \
+    "RABBIT_QUANT_WEB_IMAGE=$web_image" \
+    "RABBIT_QUANT_TRAINER_IMAGE=$trainer_image" \
+    "APP_COMMIT_SHA=$app_commit_sha" \
+    "APP_BUILD_TIME=$app_build_time" \
+    > "$runtime_env"
+
+  compose_status=0
+  docker compose \
+    --env-file "$runtime_env" \
+    --project-name "$COMPOSE_PROJECT" \
+    --project-directory "$REPO_DIR" \
+    -f "$compose_file" \
+    up -d --no-build --force-recreate || compose_status=$?
+  rm -f "$runtime_env"
+  return "$compose_status"
 }
 
 if [[ ! -d "$REPO_DIR/.git" ]]; then

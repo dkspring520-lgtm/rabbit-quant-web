@@ -68,8 +68,10 @@ test("production backup snapshots SQLite and verifies every archive", () => {
 
 test("deployment keeps rollback images and emits optional webhook notifications", () => {
   const script = read("scripts/deploy-production.sh");
-  assert.match(script, /APP_COMMIT_SHA="\$app_commit_sha"/);
-  assert.match(script, /APP_BUILD_TIME="\$app_build_time"/);
+  assert.match(script, /"APP_COMMIT_SHA=\$app_commit_sha"/);
+  assert.match(script, /--env-file "\$runtime_env"/);
+  assert.match(script, /rm -f "\$runtime_env"/);
+  assert.match(script, /"APP_BUILD_TIME=\$app_build_time"/);
   assert.match(script, /RABBIT_QUANT_IMAGE_RETENTION/);
   assert.match(script, /previous_web_image/);
   assert.match(script, /previous_trainer_image/);
