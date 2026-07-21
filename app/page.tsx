@@ -20,6 +20,7 @@ import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-li
 import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
 import { compactChartLabelKey, compactChartLabelKeys } from "@/lib/compact-chart-labels.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
+import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import PublicLanding from "./public-landing";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
@@ -1950,6 +1951,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const currentExperimentTrades=currentHypotheses.reduce((total,item)=>total+item.outerQuarters.reduce((sum,quarter)=>sum+quarter.trades,0),0);
   const currentBestHypothesis=currentHypotheses.reduce<(typeof currentHypotheses)[number]|null>((best,item)=>!best||item.outOfSampleWinRate>best.outOfSampleWinRate?item:best,null);
   const currentQualified=currentExperiment?.qualifiedHypothesisIds.length??0;
+  const trainingRejectionSummary=explainTrainingRejection(currentExperiment,zijinTrainingProgress?.latest);
   const formationDiagnostic=currentExperiment?.sampleFormationDiagnostic??null;
   const formationStageLabels:Record<string,string>={
     "causal-anchor":"因果拐点候选","session":"进入指定时段","observable-regime":"符合震荡状态",
@@ -2005,6 +2007,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       {zijinTrainingProgress?<>
         <div className={`zijin-training-state-note ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'warning':zijinTrainingProgress.status}`}><b>{zijinTrainingConnection==='error'?'状态接口连接失败':trainingStale?'训练任务可能中断':schedulerOffline?'自动调度器离线':zijinTrainingProgress.status==="running"?'服务器正在计算':'本轮已结束'}</b><span>{zijinTrainingConnection==='error'?'页面保留最后一次真实结果并自动重试，不会伪造心跳。':trainingStale?'页面保留最后一次真实进度，不会自动补数。':schedulerOffline?'第 4 轮已经真实完成，但后台没有按计划继续检查新数据；需要恢复服务器自动训练服务。':zijinTrainingProgress.status==="running"?'页面每 2 秒读取服务器状态；切换页面不会影响后台训练。':'100% 表示本轮审计流程完成，不代表系统仍在持续训练。页面每 30 秒检查是否有新任务。'}</span></div>
         <div className="zijin-training-stats"><p><span>服务器当前步骤</span><b>{activeResearchStageLabel}</b><small>{zijinTrainingProgress.status==='running'?`${zijinTrainingProgress.progress}% · ${zijinTrainingProgress.automation?.run.elapsedSeconds??0} 秒`:`最近任务 ${zijinTrainingProgress.runId}`}</small></p><p><span>最近样本外交易</span><b>{currentExperiment?`${currentExperimentTrades} 笔`:'--'}</b><small>{currentHypotheses.length} 个独立假设 · 不读取未来分钟</small></p><p><span>表现最好的一组</span><b>{currentBestHypothesis?`${(currentBestHypothesis.outOfSampleWinRate*100).toFixed(1)}%`:'--'}</b><small>{currentBestHypothesis?.name??'等待实验报告'} · 仅为样本外胜率</small></p><p><span>获准进入下一步</span><b>{currentExperiment?`${currentQualified}/${currentHypotheses.length}`:'--'}</b><small>{currentExperiment?`账本 ${currentExperiment.ledger.runRecords} 条 · ${currentExperiment.reads2026?'已读取':'2026 未读取'}`:'等待报告落盘'}</small></p></div>
+        {!currentQualified&&<div className="zijin-rejection-plain"><header><span>为什么未通过</span><b>{trainingRejectionSummary.headline}</b></header><ul>{trainingRejectionSummary.reasons.map(reason=><li key={reason}>{reason}</li>)}</ul><footer><b>下一步</b><span>{trainingRejectionSummary.next}</span></footer></div>}
         {formationDiagnostic&&<details className="zijin-sample-diagnostic">
           <summary><span><b>为什么有的实验是 0 笔？</b><small>逐层查看候选在哪个门槛被过滤；本区只解释结果，不参与选参</small></span><em>净目标 {formationDiagnostic.outcomeLabel.netTargetPct[0].toFixed(2)}%–{formationDiagnostic.outcomeLabel.netTargetPct[1].toFixed(2)}%</em></summary>
           <div className="zijin-sample-diagnostic-grid">{formationDiagnostic.hypotheses.map(item=>{
