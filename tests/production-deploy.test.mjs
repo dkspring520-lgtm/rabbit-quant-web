@@ -13,7 +13,9 @@ test("production deploy builds both images before replacing containers", () => {
   assert.ok(webBuild > 0);
   assert.ok(trainerBuild > webBuild);
   assert.ok(switchPosition > trainerBuild);
-  assert.match(script, /flock --nonblock --close/);
+  assert.match(script, /flock\s+\\\n\s+--nonblock\s+\\\n\s+--close/);
+  assert.match(script, /--conflict-exit-code 75/);
+  assert.match(script, /exit "\$deploy_status"/);
   assert.match(script, /RABBIT_QUANT_DEPLOY_LOCKED=1/);
   assert.doesNotMatch(script, /exec 9>/);
   assert.match(script, /wait_for_release/);
