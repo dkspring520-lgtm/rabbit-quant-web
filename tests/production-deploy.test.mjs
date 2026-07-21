@@ -28,10 +28,11 @@ test("production compose and image expose commit-aware health", () => {
 
   assert.match(compose, /RABBIT_QUANT_WEB_IMAGE/);
   assert.match(compose, /RABBIT_QUANT_TRAINER_IMAGE/);
-  assert.match(compose, /APP_COMMIT_SHA: \$\{APP_COMMIT_SHA:-development\}/);
-  assert.match(compose, /APP_BUILD_TIME: \$\{APP_BUILD_TIME:-unknown\}/);
+  assert.doesNotMatch(compose, /APP_COMMIT_SHA:/);
+  assert.doesNotMatch(compose, /APP_BUILD_TIME:/);
   assert.match(compose, /api\/control\/version/);
   assert.match(dockerfile, /APP_COMMIT_SHA/);
+  assert.match(dockerfile, /APP_BUILD_TIME/);
   assert.match(dockerfile, /HEALTHCHECK/);
   assert.match(route, /APP_COMMIT_SHA/);
   assert.match(route, /cache-control/);
