@@ -704,7 +704,7 @@ export default function Home() {
       }
     }catch{}
   };
-  const rawMinutePoints = useMemo(() => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [], [currentTrial, currentMarket]);
+  const rawMinutePoints = currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [];
   const minutePoints = useMemo(() => rawMinutePoints.filter(point=>isAShareRegularTradingMinute(point.time)), [rawMinutePoints]);
   const afterHoursPoints = useMemo(() => rawMinutePoints.filter(point=>isAShareAfterHoursFixedPriceMinute(point.time)), [rawMinutePoints]);
   const afterHoursSummary = useMemo(() => {
@@ -1319,7 +1319,7 @@ export default function Home() {
       inFlight = true;
       try {
         const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-realtime`, { cache: "no-store" });
-        if (!response.ok) throw new Error("trial quote unavailable");
+        if (!response.ok) throw new Error("trial chart unavailable");
         const data = await response.json() as MarketData;
         if (!cancelled) {
           setTrialQuote(data);
@@ -1328,10 +1328,37 @@ export default function Home() {
           setTrialError("");
         }
       } catch {
-        if (!cancelled) { setTrialQuote(null); setTrialError("1 秒试用行情暂不可用，已保留公开延迟行情作为参考。"); }
+        if (!cancelled) setTrialError("分时图暂时更新失败，已保留最后一次有效数据。");
       } finally { inFlight = false; }
     };
     void load();
+    const timer = window.setInterval(() => void load(), clientPollingInterval("activeChart",marketSession.live));
+    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
+    document.addEventListener("visibilitychange",onVisibility);
+    return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
+  }, [localAuth, stock?.code, marketSession.live]);
+  useEffect(() => {
+    if (!localAuth || !stock?.code) return;
+    let cancelled = false;
+    let inFlight = false;
+    const load = async () => {
+      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
+      inFlight = true;
+      try {
+        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-quote`, { cache: "no-store" });
+        if (!response.ok) throw new Error("trial quote unavailable");
+        const data = await response.json() as MarketData;
+        if (!cancelled) {
+          setTrialQuote(current => current?.quote.code === data.quote.code
+            ? { ...current, ...data, minutes:current.minutes, bars:current.bars, intradaySessions:current.intradaySessions }
+            : data);
+          setMarketQuotes(current=>({...current,[data.quote.code]:data.quote}));
+          setTrialError("");
+        }
+      } catch {
+        if (!cancelled) setTrialError("1 秒报价暂时更新失败，已保留最后一次有效价格。");
+      } finally { inFlight = false; }
+    };
     const timer = window.setInterval(() => void load(), clientPollingInterval("activeQuote",marketSession.live));
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);

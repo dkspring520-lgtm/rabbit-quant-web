@@ -176,23 +176,38 @@ async function fromEastmoneyQuote(code: string): Promise<{ provider: string; quo
   return { provider: "eastmoney-public", quote, sourceTimestamp: null };
 }
 
+async function fromPublicQuote(code: string) {
+  let lastError: unknown;
+  for (const provider of [fromTencent, fromSina, fromEastmoneyQuote]) {
+    try { return await provider(code); }
+    catch (error) { lastError = error; }
+  }
+  throw lastError instanceof Error ? lastError : new Error("All public quote providers are unavailable");
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code")?.trim() ?? "";
   const mode = searchParams.get("mode");
   try {
     validCode(code);
+    if (mode === "trial-quote") {
+      const data = await fromPublicQuote(code);
+      return Response.json({
+        ...data,
+        minutes: [],
+        intradaySessions: [],
+        delayed: true,
+        trial: true,
+        fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"],
+        fetchedAt: new Date().toISOString(),
+        bars: [],
+      }, { headers: realtimeHeaders });
+    }
     if (mode === "trial-realtime") {
-      const providers = [fromTencent, fromSina, fromEastmoneyQuote];
       const minutesPromise = fromPublicMinutes(code).catch(() => []);
-      let lastError: unknown;
-      for (const provider of providers) {
-        try {
-          const [data, minutes] = await Promise.all([provider(code), minutesPromise]);
-          return Response.json({ ...data, minutes, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt: new Date().toISOString(), bars: [] }, { headers: realtimeHeaders });
-        } catch (error) { lastError = error; }
-      }
-      throw lastError instanceof Error ? lastError : new Error("所有试用行情源暂不可用");
+      const [data, minutes] = await Promise.all([fromPublicQuote(code), minutesPromise]);
+      return Response.json({ ...data, minutes, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt: new Date().toISOString(), bars: [] }, { headers: realtimeHeaders });
     }
     const [bars, quoteResult, minutes, intradaySessions] = await Promise.all([
       fromTencentDailyBars(code).catch(() => []),

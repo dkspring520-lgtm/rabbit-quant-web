@@ -5,13 +5,17 @@ import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } 
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
-test("visible trading desk keeps the one-second active quote and five-second watchlist", () => {
+test("visible trading desk keeps a one-second lightweight quote and five-second charts", () => {
   assert.equal(clientPollingInterval("activeQuote", true), 1_000);
+  assert.equal(clientPollingInterval("activeChart", true), 5_000);
   assert.equal(clientPollingInterval("watchlist", true), 5_000);
+  assert.match(page, /mode=trial-quote/);
+  assert.match(page, /clientPollingInterval\("activeChart",marketSession\.live\)/);
 });
 
 test("closed market data refreshes slowly without pretending to be realtime", () => {
   assert.equal(clientPollingInterval("activeQuote", false), 30_000);
+  assert.equal(clientPollingInterval("activeChart", false), 30_000);
   assert.equal(clientPollingInterval("watchlist", false), 30_000);
   assert.equal(clientPollingInterval("referenceData", false), 300_000);
   assert.equal(clientPollingInterval("deskSnapshot", false), 180_000);
@@ -44,5 +48,5 @@ test("the active stock uses the one-second feed instead of a duplicate watchlist
   assert.deepEqual(passiveWatchlistItems(stocks, ""), stocks);
   assert.match(page, /passiveWatchlistItems\(stockList,stock\?\.code\)/);
   assert.match(page, /setMarketQuotes\(current=>\(\{\.\.\.current,\[data\.quote\.code\]:data\.quote\}\)\)/);
-  assert.match(page, /setMarketSnapshots\(current=>\(\{\.\.\.current,\[data\.quote\.code\]:data\}\)\)/);
+  assert.match(page, /minutes:current\.minutes, bars:current\.bars, intradaySessions:current\.intradaySessions/);
 });
