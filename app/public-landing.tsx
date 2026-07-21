@@ -36,7 +36,7 @@ export default function PublicLanding({onDemo,onAccount}:PublicLandingProps) {
       </div>
     </section>
 
-    <section className="public-proof"><div><span>行情模式</span><b>页面可见时轮询</b><small>后台自动暂停，降低无效请求</small></div><div><span>决策方式</span><b>逐分钟因果判断</b><small>不回填峰谷，不读取未来</small></div><div><span>交易边界</span><b>提醒，不下单</b><small>券商与自动交易接口关闭</small></div><div><span>产品阶段</span><b>公开测试版</b><small>暂未开放收费</small></div></section>
+    <section className="public-proof"><div><span>行情模式</span><b>前台实时刷新</b><small>服务器后台持续扫描，页面隐藏时减少前端请求</small></div><div><span>决策方式</span><b>逐分钟因果判断</b><small>不回填峰谷，不读取未来</small></div><div><span>交易边界</span><b>提醒，不下单</b><small>券商与自动交易接口关闭</small></div><div><span>产品阶段</span><b>公开测试版</b><small>暂未开放收费</small></div></section>
 
     <section className="public-section" id="features"><div className="public-section-head"><span>CORE CAPABILITIES</span><h2>一屏看清：机会、理由与风险</h2><p>不堆砌无法解释的指标；正式信号必须能说明为何触发、为何拦截。</p></div><div className="public-feature-grid">{productFeatures.map(item=><article key={item.number}><span>{item.number}</span><h3>{item.title}</h3><p>{item.copy}</p></article>)}</div></section>
 
