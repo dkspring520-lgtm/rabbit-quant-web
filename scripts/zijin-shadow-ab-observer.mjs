@@ -5,6 +5,7 @@ import {
   createShadowState,
   deriveShadowStatus,
   processVisibleMinute,
+  summarizeZijinExternalContext,
   upgradeShadowState,
 } from "../lib/zijin-shadow-ab.mjs";
 
@@ -46,6 +47,27 @@ async function fetchStock(code) {
   return payload;
 }
 
+async function fetchJson(path) {
+  const response = await fetch(`${origin}${path}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) throw new Error(`${path} HTTP ${response.status}`);
+  return response.json();
+}
+
+async function fetchExternalContext(payload) {
+  const change = Number(payload?.quote?.changePercent ?? payload?.quote?.change ?? 0);
+  const [marketResult, radarResult] = await Promise.allSettled([
+    fetchJson(`/api/market-context?code=${targetCode}&change=${encodeURIComponent(Number.isFinite(change) ? change : 0)}`),
+    fetchJson(`/api/event-radar?codes=${targetCode}&names=${encodeURIComponent("紫金矿业")}`),
+  ]);
+  return summarizeZijinExternalContext(
+    marketResult.status === "fulfilled" ? marketResult.value : null,
+    radarResult.status === "fulfilled" ? radarResult.value : null,
+  );
+}
+
 function marketDate(payload) {
   const raw = payload.sourceTimestamp || payload.fetchedAt;
   if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10).replaceAll("-", "");
@@ -82,6 +104,7 @@ async function observe(state) {
   const peers = settled.slice(1).flatMap((result, index) => result.status === "fulfilled"
     ? [{ code: peerCodes[index], minutes: result.value.minutes.filter((point) => point.time <= "1500") }]
     : []);
+  const externalContext = await fetchExternalContext(payload);
   const date = marketDate(payload);
   const lastIndex = minutes.length - 1;
   let indices;
@@ -104,6 +127,7 @@ async function observe(state) {
       index,
       previousClose: payload.quote.previousClose,
       peers,
+      externalContext,
     }));
   }
   state.source = {
@@ -111,6 +135,8 @@ async function observe(state) {
     sourceTimestamp: payload.sourceTimestamp || null,
     fetchedAt: payload.fetchedAt || new Date().toISOString(),
     peerCoverage: peers.length / Math.max(1, peerCodes.length),
+    externalCoverage: externalContext.coverage,
+    externalObservedAt: externalContext.observedAt,
     error: null,
   };
   // Keep the service heartbeat fresh even when the market has no new minute.

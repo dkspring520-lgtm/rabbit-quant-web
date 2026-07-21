@@ -10,6 +10,7 @@ import {
   processVisibleMinute,
   SHADOW_CONSTANTS,
   SHADOW_MODELS,
+  summarizeZijinExternalContext,
   upgradeShadowState,
 } from "../lib/zijin-shadow-ab.mjs";
 
@@ -76,6 +77,14 @@ test("strict A and coverage B independently produce forward candidates", () => {
   const features = computeVisibleFeatures({ minutes, index: 3, previousClose: 100, peers });
   assert.equal(evaluateShadowCandidate("A", features).passed, true);
   assert.equal(evaluateShadowCandidate("B", features).passed, true);
+});
+
+test("positive models shadow trade while reverse models are observation only", () => {
+  assert.equal(SHADOW_MODELS.A.executionMode, "shadow-trade");
+  assert.equal(SHADOW_MODELS.B.executionMode, "shadow-trade");
+  assert.equal(SHADOW_MODELS.C.executionMode, "observe-only");
+  assert.equal(SHADOW_MODELS.D.executionMode, "observe-only");
+  assert.equal(SHADOW_MODELS.E.executionMode, "shadow-trade");
 });
 
 test("legacy A/B state upgrades in place and preserves its evidence", () => {
@@ -173,6 +182,30 @@ test("round-14 features and decision ignore all later minutes", () => {
   assert.equal(entry.find((event) => event.model === "E")?.price, 98.5);
 });
 
+test("external factors are recorded as prospective evidence without changing frozen model E", () => {
+  const externalContext = summarizeZijinExternalContext({
+    fetchedAt: "2026-07-21T01:37:00.000Z",
+    items: [
+      { id: "hf_GC", label: "纽约黄金", changePercent: 0.8, sourceTimestamp: "2026-07-21T01:36:00.000Z", provider: "sina-public" },
+      { id: "hf_CAD", label: "伦铜", changePercent: -0.2, sourceTimestamp: "2026-07-21T01:36:00.000Z", provider: "sina-public" },
+      { id: "sh000300", label: "沪深300", changePercent: 0.1, sourceTimestamp: "2026-07-21T01:36:00.000Z", provider: "tencent-public" },
+      { id: "hk02899", label: "港股紫金矿业", changePercent: 1.2, sourceTimestamp: "2026-07-21T01:36:00.000Z", provider: "tencent-public" },
+    ],
+  }, {
+    fetchedAt: "2026-07-21T01:37:00.000Z",
+    stocks: [{ code: "601899", counts: { positive: 1, negative: 0, neutral: 0 }, gate: { level: "positive", label: "利好", hardLock: false }, items: [] }],
+  }, "2026-07-21T01:37:00.000Z");
+  const base = {
+    time: "0937", return3Pct: 0.20, previousReturn3Pct: -0.20,
+    ma5Slope3Pct: -0.02, previousMa5Slope3Pct: -0.04,
+    intradayPosition: 0.23, vwapBiasPct: -0.45, volumeRatio: 1,
+    peerBreadth3: 0.67, peerCoverage: 1,
+  };
+  assert.deepEqual(externalContext.coverage, { ready: 5, total: 5, missing: [] });
+  assert.equal(evaluateShadowCandidate("E", { ...base, externalContext }).passed, true);
+  assert.equal(evaluateShadowCandidate("E", { ...base, externalContext: { coverage: { ready: 0, total: 5 } } }).passed, true);
+});
+
 test("candidate fills only on next visible minute and then resolves after costs", () => {
   const state = createShadowState("2026-07-21T01:32:00.000Z");
   const candidateEvents = processVisibleMinute(state, { marketDate: "20260721", minutes, index: 3, previousClose: 100, peers });
@@ -190,7 +223,7 @@ test("candidate fills only on next visible minute and then resolves after costs"
   assert.ok(state.models.A.total.netPct >= SHADOW_CONSTANTS.MIN_NET_TARGET_PCT);
 });
 
-test("round-12 reverse candidate sells next minute and profits only after price falls", () => {
+test("round-12 reverse candidate remains observation-only and never creates a shadow order", () => {
   const prices = [100, 102, 101.5, 99, 100, 100.2, 100.1, 99.7, 99.6, 98.4];
   const reverseMinutes = prices.map((price, index) => ({ time: `09${String(30 + index).padStart(2, "0")}`, price, volume: 100 }));
   const peerPrices = [50, 52, 51.5, 49, 49.8, 49.7, 49.4, 49, 48.9, 48.8];
@@ -200,15 +233,17 @@ test("round-12 reverse candidate sells next minute and profits only after price 
   }));
   const state = createShadowState("2026-07-21T01:32:00.000Z");
   const candidate = processVisibleMinute(state, { marketDate: "20260721", minutes: reverseMinutes, index: 7, previousClose: 100, peers: reversePeers });
-  assert.equal(candidate.filter((event) => event.model === "C")[0]?.event, "candidate");
+  const reverseCandidate = candidate.find((event) => event.model === "C");
+  assert.equal(reverseCandidate?.event, "candidate");
+  assert.equal(reverseCandidate?.executionMode, "observe-only");
+  assert.equal(reverseCandidate?.observationOnly, true);
   const entry = processVisibleMinute(state, { marketDate: "20260721", minutes: reverseMinutes, index: 8, previousClose: 100, peers: reversePeers });
-  assert.deepEqual(entry.filter((event) => event.model === "C").map((event) => [event.event, event.side, event.price]), [["entry", "short", 99.6]]);
+  assert.deepEqual(entry.filter((event) => event.model === "C"), []);
   const exit = processVisibleMinute(state, { marketDate: "20260721", minutes: reverseMinutes, index: 9, previousClose: 100, peers: reversePeers });
-  const reverseExit = exit.find((event) => event.model === "C");
-  assert.equal(reverseExit?.event, "exit");
-  assert.equal(reverseExit?.side, "short");
-  assert.ok(reverseExit?.netPct >= SHADOW_CONSTANTS.MIN_NET_TARGET_PCT);
-  assert.equal(state.models.C.total.wins, 1);
+  assert.equal(exit.find((event) => event.model === "C"), undefined);
+  assert.equal(state.models.C.today.activeTrade, null);
+  assert.equal(state.models.C.total.resolvedTrades, 0);
+  assert.equal(state.models.C.total.candidates, 1);
 });
 
 test("round-12 protocol forbids historical proof, V4 mutation and automatic promotion", () => {
@@ -248,7 +283,9 @@ test("round-14 is preregistered, causal, prospective-only and isolated from V4",
 
 test("single-stock research shows model E with plain 65 and 70 percent gates", () => {
   assert.match(page, /\["A","B","C","D","E"\]/);
-  assert.match(page, /第10–14轮 · 五路真实前瞻观察/);
+  assert.match(page, /第10–14轮 · 紫金真实前瞻观察/);
+  assert.match(page, /正T优先形成影子闭环；反T只记录候选/);
+  assert.match(page, /反T仅为研究证据/);
   assert.match(page, /65% 保留研究 · 70% 申请评审/);
   assert.match(page, /积累新样本/);
   assert.match(page, /不回填历史、不影响 V4、不发送正式提醒/);
@@ -272,5 +309,8 @@ test("production shadow observer is isolated, restartable and never sends V4 ale
   assert.match(observer, /sendsAlerts: false/);
   assert.match(observer, /indices = \[lastIndex\]/);
   assert.match(observer, /ZIJIN_SHADOW_IDLE_POLL_MS/);
+  assert.match(observer, /\/api\/market-context/);
+  assert.match(observer, /\/api\/event-radar/);
+  assert.match(observer, /externalCoverage/);
   assert.match(route, /Cache-Control.*no-store/);
 });
