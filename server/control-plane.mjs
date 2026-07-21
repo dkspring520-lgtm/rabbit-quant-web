@@ -2,10 +2,13 @@ import { createServer } from "node:http";
 import { createControlStore } from "./control-store.mjs";
 import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
 import { selectLatestAlertableObservation } from "../lib/live-monitor-alerts.mjs";
+import { evaluateScannerHealth } from "../lib/server-monitor-health.mjs";
 
 const port = Number(process.env.CONTROL_PORT || 3010);
 const databasePath = process.env.CONTROL_DB_PATH || "/data/rabbit-control.sqlite";
 const marketOrigin = (process.env.MARKET_DATA_ORIGIN || "http://web:3000").replace(/\/$/, "");
+const monitorIntervalMs = Math.max(5_000, Number(process.env.MONITOR_INTERVAL_MS || 15_000));
+const serviceStartedAt = Date.now();
 const store = createControlStore(databasePath);
 const COOKIE = "rabbit_control_session";
 const scanState = { running: false, lastStartedAt: null, lastCompletedAt: null, monitored: 0, inserted: 0, logged: 0, marketErrors: 0, error: null };
@@ -210,7 +213,16 @@ async function dispatch(req, res) {
   const path = url.pathname.replace(/\/+$/, "") || "/";
   try {
     if (req.method === "OPTIONS") return json(res, 204, {});
-    if (req.method === "GET" && path === "/health") return json(res, 200, { ok: true, database: true, scanner: scanState, tradingWindow: isTradingWindow() });
+    if (req.method === "GET" && path === "/health") {
+      const tradingWindow = isTradingWindow();
+      const scannerHealth = evaluateScannerHealth(scanState, { serviceStartedAt, intervalMs: monitorIntervalMs, tradingWindow });
+      return json(res, scannerHealth.healthy ? 200 : 503, {
+        ok: scannerHealth.healthy,
+        database: true,
+        scanner: { ...scanState, health: scannerHealth },
+        tradingWindow,
+      });
+    }
     if (req.method === "POST" && path === "/auth/register") {
       const body = await bodyJson(req);
       store.register(body);
@@ -271,7 +283,7 @@ async function dispatch(req, res) {
 
 const server = createServer(dispatch);
 server.listen(port, "0.0.0.0", () => console.log(`[control] listening on 0.0.0.0:${port}; database=${databasePath}`));
-const timer = setInterval(() => void scanMonitors(), Math.max(5_000, Number(process.env.MONITOR_INTERVAL_MS || 15_000)));
+const timer = setInterval(() => void scanMonitors(), monitorIntervalMs);
 timer.unref();
 process.on("SIGTERM", () => { clearInterval(timer); server.close(() => { store.close(); process.exit(0); }); });
 
