@@ -17,7 +17,7 @@ import { aShareSession } from "@/lib/a-share-session.mjs";
 import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
-import { clientPollingInterval, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
+import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import PublicLanding from "./public-landing";
 
@@ -1198,9 +1198,11 @@ export default function Home() {
     let inFlight=false;
     const load=async()=>{
       if(inFlight||!shouldRunClientPolling(document.visibilityState))return;
+      const passiveStocks=passiveWatchlistItems(stockList,stock?.code) as typeof stockList;
+      if(!passiveStocks.length)return;
       inFlight=true;
       try{
-        const results=await Promise.allSettled(stockList.map(async item=>{
+        const results=await Promise.allSettled(passiveStocks.map(async item=>{
           const response=await fetch(`/api/market-data?code=${encodeURIComponent(item.code)}&mode=trial-realtime`,{cache:"no-store"});
           if(!response.ok)throw new Error("quote unavailable");
           return await response.json() as MarketData;
@@ -1219,7 +1221,7 @@ export default function Home() {
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stockList, marketSession.live]);
+  }, [localAuth, stockList, stock?.code, marketSession.live]);
   useEffect(() => {
     if (!localAuth || !stockList.length) return;
     let cancelled = false;
@@ -1258,7 +1260,12 @@ export default function Home() {
         const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-realtime`, { cache: "no-store" });
         if (!response.ok) throw new Error("trial quote unavailable");
         const data = await response.json() as MarketData;
-        if (!cancelled) { setTrialQuote(data); setTrialError(""); }
+        if (!cancelled) {
+          setTrialQuote(data);
+          setMarketQuotes(current=>({...current,[data.quote.code]:data.quote}));
+          setMarketSnapshots(current=>({...current,[data.quote.code]:data}));
+          setTrialError("");
+        }
       } catch {
         if (!cancelled) { setTrialQuote(null); setTrialError("1 秒试用行情暂不可用，已保留公开延迟行情作为参考。"); }
       } finally { inFlight = false; }
