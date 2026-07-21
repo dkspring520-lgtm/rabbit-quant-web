@@ -1028,10 +1028,10 @@
 }
 @media (max-width:760px){
   .alert-log-overlay{align-items:flex-end;padding:0}
-  .alert-log-dialog{width:100%;max-width:none;max-height:92dvh;padding:14px;border-width:1px 0 0;border-radius:18px 18px 0 0}
+  .alert-log-dialog{width:100%;max-width:none;height:min(76dvh,680px);max-height:none;padding:12px;border-width:1px 0 0;border-radius:16px 16px 0 0}
   .alert-log-dialog>header{gap:12px;padding-bottom:13px}
-  .alert-log-dialog>header h2{font-size:21px}
-  .alert-log-dialog>header p{font-size:12px;line-height:1.5}
+  .alert-log-dialog>header h2{font-size:19px}
+  .alert-log-dialog>header p{max-width:70vw;font-size:11px;line-height:1.4;white-space:nowrap}
   .alert-log-toolbar{align-items:stretch;padding:13px 0}
   .alert-log-toolbar label{flex:1;min-width:0}
   .alert-log-toolbar select{width:100%;min-width:0}
@@ -1044,7 +1044,14 @@
   .alert-log-summary p:nth-child(3){border-right:0}
   .alert-log-summary b{font-size:18px}
   .alert-log-summary em{grid-column:1/-1;padding:10px;border-top:1px solid var(--line)}
-  .alert-log-list{overscroll-behavior:contain}
-  .alert-log-row{grid-template-columns:92px 116px 82px minmax(220px,1fr) 132px 90px;min-width:790px}
-  .alert-log-row>span{padding:10px}
+  .alert-log-list{min-height:150px;padding:8px;border:0;background:rgba(255,255,255,.012)}
+  .alert-log-row.head{display:none}
+  .alert-log-row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"stock result" "time time" "reason reason" "delivery provider";gap:7px;min-width:0;margin-bottom:8px;padding:10px;border:1px solid var(--line);background:rgba(255,255,255,.015)}
+  .alert-log-row>span{padding:0}
+  .alert-log-row>span:nth-child(1){grid-area:stock}
+  .alert-log-row>span:nth-child(2){grid-area:time;display:block}
+  .alert-log-row>span:nth-child(3){grid-area:result;align-items:end}
+  .alert-log-row>span:nth-child(4){grid-area:reason;padding:8px 0;border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+  .alert-log-row>span:nth-child(5){grid-area:delivery}
+  .alert-log-row>span:nth-child(6){grid-area:provider;align-items:end;text-align:right}
 }
