@@ -28,6 +28,8 @@ test("production compose and image expose commit-aware health", () => {
 
   assert.match(compose, /RABBIT_QUANT_WEB_IMAGE/);
   assert.match(compose, /RABBIT_QUANT_TRAINER_IMAGE/);
+  assert.match(compose, /APP_COMMIT_SHA: \$\{APP_COMMIT_SHA:-development\}/);
+  assert.match(compose, /APP_BUILD_TIME: \$\{APP_BUILD_TIME:-unknown\}/);
   assert.match(compose, /api\/control\/version/);
   assert.match(dockerfile, /APP_COMMIT_SHA/);
   assert.match(dockerfile, /HEALTHCHECK/);
@@ -66,6 +68,8 @@ test("production backup snapshots SQLite and verifies every archive", () => {
 
 test("deployment keeps rollback images and emits optional webhook notifications", () => {
   const script = read("scripts/deploy-production.sh");
+  assert.match(script, /APP_COMMIT_SHA="\$app_commit_sha"/);
+  assert.match(script, /APP_BUILD_TIME="\$app_build_time"/);
   assert.match(script, /RABBIT_QUANT_IMAGE_RETENTION/);
   assert.match(script, /previous_web_image/);
   assert.match(script, /previous_trainer_image/);
