@@ -11,19 +11,6 @@ import type { TradeLedgerRow } from "@/lib/trade-ledger.mjs";
 import { analyzeZijinFactorResearch } from "@/lib/zijin-factor-research.mjs";
 import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { evaluateStockAgent, STOCK_AGENTS } from "@/lib/stock-agent-router.mjs";
-import zijinHistoricalEvidence from "@/public/research/zijin-factor-evidence.json";
-import zijinPatternDiscovery from "@/public/research/zijin-pattern-discovery.json";
-import zijinPeerPatternDiscovery from "@/public/research/zijin-peer-pattern-discovery.json";
-import zijinExternalFactorReadiness from "@/public/research/zijin-external-factor-readiness.json";
-import zijinRound2RegimeAudit from "@/public/research/zijin-round2-regime-audit.json";
-import zijinRound2WalkForward from "@/public/research/zijin-round2-walk-forward.json";
-import zijinRound3Nested from "@/public/research/zijin-round3-summary.json";
-import zijinRound4Report from "@/public/research/zijin-round4-report.json";
-import zijinRound4Protocol from "@/scripts/zijin-round4-protocol.json";
-import zijinRound5Report from "@/public/research/zijin-round5-report.json";
-import zijinRound5Protocol from "@/scripts/zijin-round5-protocol.json";
-import zijinRound6Report from "@/public/research/zijin-round6-report.json";
-import zijinRound6Protocol from "@/scripts/zijin-round6-protocol.json";
 import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
@@ -1767,13 +1754,23 @@ const EXTERNAL_FACTOR_PLAIN_COPY:Record<string,string>={
   eventClock:"确认公告和新闻何时公开，避免回测提前知道消息",
 };
 type AutoResearchSample = { date:string; cycles:number; wins:number; net:number; status:string };
+type ZijinResearchBundle = typeof import("@/lib/zijin-research-bundle")["zijinResearchBundle"];
 
 function SingleStockResearchView({accountName,stock,quote,marketData,profile,position,manualCount,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;profile:string;position:StockPosition;manualCount:number;onOpenConsole:()=>void}) {
+  const [zijinResearchBundle,setZijinResearchBundle]=useState<ZijinResearchBundle|null>(null);
+  const [zijinResearchBundleError,setZijinResearchBundleError]=useState(false);
   const [zijinTrainingProgress,setZijinTrainingProgress]=useState<ZijinTrainingProgress|null>(null);
   const [zijinTrainingConnection,setZijinTrainingConnection]=useState<"loading"|"ok"|"error">("loading");
   const [zijinTrainingFetchedAt,setZijinTrainingFetchedAt]=useState<string|null>(null);
   const [zijinShadow,setZijinShadow]=useState<ZijinShadowAB|null>(null);
   const [zijinShadowConnection,setZijinShadowConnection]=useState<"loading"|"ok"|"error">("loading");
+  useEffect(()=>{
+    let active=true;
+    void import("@/lib/zijin-research-bundle")
+      .then(module=>{if(active){setZijinResearchBundle(module.zijinResearchBundle);setZijinResearchBundleError(false)}})
+      .catch(()=>{if(active)setZijinResearchBundleError(true)});
+    return()=>{active=false};
+  },[]);
   useEffect(()=>{
     if(stock.code!=="601899"){
       const resetTimer=window.setTimeout(()=>{setZijinTrainingProgress(null);setZijinTrainingConnection("loading");setZijinTrainingFetchedAt(null);},0);
@@ -1899,6 +1896,22 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const blindFinished=zijinTrainingProgress?.stage==="completed";
   const validationRan=zijinTrainingProgress?.latest.validationRan??Boolean(validationFinished&&zijinTrainingProgress?.latest.validationTrades);
   const blindRan=zijinTrainingProgress?.latest.blindRan??Boolean(blindFinished&&zijinTrainingProgress?.latest.blindTrades);
+  if(!zijinResearchBundle)return <section className="zijin-research-lazy-state" role="status"><b>{zijinResearchBundleError?"研究报告加载失败":"正在加载单股研究资料"}</b><span>{zijinResearchBundleError?"请检查网络后刷新页面；操盘台与后台监控不受影响。":"历史报告仅在进入本页后加载，减少操盘台首屏体积。"}</span></section>;
+  const {
+    historicalEvidence:zijinHistoricalEvidence,
+    patternDiscovery:zijinPatternDiscovery,
+    peerPatternDiscovery:zijinPeerPatternDiscovery,
+    externalFactorReadiness:zijinExternalFactorReadiness,
+    round2RegimeAudit:zijinRound2RegimeAudit,
+    round2WalkForward:zijinRound2WalkForward,
+    round3Nested:zijinRound3Nested,
+    round4Report:zijinRound4Report,
+    round4Protocol:zijinRound4Protocol,
+    round5Report:zijinRound5Report,
+    round5Protocol:zijinRound5Protocol,
+    round6Report:zijinRound6Report,
+    round6Protocol:zijinRound6Protocol,
+  }=zijinResearchBundle;
   const historicalPassed=zijinHistoricalEvidence.selectedModel.passedValidationGate;
   const trainingStale=Boolean(zijinTrainingProgress?.status==="running"&&zijinTrainingProgress.meta?.stale);
   const schedulerOffline=zijinTrainingProgress?.meta?.automationHealth?.status==="offline";

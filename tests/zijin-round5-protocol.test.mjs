@@ -6,6 +6,7 @@ const protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round5-prot
 const runner = await readFile(new URL("../scripts/run_zijin_round4_experiments.py", import.meta.url), "utf8");
 const scheduler = await readFile(new URL("../scripts/zijin-auto-trainer.py", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const researchBundle = await readFile(new URL("../lib/zijin-research-bundle.ts", import.meta.url), "utf8");
 
 test("round five preregisters two regime-specific hypotheses without opening 2026", () => {
   assert.equal(protocol.round, 5);
@@ -56,7 +57,9 @@ test("automatic scheduler advances to the latest preregistered protocol instead 
 });
 
 test("research dashboard exposes the honest round five result without changing V4", () => {
-  assert.match(page, /zijin-round5-report\.json/);
+  assert.match(researchBundle, /zijin-round5-report\.json/);
+  assert.match(page, /import\("@\/lib\/zijin-research-bundle"\)/);
+  assert.doesNotMatch(page, /^import .*zijin-round5-report\.json/m);
   assert.match(page, /第五轮 · 先分环境再选点/);
   assert.match(page, /样本不足/);
   assert.match(page, /真实失败也保留/);
