@@ -36,10 +36,11 @@
   },
   "prospectiveGate": {
     "minimumResolvedTrades": 50,
+    "minimumResearchCandidateWinRate": 0.65,
     "minimumWinRate": 0.7,
     "minimumAverageNetPct": 0,
     "minimumStressAverageNetPct": 0,
     "manualReviewRequired": true,
-    "notes": "只累计登记后新分钟；不得回填、不得因当天结果改阈值、不得自动接入V4。"
+    "notes": "扣费胜率达到65%但不足70%的模型保留为研究候选并继续积累；达到70%后才可进入晋级评审。只累计登记后新分钟；不得回填、不得因当天结果改阈值、不得自动接入V4。"
   }
 }
