@@ -24,11 +24,19 @@ mkdir -p "$STATE_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
 # 文件锁由外层 flock 进程持有，并用 --close 禁止部署脚本及其
 # Docker、Git、tee 子进程继承锁描述符。直接子进程退出时锁必定释放。
 if [[ "${RABBIT_QUANT_DEPLOY_LOCKED:-0}" != "1" ]]; then
-  if RABBIT_QUANT_DEPLOY_LOCKED=1 flock --nonblock --close "$LOCK_FILE" "$0" "$@"; then
+  set +e
+  RABBIT_QUANT_DEPLOY_LOCKED=1 flock \
+    --nonblock \
+    --close \
+    --conflict-exit-code 75 \
+    "$LOCK_FILE" "$0" "$@"
+  deploy_status=$?
+  set -e
+  if (( deploy_status == 75 )); then
+    printf '[%s] 已有部署任务运行，本轮跳过。\n' "$(date --iso-8601=seconds)"
     exit 0
   fi
-  printf '[%s] 已有部署任务运行，本轮跳过。\n' "$(date --iso-8601=seconds)"
-  exit 0
+  exit "$deploy_status"
 fi
 
 exec > >(tee -a "$LOG_DIR/deploy.log") 2>&1
