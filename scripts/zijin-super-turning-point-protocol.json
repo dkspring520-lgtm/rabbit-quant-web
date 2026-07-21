@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-causal-super-turning-point-v1",
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "purpose": "验证实时确认的日内高低位拐点，在延长持有后是否仍有费用后正期望",
+  "isolation": {
+    "affectsSmartTV4": false,
+    "automaticPromotion": false,
+    "researchOnly": true
+  },
+  "dataPolicy": {
+    "development": ["2022-01-01", "2024-12-31"],
+    "validation": ["2025-01-01", "2025-12-31"],
+    "sealedBlindYear": 2026,
+    "maximumLoadedDate": "2025-12-31"
+  },
+  "causality": {
+    "signalTimestamp": "confirmation-minute",
+    "earliestFill": "next-minute-open",
+    "backfillSignalToHistoricalExtreme": false,
+    "futureDailyHighLowAllowedAsFeature": false,
+    "dailyHighLowUse": "outcome-diagnostic-only"
+  },
+  "signalPolicy": {
+    "earliestMinute": "09:35",
+    "latestMinute": "13:00",
+    "minimumScore": 75,
+    "minimumObservedRangePct": 0.6,
+    "trailingExtremeWindowMinutes": 12,
+    "minimumSignalCooldownMinutes": 30,
+    "maximumSignalsPerDirectionPerDay": 1
+  },
+  "outcomePolicy": {
+    "fixedHoldingMinutes": [60, 90, 120],
+    "roundTripCostPct": 0.12,
+    "positiveDefinition": "next-minute-open buy, fixed-horizon close sell",
+    "reverseDefinition": "confirmation sell, next-minute-open reference, fixed-horizon lower-price buyback",
+    "intrabarHighLowUse": "MFE/MAE and extreme-distance diagnostics only"
+  },
+  "scoreComponents": {
+    "vwapDistance": 20,
+    "intradayPosition": 15,
+    "distanceFromObservedExtreme": 10,
+    "threeMinuteTurn": 15,
+    "ma5Turn": 15,
+    "oneMinuteConfirmation": 10,
+    "volumeConfirmation": 5,
+    "reboundOrPullback": 10
+  }
+}
