@@ -502,7 +502,7 @@ const strategyProfiles = STRATEGY_PROFILES;
 
 
 export default function Home() {
-  const [authReady, setAuthReady] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const [localAuth, setLocalAuth] = useState(false);
   const [authScreen,setAuthScreen]=useState<'landing'|'account'>('landing');
   const [demoMode,setDemoMode]=useState(false);
@@ -1446,7 +1446,7 @@ export default function Home() {
   }
 
   return (
-    <main className={`app-shell session-${marketSession.tone}`}>
+    <main className={`app-shell minimal-ui session-${marketSession.tone}`}>
       <header className="topbar">
         <div className="brand brand-lockup" aria-label="双兔助手 做T神器 Rabbit Smart-T">
           <img className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志"/>

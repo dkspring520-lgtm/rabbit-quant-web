@@ -1,0 +1,160 @@
+/* Global minimalist presentation: core state, numbers and actions first. */
+.minimal-ui .eyebrow,
+.minimal-ui .home-copy > p,
+.minimal-ui .home-trust,
+.minimal-ui .home-terminal,
+.minimal-ui .home-widget small,
+.minimal-ui .workflow-head > p,
+.minimal-ui .workflow-grid button > p,
+.minimal-ui .module-head p,
+.minimal-ui .watch-summary small,
+.minimal-ui .watch-toolbar > div,
+.minimal-ui .watch-row small,
+.minimal-ui .watch-rule,
+.minimal-ui .signal-funnel-note em,
+.minimal-ui .context-radar-foot,
+.minimal-ui .decision-stats small,
+.minimal-ui .research-purpose,
+.minimal-ui .research-card > small,
+.minimal-ui .feedback-card > p,
+.minimal-ui .zijin-plain-guide small,
+.minimal-ui .market-hero p,
+.minimal-ui .market-guard,
+.minimal-ui .builtin-head p,
+.minimal-ui .market-stats small,
+.minimal-ui .market-toolbar > div:first-child,
+.minimal-ui .training-purpose > div > p,
+.minimal-ui .training-role-grid span,
+.minimal-ui .training-scope-strip small,
+.minimal-ui .lab-agent > p,
+.minimal-ui .lab-metrics > small,
+.minimal-ui .holdings-head p,
+.minimal-ui .panel-top p,
+.minimal-ui .position-identity small,
+.minimal-ui .cycle-summary small,
+.minimal-ui .recovery-note,
+.minimal-ui .backtest-config .config-inline-help,
+.minimal-ui .backtest-config > .seed-note,
+.minimal-ui .backtest-config > .config-note,
+.minimal-ui .position-logic-help p,
+.minimal-ui .broker-account-box label > small {
+  display: none !important;
+}
+
+.minimal-ui .product-home,
+.minimal-ui .module-view,
+.minimal-ui .holdings-view,
+.minimal-ui .backtest-view {
+  background: var(--bg);
+}
+
+.minimal-ui .home-hero {
+  grid-template-columns: minmax(0, 760px);
+  min-height: 300px;
+  justify-content: start;
+  gap: 0;
+}
+
+.minimal-ui .home-copy h1 {
+  max-width: 720px;
+  margin: 0 0 20px;
+  font-size: clamp(34px, 4vw, 52px);
+}
+
+.minimal-ui .home-actions { margin-top: 0; }
+.minimal-ui .home-strip { margin-top: 12px; }
+
+.minimal-ui .home-strip > div,
+.minimal-ui .watch-summary > div,
+.minimal-ui .market-stats > div {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.minimal-ui .home-workflow { margin-top: 30px; }
+.minimal-ui .workflow-grid button { min-height: 126px; }
+.minimal-ui .workflow-grid > button > i { margin: 12px 0; }
+.minimal-ui .module-head,
+.minimal-ui .holdings-head { margin-bottom: 14px; }
+
+.minimal-ui .module-head h1,
+.minimal-ui .holdings-head h1,
+.minimal-ui .market-hero h1 { margin-bottom: 0; }
+
+.minimal-ui .watch-toolbar {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.minimal-ui .research-card,
+.minimal-ui .lab-agent,
+.minimal-ui .position-card,
+.minimal-ui .market-row { box-shadow: none; }
+
+.minimal-ui .research-card,
+.minimal-ui .training-purpose,
+.minimal-ui .lab-results,
+.minimal-ui .position-card { background: #0b0e0d; }
+
+.minimal-ui .training-purpose {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.minimal-ui .training-purpose h2 {
+  margin-bottom: 0;
+  font-size: 16px;
+}
+
+.minimal-ui .training-role-grid p {
+  min-width: 86px;
+  padding: 8px 10px;
+}
+
+.minimal-ui .zijin-term-help { margin-top: 8px; }
+
+.minimal-ui .home-risk {
+  grid-template-columns: 72px 1fr auto;
+  margin-top: 8px;
+  padding: 9px 12px;
+}
+
+.minimal-ui .home-risk p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Login keeps one product promise and removes repeated mechanism copy. */
+.auth-page .auth-message p,
+.auth-page .auth-points,
+.auth-page .auth-disclaimer,
+.auth-page .auth-local-note { display: none; }
+.auth-page .auth-message h1 { font-size: clamp(34px, 4vw, 48px); }
+
+/* Public page remains legally complete, but removes repeated marketing copy. */
+.public-site .public-proof small,
+.public-site .public-section-head > p,
+.public-site .public-feature-card > p,
+.public-site .public-workflow p,
+.public-site .public-workflow small { display: none; }
+
+@media (max-width: 900px) {
+  .minimal-ui .training-purpose { grid-template-columns: 1fr; }
+  .minimal-ui .training-role-grid { margin-top: 10px; }
+}
+
+@media (max-width: 760px) {
+  .minimal-ui .product-home,
+  .minimal-ui .module-view,
+  .minimal-ui .holdings-view,
+  .minimal-ui .backtest-view { padding: 14px 12px; }
+  .minimal-ui .home-hero { min-height: 0; }
+  .minimal-ui .home-strip,
+  .minimal-ui .watch-summary { grid-template-columns: 1fr 1fr; }
+  .minimal-ui .workflow-grid button { min-height: 92px; }
+  .minimal-ui .training-role-grid { grid-template-columns: 1fr 1fr; }
+  .minimal-ui .home-risk { grid-template-columns: 1fr auto; }
+  .minimal-ui .home-risk p { display: none; }
+}

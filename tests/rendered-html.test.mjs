@@ -211,14 +211,15 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
   assert.match(styles, /\.zijin-auto-rabbits\{/);
 });
 
-test("Zijin experiment deep link survives authentication and a missing saved watchlist stock", async () => {
+test("session restore blocks the public landing flash and preserves the Zijin experiment deep link", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const homeStyles = await readFile(new URL("../app/home.css", import.meta.url), "utf8");
   const landing = await readFile(new URL("../app/public-landing.tsx", import.meta.url), "utf8");
   assert.match(source, /isZijinExperimentDeepLink/);
   assert.match(source, /ensureZijinExperimentStock/);
   assert.match(source, /prepareWatchlistForCurrentEntry/);
-  assert.match(source, /const \[authReady, setAuthReady\] = useState\(true\)/);
+  assert.match(source, /const \[authReady, setAuthReady\] = useState\(false\)/);
+  assert.match(source, /if\(!authReady\) return <main className="auth-loading">/);
   assert.match(source, /openZijinExperiment/);
   assert.match(source, /紫金矿业实验室/);
   assert.match(source, /查看训练进度/);
@@ -379,4 +380,18 @@ test("a market risk lock explains its score and concrete triggers", async () => 
   assert.match(source, /currentContext\.gate\.reasons\.join\("、"\)/);
   assert.match(source, /外部环境雷达 \$\{currentContext\.gate\.score\}\/100/);
   assert.match(source, /禁止新开 T，只允许恢复底仓/);
+});
+
+test("the app uses a global minimalist presentation without hiding decision evidence", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const minimal = await readFile(new URL("../app/minimal.css", import.meta.url), "utf8");
+
+  assert.match(layout, /import "\.\/minimal\.css"/);
+  assert.match(source, /app-shell minimal-ui session-/);
+  assert.match(minimal, /\.minimal-ui \.watch-rule/);
+  assert.match(minimal, /\.minimal-ui \.market-guard/);
+  assert.match(minimal, /\.minimal-ui \.research-purpose/);
+  assert.doesNotMatch(minimal, /\.market-risk-lock[^\{]*\{[^}]*display:\s*none/);
+  assert.doesNotMatch(minimal, /\.alert-reason[^\{]*\{[^}]*display:\s*none/);
 });
