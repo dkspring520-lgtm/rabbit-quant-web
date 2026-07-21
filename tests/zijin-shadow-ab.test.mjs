@@ -16,6 +16,7 @@ import {
 const compose = await readFile(new URL("../compose.web.yml", import.meta.url), "utf8");
 const observer = await readFile(new URL("../scripts/zijin-shadow-ab-observer.mjs", import.meta.url), "utf8");
 const route = await readFile(new URL("../app/api/research/zijin-shadow-ab/route.ts", import.meta.url), "utf8");
+const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const round12Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round12-protocol.json", import.meta.url), "utf8"));
 const round13Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round13-protocol.json", import.meta.url), "utf8"));
 const round14Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round14-protocol.json", import.meta.url), "utf8"));
@@ -243,6 +244,14 @@ test("round-14 is preregistered, causal, prospective-only and isolated from V4",
   assert.equal(round14Protocol.prospectiveGate.minimumResolvedTrades, 50);
   assert.equal(round14Protocol.prospectiveGate.minimumResearchCandidateWinRate, 0.65);
   assert.equal(round14Protocol.prospectiveGate.minimumWinRate, 0.70);
+});
+
+test("single-stock research shows model E with plain 65 and 70 percent gates", () => {
+  assert.match(page, /\["A","B","C","D","E"\]/);
+  assert.match(page, /第10–14轮 · 五路真实前瞻观察/);
+  assert.match(page, /65% 保留研究 · 70% 申请评审/);
+  assert.match(page, /积累新样本/);
+  assert.match(page, /不回填历史、不影响 V4、不发送正式提醒/);
 });
 
 test("audit records form an append-only SHA-256 chain", () => {

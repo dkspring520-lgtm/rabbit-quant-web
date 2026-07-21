@@ -136,8 +136,8 @@ type ZijinShadowAB = {
   source:{provider:string|null;sourceTimestamp:string|null;fetchedAt:string|null;peerCoverage?:number;error:string|null};
   costPolicy:{baseRoundTripPct:number;stressRoundTripPct:number};
   targetPolicy:{minimumNetPct:number;maximumNetPct:number;maximumHoldMinutes:number};
-  prospectiveGate:{minimumResolvedTrades:number;minimumWinRate:number;requirePositiveBaseNetPct:boolean;requirePositiveStressNetPct:boolean;manualReviewRequired:boolean};
-  models:Record<"A"|"B"|"C"|"D",{
+  prospectiveGate:{minimumResolvedTrades:number;minimumResearchCandidateWinRate?:number;minimumWinRate:number;requirePositiveBaseNetPct:boolean;requirePositiveStressNetPct:boolean;manualReviewRequired:boolean};
+  models:Record<"A"|"B"|"C"|"D"|"E",{
     id:string;label:string;sourceRound:number;sessionStart:string;sessionEnd:string;maxSignalsPerDay:number;side:"long"|"short";
     today:{candidates:number;entries:number;exits:number;wins:number;netPct:number;lastDecision:string;activeTrade:null|{pendingEntry?:boolean;entryTime?:string;entryPrice?:number}};
     total:{candidateDays:number;candidates:number;resolvedTrades:number;wins:number;winRate:number|null;netPct:number;stressNetPct:number};
@@ -2102,28 +2102,33 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       />
       {zijinTrainingProgress&&<FourRabbitAutomationDashboard progress={zijinTrainingProgress}/>}
       <details className={`zijin-shadow-ab ${zijinShadow?.status??"loading"}`} open>
-        <summary><span><b>第10–13轮 · A/B/C/D前瞻观察</b><small>只记录登记之后的新分钟；D组验证高于 VWAP 后实时转弱的反T，不回填历史、不影响 V4、不发送正式提醒</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
+        <summary><span><b>第10–14轮 · 五路真实前瞻观察</b><small>E 路专门验证早盘价格低于 VWAP 后的实时回归；只收集登记后的新样本，不回填历史、不影响 V4、不发送正式提醒</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
         {zijinShadow?<div className="zijin-shadow-body">
-          <header><div><span>比较目的</span><b>同时验证正T少而精、正T覆盖优先、低位相对弱势反T、高位偏离转弱反T，哪种能保持费用后正期望</b></div><p><span>真实前瞻事件</span><b>{zijinShadow.integrity.eventCount} 条</b><small>哈希链只追加，不覆盖</small></p><p><span>费用口径</span><b>{zijinShadow.costPolicy.baseRoundTripPct.toFixed(2)}%</b><small>压力成本 {zijinShadow.costPolicy.stressRoundTripPct.toFixed(2)}%</small></p></header>
-          <div className="zijin-shadow-models">{(["A","B","C","D"] as const).map(key=>{
+          <header><div><span>这张看板看什么</span><b>先积累 50 笔真实前瞻闭环，再看扣费胜率和净收益；65% 可保留研究，70% 才能申请人工评审</b></div><p><span>真实前瞻事件</span><b>{zijinShadow.integrity.eventCount} 条</b><small>只追加，不覆盖</small></p><p><span>费用口径</span><b>{zijinShadow.costPolicy.baseRoundTripPct.toFixed(2)}%</b><small>压力成本 {zijinShadow.costPolicy.stressRoundTripPct.toFixed(2)}%</small></p></header>
+          <div className="zijin-shadow-models">{(["A","B","C","D","E"] as const).map(key=>{
             const model=zijinShadow.models[key];
             if(!model)return null;
             const reason=Object.entries(model.rejectionReasons).sort((left,right)=>right[1]-left[1])[0];
             const minimum=Math.max(50,zijinShadow.prospectiveGate?.minimumResolvedTrades??0);
+            const researchWinRate=Math.max(.65,zijinShadow.prospectiveGate?.minimumResearchCandidateWinRate??0);
             const requiredWinRate=Math.max(.70,zijinShadow.prospectiveGate?.minimumWinRate??0);
             const evidenceReady=model.total.resolvedTrades>=minimum;
             const evidenceProgress=Math.min(100,model.total.resolvedTrades/minimum*100);
-            return <article key={key}>
+            const positiveAfterCosts=model.total.netPct>0&&model.total.stressNetPct>0;
+            const reviewReady=evidenceReady&&model.total.winRate!==null&&model.total.winRate>=requiredWinRate&&positiveAfterCosts;
+            const researchReady=evidenceReady&&model.total.winRate!==null&&model.total.winRate>=researchWinRate&&positiveAfterCosts;
+            const plainStatus=!evidenceReady?"积累新样本":reviewReady?"达到评审线":researchReady?"保留研究":"未达到候选线";
+            return <article key={key} className={key==="E"?"focus":""}>
               <div><span>{model.label}</span><em>第{model.sourceRound}轮 · {model.side==="short"?"反T":"正T"} · {model.sessionStart.slice(0,2)}:{model.sessionStart.slice(2)}–{model.sessionEnd.slice(0,2)}:{model.sessionEnd.slice(2)}</em></div>
               <p><span>新样本证据</span><b>{model.total.resolvedTrades}/{minimum} 笔</b></p>
-              <p><span>扣费胜率</span><b className={!evidenceReady?"neutral":model.total.winRate!==null&&model.total.winRate>=requiredWinRate?"positive":"negative"}>{evidenceReady&&model.total.winRate!==null?`${(model.total.winRate*100).toFixed(1)}%`:"不可判断"}</b></p>
+              <p><span>当前结论</span><b className={reviewReady?"positive":researchReady?"candidate":evidenceReady?"negative":"neutral"}>{plainStatus}</b></p>
               <p><span>累计净收益</span><b className={model.total.netPct>0?"positive":model.total.netPct<0?"negative":"neutral"}>{model.total.netPct>=0?"+":""}{model.total.netPct.toFixed(3)}%</b></p>
               <i className="zijin-shadow-evidence" aria-label={`前瞻证据 ${model.total.resolvedTrades}/${minimum}`}><span style={{width:`${evidenceProgress}%`}}/></i>
-              <p><span>今日状态</span><b>{model.today.lastDecision}</b></p>
+              <p><span>胜率与今日状态</span><b>{evidenceReady&&model.total.winRate!==null?`${(model.total.winRate*100).toFixed(1)}% · ${model.today.lastDecision}`:`样本不足 · ${model.today.lastDecision}`}</b></p>
               <small>{reason?`最常见未触发原因：${reason[0]}（${reason[1]}次）`:evidenceReady?"已达到最低样本数，仍需费用、稳定性与人工评审":"只累计上线后的新交易日；不会用旧回测补足样本"}</small>
             </article>;
           })}</div>
-          <footer><span>{zijinShadow.marketDate?`交易日 ${zijinShadow.marketDate}`:"等待首个交易日"} · 数据源 {zijinShadow.source.provider??"等待连接"}</span><b>至少 50 笔、扣费胜率达到 70%，再经稳定性与人工评审才可毕业</b></footer>
+          <footer><span>{zijinShadow.marketDate?`交易日 ${zijinShadow.marketDate}`:"等待首个交易日"} · 数据源 {zijinShadow.source.provider??"等待连接"}</span><b>65% 保留研究 · 70% 申请评审 · 两档都必须扣费后为正</b></footer>
         </div>:<div className="zijin-shadow-loading">正在读取服务器前瞻观察记录；没有记录时不会显示虚构胜率。</div>}
       </details>
       {zijinTrainingProgress?<>
