@@ -35,8 +35,8 @@
     }
   },
   "prospectiveGate": {
-    "minimumResolvedTrades": 30,
-    "minimumWinRate": 0.65,
+    "minimumResolvedTrades": 50,
+    "minimumWinRate": 0.7,
     "minimumAverageNetPct": 0,
     "minimumStressAverageNetPct": 0,
     "manualReviewRequired": true,

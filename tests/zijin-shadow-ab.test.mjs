@@ -177,8 +177,8 @@ test("round-13 is preregistered, prospective-only and isolated from V4", () => {
   assert.equal(round13Protocol.researchDisclosure.affectsV4, false);
   assert.equal(round13Protocol.researchDisclosure.sendsAlerts, false);
   assert.equal(round13Protocol.researchDisclosure.automaticPromotion, false);
-  assert.equal(round13Protocol.prospectiveGate.minimumResolvedTrades, 30);
-  assert.equal(round13Protocol.prospectiveGate.minimumWinRate, 0.65);
+  assert.equal(round13Protocol.prospectiveGate.minimumResolvedTrades, 50);
+  assert.equal(round13Protocol.prospectiveGate.minimumWinRate, 0.70);
 });
 
 test("audit records form an append-only SHA-256 chain", () => {
