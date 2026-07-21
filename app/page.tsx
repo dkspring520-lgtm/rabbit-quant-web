@@ -114,7 +114,7 @@ type ZijinShadowAB = {
   costPolicy:{baseRoundTripPct:number;stressRoundTripPct:number};
   targetPolicy:{minimumNetPct:number;maximumNetPct:number;maximumHoldMinutes:number};
   prospectiveGate:{minimumResolvedTrades:number;minimumWinRate:number;requirePositiveBaseNetPct:boolean;requirePositiveStressNetPct:boolean;manualReviewRequired:boolean};
-  models:Record<"A"|"B"|"C",{
+  models:Record<"A"|"B"|"C"|"D",{
     id:string;label:string;sourceRound:number;sessionStart:string;sessionEnd:string;maxSignalsPerDay:number;side:"long"|"short";
     today:{candidates:number;entries:number;exits:number;wins:number;netPct:number;lastDecision:string;activeTrade:null|{pendingEntry?:boolean;entryTime?:string;entryPrice?:number}};
     total:{candidateDays:number;candidates:number;resolvedTrades:number;wins:number;winRate:number|null;netPct:number;stressNetPct:number};
@@ -2033,10 +2033,10 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       />
       {zijinTrainingProgress&&<FourRabbitAutomationDashboard progress={zijinTrainingProgress}/>}
       <details className={`zijin-shadow-ab ${zijinShadow?.status??"loading"}`} open>
-        <summary><span><b>第10–12轮 · A/B/C前瞻观察</b><small>只记录登记之后的新分钟；C组验证反T相对弱势，不回填历史、不影响 V4、不发送正式提醒</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
+        <summary><span><b>第10–13轮 · A/B/C/D前瞻观察</b><small>只记录登记之后的新分钟；D组验证高于 VWAP 后实时转弱的反T，不回填历史、不影响 V4、不发送正式提醒</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
         {zijinShadow?<div className="zijin-shadow-body">
-          <header><div><span>比较目的</span><b>同时验证正T少而精、正T覆盖优先、反T相对弱势能否在真实前瞻中保持费用后正期望</b></div><p><span>真实前瞻事件</span><b>{zijinShadow.integrity.eventCount} 条</b><small>哈希链只追加，不覆盖</small></p><p><span>费用口径</span><b>{zijinShadow.costPolicy.baseRoundTripPct.toFixed(2)}%</b><small>压力成本 {zijinShadow.costPolicy.stressRoundTripPct.toFixed(2)}%</small></p></header>
-          <div className="zijin-shadow-models">{(["A","B","C"] as const).map(key=>{
+          <header><div><span>比较目的</span><b>同时验证正T少而精、正T覆盖优先、低位相对弱势反T、高位偏离转弱反T，哪种能保持费用后正期望</b></div><p><span>真实前瞻事件</span><b>{zijinShadow.integrity.eventCount} 条</b><small>哈希链只追加，不覆盖</small></p><p><span>费用口径</span><b>{zijinShadow.costPolicy.baseRoundTripPct.toFixed(2)}%</b><small>压力成本 {zijinShadow.costPolicy.stressRoundTripPct.toFixed(2)}%</small></p></header>
+          <div className="zijin-shadow-models">{(["A","B","C","D"] as const).map(key=>{
             const model=zijinShadow.models[key];
             if(!model)return null;
             const reason=Object.entries(model.rejectionReasons).sort((left,right)=>right[1]-left[1])[0];

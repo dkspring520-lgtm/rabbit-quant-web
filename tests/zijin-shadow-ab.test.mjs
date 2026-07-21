@@ -17,6 +17,7 @@ const compose = await readFile(new URL("../compose.web.yml", import.meta.url), "
 const observer = await readFile(new URL("../scripts/zijin-shadow-ab-observer.mjs", import.meta.url), "utf8");
 const route = await readFile(new URL("../app/api/research/zijin-shadow-ab/route.ts", import.meta.url), "utf8");
 const round12Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round12-protocol.json", import.meta.url), "utf8"));
+const round13Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round13-protocol.json", import.meta.url), "utf8"));
 
 const minutes = [
   { time: "0930", price: 99.00, volume: 100 },
@@ -87,8 +88,30 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   assert.equal(upgraded.integrity.eventCount, 9);
   assert.equal(upgraded.models.C.id, "round12-reverse-relative-weakness");
   assert.equal(upgraded.models.C.side, "short");
+  assert.equal(upgraded.models.D.id, "round13-reverse-high-anchor");
+  assert.equal(upgraded.models.D.side, "short");
   assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 30);
   assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.65);
+});
+
+test("round-13 rejects low-position reverse sells and accepts a causal high anchor", () => {
+  const base = {
+    time: "1010",
+    return3Pct: -0.12,
+    previousReturn3Pct: 0.08,
+    ma5Slope3Pct: 0.03,
+    previousMa5Slope3Pct: 0.04,
+    intradayPosition: 0.82,
+    vwapBiasPct: 0.42,
+    zijinAlphaVwapPct: 0.24,
+    volumeRatio: 1.1,
+    peerCoverage: 1,
+  };
+  assert.equal(evaluateShadowCandidate("D", base).passed, true);
+  const lowPosition = { ...base, intradayPosition: 0.35 };
+  const rejected = evaluateShadowCandidate("D", lowPosition);
+  assert.equal(rejected.passed, false);
+  assert.ok(rejected.failures.some((reason) => reason.includes("高位区")));
 });
 
 test("candidate fills only on next visible minute and then resolves after costs", () => {
@@ -136,6 +159,17 @@ test("round-12 protocol forbids historical proof, V4 mutation and automatic prom
   assert.equal(round12Protocol.researchDisclosure.automaticPromotion, false);
   assert.equal(round12Protocol.prospectiveGate.minimumWinRate, 0.65);
   assert.equal(round12Protocol.prospectiveGate.minimumResolvedTrades, 30);
+});
+
+test("round-13 is preregistered, prospective-only and isolated from V4", () => {
+  assert.equal(round13Protocol.researchDisclosure.newEconomicHypothesis, true);
+  assert.equal(round13Protocol.researchDisclosure.usesTodayToTuneThresholds, false);
+  assert.equal(round13Protocol.researchDisclosure.backfillAfterRegistration, false);
+  assert.equal(round13Protocol.researchDisclosure.affectsV4, false);
+  assert.equal(round13Protocol.researchDisclosure.sendsAlerts, false);
+  assert.equal(round13Protocol.researchDisclosure.automaticPromotion, false);
+  assert.equal(round13Protocol.prospectiveGate.minimumResolvedTrades, 30);
+  assert.equal(round13Protocol.prospectiveGate.minimumWinRate, 0.65);
 });
 
 test("audit records form an append-only SHA-256 chain", () => {
