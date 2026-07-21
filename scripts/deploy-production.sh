@@ -13,14 +13,17 @@ WEB_CONTAINER="rabbit-quant-modern-web"
 TRAINER_CONTAINER="rabbit-quant-zijin-trainer"
 
 mkdir -p "$STATE_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
-# 日志进程必须在文件锁之前启动，否则 tee 会继承锁描述符，
-# 主部署进程退出后仍可能让下一轮误判为“已有部署运行”。
-exec > >(tee -a "$LOG_DIR/deploy.log") 2>&1
-exec 9>"$LOCK_FILE"
-if ! flock -n 9; then
+# 文件锁由外层 flock 进程持有，并用 --close 禁止部署脚本及其
+# Docker、Git、tee 子进程继承锁描述符。直接子进程退出时锁必定释放。
+if [[ "${RABBIT_QUANT_DEPLOY_LOCKED:-0}" != "1" ]]; then
+  if RABBIT_QUANT_DEPLOY_LOCKED=1 flock --nonblock --close "$LOCK_FILE" "$0" "$@"; then
+    exit 0
+  fi
   printf '[%s] 已有部署任务运行，本轮跳过。\n' "$(date --iso-8601=seconds)"
   exit 0
 fi
+
+exec > >(tee -a "$LOG_DIR/deploy.log") 2>&1
 
 release_dir=""
 target_sha="unknown"
