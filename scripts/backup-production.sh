@@ -57,7 +57,7 @@ current_stage="账户数据库快照"
 log "创建一致性 SQLite 快照。"
 docker exec "$CONTROL_CONTAINER" rm -f /data/.rabbit-control-backup.sqlite
 docker exec -e BACKUP_OUTPUT=/data/.rabbit-control-backup.sqlite "$CONTROL_CONTAINER" \
-  node --input-type=module -e 'import { DatabaseSync } from "node:sqlite"; const db=new DatabaseSync(process.env.CONTROL_DB_PATH||"/data/rabbit-control.sqlite"); db.exec(`VACUUM INTO "${process.env.BACKUP_OUTPUT}"`); db.close();'
+  node --input-type=module -e 'import { DatabaseSync } from "node:sqlite"; const db=new DatabaseSync(process.env.CONTROL_DB_PATH||"/data/rabbit-control.sqlite"); const output=process.env.BACKUP_OUTPUT.replaceAll("\u0027","\u0027\u0027"); db.exec(`VACUUM INTO \u0027${output}\u0027`); db.close();'
 docker exec -e BACKUP_INPUT=/data/.rabbit-control-backup.sqlite "$CONTROL_CONTAINER" \
   node --input-type=module -e 'import { DatabaseSync } from "node:sqlite"; const db=new DatabaseSync(process.env.BACKUP_INPUT,{readOnly:true}); const result=db.prepare("PRAGMA integrity_check").get(); db.close(); if(Object.values(result)[0]!=="ok") process.exit(1);'
 docker cp "$CONTROL_CONTAINER:/data/.rabbit-control-backup.sqlite" "$work_dir/rabbit-control.sqlite" >/dev/null

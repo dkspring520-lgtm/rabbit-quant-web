@@ -57,6 +57,7 @@ test("production backup snapshots SQLite and verifies every archive", () => {
   const timer = read("deploy/systemd/rabbit-quant-backup.timer");
 
   assert.match(script, /VACUUM INTO/);
+  assert.match(script, /replaceAll\("\\u0027","\\u0027\\u0027"\)/);
   assert.match(script, /PRAGMA integrity_check/);
   assert.match(script, /gzip --test/);
   assert.match(script, /sha256sum/);
