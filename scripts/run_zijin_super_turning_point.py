@@ -224,13 +224,31 @@ def summarize(rows: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def grouped_report(outcomes: pd.DataFrame, start: str, end: str) -> dict[str, Any]:
-    rows = outcomes[(outcomes.date >= start) & (outcomes.date <= end)]
+def grouped_report(outcomes: pd.DataFrame, start: str, end: str,
+                   horizons: list[int]) -> dict[str, Any]:
+    """Build a stable report even when the preregistered policy emits no signals."""
+    if outcomes.empty or "date" not in outcomes.columns:
+        rows = pd.DataFrame()
+    else:
+        rows = outcomes[(outcomes["date"] >= start) & (outcomes["date"] <= end)]
+
+    def horizon_summary(source: pd.DataFrame, horizon: int) -> dict[str, Any]:
+        if source.empty or "horizonMinutes" not in source.columns:
+            return summarize(pd.DataFrame())
+        return summarize(source[source["horizonMinutes"] == horizon])
+
     return {
-        "combined": {str(h): summarize(group) for h, group in rows.groupby("horizonMinutes")},
+        "combined": {str(h): horizon_summary(rows, h) for h in horizons},
         "byDirection": {
-            str(direction): {str(h): summarize(group) for h, group in direction_rows.groupby("horizonMinutes")}
-            for direction, direction_rows in rows.groupby("direction")
+            direction: {
+                str(h): horizon_summary(
+                    rows[rows["direction"] == direction]
+                    if not rows.empty and "direction" in rows.columns else pd.DataFrame(),
+                    h,
+                )
+                for h in horizons
+            }
+            for direction in ("positive", "reverse")
         },
     }
 
@@ -266,6 +284,7 @@ def main() -> None:
     signals = build_signals(minutes, protocol)
     atomic_json(args.progress, {"status": "running", "progress": 70, "stage": "outcomes", "message": "比较60、90、120分钟费用后结果", "signals": int(len(signals))})
     outcomes = evaluate_signals(minutes, signals, protocol)
+    horizons = [int(value) for value in protocol["outcomePolicy"]["fixedHoldingMinutes"]]
     report = {
         "schemaVersion": 1, "experimentId": protocol["experimentId"],
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -282,8 +301,8 @@ def main() -> None:
             "inputSha256": file_sha256(args.input), "protocolSha256": protocol_sha256(protocol),
         },
         "signalCount": int(len(signals)),
-        "development2022To2024": grouped_report(outcomes, "20220101", "20241231"),
-        "validation2025": grouped_report(outcomes, "20250101", "20251231"),
+        "development2022To2024": grouped_report(outcomes, "20220101", "20241231", horizons),
+        "validation2025": grouped_report(outcomes, "20250101", "20251231", horizons),
         "decision": "research-only; do not promote or modify V4",
     }
     atomic_json(args.report, report)

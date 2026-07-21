@@ -19,10 +19,17 @@ test("super turning point signals are causal and use next-minute fills", () => {
   assert.equal(protocol.causality.futureDailyHighLowAllowedAsFeature, false);
   assert.match(runner, /entry_index = int\(signal\.signalIndex\) \+ 1/);
   assert.match(runner, /actualDailyHighLowUsedAsInput": False/);
+  assert.match(runner, /core\.minute_number\(policy\["earliestMinute"\]\)/);
 });
 
 test("long-hold audit compares preregistered 60 90 and 120 minute horizons", () => {
   assert.deepEqual(protocol.outcomePolicy.fixedHoldingMinutes, [60, 90, 120]);
   assert.equal(protocol.outcomePolicy.roundTripCostPct, 0.12);
   assert.equal(protocol.signalPolicy.maximumSignalsPerDirectionPerDay, 1);
+});
+
+test("zero-signal experiments still produce a complete auditable report", () => {
+  assert.match(runner, /outcomes\.empty or "date" not in outcomes\.columns/);
+  assert.match(runner, /for direction in \("positive", "reverse"\)/);
+  assert.match(runner, /for h in horizons/);
 });

@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-causal-super-turning-point-v1",
+  "generatedAt": "2026-07-21T11:02:04.107185+00:00",
+  "researchOnly": true,
+  "affectsSmartTV4": false,
+  "causalityAudit": {
+    "signalUsesFutureBars": false,
+    "fill": "next-minute-open",
+    "actualDailyHighLowUsedAsInput": false,
+    "actualDailyHighLowUsedForOutcomeDiagnostics": true,
+    "loadedMaximumDate": "20251231"
+  },
+  "dataAudit": {
+    "firstDate": "20220104",
+    "lastDate": "20251231",
+    "tradingDays": 969,
+    "minuteRows": 233529,
+    "inputSha256": "e10af10c2e6e0f7de3926c4d4ff4cbdec6f6f8d9717165ca662b16e5eec6f361",
+    "protocolSha256": "0d7401dc1548b8d07bec4385b3fc8842bc42a080805729ad7eea8054d9f13321"
+  },
+  "signalCount": 1251,
+  "development2022To2024": {
+    "combined": {
+      "60": {
+        "signals": 942,
+        "wins": 419,
+        "winRate": 0.4448,
+        "averageNetPct": -0.1151,
+        "medianNetPct": -0.12,
+        "averageMfePct": 0.6967,
+        "averageMaePct": -0.7406,
+        "nearActualExtremeRate": 0.0786,
+        "averageExtremeDistancePct": 1.2281
+      },
+      "90": {
+        "signals": 942,
+        "wins": 433,
+        "winRate": 0.4597,
+        "averageNetPct": -0.1274,
+        "medianNetPct": -0.0556,
+        "averageMfePct": 0.8122,
+        "averageMaePct": -0.8575,
+        "nearActualExtremeRate": 0.0786,
+        "averageExtremeDistancePct": 1.2281
+      },
+      "120": {
+        "signals": 942,
+        "wins": 426,
+        "winRate": 0.4522,
+        "averageNetPct": -0.1421,
+        "medianNetPct": -0.12,
+        "averageMfePct": 0.9061,
+        "averageMaePct": -0.9578,
+        "nearActualExtremeRate": 0.0786,
+        "averageExtremeDistancePct": 1.2281
+      }
+    },
+    "byDirection": {
+      "positive": {
+        "60": {
+          "signals": 477,
+          "wins": 216,
+          "winRate": 0.4528,
+          "averageNetPct": -0.0909,
+          "medianNetPct": -0.12,
+          "averageMfePct": 0.7264,
+          "averageMaePct": -0.7075,
+          "nearActualExtremeRate": 0.0922,
+          "averageExtremeDistancePct": 1.1818
+        },
+        "90": {
+          "signals": 477,
+          "wins": 218,
+          "winRate": 0.457,
+          "averageNetPct": -0.0854,
+          "medianNetPct": -0.12,
+          "averageMfePct": 0.8447,
+          "averageMaePct": -0.8098,
+          "nearActualExtremeRate": 0.0922,
+          "averageExtremeDistancePct": 1.1818
+        },
+        "120": {
+          "signals": 477,
+          "wins": 210,
+          "winRate": 0.4403,
+          "averageNetPct": -0.0987,
+          "medianNetPct": -0.12,
+          "averageMfePct": 0.9337,
+          "averageMaePct": -0.8959,
+          "nearActualExtremeRate": 0.0922,
+          "averageExtremeDistancePct": 1.1818
+        }
+      },
+      "reverse": {
+        "60": {
+          "signals": 465,
+          "wins": 203,
+          "winRate": 0.4366,
+          "averageNetPct": -0.14,
+          "medianNetPct": -0.12,
+          "averageMfePct": 0.6663,
+          "averageMaePct": -0.7745,
+          "nearActualExtremeRate": 0.0645,
+          "averageExtremeDistancePct": 1.2756
+        },
+        "90": {
+          "signals": 465,
+          "wins": 215,
+          "winRate": 0.4624,
+          "averageNetPct": -0.1705,
+          "medianNetPct": -0.0408,
+          "averageMfePct": 0.7787,
+          "averageMaePct": -0.9064,
+          "nearActualExtremeRate": 0.0645,
+          "averageExtremeDistancePct": 1.2756
+        },
+        "120": {
+          "signals": 465,
+          "wins": 216,
+          "winRate": 0.4645,
+          "averageNetPct": -0.1867,
+          "medianNetPct": -0.0437,
+          "averageMfePct": 0.8779,
+          "averageMaePct": -1.0213,
+          "nearActualExtremeRate": 0.0645,
+          "averageExtremeDistancePct": 1.2756
+        }
+      }
+    }
+  },
+  "validation2025": {
+    "combined": {
+      "60": {
+        "signals": 309,
+        "wins": 121,
+        "winRate": 0.3916,
+        "averageNetPct": -0.1825,
+        "medianNetPct": -0.1814,
+        "averageMfePct": 0.659,
+        "averageMaePct": -0.8201,
+        "nearActualExtremeRate": 0.068,
+        "averageExtremeDistancePct": 1.2556
+      },
+      "90": {
+        "signals": 309,
+        "wins": 125,
+        "winRate": 0.4045,
+        "averageNetPct": -0.1702,
+        "medianNetPct": -0.1723,
+        "averageMfePct": 0.7669,
+        "averageMaePct": -0.9171,
+        "nearActualExtremeRate": 0.068,
+        "averageExtremeDistancePct": 1.2556
+      },
+      "120": {
+        "signals": 309,
+        "wins": 135,
+        "winRate": 0.4369,
+        "averageNetPct": -0.16,
+        "medianNetPct": -0.1696,
+        "averageMfePct": 0.8504,
+        "averageMaePct": -0.9896,
+        "nearActualExtremeRate": 0.068,
+        "averageExtremeDistancePct": 1.2556
+      }
+    },
+    "byDirection": {
+      "positive": {
+        "60": {
+          "signals": 151,
+          "wins": 66,
+          "winRate": 0.4371,
+          "averageNetPct": -0.059,
+          "medianNetPct": -0.12,
+          "averageMfePct": 0.7286,
+          "averageMaePct": -0.6804,
+          "nearActualExtremeRate": 0.0993,
+          "averageExtremeDistancePct": 1.1417
+        },
+        "90": {
+          "signals": 151,
+          "wins": 67,
+          "winRate": 0.4437,
+          "averageNetPct": -0.063,
+          "medianNetPct": -0.0647,
+          "averageMfePct": 0.8513,
+          "averageMaePct": -0.775,
+          "nearActualExtremeRate": 0.0993,
+          "averageExtremeDistancePct": 1.1417
+        },
+        "120": {
+          "signals": 151,
+          "wins": 72,
+          "winRate": 0.4768,
+          "averageNetPct": -0.0662,
+          "medianNetPct": -0.0268,
+          "averageMfePct": 0.9436,
+          "averageMaePct": -0.8432,
+          "nearActualExtremeRate": 0.0993,
+          "averageExtremeDistancePct": 1.1417
+        }
+      },
+      "reverse": {
+        "60": {
+          "signals": 158,
+          "wins": 55,
+          "winRate": 0.3481,
+          "averageNetPct": -0.3006,
+          "medianNetPct": -0.2766,
+          "averageMfePct": 0.5926,
+          "averageMaePct": -0.9536,
+          "nearActualExtremeRate": 0.038,
+          "averageExtremeDistancePct": 1.3646
+        },
+        "90": {
+          "signals": 158,
+          "wins": 58,
+          "winRate": 0.3671,
+          "averageNetPct": -0.2727,
+          "medianNetPct": -0.2621,
+          "averageMfePct": 0.6864,
+          "averageMaePct": -1.0528,
+          "nearActualExtremeRate": 0.038,
+          "averageExtremeDistancePct": 1.3646
+        },
+        "120": {
+          "signals": 158,
+          "wins": 63,
+          "winRate": 0.3987,
+          "averageNetPct": -0.2497,
+          "medianNetPct": -0.2338,
+          "averageMfePct": 0.7613,
+          "averageMaePct": -1.1296,
+          "nearActualExtremeRate": 0.038,
+          "averageExtremeDistancePct": 1.3646
+        }
+      }
+    }
+  },
+  "decision": "research-only; do not promote or modify V4"
+}

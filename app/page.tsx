@@ -971,7 +971,7 @@ export default function Home() {
       mode:evaluation?.direction??null,
       confirmed:Math.min(3,Math.max(0,Math.floor(score/25))),
       reason:evaluation
-        ? `${evaluation.title}：${evaluation.reasons[0]}（专属智能体尚未通过样本外验证，不开放正式执行）`
+        ? `${evaluation.title}：${evaluation.reasons[0]}（紫金研究模型尚未毕业，不开放正式执行）`
         : `${stockAgent.name}正在等待真实分钟数据。`,
       lastTime:evaluation?.asOfTime??"",
       inDecisionWindow:Boolean(evaluation?.asOfTime),
@@ -1122,7 +1122,7 @@ export default function Home() {
       if(!isRisk){alertedEventKeys.current.add(persistedKey);try{localStorage.setItem(persistedKey,"1");}catch{}}
       const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):((agentEvaluation?.direction??latestObservation!.direction)==="反T"?"sell":"buy");
       const title=isRisk?`${item.name} 风险锁定`:formalFresh?`${item.name} ${latest!.direction}${latest!.side}`:agentEvaluation?`${item.name} · ${agentEvaluation.title}`:`${item.name} ${latestObservation!.direction}候选观察`;
-      const message=isRisk?riskMessage:formalFresh?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):agentEvaluation?`${agentEvaluation.reasons[0]}；紫金专属研究观察，不是买卖指令。`:`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
+      const message=isRisk?riskMessage:formalFresh?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):agentEvaluation?`${agentEvaluation.reasons[0]}；紫金研究模型观察，不是买卖指令。`:`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
       queueAlert({level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
       const candidateSpeech=agentEvaluation
         ? `${item.name}，${agentEvaluation.direction??"做T"}专属候选观察，不是买卖指令`
@@ -1549,7 +1549,7 @@ export default function Home() {
         <aside className="decision-zone">
           {alertToast&&<div className={`trade-alert-toast ${alertToast.level} rabbit-${alertToast.rabbit}`} role="alert"><span className={`rabbit-speaker ${alertToast.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{alertToast.level==="candidate"?`${alertToast.rabbit==="buy"?"左兔":"右兔"} · 候选观察`:alertToast.rabbit==="buy"?"左兔 · 买入/买回提醒":alertToast.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{alertToast.title}</b><span>{alertToast.message}</span></div>{alertQueue.length>1&&<em className="alert-queue-count">+{alertQueue.length-1}</em>}<button onClick={()=>setAlertQueue(current=>current.slice(1))} aria-label="关闭提醒">×</button></div>}
           {isZijinStock&&<div className="stock-agent-switch" aria-label="紫金矿业信号引擎选择">
-            <div><span>正式信号引擎</span><b>Smart-T V4</b><small>专属智能体尚未通过封存样本验证，不能接管正式执行</small></div>
+            <div><span>正式信号引擎</span><b>Smart-T V4</b><small>紫金研究模型尚未达到毕业门槛，不能接管正式执行</small></div>
             <div className="stock-agent-switch-actions"><button className={!zijinResearchEnabled?"active":""} onClick={()=>setZijinResearchEnabled(false)} aria-pressed={!zijinResearchEnabled}>V4 正式</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(true)} aria-pressed={zijinResearchEnabled}>紫金研究叠加</button></div>
           </div>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
@@ -1797,7 +1797,7 @@ function HomeView({onNavigate,onOpenZijin,stockCount}:{onNavigate:(view:string)=
       <div className="home-terminal"><div className="terminal-head"><span>601899 紫金矿业</span><em><i/>策略示例 · 非实时</em></div><div className="terminal-price"><strong>--</strong><span>进入操盘台查看</span><small>市场雷达仅作界面示例</small></div><svg viewBox="0 0 600 180" preserveAspectRatio="none"><defs><linearGradient id="homeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20 L600 180 L0 180Z" fill="url(#homeFill)"/><path d="M0 145 C45 132 70 151 105 116 S170 127 205 88 S270 99 310 69 S370 91 410 58 S485 74 525 40 S570 52 600 20" className="home-line"/></svg><div className="terminal-signal"><span><i className="rabbit-dot-home">兔</i><b>研究提示</b></span><p>实时行情与回测请进入操盘台。</p><em>不构成投资建议</em></div></div>
     </div>
     <button className="home-zijin-entry" onClick={onOpenZijin} aria-label="打开紫金矿业实验室训练进度">
-      <span><i/>601899 · 专属智能体</span>
+      <span><i/>601899 · 研究模型（未毕业）</span>
       <div><b>紫金矿业实验室</b><small>查看五年分钟样本训练、样本外验证与当前通过状态；独立研究，不自动写入 Smart-T V4。</small></div>
       <em>查看训练进度 →</em>
     </button>
@@ -2091,7 +2091,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     {researchExpanded&&<div className="research-purpose"><b>这个页面只回答 3 个问题</b><div><p><i>01</i><span><strong>它平时怎么走？</strong><small>看振幅、趋势、量能和日内习惯</small></span></p><p><i>02</i><span><strong>什么做 T 条件更适合？</strong><small>根据历史记录形成观察方案</small></span></p><p><i>03</i><span><strong>今天的信号靠谱吗？</strong><small>把历史股性作为操盘台的参考背景</small></span></p></div><em>看实时买卖信号请进入“操盘台”</em></div>}
     <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSamples.length} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
     <div className="research-overview-actions"><div><b>核心内容已展开</b><span>{researchExpanded?'正在显示训练证据、人工复盘和全部研究数据。':'训练证据、人工复盘和专业数据已收起。'}</span></div><button type="button" aria-expanded={researchExpanded} onClick={()=>setResearchExpanded(value=>!value)}>{researchExpanded?'收起研究详情':'展开研究详情'}</button></div>
-    {stock.code==="601899"&&<article className={`research-compact-training ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'stale':zijinTrainingProgress?.status??'loading'}`}><div><span>紫金专属研究</span><b>{zijinTrainingConnection==='error'?'训练状态接口暂时无法连接':!zijinTrainingProgress?'正在读取训练记录':trainingStale?'训练任务心跳超时':schedulerOffline?'最近一轮已结束 · 自动调度器离线':zijinTrainingProgress.status==='running'?activeResearchStageLabel:currentQualified?'发现候选，等待人工评审':'本轮未通过 · 在线等待新实验'}</b><small>{zijinTrainingFetchedAt?`页面最近核对：${new Date(zijinTrainingFetchedAt).toLocaleString('zh-CN',{hour12:false})}`:'只展示真实训练结果，不会自动修改 V4。'}</small></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></article>}
+    {stock.code==="601899"&&<article className={`research-compact-training ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'stale':zijinTrainingProgress?.status??'loading'}`}><div><span>紫金研究模型</span><b>{zijinTrainingConnection==='error'?'训练状态接口暂时无法连接':!zijinTrainingProgress?'正在读取训练记录':trainingStale?'训练任务心跳超时':schedulerOffline?'最近一轮已结束 · 自动调度器离线':zijinTrainingProgress.status==='running'?activeResearchStageLabel:currentQualified?'发现候选，等待人工评审':'本轮未通过 · 在线等待新实验'}</b><small>{zijinTrainingFetchedAt?`页面最近核对：${new Date(zijinTrainingFetchedAt).toLocaleString('zh-CN',{hour12:false})}`:'只展示真实训练结果，不会自动修改 V4。'}</small></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></article>}
     {stock.code==="601899"&&researchExpanded&&<div id="zijin-experiment-progress" className={`zijin-training-live zijin-training-prominent ${trainingStale?'stale':zijinTrainingProgress?.status??'loading'}`}>
       <RabbitProgressMeter
         label="紫金矿业 · 四兔真实训练"
@@ -2109,20 +2109,21 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
             const model=zijinShadow.models[key];
             if(!model)return null;
             const reason=Object.entries(model.rejectionReasons).sort((left,right)=>right[1]-left[1])[0];
-            const minimum=zijinShadow.prospectiveGate?.minimumResolvedTrades??30;
+            const minimum=Math.max(50,zijinShadow.prospectiveGate?.minimumResolvedTrades??0);
+            const requiredWinRate=Math.max(.70,zijinShadow.prospectiveGate?.minimumWinRate??0);
             const evidenceReady=model.total.resolvedTrades>=minimum;
             const evidenceProgress=Math.min(100,model.total.resolvedTrades/minimum*100);
             return <article key={key}>
               <div><span>{model.label}</span><em>第{model.sourceRound}轮 · {model.side==="short"?"反T":"正T"} · {model.sessionStart.slice(0,2)}:{model.sessionStart.slice(2)}–{model.sessionEnd.slice(0,2)}:{model.sessionEnd.slice(2)}</em></div>
               <p><span>新样本证据</span><b>{model.total.resolvedTrades}/{minimum} 笔</b></p>
-              <p><span>扣费胜率</span><b className={!evidenceReady?"neutral":model.total.winRate!==null&&model.total.winRate>=(zijinShadow.prospectiveGate?.minimumWinRate??.65)?"positive":"negative"}>{evidenceReady&&model.total.winRate!==null?`${(model.total.winRate*100).toFixed(1)}%`:"不可判断"}</b></p>
+              <p><span>扣费胜率</span><b className={!evidenceReady?"neutral":model.total.winRate!==null&&model.total.winRate>=requiredWinRate?"positive":"negative"}>{evidenceReady&&model.total.winRate!==null?`${(model.total.winRate*100).toFixed(1)}%`:"不可判断"}</b></p>
               <p><span>累计净收益</span><b className={model.total.netPct>0?"positive":model.total.netPct<0?"negative":"neutral"}>{model.total.netPct>=0?"+":""}{model.total.netPct.toFixed(3)}%</b></p>
               <i className="zijin-shadow-evidence" aria-label={`前瞻证据 ${model.total.resolvedTrades}/${minimum}`}><span style={{width:`${evidenceProgress}%`}}/></i>
               <p><span>今日状态</span><b>{model.today.lastDecision}</b></p>
               <small>{reason?`最常见未触发原因：${reason[0]}（${reason[1]}次）`:evidenceReady?"已达到最低样本数，仍需费用、稳定性与人工评审":"只累计上线后的新交易日；不会用旧回测补足样本"}</small>
             </article>;
           })}</div>
-          <footer><span>{zijinShadow.marketDate?`交易日 ${zijinShadow.marketDate}`:"等待首个交易日"} · 数据源 {zijinShadow.source.provider??"等待连接"}</span><b>胜率不足 65% 或样本不足时，任何一组都不会晋级</b></footer>
+          <footer><span>{zijinShadow.marketDate?`交易日 ${zijinShadow.marketDate}`:"等待首个交易日"} · 数据源 {zijinShadow.source.provider??"等待连接"}</span><b>至少 50 笔、扣费胜率达到 70%，再经稳定性与人工评审才可毕业</b></footer>
         </div>:<div className="zijin-shadow-loading">正在读取服务器前瞻观察记录；没有记录时不会显示虚构胜率。</div>}
       </details>
       {zijinTrainingProgress?<>
