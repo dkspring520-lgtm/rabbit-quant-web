@@ -13,8 +13,14 @@ test("visible trading desk keeps the one-second active quote and five-second wat
 test("closed market data refreshes slowly without pretending to be realtime", () => {
   assert.equal(clientPollingInterval("activeQuote", false), 30_000);
   assert.equal(clientPollingInterval("watchlist", false), 30_000);
+  assert.equal(clientPollingInterval("referenceData", false), 300_000);
   assert.equal(clientPollingInterval("marketContext", false), 180_000);
   assert.equal(clientPollingInterval("eventRadar", false), 180_000);
+});
+
+test("historical reference payload is not downloaded at the live quote frequency", () => {
+  assert.equal(clientPollingInterval("referenceData", true), 300_000);
+  assert.match(page, /clientPollingInterval\("referenceData", marketSession\.live\)/);
 });
 
 test("browser polling stops while hidden because the control-plane remains responsible", () => {
