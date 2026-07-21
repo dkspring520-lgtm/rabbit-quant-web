@@ -61,6 +61,9 @@ test("production backup snapshots SQLite and verifies every archive", () => {
   assert.match(script, /PRAGMA integrity_check/);
   assert.match(script, /gzip --test/);
   assert.match(script, /sha256sum/);
+  assert.match(script, /--symmetric --cipher-algo AES256/);
+  assert.match(script, /RABBIT_QUANT_BACKUP_GIT_REMOTE/);
+  assert.match(script, /push --quiet --force origin/);
   assert.match(script, /rabbit-quant-state/);
   assert.match(script, /rabbit-quant-training-runtime/);
   assert.match(service, /rabbit-quant-backup/);
