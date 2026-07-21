@@ -11,8 +11,11 @@ HEALTH_TIMEOUT="${RABBIT_QUANT_HEALTH_TIMEOUT:-300}"
 IMAGE_RETENTION="${RABBIT_QUANT_IMAGE_RETENTION:-5}"
 ALERT_WEBHOOK_URL="${RABBIT_QUANT_ALERT_WEBHOOK_URL:-}"
 COMPOSE_PROJECT="${RABBIT_QUANT_COMPOSE_PROJECT:-rabbit-quant-web}"
-WEB_CONTAINER="rabbit-quant-modern-web"
+WEB_BLUE_CONTAINER="rabbit-quant-modern-web"
+WEB_GREEN_CONTAINER="rabbit-quant-modern-web-green"
 TRAINER_CONTAINER="rabbit-quant-zijin-trainer"
+NGINX_UPSTREAM_FILE="${RABBIT_QUANT_NGINX_UPSTREAM_FILE:-/etc/nginx/conf.d/rabbit-quant-active-upstream.conf}"
+NGINX_SITE_FILE="${RABBIT_QUANT_NGINX_SITE_FILE:-/etc/nginx/sites-available/rabbit-quant}"
 
 [[ "$IMAGE_RETENTION" =~ ^[0-9]+$ ]] || IMAGE_RETENTION=5
 (( IMAGE_RETENTION >= 2 )) || IMAGE_RETENTION=2
@@ -138,16 +141,92 @@ container_is_healthy() {
   [[ "$state" == "running" && ( "$health" == "healthy" || "$health" == "none" ) ]]
 }
 
+slot_port() {
+  [[ "$1" == "green" ]] && printf '3001' || printf '3000'
+}
+
+slot_container() {
+  [[ "$1" == "green" ]] && printf '%s' "$WEB_GREEN_CONTAINER" || printf '%s' "$WEB_BLUE_CONTAINER"
+}
+
+slot_service() {
+  [[ "$1" == "green" ]] && printf 'web-green' || printf 'web-blue'
+}
+
+other_slot() {
+  [[ "$1" == "green" ]] && printf 'blue' || printf 'green'
+}
+
+write_nginx_upstream() {
+  local port="$1" previous temp
+  mkdir -p "$(dirname "$NGINX_UPSTREAM_FILE")"
+  previous="$(cat "$NGINX_UPSTREAM_FILE" 2>/dev/null || true)"
+  temp="${NGINX_UPSTREAM_FILE}.tmp"
+  printf 'upstream rabbit_quant_active {\n    server 127.0.0.1:%s;\n    keepalive 32;\n}\n' "$port" > "$temp"
+  mv "$temp" "$NGINX_UPSTREAM_FILE"
+  if ! nginx -t >/dev/null 2>&1; then
+    if [[ -n "$previous" ]]; then printf '%s\n' "$previous" > "$NGINX_UPSTREAM_FILE"; else rm -f "$NGINX_UPSTREAM_FILE"; fi
+    nginx -t >/dev/null 2>&1 || true
+    return 1
+  fi
+  systemctl reload nginx
+}
+
+ensure_nginx_zero_downtime() {
+  local active_slot="$1" active_port site backup
+  active_port="$(slot_port "$active_slot")"
+  site="$(readlink -f "$NGINX_SITE_FILE" 2>/dev/null || true)"
+  if [[ -z "$site" || ! -f "$site" ]]; then
+    site="$(grep -rl --include='*' 'proxy_pass http://127\.0\.0\.1:3000;' /etc/nginx/sites-enabled 2>/dev/null | head -n 1 || true)"
+    site="$(readlink -f "$site" 2>/dev/null || true)"
+  fi
+  if [[ -z "$site" || ! -f "$site" ]]; then
+    log "找不到 Rabbit Quant 的 Nginx 站点配置，无法启用零停机切换。"
+    return 1
+  fi
+  backup="${site}.before-blue-green"
+  if grep -q 'proxy_pass http://127\.0\.0\.1:3000;' "$site"; then
+    cp "$site" "$backup"
+    sed -i 's#proxy_pass http://127\.0\.0\.1:3000;#proxy_pass http://rabbit_quant_active;#' "$site"
+  elif ! grep -q 'proxy_pass http://rabbit_quant_active;' "$site"; then
+    log "Nginx 站点既未指向旧端口，也未指向 rabbit_quant_active，拒绝自动改写。"
+    return 1
+  fi
+  if ! write_nginx_upstream "$active_port"; then
+    [[ -f "$backup" ]] && cp "$backup" "$site"
+    log "Nginx 零停机配置校验失败，已恢复原配置。"
+    return 1
+  fi
+}
+
+wait_for_web_slot() {
+  local slot="$1" expected_sha="$2" port container deadline
+  port="$(slot_port "$slot")"
+  container="$(slot_container "$slot")"
+  deadline=$((SECONDS + HEALTH_TIMEOUT))
+  while (( SECONDS < deadline )); do
+    if container_is_healthy "$container" \
+      && curl --fail --silent --show-error --max-time 5 \
+        "http://127.0.0.1:${port}/api/control/version" | grep -Fq "$expected_sha"; then
+      return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
+
 wait_for_release() {
-  local expected_sha="$1"
+  local expected_sha="$1" active_slot="${2:-blue}" active_container active_port
+  active_container="$(slot_container "$active_slot")"
+  active_port="$(slot_port "$active_slot")"
   local deadline=$((SECONDS + HEALTH_TIMEOUT))
   while (( SECONDS < deadline )); do
-    if container_is_healthy "$WEB_CONTAINER" \
+    if container_is_healthy "$active_container" \
       && container_is_healthy "rabbit-quant-control" \
       && container_is_healthy "$TRAINER_CONTAINER" \
       && container_is_healthy "rabbit-quant-zijin-shadow"; then
       if curl --fail --silent --show-error --max-time 5 \
-        http://127.0.0.1:3000/api/control/version | grep -Fq "$expected_sha"; then
+        "http://127.0.0.1:${active_port}/api/control/version" | grep -Fq "$expected_sha"; then
         return 0
       fi
     fi
@@ -162,7 +241,9 @@ compose_up() {
   local trainer_image="$3"
   local app_commit_sha="${4:-development}"
   local app_build_time="${5:-unknown}"
-  local runtime_env
+  local active_web_origin="${6:-http://web-blue:3000}"
+  shift 6 || true
+  local services=("$@") runtime_env
   local compose_status
 
   runtime_env="$(mktemp "$STATE_DIR/compose-runtime.XXXXXX")"
@@ -172,6 +253,7 @@ compose_up() {
     "RABBIT_QUANT_TRAINER_IMAGE=$trainer_image" \
     "APP_COMMIT_SHA=$app_commit_sha" \
     "APP_BUILD_TIME=$app_build_time" \
+    "RABBIT_QUANT_ACTIVE_WEB_ORIGIN=$active_web_origin" \
     > "$runtime_env"
 
   compose_status=0
@@ -180,7 +262,7 @@ compose_up() {
     --project-name "$COMPOSE_PROJECT" \
     --project-directory "$REPO_DIR" \
     -f "$compose_file" \
-    up -d --no-build --force-recreate || compose_status=$?
+    up -d --no-build --force-recreate --no-deps "${services[@]}" || compose_status=$?
   rm -f "$runtime_env"
   return "$compose_status"
 }
@@ -196,9 +278,16 @@ git -C "$REPO_DIR" fetch --quiet "$REMOTE" "$BRANCH"
 target_sha="$(git -C "$REPO_DIR" rev-parse FETCH_HEAD)"
 short_sha="${target_sha:0:12}"
 deployed_sha="$(cat "$STATE_DIR/deployed-sha" 2>/dev/null || true)"
+active_slot="$(cat "$STATE_DIR/active-web-slot" 2>/dev/null || true)"
+[[ "$active_slot" == "blue" || "$active_slot" == "green" ]] || active_slot="blue"
+active_port="$(slot_port "$active_slot")"
+active_container="$(slot_container "$active_slot")"
+
+current_stage="configure zero-downtime entry"
+ensure_nginx_zero_downtime "$active_slot"
 
 if [[ "$target_sha" == "$deployed_sha" ]] \
-  && curl --fail --silent --max-time 5 http://127.0.0.1:3000/api/control/version | grep -Fq "$target_sha"; then
+  && curl --fail --silent --max-time 5 "http://127.0.0.1:${active_port}/api/control/version" | grep -Fq "$target_sha"; then
   sync_operations_assets "$deployed_sha"
   log "线上已是 $short_sha，无需部署。"
   exit 0
@@ -235,13 +324,18 @@ docker build --pull \
   --label rabbit-quant.commit="$target_sha" \
   -t "$trainer_image" -f "$release_dir/Dockerfile.trainer" "$release_dir"
 
-previous_web_image="$(container_image "$WEB_CONTAINER")"
+previous_web_image="$(container_image "$active_container")"
 previous_trainer_image="$(container_image "$TRAINER_CONTAINER")"
-previous_sha="$(curl --fail --silent --max-time 5 http://127.0.0.1:3000/api/control/version 2>/dev/null | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' || true)"
+previous_sha="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${active_port}/api/control/version" 2>/dev/null | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' || true)"
+candidate_slot="$(other_slot "$active_slot")"
+candidate_port="$(slot_port "$candidate_slot")"
+candidate_service="$(slot_service "$candidate_slot")"
+candidate_origin="http://${candidate_service}:3000"
+active_origin="http://$(slot_service "$active_slot"):3000"
 
 current_stage="切换线上容器"
 log "构建全部通过，开始切换到 $short_sha。"
-if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$target_sha" "$build_time"; then
+if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$target_sha" "$build_time" "$active_origin" "$candidate_service"; then
   log "容器切换命令失败，准备恢复旧镜像。"
   switch_failed=1
 else
@@ -249,7 +343,25 @@ else
 fi
 
 current_stage="健康验证"
-if (( switch_failed == 0 )) && wait_for_release "$target_sha"; then
+if (( switch_failed == 0 )); then
+  current_stage="candidate Web health check"
+  if ! wait_for_web_slot "$candidate_slot" "$target_sha"; then
+    log "Candidate Web failed health checks; live traffic was not switched."
+    switch_failed=1
+  elif ! write_nginx_upstream "$candidate_port"; then
+    log "Nginx traffic switch failed; old Web remains active."
+    switch_failed=1
+  else
+    current_stage="update support services"
+    if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$target_sha" "$build_time" "$candidate_origin" trainer control shadow; then
+      log "Support services failed to update; traffic will be restored to the old Web."
+      switch_failed=1
+    fi
+  fi
+fi
+
+if (( switch_failed == 0 )) && wait_for_release "$target_sha" "$candidate_slot"; then
+  printf '%s\n' "$candidate_slot" > "$STATE_DIR/active-web-slot"
   printf '%s\n' "$target_sha" > "$STATE_DIR/deployed-sha"
   cp "$compose_file" "$STATE_DIR/last-good-compose.yml"
   printf '%s\n' "$web_image" > "$STATE_DIR/last-good-web-image"
@@ -265,6 +377,7 @@ fi
 current_stage="自动回滚"
 log "新版本健康验证失败，线上版本不予保留，开始自动回滚。"
 rollback_compose="$STATE_DIR/last-good-compose.yml"
+write_nginx_upstream "$active_port" || true
 [[ -f "$rollback_compose" ]] || rollback_compose="$REPO_DIR/compose.web.yml"
 [[ -n "$previous_web_image" ]] || previous_web_image="$(cat "$STATE_DIR/last-good-web-image" 2>/dev/null || true)"
 [[ -n "$previous_trainer_image" ]] || previous_trainer_image="$(cat "$STATE_DIR/last-good-trainer-image" 2>/dev/null || true)"
@@ -275,8 +388,8 @@ if [[ -z "$previous_web_image" || -z "$previous_trainer_image" ]]; then
   exit 1
 fi
 
-compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "${previous_sha:-development}" "rollback"
-if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha"; then
+compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "${previous_sha:-development}" "rollback" "$active_origin" trainer control shadow
+if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha" "$active_slot"; then
   log "已恢复旧版本 ${previous_sha:0:12}。"
   record_result "rolled_back" "新版本不健康，旧版本已恢复"
 else
