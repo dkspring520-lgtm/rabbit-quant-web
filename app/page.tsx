@@ -59,8 +59,7 @@ type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; 
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean };
 type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
-type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string };
-type AlertDeliveryRecord = { id:number; eventKey:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
+type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"|null; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
 type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
 type MemberRecord = { id:string; username:string; displayName:string; role:"admin"|"member"; status:"active"|"paused"; createdAt:string; lastLoginAt:string|null; monitorCount:number; alertCount:number };
 type ZijinTrainingProgress = {
@@ -1713,7 +1712,6 @@ function AuthView({onAuthenticated,onBack,onDemo}:{onAuthenticated:(name:string,
 function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:string}[];activeCode:string;onClose:()=>void}){
   const [code,setCode]=useState('');
   const [logs,setLogs]=useState<MonitorScanLog[]>([]);
-  const [deliveries,setDeliveries]=useState<AlertDeliveryRecord[]>([]);
   const [health,setHealth]=useState<{ok:boolean;tradingWindow:boolean;scanner:{running:boolean;lastCompletedAt:string|null;monitored:number;inserted:number;logged:number;marketErrors:number;error:string|null}}|null>(null);
   const [healthError,setHealthError]=useState('');
   const [loading,setLoading]=useState(true);
@@ -1722,10 +1720,9 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
     setLoading(true);setError('');setHealthError('');
     try{
       const query=new URLSearchParams({limit:'120'});if(code)query.set('code',code);
-      const [response,healthResponse,alertsResponse]=await Promise.all([
+      const [response,healthResponse]=await Promise.all([
         fetch(`/api/control/alert-log?${query}`,{credentials:'include',cache:'no-store'}),
         fetch('/api/control/health',{credentials:'include',cache:'no-store'}).catch(()=>null),
-        fetch('/api/control/alerts?afterId=0&limit=100',{credentials:'include',cache:'no-store'}).catch(()=>null),
       ]);
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(payload.error||'提醒日志接口暂不可用');
@@ -1735,8 +1732,6 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
         if(healthPayload?.scanner)setHealth(healthPayload);
         else {setHealth(null);setHealthError('服务器未返回扫描器状态')}
       }else {setHealth(null);setHealthError('暂时无法读取后台心跳')}
-      if(alertsResponse?.ok){const alertsPayload=await alertsResponse.json().catch(()=>null);setDeliveries(Array.isArray(alertsPayload?.alerts)?alertsPayload.alerts:[])}
-      else setDeliveries([]);
     }catch(error){setLogs([]);setError(error instanceof Error?error.message:'无法读取提醒日志')}
     finally{setLoading(false)}
   };
@@ -1752,14 +1747,12 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
   const heartbeatStale=Boolean(health?.tradingWindow&&(heartbeatAge===null||heartbeatAge>90_000));
   const healthTone=health?.scanner.error||heartbeatStale?'error':health?.scanner.running?'running':health?'healthy':'unknown';
   const healthLabel=health?.scanner.error?'扫描异常':heartbeatStale?'心跳超时':health?.scanner.running?'正在扫描':health?.tradingWindow?'后台正常':'休市待命';
-  const deliveryByEvent=new Map(deliveries.map(item=>[item.eventKey,item]));
   const deliveryText=(item:MonitorScanLog)=>{
     if(!isAlertResult(item.result))return {label:'无需发送',detail:'仅保留扫描证据',tone:'quiet'};
-    const delivery=item.eventKey?deliveryByEvent.get(item.eventKey):null;
-    if(!delivery)return {label:'等待入队',detail:'尚未生成提醒记录',tone:'pending'};
-    if(delivery.deliveryStatus==='failed')return {label:'发送失败',detail:delivery.deliveryError||'未记录失败原因',tone:'error'};
-    if(delivery.deliveryStatus==='notified')return {label:'通知已送达',detail:delivery.deliveryChannel||'浏览器通知',tone:'sent'};
-    if(delivery.deliveryStatus==='displayed')return {label:'页面已显示',detail:delivery.deliveryChannel||'站内提醒',tone:'sent'};
+    if(!item.deliveryStatus)return {label:'等待入队',detail:'尚未生成提醒记录',tone:'pending'};
+    if(item.deliveryStatus==='failed')return {label:'发送失败',detail:item.deliveryError||'未记录失败原因',tone:'error'};
+    if(item.deliveryStatus==='notified')return {label:'通知已送达',detail:item.deliveryChannel||'浏览器通知',tone:'sent'};
+    if(item.deliveryStatus==='displayed')return {label:'页面已显示',detail:item.deliveryChannel||'站内提醒',tone:'sent'};
     return {label:'等待浏览器领取',detail:'服务器已记录；关闭浏览器时无法播放语音或浏览器弹窗',tone:'pending'};
   };
   return <div className="account-overlay alert-log-overlay" role="dialog" aria-modal="true" aria-label="提醒追踪日志" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>

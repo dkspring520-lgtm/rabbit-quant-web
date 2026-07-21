@@ -274,12 +274,17 @@ export function createControlStore(databasePath, options = {}) {
 
   function listMonitorScans(userId, { code = "", limit = 100 } = {}) {
     const cleanCode = String(code).replace(/\D/g, "").slice(0, 6);
+    const select = `SELECT scan.*,alerts.delivery_status,alerts.delivery_channel,alerts.delivered_at,alerts.delivery_error
+      FROM monitor_scan_logs AS scan
+      LEFT JOIN alerts ON alerts.user_id=scan.user_id AND alerts.event_key=scan.event_key`;
     const rows = cleanCode
-      ? db.prepare("SELECT * FROM monitor_scan_logs WHERE user_id=? AND code=? ORDER BY id DESC LIMIT ?").all(userId, cleanCode, Math.min(300, Math.max(1, Number(limit) || 100)))
-      : db.prepare("SELECT * FROM monitor_scan_logs WHERE user_id=? ORDER BY id DESC LIMIT ?").all(userId, Math.min(300, Math.max(1, Number(limit) || 100)));
+      ? db.prepare(`${select} WHERE scan.user_id=? AND scan.code=? ORDER BY scan.id DESC LIMIT ?`).all(userId, cleanCode, Math.min(300, Math.max(1, Number(limit) || 100)))
+      : db.prepare(`${select} WHERE scan.user_id=? ORDER BY scan.id DESC LIMIT ?`).all(userId, Math.min(300, Math.max(1, Number(limit) || 100)));
     return rows.map(row => ({
       id: row.id, code: row.code, name: row.name, marketDate: row.market_date, marketTime: row.market_time,
       price: row.price, result: row.result, reason: row.reason, provider: row.provider, eventKey: row.event_key, createdAt: row.created_at,
+      deliveryStatus: row.delivery_status, deliveryChannel: row.delivery_channel,
+      deliveredAt: row.delivered_at, deliveryError: row.delivery_error,
     }));
   }
 

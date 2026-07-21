@@ -3,6 +3,7 @@ import { createControlStore } from "./control-store.mjs";
 import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
 import { selectLatestAlertableObservation } from "../lib/live-monitor-alerts.mjs";
 import { evaluateScannerHealth } from "../lib/server-monitor-health.mjs";
+import { advanceScannerWatchdog } from "../lib/scanner-watchdog.mjs";
 
 const port = Number(process.env.CONTROL_PORT || 3010);
 const databasePath = process.env.CONTROL_DB_PATH || "/data/rabbit-control.sqlite";
@@ -12,6 +13,8 @@ const serviceStartedAt = Date.now();
 const store = createControlStore(databasePath);
 const COOKIE = "rabbit_control_session";
 const scanState = { running: false, lastStartedAt: null, lastCompletedAt: null, monitored: 0, inserted: 0, logged: 0, marketErrors: 0, error: null };
+let watchdogFailures = 0;
+let shuttingDown = false;
 
 function json(res, status, value, headers = {}) {
   const body = JSON.stringify(value);
@@ -285,6 +288,29 @@ const server = createServer(dispatch);
 server.listen(port, "0.0.0.0", () => console.log(`[control] listening on 0.0.0.0:${port}; database=${databasePath}`));
 const timer = setInterval(() => void scanMonitors(), monitorIntervalMs);
 timer.unref();
-process.on("SIGTERM", () => { clearInterval(timer); server.close(() => { store.close(); process.exit(0); }); });
+const watchdogTimer = setInterval(() => {
+  const health = evaluateScannerHealth(scanState, {
+    serviceStartedAt,
+    intervalMs: monitorIntervalMs,
+    tradingWindow: isTradingWindow(),
+  });
+  const watchdog = advanceScannerWatchdog(watchdogFailures, health);
+  watchdogFailures = watchdog.failures;
+  if (!watchdog.restart || shuttingDown) return;
+  shuttingDown = true;
+  console.error(`[control] scanner watchdog restart: ${watchdog.reason}`);
+  clearInterval(timer);
+  clearInterval(watchdogTimer);
+  server.close(() => { store.close(); process.exit(1); });
+  setTimeout(() => process.exit(1), 5_000).unref();
+}, monitorIntervalMs);
+watchdogTimer.unref();
+process.on("SIGTERM", () => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  clearInterval(timer);
+  clearInterval(watchdogTimer);
+  server.close(() => { store.close(); process.exit(0); });
+});
 
 export { scanMonitors, latestCausalAlert, evaluateCausalMonitor, isTradingWindow };
