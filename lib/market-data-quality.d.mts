@@ -1,0 +1,20 @@
+export type MarketDataQuality = {
+  status:"live"|"degraded"|"blocked"|"closed";
+  signalEligible:boolean;
+  phase:string;
+  provider:string|null;
+  providerLabel:string;
+  fallbackUsed:boolean;
+  sourceTimestamp:string|null;
+  fetchedAt:string;
+  quoteAgeSeconds:number|null;
+  minuteCount:number;
+  expectedMinuteCount:number;
+  missingMinutes:number;
+  lastMinute:string|null;
+  minuteLag:number|null;
+  reasons:string[];
+  failures:string[];
+};
+export function assessMarketDataQuality(options?:Record<string,unknown>):MarketDataQuality;
+export function marketPhase(parts:Record<string,string>):string;

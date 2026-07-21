@@ -121,6 +121,12 @@ function blockedReason(result) {
 
 function evaluateCausalMonitor(monitor, market, clock) {
   const minutes = Array.isArray(market?.minutes) ? market.minutes : [];
+  if (market?.quality?.signalEligible === false) {
+    const reason = Array.isArray(market.quality.reasons) && market.quality.reasons.length
+      ? market.quality.reasons.join("；")
+      : "当前行情不满足实时信号质量要求";
+    return { alert: null, audit: { marketTime: market.quality.lastMinute || clock.hhmm, price: market?.quote?.price ?? null, result: "data_blocked", reason: `行情质量门禁：${reason}`, provider: market?.provider ?? null } };
+  }
   if (!minutes.length) return { alert: null, audit: { marketTime: clock.hhmm, price: market?.quote?.price ?? null, result: "no_data", reason: "行情源未返回有效分时点", provider: market?.provider ?? null } };
   const result = runSmartTReplay(minutes, monitorOptions(monitor, market.quote));
   const action = result.actions?.at(-1);
@@ -138,7 +144,7 @@ function evaluateCausalMonitor(monitor, market, clock) {
       message: `${action.time} ${action.side} ${Number(action.price).toFixed(2)}，${action.reason || "V4 因果条件已确认"}`,
       eventKey: `${clock.date}:${monitor.code}:formal:${action.cycleId}:${action.meta?.phase || "entry"}:${action.time}`,
       marketTime: action.time,
-      payload: { action, diagnostics: result.diagnostics, provider: market.provider },
+      payload: { action, diagnostics: result.diagnostics, provider: market.provider, quality: market.quality ?? null },
     };
     return { alert, audit: { ...auditBase, marketTime: action.time, result: "formal", reason: action.reason || "V4 因果条件已确认", eventKey: alert.eventKey } };
   }
@@ -150,7 +156,7 @@ function evaluateCausalMonitor(monitor, market, clock) {
       message: `${observation.time} ${observation.reason || "价格与 VWAP 出现显著偏离，等待确认"}`,
       eventKey: `${clock.date}:${monitor.code}:${observation.stage}:${observation.direction}:${observation.time}:${Math.round(Number(observation.price) * 100)}`,
       marketTime: observation.time,
-      payload: { observation, diagnostics: result.diagnostics, provider: market.provider },
+      payload: { observation, diagnostics: result.diagnostics, provider: market.provider, quality: market.quality ?? null },
     };
     return { alert, audit: { ...auditBase, marketTime: observation.time, result: observation.stage === "candidate" ? "candidate" : "watch", reason: observation.reason || "价格与 VWAP 出现显著偏离，等待确认", eventKey: alert.eventKey } };
   }
