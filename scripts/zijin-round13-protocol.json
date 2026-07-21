@@ -1,0 +1,45 @@
+{
+  "protocolVersion": 1,
+  "experiment": "紫金矿业第13轮高位偏离后转弱反T前瞻影子",
+  "registeredAt": "2026-07-21",
+  "status": "prospective-shadow-only",
+  "researchDisclosure": {
+    "newEconomicHypothesis": true,
+    "usesTodayToTuneThresholds": false,
+    "open2026History": false,
+    "backfillAfterRegistration": false,
+    "affectsV4": false,
+    "sendsAlerts": false,
+    "automaticPromotion": false
+  },
+  "frozenRule": {
+    "direction": "reverse",
+    "session": ["09:33", "14:30"],
+    "maximumSignalsPerDay": 2,
+    "entry": "minute-t decision, minute-t+1 public price shadow sell-first",
+    "conditions": {
+      "causalTurn": "return3 or exact MA5 slope crosses from non-negative to negative",
+      "intradayPositionMinimum": 0.68,
+      "vwapBiasPctMinimum": 0.25,
+      "zijinAlphaVwapPctMinimum": 0.15,
+      "volumeRatioMinimum": 0.7,
+      "peerCoverageMinimum": 0.8
+    },
+    "exit": {
+      "minimumNetTargetPct": 0.64,
+      "maximumNetTargetPct": 1.0,
+      "trailingGivebackPct": 0.15,
+      "stopNetPct": -0.45,
+      "maximumHoldMinutes": 60,
+      "forcedCloseTime": "14:50"
+    }
+  },
+  "prospectiveGate": {
+    "minimumResolvedTrades": 30,
+    "minimumWinRate": 0.65,
+    "minimumAverageNetPct": 0,
+    "minimumStressAverageNetPct": 0,
+    "manualReviewRequired": true,
+    "notes": "只累计登记后新分钟；不得回填、不得因当天结果改阈值、不得自动接入V4。"
+  }
+}
