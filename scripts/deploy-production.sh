@@ -8,9 +8,14 @@ STATE_DIR="${RABBIT_QUANT_DEPLOY_STATE:-/var/lib/rabbit-quant-deploy}"
 LOG_DIR="${RABBIT_QUANT_DEPLOY_LOG_DIR:-/var/log/rabbit-quant-deploy}"
 LOCK_FILE="${RABBIT_QUANT_DEPLOY_LOCK:-/run/lock/rabbit-quant-deploy.lock}"
 HEALTH_TIMEOUT="${RABBIT_QUANT_HEALTH_TIMEOUT:-300}"
+IMAGE_RETENTION="${RABBIT_QUANT_IMAGE_RETENTION:-5}"
+ALERT_WEBHOOK_URL="${RABBIT_QUANT_ALERT_WEBHOOK_URL:-}"
 COMPOSE_PROJECT="${RABBIT_QUANT_COMPOSE_PROJECT:-rabbit-quant-web}"
 WEB_CONTAINER="rabbit-quant-modern-web"
 TRAINER_CONTAINER="rabbit-quant-zijin-trainer"
+
+[[ "$IMAGE_RETENTION" =~ ^[0-9]+$ ]] || IMAGE_RETENTION=5
+(( IMAGE_RETENTION >= 2 )) || IMAGE_RETENTION=2
 
 mkdir -p "$STATE_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
 # 文件锁由外层 flock 进程持有，并用 --close 禁止部署脚本及其
@@ -39,12 +44,78 @@ log() {
   printf '[%s] %s\n' "$(date --iso-8601=seconds)" "$*"
 }
 
+notify_ops() {
+  local status="$1"
+  local message="$2"
+  local payload escaped_message escaped_stage
+  escaped_message="${message//\\/\\\\}"; escaped_message="${escaped_message//\"/\\\"}"; escaped_message="${escaped_message//$'\n'/\\n}"
+  escaped_stage="${current_stage//\\/\\\\}"; escaped_stage="${escaped_stage//\"/\\\"}"
+  payload="$(printf '{"service":"rabbit-quant-deploy","status":"%s","commit":"%s","stage":"%s","message":"%s","time":"%s"}' "$status" "$target_sha" "$escaped_stage" "$escaped_message" "$(date --utc --iso-8601=seconds)")"
+  printf '%s\n' "$payload" > "$STATE_DIR/last-notification.json"
+  if [[ -n "$ALERT_WEBHOOK_URL" ]]; then
+    curl --fail --silent --show-error --max-time 10 \
+      -H 'content-type: application/json' \
+      --data "$payload" "$ALERT_WEBHOOK_URL" >/dev/null \
+      || log "运维通知发送失败；不改变本次部署结果。"
+  fi
+}
+
 record_result() {
   local status="$1"
   local message="$2"
   printf '{"time":"%s","status":"%s","commit":"%s","stage":"%s","message":"%s"}\n' \
     "$(date --utc --iso-8601=seconds)" "$status" "$target_sha" "$current_stage" "$message" \
     >> "$LOG_DIR/deploy-history.jsonl"
+  notify_ops "$status" "$message"
+}
+
+prune_release_images() {
+  local repository image index
+  for repository in rabbit-quant-web rabbit-quant-trainer; do
+    index=0
+    while IFS= read -r image; do
+      [[ -n "$image" && "$image" != *":<none>" ]] || continue
+      index=$((index + 1))
+      if (( index <= IMAGE_RETENTION )); then
+        continue
+      fi
+      if [[ "$image" == "$previous_web_image" || "$image" == "$previous_trainer_image" || "$image" == "$web_image" || "$image" == "$trainer_image" ]]; then
+        continue
+      fi
+      docker image rm "$image" >/dev/null 2>&1 || true
+    done < <(docker image ls "$repository" --format '{{.Repository}}:{{.Tag}}')
+  done
+  docker image prune --force --filter 'label=rabbit-quant.commit' >/dev/null 2>&1 || true
+}
+
+sync_operations_assets() {
+  local commit="$1" temp_dir source target mode
+  [[ -n "$commit" ]] || return 0
+  if [[ "$(cat "$STATE_DIR/ops-assets-sha" 2>/dev/null || true)" == "$commit" ]]; then
+    return 0
+  fi
+  temp_dir="$(mktemp -d)"
+  while IFS='|' read -r source target mode; do
+    git -C "$REPO_DIR" show "$commit:$source" > "$temp_dir/asset"
+    install -m "$mode" "$temp_dir/asset" "$target"
+  done <<'ASSETS'
+scripts/backup-production.sh|/usr/local/sbin/rabbit-quant-backup|0755
+deploy/systemd/rabbit-quant-deploy.service|/etc/systemd/system/rabbit-quant-deploy.service|0644
+deploy/systemd/rabbit-quant-deploy.timer|/etc/systemd/system/rabbit-quant-deploy.timer|0644
+deploy/systemd/rabbit-quant-backup.service|/etc/systemd/system/rabbit-quant-backup.service|0644
+deploy/systemd/rabbit-quant-backup.timer|/etc/systemd/system/rabbit-quant-backup.timer|0644
+deploy/logrotate/rabbit-quant-deploy|/etc/logrotate.d/rabbit-quant-deploy|0644
+deploy/logrotate/rabbit-quant-backup|/etc/logrotate.d/rabbit-quant-backup|0644
+ASSETS
+  if [[ ! -f /etc/default/rabbit-quant-ops ]]; then
+    git -C "$REPO_DIR" show "$commit:deploy/rabbit-quant-ops.env.example" > "$temp_dir/asset"
+    install -m 0600 "$temp_dir/asset" /etc/default/rabbit-quant-ops
+  fi
+  rm -rf "$temp_dir"
+  systemctl daemon-reload
+  systemctl enable --now rabbit-quant-deploy.timer rabbit-quant-backup.timer >/dev/null
+  printf '%s\n' "$commit" > "$STATE_DIR/ops-assets-sha"
+  log "生产运维脚本、定时器和日志策略已同步。"
 }
 
 on_error() {
@@ -112,6 +183,7 @@ deployed_sha="$(cat "$STATE_DIR/deployed-sha" 2>/dev/null || true)"
 
 if [[ "$target_sha" == "$deployed_sha" ]] \
   && curl --fail --silent --max-time 5 http://127.0.0.1:3000/api/control/version | grep -Fq "$target_sha"; then
+  sync_operations_assets "$deployed_sha"
   log "线上已是 $short_sha，无需部署。"
   exit 0
 fi
@@ -167,6 +239,8 @@ if (( switch_failed == 0 )) && wait_for_release "$target_sha"; then
   printf '%s\n' "$web_image" > "$STATE_DIR/last-good-web-image"
   printf '%s\n' "$trainer_image" > "$STATE_DIR/last-good-trainer-image"
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
+  sync_operations_assets "$target_sha"
+  prune_release_images
   log "部署成功：$short_sha；版本接口与四个容器健康检查均通过。"
   record_result "success" "四个容器和版本接口健康"
   exit 0
