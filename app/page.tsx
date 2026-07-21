@@ -18,6 +18,7 @@ import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObs
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
+import { compactChartLabelKey, compactChartLabelKeys } from "@/lib/compact-chart-labels.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import PublicLanding from "./public-landing";
 
@@ -520,6 +521,7 @@ export default function Home() {
   const [dragOverStockCode, setDragOverStockCode] = useState<string | null>(null);
   const draggedStockCodeRef = useRef<string | null>(null);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
+  const [compactChartLabels, setCompactChartLabels] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const stock = stockList[activeStock] || stockList[0];
   const selectActiveStock=(index:number)=>{
@@ -543,6 +545,13 @@ export default function Home() {
     document.addEventListener('fullscreenchange',syncFullscreenState);
     document.addEventListener('keydown',closeFallback);
     return()=>{document.removeEventListener('fullscreenchange',syncFullscreenState);document.removeEventListener('keydown',closeFallback)};
+  },[]);
+  useEffect(()=>{
+    const media=window.matchMedia('(max-width: 760px)');
+    const sync=()=>setCompactChartLabels(media.matches);
+    sync();
+    media.addEventListener?.('change',sync);
+    return()=>media.removeEventListener?.('change',sync);
   },[]);
   useEffect(()=>{
     if(!authReady||!localAuth||!isZijinExperimentDeepLink())return;
@@ -692,6 +701,10 @@ export default function Home() {
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(()=>selectVisibleChartObservations(currentObservations),[currentObservations]);
+  const compactObservationLabels=useMemo(
+    ()=>compactChartLabelKeys(visibleChartObservations,3),
+    [visibleChartObservations],
+  );
   const intradayMarkerLayout=useMemo(()=>{
     if(!chartModel)return {observations:[],actions:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
@@ -736,11 +749,14 @@ export default function Home() {
       const sideClass=isSell?"sell":"buy";
       const currentLabel=observation.confirmationLabel??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const labelWidth=currentLabel.length*8+14;
-      const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
-      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,observation}];
+      const labelVisible=!compactChartLabels||(qualified&&compactObservationLabels.has(compactChartLabelKey(observation)));
+      const placed=labelVisible
+        ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
+        : {labelX:point.x,labelY:point.y};
+      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,labelVisible,observation}];
     });
     return {observations,actions};
-  },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions]);
+  },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions,compactChartLabels,compactObservationLabels]);
   const signalFunnel = (() => {
     const rows=stockList.flatMap(item=>{
       const snapshot=item.code===stock?.code ? (currentTrial ?? currentMarket ?? marketSnapshots[item.code]) : marketSnapshots[item.code];
@@ -1394,7 +1410,7 @@ export default function Home() {
               {A_SHARE_INTRADAY_AXIS.map(tick => {const x=intradaySlotX(tick.slot);return <line key={tick.label} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>})}
               {chartModel&&<><path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
-              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></g>)}
+              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx={chartModel.lastX} cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>

@@ -157,6 +157,7 @@ test("Zijin factor research is visibly isolated from the execution strategy", as
 test("mobile layout keeps core product flows usable on phones", async () => {
   const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const mobile = await readFile(new URL("../app/mobile.css", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
   assert.match(layout, /import type \{ Metadata, Viewport \} from "next"/);
   assert.match(layout, /viewportFit: "cover"/);
@@ -171,6 +172,8 @@ test("mobile layout keeps core product flows usable on phones", async () => {
   assert.match(mobile, /\.backtest-grid/);
   assert.match(mobile, /\.research-grid/);
   assert.match(mobile, /\.zijin-external-sources/);
+  assert.match(source, /compactChartLabelKeys\(visibleChartObservations,3\)/);
+  assert.match(source, /marker\.labelVisible&&/);
 });
 
 test("Zijin experiment progress has a stable deep link and explicit delivery stages", async () => {
