@@ -15,7 +15,7 @@ test("trading desk exposes the real server monitor audit instead of a fabricated
   assert.match(page, /行情异常/);
   assert.match(page, /这不是“0 条记录”/);
   assert.match(page, /\/api\/control\/health/);
-  assert.match(page, /\/api\/control\/alerts\?afterId=0&limit=100/);
+  assert.doesNotMatch(page, /\/api\/control\/alerts\?afterId=0&limit=100/);
   assert.match(page, /后台监控状态/);
   assert.match(page, /心跳超时/);
   assert.match(page, /等待浏览器领取/);

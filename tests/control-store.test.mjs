@@ -48,11 +48,13 @@ test("server accounts, sessions and cross-device profile data", () => {
     assert.equal(store.listAlerts(member.id)[0].deliveryChannel, "in-app+system");
     store.acknowledgeAlert(member.id, alerts[0].id);
     store.recordMonitorScan(member.id, { code: "601899", name: "紫金矿业", marketDate: "20260719", marketTime: "0941", price: 28.36, result: "no_signal", reason: "量价确认不足", provider: "tencent-public" });
-    store.recordMonitorScan(member.id, { code: "601899", name: "紫金矿业", marketDate: "20260719", marketTime: "0941", price: 28.38, result: "candidate", reason: "低位偏离等待确认", provider: "tencent-public", eventKey: "candidate:0941" });
+    store.recordMonitorScan(member.id, { code: "601899", name: "紫金矿业", marketDate: "20260719", marketTime: "0941", price: 28.38, result: "candidate", reason: "低位偏离等待确认", provider: "tencent-public", eventKey: "601899:20260718:0940:buy" });
     const scanLogs = store.listMonitorScans(member.id, { code: "601899" });
     assert.equal(scanLogs.length, 1);
     assert.equal(scanLogs[0].result, "candidate");
     assert.equal(scanLogs[0].price, 28.38);
+    assert.equal(scanLogs[0].deliveryStatus, "notified");
+    assert.equal(scanLogs[0].deliveryChannel, "in-app+system");
     assert.ok(store.listMembers().find(item => item.id === member.id)?.alertCount >= 1);
 
     store.logout(session.token);
