@@ -463,6 +463,34 @@ test("a fast session expansion above a lagging VWAP blocks a shallow reverse-T f
   );
 });
 
+test("a gap-up day uses yesterday's close to block a shallow afternoon reverse-T fade", () => {
+  const rows = sessionTimes.slice(0, 82).map((time, index) => {
+    let price;
+    if (index <= 64) price = 10.20 + index * 0.0025;
+    else if (index <= 70) price = 10.36 + (index - 64) * 0.012;
+    else price = 10.432 - (index - 70) * 0.010;
+    return { time, price: Number(price.toFixed(3)), volume: 12_000 };
+  });
+  const result = runSmartTReplay(rows, {
+    ...options,
+    previousClose: 10,
+    profileOverrides: {
+      ...options.profileOverrides,
+      score: 1,
+      candidateNetPct: 0,
+      minRewardRisk: 0,
+      deviation: 0.1,
+      reversal: 0.05,
+      maxSellPullback: 1,
+      minSellVolumeRatio: 0,
+      minMomentum3: 0,
+    },
+  });
+
+  assert.equal(result.actions.filter(action => action.direction === "反T").length, 0);
+  assert.ok(result.diagnostics.strongSellTrendBlocked > 0);
+});
+
 test("an already-confirmed local valley can clear a short regime label without reading future prices", () => {
   const rows = sessionTimes.slice(0, 90).map((time, index) => {
     let price;
