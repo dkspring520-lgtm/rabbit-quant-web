@@ -13,13 +13,14 @@ WEB_CONTAINER="rabbit-quant-modern-web"
 TRAINER_CONTAINER="rabbit-quant-zijin-trainer"
 
 mkdir -p "$STATE_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
+# 日志进程必须在文件锁之前启动，否则 tee 会继承锁描述符，
+# 主部署进程退出后仍可能让下一轮误判为“已有部署运行”。
+exec > >(tee -a "$LOG_DIR/deploy.log") 2>&1
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
   printf '[%s] 已有部署任务运行，本轮跳过。\n' "$(date --iso-8601=seconds)"
   exit 0
 fi
-
-exec > >(tee -a "$LOG_DIR/deploy.log") 2>&1
 
 release_dir=""
 target_sha="unknown"

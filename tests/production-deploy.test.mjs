@@ -14,6 +14,10 @@ test("production deploy builds both images before replacing containers", () => {
   assert.ok(trainerBuild > webBuild);
   assert.ok(switchPosition > trainerBuild);
   assert.match(script, /flock -n 9/);
+  assert.ok(
+    script.indexOf("exec > >(tee") < script.indexOf('exec 9>"$LOCK_FILE"'),
+    "the logger must start before the lock descriptor so it cannot retain the deployment lock",
+  );
   assert.match(script, /wait_for_release/);
   assert.match(script, /自动回滚/);
   assert.doesNotMatch(script, /git reset --hard/);
