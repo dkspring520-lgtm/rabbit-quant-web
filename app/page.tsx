@@ -31,6 +31,7 @@ type MarketContext = { code:string; profile:string; fetchedAt:string; items:Mark
 type EventRadarItem = { id:string; code:string; title:string; summary:string; url:string; source:string; sources?:string[]; relatedCount?:number; provider:string; official:boolean; publishedAt:string; sentiment:"positive"|"negative"|"neutral"; severity:"critical"|"warning"|"info"; reason:string; ageHours:number };
 type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; counts:{ positive:number; negative:number; neutral:number }; gate:{ level:"normal"|"caution"|"restricted"|"locked"; hardLock:boolean; score:number; label:string; action:string; reason:string } };
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
+type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean };
 type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string };
@@ -1187,28 +1188,6 @@ export default function Home() {
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
   }, [localAuth, stock?.code, marketSession.live]);
   useEffect(() => {
-    if (!localAuth || !stock?.code) return;
-    let cancelled = false;
-    let inFlight = false;
-    const load = async () => {
-      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
-      inFlight = true;
-      try {
-        const change=currentMarket?.quote.changePercent;
-        const query=change==null?"":`&change=${encodeURIComponent(change.toFixed(4))}`;
-        const response=await fetch(`/api/market-context?code=${encodeURIComponent(stock.code)}${query}`,{cache:"no-store"});
-        if(!response.ok) throw new Error("context unavailable");
-        const data=await response.json() as MarketContext;
-        if(!cancelled){setMarketContext(data);setMarketContextError("")}
-      } catch {
-        if(!cancelled){setMarketContext(null);setMarketContextError("外部环境行情暂不可用，已自动降为个股保守模式。");}
-      } finally { inFlight=false; }
-    };
-    void load();
-    const timer=window.setInterval(()=>void load(),clientPollingInterval("marketContext",marketSession.live));
-    return()=>{cancelled=true;window.clearInterval(timer)};
-  },[localAuth,stock?.code,currentMarket?.quote.changePercent,marketSession.live]);
-  useEffect(() => {
     if (!localAuth || !stockList.length) return;
     let cancelled = false;
     let inFlight=false;
@@ -1239,7 +1218,7 @@ export default function Home() {
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
   }, [localAuth, stockList, stock?.code, marketSession.live]);
   useEffect(() => {
-    if (!localAuth || !stockList.length) return;
+    if (!localAuth || !stock?.code || !stockList.length) return;
     let cancelled = false;
     let inFlight = false;
     const load = async () => {
@@ -1247,24 +1226,37 @@ export default function Home() {
       inFlight = true;
       try {
         const params = new URLSearchParams({
+          code: stock.code,
           codes: stockList.slice(0,10).map(item => item.code).join(","),
           names: stockList.slice(0,10).map(item => item.name).join(","),
         });
-        const response = await fetch(`/api/event-radar?${params.toString()}`, { cache:"no-store" });
-        if (!response.ok) throw new Error("event radar unavailable");
-        const data = await response.json() as EventRadarResponse;
-        if (!cancelled) { setEventRadar(data); setEventRadarError(""); }
+        const response = await fetch(`/api/trading-desk-snapshot?${params.toString()}`, { cache:"no-store" });
+        if (!response.ok) throw new Error("desk snapshot unavailable");
+        const data = await response.json() as TradingDeskSnapshot;
+        if (!cancelled) {
+          if (data.market) {
+            setTrialQuote(data.market);
+            setMarketQuotes(current=>({...current,[data.market!.quote.code]:data.market!.quote}));
+            setMarketSnapshots(current=>({...current,[data.market!.quote.code]:data.market!}));
+          }
+          setMarketContext(data.context);
+          setEventRadar(data.eventRadar);
+          setMarketContextError(data.context ? "" : "外部环境暂不可用，已降为个股保守模式");
+          setEventRadarError(data.eventRadar ? "" : "事件雷达暂不可用，不使用旧消息改变信号");
+        }
       } catch {
         if (!cancelled) {
+          setMarketContext(null);
           setEventRadar(null);
-          setEventRadarError("事件雷达暂不可用；不使用旧消息改变当前信号。");
+          setMarketContextError("外部环境暂不可用，已降为个股保守模式");
+          setEventRadarError("事件雷达暂不可用，不使用旧消息改变信号");
         }
       } finally { inFlight = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), clientPollingInterval("eventRadar",marketSession.live));
+    const timer = window.setInterval(() => void load(), clientPollingInterval("deskSnapshot",marketSession.live));
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [localAuth, stockList, marketSession.live]);
+  }, [localAuth, stock?.code, stockList, marketSession.live]);
   useEffect(() => {
     if (!localAuth || !stock?.code) return;
     let cancelled = false;
