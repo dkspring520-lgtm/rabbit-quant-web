@@ -87,6 +87,8 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   assert.equal(upgraded.integrity.eventCount, 9);
   assert.equal(upgraded.models.C.id, "round12-reverse-relative-weakness");
   assert.equal(upgraded.models.C.side, "short");
+  assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 30);
+  assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.65);
 });
 
 test("candidate fills only on next visible minute and then resolves after costs", () => {

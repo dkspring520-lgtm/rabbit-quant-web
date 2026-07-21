@@ -121,6 +121,7 @@ type ZijinShadowAB = {
   source:{provider:string|null;sourceTimestamp:string|null;fetchedAt:string|null;peerCoverage?:number;error:string|null};
   costPolicy:{baseRoundTripPct:number;stressRoundTripPct:number};
   targetPolicy:{minimumNetPct:number;maximumNetPct:number;maximumHoldMinutes:number};
+  prospectiveGate:{minimumResolvedTrades:number;minimumWinRate:number;requirePositiveBaseNetPct:boolean;requirePositiveStressNetPct:boolean;manualReviewRequired:boolean};
   models:Record<"A"|"B"|"C",{
     id:string;label:string;sourceRound:number;sessionStart:string;sessionEnd:string;maxSignalsPerDay:number;side:"long"|"short";
     today:{candidates:number;entries:number;exits:number;wins:number;netPct:number;lastDecision:string;activeTrade:null|{pendingEntry?:boolean;entryTime?:string;entryPrice?:number}};
@@ -158,7 +159,7 @@ function RabbitProgressMeter({
     aria-valuemax={100}
     {...(normalized===null?{}:{"aria-valuenow":normalized})}
   >
-    <header><div><span><i/>{label}</span><b>{detail}</b></div><strong>{normalized===null?"扫描中":`${normalized}%`}<small>{statusLabel}</small></strong></header>
+    <header><div><span><i/>{label}</span><b>{detail}</b></div><strong>{normalized===null?(status==="error"?"不可用":status==="paused"?"等待开始":"读取中"):`${normalized}%`}<small>{statusLabel}</small></strong></header>
     <div className="rabbit-progress-rail">
       <div className="rabbit-progress-grid"/>
       <i className="rabbit-progress-fill" style={normalized===null?undefined:{width:`${normalized}%`}}/>
@@ -1349,7 +1350,17 @@ export default function Home() {
             onDragLeave={(event)=>{if(!event.currentTarget.contains(event.relatedTarget as Node|null))setDragOverStockCode(current=>current===item.code?null:current)}}
             onDragOver={(event)=>{event.preventDefault();event.dataTransfer.dropEffect='move'}}
             onDrop={(event)=>dropStock(event,item.code)}
-          >{(()=>{const quote=marketQuotes[item.code];const radar=eventsByCode[item.code];const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>:radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>:radar?<small className="ticker-event quiet">暂无新增</small>:eventRadarError?<small className="ticker-event pending">雷达待更新</small>:<small className="ticker-event pending" title="正在扫描该股票的公告、新闻和重大事件，不代表买卖信号">资讯扫描中</small>;return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>startStockDrag(event,item.code)} onDragEnd={finishStockDrag} title="按住手柄拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => selectActiveStock(index)} aria-pressed={activeStock===index}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>})()}</div>
+          >{(()=>{
+            const quote=marketQuotes[item.code];
+            const radar=eventsByCode[item.code];
+            const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;
+            const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>
+              :radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>
+              :radar?<small className="ticker-event quiet">暂无新增</small>
+              :eventRadarError?<small className="ticker-event pending">雷达待更新</small>
+              :<small className="ticker-event pending" title="资讯雷达尚未返回结果，不代表没有新闻或买卖信号">{marketSession.live?"资讯扫描中":"资讯待更新"}</small>;
+            return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>startStockDrag(event,item.code)} onDragEnd={finishStockDrag} title="按住手柄拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => selectActiveStock(index)} aria-pressed={activeStock===index}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>;
+          })()}</div>
         ))}
         <button className="ticker-add" onClick={()=>setOnboardingOpen(true)}>＋ 管理监控 · {stockList.length}/{monitorLimit}</button>
       </section>
@@ -1943,9 +1954,25 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
         <summary><span><b>第10–12轮 · A/B/C前瞻观察</b><small>只记录登记之后的新分钟；C组验证反T相对弱势，不回填历史、不影响 V4、不发送正式提醒</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
         {zijinShadow?<div className="zijin-shadow-body">
           <header><div><span>比较目的</span><b>同时验证正T少而精、正T覆盖优先、反T相对弱势能否在真实前瞻中保持费用后正期望</b></div><p><span>真实前瞻事件</span><b>{zijinShadow.integrity.eventCount} 条</b><small>哈希链只追加，不覆盖</small></p><p><span>费用口径</span><b>{zijinShadow.costPolicy.baseRoundTripPct.toFixed(2)}%</b><small>压力成本 {zijinShadow.costPolicy.stressRoundTripPct.toFixed(2)}%</small></p></header>
-          <div className="zijin-shadow-models">{(["A","B","C"] as const).map(key=>{const model=zijinShadow.models[key];if(!model)return null;const reason=Object.entries(model.rejectionReasons).sort((left,right)=>right[1]-left[1])[0];return <article key={key}><div><span>{model.label}</span><em>第{model.sourceRound}轮 · {model.side==="short"?"反T":"正T"} · {model.sessionStart.slice(0,2)}:{model.sessionStart.slice(2)}–{model.sessionEnd.slice(0,2)}:{model.sessionEnd.slice(2)}</em></div><p><span>前瞻闭环</span><b>{model.total.resolvedTrades} 笔</b></p><p><span>扣费胜率</span><b className={model.total.winRate==null?"neutral":model.total.winRate>=.65?"positive":"negative"}>{model.total.winRate==null?"待样本":`${(model.total.winRate*100).toFixed(1)}%`}</b></p><p><span>累计净收益</span><b className={model.total.netPct>0?"positive":model.total.netPct<0?"negative":"neutral"}>{model.total.netPct>=0?"+":""}{model.total.netPct.toFixed(3)}%</b></p><p><span>今日状态</span><b>{model.today.lastDecision}</b></p><small>{reason?`最常见未触发原因：${reason[0]}（${reason[1]}次）`:"尚未进入固定观察窗口或暂无拒绝记录"}</small></article>})}</div>
+          <div className="zijin-shadow-models">{(["A","B","C"] as const).map(key=>{
+            const model=zijinShadow.models[key];
+            if(!model)return null;
+            const reason=Object.entries(model.rejectionReasons).sort((left,right)=>right[1]-left[1])[0];
+            const minimum=zijinShadow.prospectiveGate?.minimumResolvedTrades??30;
+            const evidenceReady=model.total.resolvedTrades>=minimum;
+            const evidenceProgress=Math.min(100,model.total.resolvedTrades/minimum*100);
+            return <article key={key}>
+              <div><span>{model.label}</span><em>第{model.sourceRound}轮 · {model.side==="short"?"反T":"正T"} · {model.sessionStart.slice(0,2)}:{model.sessionStart.slice(2)}–{model.sessionEnd.slice(0,2)}:{model.sessionEnd.slice(2)}</em></div>
+              <p><span>新样本证据</span><b>{model.total.resolvedTrades}/{minimum} 笔</b></p>
+              <p><span>扣费胜率</span><b className={!evidenceReady?"neutral":model.total.winRate!==null&&model.total.winRate>=(zijinShadow.prospectiveGate?.minimumWinRate??.65)?"positive":"negative"}>{evidenceReady&&model.total.winRate!==null?`${(model.total.winRate*100).toFixed(1)}%`:"不可判断"}</b></p>
+              <p><span>累计净收益</span><b className={model.total.netPct>0?"positive":model.total.netPct<0?"negative":"neutral"}>{model.total.netPct>=0?"+":""}{model.total.netPct.toFixed(3)}%</b></p>
+              <i className="zijin-shadow-evidence" aria-label={`前瞻证据 ${model.total.resolvedTrades}/${minimum}`}><span style={{width:`${evidenceProgress}%`}}/></i>
+              <p><span>今日状态</span><b>{model.today.lastDecision}</b></p>
+              <small>{reason?`最常见未触发原因：${reason[0]}（${reason[1]}次）`:evidenceReady?"已达到最低样本数，仍需费用、稳定性与人工评审":"只累计上线后的新交易日；不会用旧回测补足样本"}</small>
+            </article>;
+          })}</div>
           <footer><span>{zijinShadow.marketDate?`交易日 ${zijinShadow.marketDate}`:"等待首个交易日"} · 数据源 {zijinShadow.source.provider??"等待连接"}</span><b>胜率不足 65% 或样本不足时，任何一组都不会晋级</b></footer>
-        </div>:<div className="zijin-shadow-loading">正在读取服务器A/B观察记录；没有记录时不会显示虚构胜率。</div>}
+        </div>:<div className="zijin-shadow-loading">正在读取服务器前瞻观察记录；没有记录时不会显示虚构胜率。</div>}
       </details>
       {zijinTrainingProgress?<>
         <div className={`zijin-training-state-note ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'warning':zijinTrainingProgress.status}`}><b>{zijinTrainingConnection==='error'?'状态接口连接失败':trainingStale?'训练任务可能中断':schedulerOffline?'自动调度器离线':zijinTrainingProgress.status==="running"?'服务器正在计算':'本轮已结束'}</b><span>{zijinTrainingConnection==='error'?'页面保留最后一次真实结果并自动重试，不会伪造心跳。':trainingStale?'页面保留最后一次真实进度，不会自动补数。':schedulerOffline?'第 4 轮已经真实完成，但后台没有按计划继续检查新数据；需要恢复服务器自动训练服务。':zijinTrainingProgress.status==="running"?'页面每 2 秒读取服务器状态；切换页面不会影响后台训练。':'100% 表示本轮审计流程完成，不代表系统仍在持续训练。页面每 30 秒检查是否有新任务。'}</span></div>
