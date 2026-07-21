@@ -1,3 +1,5 @@
+import { assessMarketDataQuality } from "@/lib/market-data-quality.mjs";
+
 type Quote = {
   code: string; name: string; price: number | null; previousClose: number | null;
   change: number | null; changePercent: number | null; open: number | null;
@@ -141,8 +143,11 @@ async function fromEastmoneyIntradaySessions(code: string): Promise<IntradaySess
 }
 
 async function fromPublicMinutes(code: string) {
-  try { return await fromTencentMinutes(code); }
-  catch { return fromEastmoneyMinutes(code); }
+  const failures: string[] = [];
+  try { return { provider: "tencent-public", minutes: await fromTencentMinutes(code), failures }; }
+  catch (error) { failures.push(error instanceof Error ? error.message : "腾讯分时失败"); }
+  try { return { provider: "eastmoney-public", minutes: await fromEastmoneyMinutes(code), failures }; }
+  catch (error) { failures.push(error instanceof Error ? error.message : "东方财富分时失败"); throw Object.assign(new Error("所有公开分时源暂不可用"), { failures }); }
 }
 
 async function fromTencentDailyBars(code: string) {
@@ -178,9 +183,10 @@ async function fromEastmoneyQuote(code: string): Promise<{ provider: string; quo
 
 async function fromPublicQuote(code: string) {
   let lastError: unknown;
+  const failures: string[] = [];
   for (const provider of [fromTencent, fromSina, fromEastmoneyQuote]) {
-    try { return await provider(code); }
-    catch (error) { lastError = error; }
+    try { return { ...(await provider(code)), failures }; }
+    catch (error) { lastError = error; failures.push(error instanceof Error ? error.message : "行情源请求失败"); }
   }
   throw lastError instanceof Error ? lastError : new Error("All public quote providers are unavailable");
 }
@@ -193,6 +199,7 @@ export async function GET(request: Request) {
     validCode(code);
     if (mode === "trial-quote") {
       const data = await fromPublicQuote(code);
+      const fetchedAt = new Date().toISOString();
       return Response.json({
         ...data,
         minutes: [],
@@ -200,25 +207,31 @@ export async function GET(request: Request) {
         delayed: true,
         trial: true,
         fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"],
-        fetchedAt: new Date().toISOString(),
+        fetchedAt,
+        quality: assessMarketDataQuality({ provider: data.provider, sourceTimestamp: data.sourceTimestamp, fetchedAt, minutes: [], requestedRealtime: false, quoteFailures: data.failures }),
         bars: [],
       }, { headers: realtimeHeaders });
     }
     if (mode === "trial-realtime") {
-      const minutesPromise = fromPublicMinutes(code).catch(() => []);
-      const [data, minutes] = await Promise.all([fromPublicQuote(code), minutesPromise]);
-      return Response.json({ ...data, minutes, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt: new Date().toISOString(), bars: [] }, { headers: realtimeHeaders });
+      const minutesPromise = fromPublicMinutes(code).catch((error) => ({ provider: null, minutes: [], failures: Array.isArray(error?.failures) ? error.failures : [error instanceof Error ? error.message : "分时请求失败"] }));
+      const [data, minuteResult] = await Promise.all([fromPublicQuote(code), minutesPromise]);
+      const fetchedAt = new Date().toISOString();
+      const quality = assessMarketDataQuality({ provider: data.provider, sourceTimestamp: data.sourceTimestamp, fetchedAt, minutes: minuteResult.minutes, requestedRealtime: true, quoteFailures: data.failures, minuteFailures: minuteResult.failures });
+      return Response.json({ ...data, minuteProvider: minuteResult.provider, minutes: minuteResult.minutes, quality, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt, bars: [] }, { headers: realtimeHeaders });
     }
     const [bars, quoteResult, minutes, intradaySessions] = await Promise.all([
       fromTencentDailyBars(code).catch(() => []),
       fromTencent(code).catch(() => fromSina(code).catch(() => fromEastmoneyQuote(code).catch(() => null))),
-      fromPublicMinutes(code).catch(() => []),
+      fromPublicMinutes(code).catch(() => ({ provider: null, minutes: [], failures: ["公开分时源暂不可用"] })),
       fromTencentIntradaySessions(code).then(sessions => sessions.length ? sessions : fromEastmoneyIntradaySessions(code)).catch(() => fromEastmoneyIntradaySessions(code).catch(() => [])),
     ]);
     const latest = bars.at(-1);
     if (!quoteResult && !latest) throw new Error("所有公开行情源暂不可用");
     const fallbackQuote: Quote = { code, name: code, price: latest?.close ?? null, previousClose: bars.at(-2)?.close ?? null, change: latest ? latest.close - (bars.at(-2)?.close ?? latest.close) : null, changePercent: latest && bars.at(-2)?.close ? (latest.close - bars.at(-2)!.close) / bars.at(-2)!.close * 100 : null, open: latest?.open ?? null, high: latest?.high ?? null, low: latest?.low ?? null, volume: latest?.volume ?? null, amount: latest?.amount ?? null };
     const headers = mode === "realtime" || isMainlandMarketRealtimeWindow() ? realtimeHeaders : closedMarketHeaders;
-    return Response.json({ provider: quoteResult?.provider ?? "tencent-public", quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minutes, intradaySessions, delayed: true, fetchedAt: new Date().toISOString(), bars }, { headers });
+    const fetchedAt = new Date().toISOString();
+    const provider = quoteResult?.provider ?? "tencent-public";
+    const quality = assessMarketDataQuality({ provider, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, fetchedAt, minutes: minutes.minutes, requestedRealtime: mode === "realtime", minuteFailures: minutes.failures });
+    return Response.json({ provider, quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minuteProvider: minutes.provider, minutes: minutes.minutes, quality, intradaySessions, delayed: true, fetchedAt, bars }, { headers });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502, headers: realtimeHeaders }); }
 }

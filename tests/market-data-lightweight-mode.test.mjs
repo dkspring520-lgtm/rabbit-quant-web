@@ -19,4 +19,12 @@ test("five-second chart mode still loads the complete current minute series", ()
   const end = route.indexOf('const \[bars, quoteResult');
   assert.ok(start >= 0 && end > start);
   assert.match(route.slice(start, end), /fromPublicMinutes\(code\)/);
+  assert.match(route.slice(start, end), /assessMarketDataQuality/);
+});
+
+test("realtime response exposes provider quality and source failover", () => {
+  assert.match(route, /minuteProvider/);
+  assert.match(route, /quoteFailures/);
+  assert.match(route, /quality/);
+  assert.match(route, /fallbackOrder/);
 });
