@@ -22,6 +22,7 @@ import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } 
 import { compactChartLabelKey, compactChartLabelKeys } from "@/lib/compact-chart-labels.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
+import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
 import PublicLanding from "./public-landing";
 
 const LIVE_CHART = Object.freeze({
@@ -207,9 +208,15 @@ function FourRabbitAutomationDashboard({progress}:{progress:ZijinTrainingProgres
   </section>;
 }
 
-type AccountPreferences = { stock:string; baseShares:number; risk:string };
+type StrategyProfile = "稳健档" | "平衡档" | "灵敏档";
+type AccountPreferences = { stock:string; baseShares:number; risk:string; strategyProfile:StrategyProfile };
 type StockPositionMap = Record<string, StockPosition>;
-const DEFAULT_PREFERENCES:AccountPreferences={stock:"601899 紫金矿业",baseShares:0,risk:"稳健"};
+const DEFAULT_PREFERENCES:AccountPreferences={stock:"601899 紫金矿业",baseShares:0,risk:"稳健",strategyProfile:"平衡档"};
+const normalizeAccountPreferences=(value:Partial<AccountPreferences>|null|undefined):AccountPreferences=>({
+  ...DEFAULT_PREFERENCES,
+  ...(value??{}),
+  strategyProfile:normalizeStrategyProfile(value?.strategyProfile) as StrategyProfile,
+});
 
 function resolveStockPosition(positions:StockPositionMap, preferences:AccountPreferences, code:string) {
   return positions[code] ?? migrateLegacyPosition(preferences, code);
@@ -491,7 +498,7 @@ const agents = [
   { id: "risk", avatar: "/agents/risk.png", name: "风控兔", role: "费用与过拟合否决" },
   { id: "official", avatar: "/agents/official.png", name: "正式兔", role: "管理影子观察资格" },
 ];
-const strategyProfiles = ["稳健档","平衡档","灵敏档"];
+const strategyProfiles = STRATEGY_PROFILES;
 
 
 export default function Home() {
@@ -511,7 +518,7 @@ export default function Home() {
   const [activeStock, setActiveStock] = useState(0);
   const [stockList, setStockList] = useState(initialStocks);
   const validatedWatchlistSignature = useRef("");
-  const [profile, setProfile] = useState("平衡档");
+  const [profile, setProfile] = useState<StrategyProfile>(DEFAULT_PREFERENCES.strategyProfile);
   const [panel, setPanel] = useState("今日T循环");
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [agentOpen, setAgentOpen] = useState(false);
@@ -1188,7 +1195,11 @@ export default function Home() {
         if(profileResponse.ok){
           const remote=await profileResponse.json();
           const data=remote.data??{};
-          if(data.preferences){setPreferences(data.preferences);setHasPersistedPreferences(true);localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(data.preferences))}
+          if(data.preferences||data.strategyProfile){
+            const restored=normalizeAccountPreferences({...data.preferences,strategyProfile:data.strategyProfile??data.preferences?.strategyProfile});
+            setPreferences(restored);setProfile(restored.strategyProfile);setHasPersistedPreferences(true);
+            localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(restored));
+          }
           if(data.alertSettings)setAlertSettings(current=>({...current,...data.alertSettings}));
           if(data.customStrategy)setCustomStrategy(data.customStrategy);
         }
@@ -1210,11 +1221,23 @@ export default function Home() {
   useEffect(()=>{
     if(!remoteSyncReady.current||!localAuth||demoMode||!accountName||!stockList.length)return;
     const timer=window.setTimeout(()=>{void Promise.all([
-      fetch('/api/control/profile',{method:'PUT',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({data:{preferences,alertSettings,customStrategy}})}),
+      fetch('/api/control/profile',{method:'PUT',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({data:{preferences:{...preferences,strategyProfile:profile},strategyProfile:profile,alertSettings,customStrategy}})}),
       fetch('/api/control/monitors',{method:'PUT',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({monitors:stockList.map(item=>({code:item.code,name:item.name,enabled:true,profile,position:stockPositions[item.code]??{}}))})}),
     ]).catch(()=>{})},800);
     return()=>window.clearTimeout(timer);
   },[localAuth,demoMode,accountName,stockList,stockPositions,preferences,alertSettings,customStrategy,profile,remoteSyncEpoch]);
+  useEffect(()=>{
+    if(!localAuth||!accountName)return;
+    setPreferences(current=>current.strategyProfile===profile?current:{...current,strategyProfile:profile});
+    if(!demoMode){
+      try{
+        const key=`rabbit-prefs:${accountName.toLowerCase()}`;
+        const saved=localStorage.getItem(key);
+        const next=normalizeAccountPreferences(saved?JSON.parse(saved):preferences);
+        localStorage.setItem(key,JSON.stringify({...next,strategyProfile:profile}));
+      }catch{}
+    }
+  },[localAuth,demoMode,accountName,profile]);
   useEffect(() => {
     if (!localAuth || demoMode || !accountName || !stockList.length) return;
     const loaded:StockPositionMap=Object.fromEntries(stockList.map(item=>{
@@ -1417,9 +1440,9 @@ export default function Home() {
 
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-logo-compact.png" alt="双兔助手 做T神器"/></main>;
   if(!localAuth){
-    const enterDemo=()=>{setDemoMode(true);setAccountName('演示访客');setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true)};
+    const enterDemo=()=>{setDemoMode(true);setAccountName('演示访客');setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setProfile(DEFAULT_PREFERENCES.strategyProfile);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true)};
     if(authScreen==='landing')return <PublicLanding onDemo={enterDemo} onAccount={()=>setAuthScreen('account')}/>;
-    return <AuthView onBack={()=>setAuthScreen('landing')} onDemo={enterDemo} onAuthenticated={(name,isNew,remember)=>{setDemoMode(false);setAccountName(name);setAccountRole(localStorage.getItem('rabbit-account-role')||'member');remoteSyncReady.current=false;setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){setPreferences(JSON.parse(saved));setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=prepareWatchlistForCurrentEntry(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
+    return <AuthView onBack={()=>setAuthScreen('landing')} onDemo={enterDemo} onAuthenticated={(name,isNew,remember)=>{setDemoMode(false);setAccountName(name);setAccountRole(localStorage.getItem('rabbit-account-role')||'member');remoteSyncReady.current=false;setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setProfile(DEFAULT_PREFERENCES.strategyProfile);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){const restored=normalizeAccountPreferences(JSON.parse(saved));setPreferences(restored);setProfile(restored.strategyProfile);setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=prepareWatchlistForCurrentEntry(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
   }
 
   return (
@@ -1605,7 +1628,7 @@ export default function Home() {
               {name:'稳健档',tag:'少做，只做最确定',fit:'震荡市、新手、重视回撤',score:'至少 6/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 5 分钟',risk:'候补点照常显示，正式点可能为空'},
               {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'至少 4/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 4 分钟',risk:'默认推荐'},
               {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'至少 4/6',cycles:'每日最多 2 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 3 分钟',risk:'候补更多，但仍需成本与风控过滤'},
-            ].map(item=><button key={item.name} onClick={()=>setProfile(item.name)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
+            ].map(item=><button key={item.name} onClick={()=>setProfile(normalizeStrategyProfile(item.name) as StrategyProfile)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
           </div>
           <div className="custom-strategy"><div className="custom-head"><div><h3>自定义规则草稿</h3><p>用于记录你的研究想法。自然语言目前不会直接变成可执行参数，也不会冒充已运行策略。</p></div><span>仅保存备注</span></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T规则草稿"/><div className="hard-guards"><span>正式执行仍受：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
           <div className="opening-rule"><span>开盘因果规则</span><p>09:30立即开始扫描；积累至少4个真实分钟点后即可出现候选。低开重新站上VWAP、高开跌破VWAP且确认后，分两次各 1/6；早盘累计不超过 1/3，所有判断只使用当时及此前数据。</p><button onClick={()=>{try{localStorage.setItem(`rabbit-custom-strategy:${accountName.toLowerCase()}`,customStrategy)}catch{}setStrategyOpen(false)}}>保存规则草稿</button></div>
@@ -1807,7 +1830,7 @@ function OnboardingView({accountName,initial,initialList,initialPositions,maxSto
       return [item.code,confirmStockPosition(window.localStorage,accountName,position)];
     }));
     const defaultPosition=savedPositions[selectedCode]??normalizeStockPosition({},selectedCode);
-    onSave({stock,baseShares:defaultPosition.plannedBase,risk},list,savedPositions);
+    onSave({stock,baseShares:defaultPosition.plannedBase,risk,strategyProfile:initial.strategyProfile},list,savedPositions);
   };
   return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>每只股票独立保存持仓，切换股票不会串用底仓。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票 · {list.length}/{maxStocks}</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>setNewCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="off" placeholder="6位代码" disabled={list.length>=maxStocks}/><input value={newName} onChange={e=>setNewName(e.target.value)} autoComplete="off" placeholder="股票名称" disabled={list.length>=maxStocks}/><button onClick={add} disabled={list.length>=maxStocks}>{list.length>=maxStocks?`已达 ${maxStocks} 只上限`:'＋ 添加'}</button></div>{listError&&<small className="list-error">{listError}</small>}<small>当前会员最多同时监控 {maxStocks} 只股票；先点击一只股票，再单独填写它的持仓。</small></div></div><div className="onboarding-step"><b>02</b><div><span>{selectedStock?`${selectedStock.name}（${selectedCode}）持仓`:'当前股票持仓'}</span><div className="position-setup-grid"><label><span>计划底仓</span><div><input type="text" inputMode="numeric" value={selectedPosition.plannedBase||''} onChange={event=>updatePosition('plannedBase',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>收盘恢复目标</small></label><label><span>开盘实际持仓</span><div><input type="text" inputMode="numeric" value={selectedPosition.openingShares||''} onChange={event=>updatePosition('openingShares',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>今日开盘前实际数量</small></label><label><span>昨日可卖</span><div><input type="text" inputMode="numeric" value={selectedPosition.sellable||''} onChange={event=>updatePosition('sellable',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>受 T+1 规则约束</small></label></div><small>昨日可卖不会超过开盘实际持仓；不足 100 股时，本股不会生成正式做 T 执行信号。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={save}>保存全部股票持仓 <span>→</span></button></div></div>;
 }
@@ -2328,7 +2351,7 @@ function HoldingsView({position,stock,tradingDate,rows,onRowsChange}:{position:S
   </section>;
 }
 
-function BacktestView({ profile, setProfile, position, stock, stocks, activeStock, onSelectStock }: { profile: string; setProfile: (value: string) => void; position:StockPosition; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void }) {
+function BacktestView({ profile, setProfile, position, stock, stocks, activeStock, onSelectStock }: { profile: StrategyProfile; setProfile: (value: StrategyProfile) => void; position:StockPosition; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void }) {
   const [capital, setCapital] = useState(200000);
   const [baseShares, setBaseShares] = useState(position.plannedBase);
   const [sellable, setSellable] = useState(position.sellable);
@@ -2671,7 +2694,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
           </select>
           <small className="config-inline-help">首次运行会读取可用的完整交易日；随后可选择历史日期重新逐分钟回放。</small>
         </label>
-        <label>V4 策略档位<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；同一套 Smart-T 融合策略 V4，仅调整确认门槛与信号频率。</small></label>
+        <label>V4 策略档位<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item as StrategyProfile)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；同一套 Smart-T 融合策略 V4，仅调整确认门槛与信号频率。</small></label>
         <div className="broker-account-box">
           <div className="broker-account-head"><b>模拟证券账户</b><span>仅用于回测撮合，不连接真实券商</span></div>
           <div className="field-pair"><label>可用资金（现金）<NumberStepper value={capital} unit="元" step={10000} min={0} onChange={setCapital}/><small>可直接输入；正 T 先买入时受此金额约束</small></label><label>计划底仓（收盘目标）<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/><small>开盘前已有、收盘时应恢复的持仓数量</small></label></div>
