@@ -24,6 +24,28 @@ import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import PublicLanding from "./public-landing";
 
+const LIVE_CHART = Object.freeze({
+  width: 920,
+  height: 320,
+  plotLeft: 62,
+  plotRight: 910,
+  priceTop: 20,
+  priceBottom: 230,
+  volumeTop: 252,
+  volumeBottom: 300,
+});
+
+const liveChartX = (time:string|number|null|undefined) =>
+  intradayChartX(time, LIVE_CHART.plotLeft, LIVE_CHART.plotRight - LIVE_CHART.plotLeft);
+
+const liveChartSlotX = (slot:number) =>
+  intradaySlotX(slot, LIVE_CHART.plotLeft, LIVE_CHART.plotRight - LIVE_CHART.plotLeft);
+
+const liveChartPriceY = (price:number, min:number, max:number) => {
+  const range=max-min||Math.max(max*.002,.01);
+  return LIVE_CHART.priceTop+(max-price)/range*(LIVE_CHART.priceBottom-LIVE_CHART.priceTop);
+};
+
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
 type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[]; intradaySessions?:IntradaySession[] };
@@ -718,13 +740,14 @@ export default function Home() {
   const chartModel = useMemo(() => {
     if (minutePoints.length < 2) return null;
     const prices=minutePoints.map(point=>point.price); const min=Math.min(...prices); const max=Math.max(...prices); const range=max-min||Math.max(max*.002,0.01);
-    const pointAt=(point:{price:number},index:number)=>`${intradayChartX(minutePoints[index].time)},${20+(max-point.price)/range*210}`;
+    const pointAt=(point:{price:number},index:number)=>`${liveChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
     let weighted=0, totalVolume=0; const vwap=minutePoints.map((point,index)=>{weighted+=point.price*Math.max(point.volume,1);totalVolume+=Math.max(point.volume,1);return pointAt({price:weighted/totalVolume},index)});
     const maxVolume=Math.max(...minutePoints.map(point=>point.volume),1);
     const lastVwap=weighted/Math.max(totalVolume,1);
-    const firstX=intradayChartX(minutePoints[0].time); const lastX=intradayChartX(minutePoints.at(-1)!.time);
-    return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,volumes:minutePoints.map((point,index)=>({x:intradayChartX(point.time),height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:[max,max-range*.25,max-range*.5,max-range*.75,min]};
+    const firstX=liveChartX(minutePoints[0].time); const lastX=liveChartX(minutePoints.at(-1)!.time);
+    const tickValues=[max,max-range*.25,max-range*.5,max-range*.75,min];
+    return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,lastY:liveChartPriceY(minutePoints.at(-1)!.price,min,max),volumes:minutePoints.map((point,index)=>({x:liveChartX(point.time),height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:tickValues.map(value=>({value,y:liveChartPriceY(value,min,max)}))};
   },[minutePoints]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
   const isZijinStock=stock?.code===STOCK_AGENTS.zijin.code;
@@ -763,15 +786,14 @@ export default function Home() {
     if(!chartModel)return {observations:[],actions:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
     const occupied:LabelBox[]=[];
-    const range=chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01);
     const pointPosition=(time:string,price?:number)=>{
       const minuteIndex=minutePoints.findIndex(point=>point.time===time);
       if(minuteIndex<0)return null;
       const point=minutePoints[minuteIndex];
-      return {x:intradayChartX(point.time),y:20+(chartModel.max-(price??point.price))/range*210};
+      return {x:liveChartX(point.time),y:liveChartPriceY(price??point.price,chartModel.min,chartModel.max)};
     };
     const reserveLabel=(pointX:number,preferredBaseline:number,width:number,height:number,direction:-1|1)=>{
-      const labelX=Math.max(width/2+5,Math.min(915-width/2,pointX));
+      const labelX=Math.max(LIVE_CHART.plotLeft+width/2+4,Math.min(LIVE_CHART.plotRight-width/2,pointX));
       const offsets=[0,18,36,54,72,-18,-36,-54,-72];
       const candidates=offsets.map(offset=>Math.max(13,Math.min(245,preferredBaseline+offset*direction)));
       for(const baseline of candidates){
@@ -1475,21 +1497,18 @@ export default function Home() {
             <button className="tool-button" onClick={()=>setIndicatorsVisible(value=>!value)} aria-pressed={indicatorsVisible}>{indicatorsVisible ? "隐藏指标" : "显示指标"}</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出全屏":"全屏"}</button>
           </div>
           <div className="chart-wrap">
-            <div className="y-axis">{chartModel ? chartModel.ticks.map(value=><span key={value}>{value.toFixed(2)}</span>) : [0,1,2,3,4].map(value=><span key={value}>--</span>)}</div>
-            <svg viewBox="0 0 920 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图`}>
+            <svg viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图`}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
-              {[50,100,150,200,250].map(y => <line key={y} x1="0" y1={y} x2="920" y2={y} className="grid-line"/>)}
-              {A_SHARE_INTRADAY_AXIS.map(tick => {const x=intradaySlotX(tick.slot);return <line key={tick.label} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>})}
+              {(chartModel?.ticks??[20,72.5,125,177.5,230].map(y=>({value:null,y}))).map((tick,index)=><g key={tick.value??index}><line x1={LIVE_CHART.plotLeft} y1={tick.y} x2={LIVE_CHART.plotRight} y2={tick.y} className="grid-line"/>{tick.value!=null&&<text x="5" y={tick.y+3.5} className="intraday-axis-label">{tick.value.toFixed(2)}</text>}</g>)}
+              {A_SHARE_INTRADAY_AXIS.map(tick => {const x=liveChartSlotX(tick.slot);return <g key={tick.label}><line x1={x} y1={LIVE_CHART.priceTop} x2={x} y2={LIVE_CHART.volumeBottom} className="grid-line vertical"/><text x={x} y="317" textAnchor={tick.slot===0?"start":tick.slot===240?"end":"middle"} className="intraday-axis-label intraday-time-label">{tick.label}</text></g>})}
               {chartModel&&<><path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
-              <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx={chartModel.lastX} cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
-              <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
-              {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x-1.35} y={300-bar.height} width="2.7" height={bar.height} rx=".45" className={bar.up?'volume':'volume red'}/>) }
+              <line x1={LIVE_CHART.plotLeft} y1={chartModel.lastY} x2={LIVE_CHART.plotRight} y2={chartModel.lastY} className="last-line"/><circle cx={chartModel.lastX} cy={chartModel.lastY} r="4" className="last-dot"/><g className="intraday-price-flag"><rect x="0" y={Math.max(6,Math.min(294,chartModel.lastY-12))} width="54" height="24"/><text x="27" y={Math.max(6,Math.min(294,chartModel.lastY-12))+16} textAnchor="middle">{chartModel.last.price.toFixed(2)}</text></g></>}
+              <line x1={LIVE_CHART.plotLeft} y1={LIVE_CHART.volumeTop} x2={LIVE_CHART.plotRight} y2={LIVE_CHART.volumeTop} className="volume-divider"/>
+              {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x-1.35} y={LIVE_CHART.volumeBottom-bar.height} width="2.7" height={bar.height} rx=".45" className={bar.up?'volume':'volume red'}/>) }
             </svg>
-            <div className="price-flag">{chartModel?.last.price.toFixed(2) ?? '--'}</div>
-            <div className="x-axis">{A_SHARE_INTRADAY_AXIS.map(tick=><span key={tick.label} style={{left:`${intradaySlotX(tick.slot)/9.2}%`}}>{tick.label}</span>)}</div>
           </div>
           {afterHoursSummary&&<div className="after-hours-strip" role="status" aria-label="盘后固定价格交易数据">
             <span><i/>盘后固定价</span><b>15:05–15:30</b><strong>¥{afterHoursSummary.price.toFixed(2)}</strong>
