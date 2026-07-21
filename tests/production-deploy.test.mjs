@@ -41,8 +41,36 @@ test("systemd timer and installer enable recurring safe deploys", () => {
   const installer = read("scripts/install-production-deployer.sh");
 
   assert.match(service, /Type=oneshot/);
+  assert.match(service, /EnvironmentFile=-\/etc\/default\/rabbit-quant-ops/);
   assert.match(service, /\/usr\/local\/sbin\/rabbit-quant-deploy/);
   assert.match(timer, /OnUnitActiveSec=1min/);
   assert.match(timer, /Persistent=true/);
   assert.match(installer, /systemctl enable --now rabbit-quant-deploy\.timer/);
+  assert.match(installer, /systemctl enable --now rabbit-quant-backup\.timer/);
+});
+
+test("production backup snapshots SQLite and verifies every archive", () => {
+  const script = read("scripts/backup-production.sh");
+  const service = read("deploy/systemd/rabbit-quant-backup.service");
+  const timer = read("deploy/systemd/rabbit-quant-backup.timer");
+
+  assert.match(script, /VACUUM INTO/);
+  assert.match(script, /PRAGMA integrity_check/);
+  assert.match(script, /gzip --test/);
+  assert.match(script, /sha256sum/);
+  assert.match(script, /rabbit-quant-state/);
+  assert.match(script, /rabbit-quant-training-runtime/);
+  assert.match(service, /rabbit-quant-backup/);
+  assert.match(timer, /OnCalendar=.*03:30:00 Asia\/Shanghai/);
+});
+
+test("deployment keeps rollback images and emits optional webhook notifications", () => {
+  const script = read("scripts/deploy-production.sh");
+  assert.match(script, /RABBIT_QUANT_IMAGE_RETENTION/);
+  assert.match(script, /previous_web_image/);
+  assert.match(script, /previous_trainer_image/);
+  assert.match(script, /RABBIT_QUANT_ALERT_WEBHOOK_URL/);
+  assert.match(script, /last-notification\.json/);
+  assert.match(script, /sync_operations_assets/);
+  assert.match(script, /rabbit-quant-backup\.timer/);
 });

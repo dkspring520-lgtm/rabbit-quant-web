@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up Rabbit Quant production data every day
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Shanghai
+RandomizedDelaySec=15min
+Persistent=true
+Unit=rabbit-quant-backup.service
+
+[Install]
+WantedBy=timers.target

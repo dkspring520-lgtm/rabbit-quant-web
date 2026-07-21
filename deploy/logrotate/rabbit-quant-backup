@@ -1,0 +1,8 @@
+/var/log/rabbit-quant-deploy/backup.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
