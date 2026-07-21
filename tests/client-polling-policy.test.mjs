@@ -14,13 +14,16 @@ test("closed market data refreshes slowly without pretending to be realtime", ()
   assert.equal(clientPollingInterval("activeQuote", false), 30_000);
   assert.equal(clientPollingInterval("watchlist", false), 30_000);
   assert.equal(clientPollingInterval("referenceData", false), 300_000);
-  assert.equal(clientPollingInterval("marketContext", false), 180_000);
-  assert.equal(clientPollingInterval("eventRadar", false), 180_000);
+  assert.equal(clientPollingInterval("deskSnapshot", false), 180_000);
 });
 
 test("historical reference payload is not downloaded at the live quote frequency", () => {
   assert.equal(clientPollingInterval("referenceData", true), 300_000);
+  assert.equal(clientPollingInterval("deskSnapshot", true), 60_000);
   assert.match(page, /clientPollingInterval\("referenceData", marketSession\.live\)/);
+  assert.match(page, /clientPollingInterval\("deskSnapshot",marketSession\.live\)/);
+  assert.doesNotMatch(page, /fetch\(`\/api\/market-context/);
+  assert.doesNotMatch(page, /fetch\(`\/api\/event-radar/);
 });
 
 test("browser polling stops while hidden because the control-plane remains responsible", () => {
