@@ -13,6 +13,8 @@ services:
       - -lc
       - node scripts/sync-zijin-training-state.mjs public/research/zijin-training-progress.json /training-state/zijin-training-progress.json && node scripts/sync-zijin-automation-state.mjs public/research/zijin-automation-status.json /training-state/zijin-automation-status.json && exec npm start -- -p 3000 -H 0.0.0.0
     environment:
+      APP_COMMIT_SHA: ${APP_COMMIT_SHA:-development}
+      APP_BUILD_TIME: ${APP_BUILD_TIME:-unknown}
       CONTROL_PLANE_ORIGIN: http://control:3010
       ZIJIN_TRAINING_STATE_PATH: /training-state/zijin-training-progress.json
       ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json

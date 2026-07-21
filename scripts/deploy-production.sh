@@ -160,8 +160,12 @@ compose_up() {
   local compose_file="$1"
   local web_image="$2"
   local trainer_image="$3"
+  local app_commit_sha="${4:-development}"
+  local app_build_time="${5:-unknown}"
   RABBIT_QUANT_WEB_IMAGE="$web_image" \
   RABBIT_QUANT_TRAINER_IMAGE="$trainer_image" \
+  APP_COMMIT_SHA="$app_commit_sha" \
+  APP_BUILD_TIME="$app_build_time" \
     docker compose \
       --project-name "$COMPOSE_PROJECT" \
       --project-directory "$REPO_DIR" \
@@ -225,7 +229,7 @@ previous_sha="$(curl --fail --silent --max-time 5 http://127.0.0.1:3000/api/cont
 
 current_stage="切换线上容器"
 log "构建全部通过，开始切换到 $short_sha。"
-if ! compose_up "$compose_file" "$web_image" "$trainer_image"; then
+if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$target_sha" "$build_time"; then
   log "容器切换命令失败，准备恢复旧镜像。"
   switch_failed=1
 else
@@ -259,7 +263,7 @@ if [[ -z "$previous_web_image" || -z "$previous_trainer_image" ]]; then
   exit 1
 fi
 
-compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image"
+compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "${previous_sha:-development}" "rollback"
 if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha"; then
   log "已恢复旧版本 ${previous_sha:0:12}。"
   record_result "rolled_back" "新版本不健康，旧版本已恢复"
