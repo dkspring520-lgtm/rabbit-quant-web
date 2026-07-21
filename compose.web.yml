@@ -1,39 +1,49 @@
+x-web-common: &web-common
+  image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+  build:
+    context: .
+    dockerfile: Dockerfile.server
+  restart: unless-stopped
+  command:
+    - sh
+    - -lc
+    - node scripts/sync-zijin-training-state.mjs public/research/zijin-training-progress.json /training-state/zijin-training-progress.json && node scripts/sync-zijin-automation-state.mjs public/research/zijin-automation-status.json /training-state/zijin-automation-status.json && exec npm start -- -p 3000 -H 0.0.0.0
+  environment:
+    CONTROL_PLANE_ORIGIN: http://control:3010
+    ZIJIN_TRAINING_STATE_PATH: /training-state/zijin-training-progress.json
+    ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
+    ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round11-report.json
+    ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
+    ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
+  volumes:
+    - /opt/rabbit-quant-state:/training-state
+  depends_on:
+    control:
+      condition: service_healthy
+  healthcheck:
+    test:
+      - CMD
+      - node
+      - -e
+      - fetch('http://127.0.0.1:3000/api/control/version').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+    interval: 10s
+    timeout: 5s
+    retries: 6
+    start_period: 60s
+
 services:
-  web:
+  web-blue:
+    <<: *web-common
     image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
-    build:
-      context: .
-      dockerfile: Dockerfile.server
     container_name: rabbit-quant-modern-web
-    restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
-    command:
-      - sh
-      - -lc
-      - node scripts/sync-zijin-training-state.mjs public/research/zijin-training-progress.json /training-state/zijin-training-progress.json && node scripts/sync-zijin-automation-state.mjs public/research/zijin-automation-status.json /training-state/zijin-automation-status.json && exec npm start -- -p 3000 -H 0.0.0.0
-    environment:
-      CONTROL_PLANE_ORIGIN: http://control:3010
-      ZIJIN_TRAINING_STATE_PATH: /training-state/zijin-training-progress.json
-      ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
-      ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round11-report.json
-      ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
-      ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
-    volumes:
-      - /opt/rabbit-quant-state:/training-state
-    depends_on:
-      control:
-        condition: service_healthy
-    healthcheck:
-      test:
-        - CMD
-        - node
-        - -e
-        - fetch('http://127.0.0.1:3000/api/control/version').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
-      interval: 30s
-      timeout: 8s
-      retries: 3
-      start_period: 60s
+  web-green:
+    <<: *web-common
+    image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+    container_name: rabbit-quant-modern-web-green
+    ports:
+      - "127.0.0.1:3001:3000"
   trainer:
     image: ${RABBIT_QUANT_TRAINER_IMAGE:-rabbit-quant-web-trainer}
     build:
@@ -75,7 +85,7 @@ services:
     command: ["node", "scripts/zijin-shadow-ab-observer.mjs"]
     restart: unless-stopped
     environment:
-      ZIJIN_SHADOW_MARKET_ORIGIN: http://web:3000
+      ZIJIN_SHADOW_MARKET_ORIGIN: ${RABBIT_QUANT_ACTIVE_WEB_ORIGIN:-http://web-blue:3000}
       ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
       ZIJIN_SHADOW_LEDGER_PATH: /training-runtime/shadow/zijin-shadow-ab-events.jsonl
       ZIJIN_SHADOW_POLL_MS: "15000"
@@ -84,9 +94,6 @@ services:
     volumes:
       - /opt/rabbit-quant-state:/training-state
       - /opt/rabbit-quant-training-runtime:/training-runtime
-    depends_on:
-      web:
-        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -109,7 +116,7 @@ services:
       NODE_ENV: production
       CONTROL_PORT: "3010"
       CONTROL_DB_PATH: /data/rabbit-control.sqlite
-      MARKET_DATA_ORIGIN: http://web:3000
+      MARKET_DATA_ORIGIN: ${RABBIT_QUANT_ACTIVE_WEB_ORIGIN:-http://web-blue:3000}
       MONITOR_INTERVAL_MS: "15000"
       RABBIT_ADMIN_USER: ${RABBIT_ADMIN_USER:-dkspring520@outlook.com}
     volumes:

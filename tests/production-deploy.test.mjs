@@ -38,6 +38,26 @@ test("production compose and image expose commit-aware health", () => {
   assert.match(route, /cache-control/);
 });
 
+test("production deploy uses blue-green Web slots and switches traffic only after candidate health", () => {
+  const compose = read("compose.web.yml");
+  const script = read("scripts/deploy-production.sh");
+  const candidateStart = script.indexOf('"$candidate_service"');
+  const candidateHealth = script.indexOf('wait_for_web_slot "$candidate_slot"');
+  const trafficSwitch = script.indexOf('write_nginx_upstream "$candidate_port"');
+
+  assert.match(compose, /web-blue:/);
+  assert.match(compose, /web-green:/);
+  assert.match(compose, /127\.0\.0\.1:3000:3000/);
+  assert.match(compose, /127\.0\.0\.1:3001:3000/);
+  assert.match(compose, /RABBIT_QUANT_ACTIVE_WEB_ORIGIN/);
+  assert.match(script, /rabbit_quant_active/);
+  assert.match(script, /active-web-slot/);
+  assert.match(script, /systemctl reload nginx/);
+  assert.ok(candidateStart > 0);
+  assert.ok(candidateHealth > candidateStart);
+  assert.ok(trafficSwitch > candidateHealth);
+});
+
 test("systemd timer and installer enable recurring safe deploys", () => {
   const service = read("deploy/systemd/rabbit-quant-deploy.service");
   const timer = read("deploy/systemd/rabbit-quant-deploy.timer");
