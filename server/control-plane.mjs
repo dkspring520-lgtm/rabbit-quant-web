@@ -8,7 +8,7 @@ const databasePath = process.env.CONTROL_DB_PATH || "/data/rabbit-control.sqlite
 const marketOrigin = (process.env.MARKET_DATA_ORIGIN || "http://web:3000").replace(/\/$/, "");
 const store = createControlStore(databasePath);
 const COOKIE = "rabbit_control_session";
-const scanState = { running: false, lastStartedAt: null, lastCompletedAt: null, monitored: 0, inserted: 0, error: null };
+const scanState = { running: false, lastStartedAt: null, lastCompletedAt: null, monitored: 0, inserted: 0, logged: 0, marketErrors: 0, error: null };
 
 function json(res, status, value, headers = {}) {
   const body = JSON.stringify(value);
@@ -93,17 +93,39 @@ function monitorOptions(monitor, quote) {
   };
 }
 
-function latestCausalAlert(monitor, market, clock) {
+function blockedReason(result) {
+  const diagnostics = result?.diagnostics || {};
+  const reasons = [
+    ["cashBlocked", "可用资金或可卖底仓不足"],
+    ["costBlocked", "预计波动尚不能覆盖费用和滑点"],
+    ["regimeBlocked", "当前趋势结构与候选方向冲突"],
+    ["strongTrendBlocked", "强趋势环境禁止逆势开仓"],
+    ["counterTrendQualityBlocked", "逆势反转质量不足"],
+    ["scoreBlocked", "趋势、量价和位置综合分未达正式门槛"],
+    ["structureBlocked", "尚未形成可确认的峰谷结构"],
+    ["qualityBlocked", "成交量或价格确认不足"],
+    ["timingBlocked", "当前时间不在允许的新开仓窗口"],
+    ["openingChaseBlocked", "开盘波动过快，已拦截追涨杀跌"],
+    ["orderFlowBlocked", "盘口/主动买卖量确认不足"],
+  ].filter(([key]) => Number(diagnostics[key] || 0) > 0).sort((a, b) => Number(diagnostics[b[0]]) - Number(diagnostics[a[0]]));
+  if (reasons.length) return `${reasons[0][1]}（本轮拦截 ${diagnostics[reasons[0][0]]} 次）`;
+  if (Number(diagnostics.candidates || 0) > 0) return `已有 ${diagnostics.candidates} 个候选，但尚未同时通过趋势、量价、成本与风控`;
+  return "当前分钟尚未形成达到提醒门槛的因果候选";
+}
+
+function evaluateCausalMonitor(monitor, market, clock) {
   const minutes = Array.isArray(market?.minutes) ? market.minutes : [];
-  if (!minutes.length) return null;
+  if (!minutes.length) return { alert: null, audit: { marketTime: clock.hhmm, price: market?.quote?.price ?? null, result: "no_data", reason: "行情源未返回有效分时点", provider: market?.provider ?? null } };
   const result = runSmartTReplay(minutes, monitorOptions(monitor, market.quote));
   const action = result.actions?.at(-1);
   const observation = selectLatestAlertableObservation(result.observations || []);
+  const latestPoint = minutes.at(-1);
+  const auditBase = { marketTime: latestPoint?.time || clock.hhmm, price: market?.quote?.price ?? latestPoint?.price ?? null, provider: market.provider ?? null };
   const formalIsNew = action && minuteDistance(action.time, clock.hhmm) <= 2;
   const candidateIsNew = observation && minuteDistance(observation.time, clock.hhmm) <= 2;
   if (formalIsNew) {
     const phase = action.meta?.phase === "exit" ? "闭环" : "执行";
-    return {
+    const alert = {
       code: monitor.code,
       level: "formal",
       title: `${monitor.name} · ${action.direction || "做T"}${phase}提醒`,
@@ -112,9 +134,10 @@ function latestCausalAlert(monitor, market, clock) {
       marketTime: action.time,
       payload: { action, diagnostics: result.diagnostics, provider: market.provider },
     };
+    return { alert, audit: { ...auditBase, marketTime: action.time, result: "formal", reason: action.reason || "V4 因果条件已确认", eventKey: alert.eventKey } };
   }
   if (candidateIsNew) {
-    return {
+    const alert = {
       code: monitor.code,
       level: observation.stage === "candidate" ? "candidate" : "watch",
       title: `${monitor.name} · ${observation.confirmationLabel || "候选观察"}`,
@@ -123,9 +146,12 @@ function latestCausalAlert(monitor, market, clock) {
       marketTime: observation.time,
       payload: { observation, diagnostics: result.diagnostics, provider: market.provider },
     };
+    return { alert, audit: { ...auditBase, marketTime: observation.time, result: observation.stage === "candidate" ? "candidate" : "watch", reason: observation.reason || "价格与 VWAP 出现显著偏离，等待确认", eventKey: alert.eventKey } };
   }
-  return null;
+  return { alert: null, audit: { ...auditBase, result: "no_signal", reason: blockedReason(result), eventKey: null } };
 }
+
+function latestCausalAlert(monitor, market, clock) { return evaluateCausalMonitor(monitor, market, clock).alert; }
 
 async function fetchMarket(code) {
   const response = await fetch(`${marketOrigin}/api/market-data?code=${encodeURIComponent(code)}&mode=trial-realtime`, {
@@ -141,6 +167,8 @@ async function scanMonitors({ force = false } = {}) {
   scanState.lastStartedAt = new Date().toISOString();
   scanState.error = null;
   scanState.inserted = 0;
+  scanState.logged = 0;
+  scanState.marketErrors = 0;
   try {
     const monitors = store.listActiveMonitors();
     const byCode = new Map();
@@ -157,9 +185,17 @@ async function scanMonitors({ force = false } = {}) {
     const clock = shanghaiClock();
     for (const monitor of monitors) {
       const market = markets.get(monitor.code);
-      if (!market || market.error) continue;
-      const alert = latestCausalAlert(monitor, market, clock);
+      if (!market || market.error) {
+        scanState.marketErrors += 1;
+        store.recordMonitorScan(monitor.userId, { code: monitor.code, name: monitor.name, marketDate: clock.date, marketTime: clock.hhmm, price: null, result: "market_error", reason: market?.error || "行情请求失败", provider: null });
+        scanState.logged += 1;
+        continue;
+      }
+      const evaluation = evaluateCausalMonitor(monitor, market, clock);
+      const alert = evaluation.alert;
       if (alert && store.addAlert(monitor.userId, alert)) scanState.inserted += 1;
+      store.recordMonitorScan(monitor.userId, { code: monitor.code, name: monitor.name, marketDate: clock.date, ...evaluation.audit });
+      scanState.logged += 1;
     }
     scanState.lastCompletedAt = new Date().toISOString();
     return { ...scanState, skipped: false };
@@ -209,6 +245,11 @@ async function dispatch(req, res) {
       return json(res, 200, { monitors: store.replaceMonitors(user.id, (await bodyJson(req)).monitors, { maxMonitors: limit }), limit });
     }
     if (req.method === "GET" && path === "/alerts") return json(res, 200, { alerts: store.listAlerts(requireUser(req).id, { afterId: url.searchParams.get("afterId"), limit: url.searchParams.get("limit") }) });
+    if (req.method === "GET" && path === "/alert-log") return json(res, 200, { logs: store.listMonitorScans(requireUser(req).id, { code: url.searchParams.get("code"), limit: url.searchParams.get("limit") }) });
+    if (req.method === "POST" && /^\/alerts\/\d+\/delivery$/.test(path)) {
+      const user = requireUser(req); const id = Number(path.split("/")[2]);
+      return json(res, 200, { delivery: store.markAlertDelivery(user.id, id, await bodyJson(req)) });
+    }
     if (req.method === "POST" && /^\/alerts\/\d+\/ack$/.test(path)) {
       store.acknowledgeAlert(requireUser(req).id, Number(path.split("/")[2])); return json(res, 200, { ok: true });
     }
@@ -234,4 +275,4 @@ const timer = setInterval(() => void scanMonitors(), Math.max(5_000, Number(proc
 timer.unref();
 process.on("SIGTERM", () => { clearInterval(timer); server.close(() => { store.close(); process.exit(0); }); });
 
-export { scanMonitors, latestCausalAlert, isTradingWindow };
+export { scanMonitors, latestCausalAlert, evaluateCausalMonitor, isTradingWindow };

@@ -18,7 +18,9 @@ import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObs
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
+import { compactChartLabelKey, compactChartLabelKeys } from "@/lib/compact-chart-labels.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
+import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import PublicLanding from "./public-landing";
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
@@ -30,10 +32,12 @@ type MarketContext = { code:string; profile:string; fetchedAt:string; items:Mark
 type EventRadarItem = { id:string; code:string; title:string; summary:string; url:string; source:string; sources?:string[]; relatedCount?:number; provider:string; official:boolean; publishedAt:string; sentiment:"positive"|"negative"|"neutral"; severity:"critical"|"warning"|"info"; reason:string; ageHours:number };
 type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; counts:{ positive:number; negative:number; neutral:number }; gate:{ level:"normal"|"caution"|"restricted"|"locked"; hardLock:boolean; score:number; label:string; action:string; reason:string } };
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
+type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean };
 type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string };
 type AlertDeliveryRecord = { id:number; eventKey:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
+type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
 type MemberRecord = { id:string; username:string; displayName:string; role:"admin"|"member"; status:"active"|"paused"; createdAt:string; lastLoginAt:string|null; monitorCount:number; alertCount:number };
 type ZijinTrainingProgress = {
   schemaVersion:number;
@@ -483,6 +487,7 @@ export default function Home() {
   const [stockPositions, setStockPositions] = useState<StockPositionMap>({});
   const [activeStock, setActiveStock] = useState(0);
   const [stockList, setStockList] = useState(initialStocks);
+  const validatedWatchlistSignature = useRef("");
   const [profile, setProfile] = useState("平衡档");
   const [panel, setPanel] = useState("今日T循环");
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
@@ -520,8 +525,58 @@ export default function Home() {
   const [dragOverStockCode, setDragOverStockCode] = useState<string | null>(null);
   const draggedStockCodeRef = useRef<string | null>(null);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
+  const [compactChartLabels, setCompactChartLabels] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const stock = stockList[activeStock] || stockList[0];
+  useEffect(()=>{
+    if(!localAuth||!accountName||!stockList.length)return;
+    const signature=stockList.map(item=>`${item.code}:${item.name}`).join('|');
+    if(validatedWatchlistSignature.current===signature)return;
+    validatedWatchlistSignature.current=signature;
+    let cancelled=false;
+    void fetch('/api/stock-identity',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({stocks:stockList.map(({code,name})=>({code,name}))})})
+      .then(async response=>{
+        if(!response.ok)throw new Error('证券身份校验暂不可用');
+        return response.json() as Promise<{stocks:StockIdentityResult[]}>;
+      })
+      .then(payload=>{
+        if(cancelled||!Array.isArray(payload.stocks))return;
+        const resolvedByInput=new Map(payload.stocks.filter(item=>item.status!=='unknown').map(item=>[item.inputCode,item]));
+        const correctedCodes=new Map<string,string>();
+        const unique=new Map<string,(typeof stockList)[number]>();
+        for(const item of stockList){
+          const resolved=resolvedByInput.get(item.code);
+          const next=resolved?{...item,code:resolved.code,name:resolved.name}:item;
+          correctedCodes.set(item.code,next.code);
+          if(!unique.has(next.code))unique.set(next.code,next);
+        }
+        const next=[...unique.values()];
+        const nextSignature=next.map(item=>`${item.code}:${item.name}`).join('|');
+        if(nextSignature===signature)return;
+        const selectedCode=correctedCodes.get(stockList[activeStock]?.code)??next[0]?.code;
+        setStockList(next);
+        setActiveStock(Math.max(0,next.findIndex(item=>item.code===selectedCode)));
+        setStockPositions(current=>{
+          const updated={...current};
+          for(const [oldCode,newCode] of correctedCodes){
+            if(oldCode!==newCode&&updated[oldCode]){
+              updated[newCode]=updated[newCode]??updated[oldCode];
+              delete updated[oldCode];
+            }
+          }
+          return updated;
+        });
+        setPreferences(current=>{
+          const preferredCode=current.stock.match(/\d{6}/)?.[0]??'';
+          const repairedCode=correctedCodes.get(preferredCode)??preferredCode;
+          const repaired=next.find(item=>item.code===repairedCode)??next[0];
+          return repaired?{...current,stock:`${repaired.code} ${repaired.name}`}:current;
+        });
+        try{localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(next));}catch{}
+      })
+      .catch(()=>{});
+    return()=>{cancelled=true};
+  },[localAuth,accountName,stockList,activeStock]);
   const selectActiveStock=(index:number)=>{
     const nextIndex=Math.max(0,Math.min(index,stockList.length-1));
     const nextCode=stockList[nextIndex]?.code;
@@ -543,6 +598,13 @@ export default function Home() {
     document.addEventListener('fullscreenchange',syncFullscreenState);
     document.addEventListener('keydown',closeFallback);
     return()=>{document.removeEventListener('fullscreenchange',syncFullscreenState);document.removeEventListener('keydown',closeFallback)};
+  },[]);
+  useEffect(()=>{
+    const media=window.matchMedia('(max-width: 760px)');
+    const sync=()=>setCompactChartLabels(media.matches);
+    sync();
+    media.addEventListener?.('change',sync);
+    return()=>media.removeEventListener?.('change',sync);
   },[]);
   useEffect(()=>{
     if(!authReady||!localAuth||!isZijinExperimentDeepLink())return;
@@ -692,6 +754,10 @@ export default function Home() {
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(()=>selectVisibleChartObservations(currentObservations),[currentObservations]);
+  const compactObservationLabels=useMemo(
+    ()=>compactChartLabelKeys(visibleChartObservations,3),
+    [visibleChartObservations],
+  );
   const intradayMarkerLayout=useMemo(()=>{
     if(!chartModel)return {observations:[],actions:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
@@ -736,11 +802,14 @@ export default function Home() {
       const sideClass=isSell?"sell":"buy";
       const currentLabel=observation.confirmationLabel??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const labelWidth=currentLabel.length*8+14;
-      const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
-      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,observation}];
+      const labelVisible=!compactChartLabels||(qualified&&compactObservationLabels.has(compactChartLabelKey(observation)));
+      const placed=labelVisible
+        ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
+        : {labelX:point.x,labelY:point.y};
+      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,labelVisible,observation}];
     });
     return {observations,actions};
-  },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions]);
+  },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions,compactChartLabels,compactObservationLabels]);
   const signalFunnel = (() => {
     const rows=stockList.flatMap(item=>{
       const snapshot=item.code===stock?.code ? (currentTrial ?? currentMarket ?? marketSnapshots[item.code]) : marketSnapshots[item.code];
@@ -1171,28 +1240,6 @@ export default function Home() {
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
   }, [localAuth, stock?.code, marketSession.live]);
   useEffect(() => {
-    if (!localAuth || !stock?.code) return;
-    let cancelled = false;
-    let inFlight = false;
-    const load = async () => {
-      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
-      inFlight = true;
-      try {
-        const change=currentMarket?.quote.changePercent;
-        const query=change==null?"":`&change=${encodeURIComponent(change.toFixed(4))}`;
-        const response=await fetch(`/api/market-context?code=${encodeURIComponent(stock.code)}${query}`,{cache:"no-store"});
-        if(!response.ok) throw new Error("context unavailable");
-        const data=await response.json() as MarketContext;
-        if(!cancelled){setMarketContext(data);setMarketContextError("")}
-      } catch {
-        if(!cancelled){setMarketContext(null);setMarketContextError("外部环境行情暂不可用，已自动降为个股保守模式。");}
-      } finally { inFlight=false; }
-    };
-    void load();
-    const timer=window.setInterval(()=>void load(),clientPollingInterval("marketContext",marketSession.live));
-    return()=>{cancelled=true;window.clearInterval(timer)};
-  },[localAuth,stock?.code,currentMarket?.quote.changePercent,marketSession.live]);
-  useEffect(() => {
     if (!localAuth || !stockList.length) return;
     let cancelled = false;
     let inFlight=false;
@@ -1223,7 +1270,7 @@ export default function Home() {
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
   }, [localAuth, stockList, stock?.code, marketSession.live]);
   useEffect(() => {
-    if (!localAuth || !stockList.length) return;
+    if (!localAuth || !stock?.code || !stockList.length) return;
     let cancelled = false;
     let inFlight = false;
     const load = async () => {
@@ -1231,24 +1278,37 @@ export default function Home() {
       inFlight = true;
       try {
         const params = new URLSearchParams({
+          code: stock.code,
           codes: stockList.slice(0,10).map(item => item.code).join(","),
           names: stockList.slice(0,10).map(item => item.name).join(","),
         });
-        const response = await fetch(`/api/event-radar?${params.toString()}`, { cache:"no-store" });
-        if (!response.ok) throw new Error("event radar unavailable");
-        const data = await response.json() as EventRadarResponse;
-        if (!cancelled) { setEventRadar(data); setEventRadarError(""); }
+        const response = await fetch(`/api/trading-desk-snapshot?${params.toString()}`, { cache:"no-store" });
+        if (!response.ok) throw new Error("desk snapshot unavailable");
+        const data = await response.json() as TradingDeskSnapshot;
+        if (!cancelled) {
+          if (data.market) {
+            setTrialQuote(data.market);
+            setMarketQuotes(current=>({...current,[data.market!.quote.code]:data.market!.quote}));
+            setMarketSnapshots(current=>({...current,[data.market!.quote.code]:data.market!}));
+          }
+          setMarketContext(data.context);
+          setEventRadar(data.eventRadar);
+          setMarketContextError(data.context ? "" : "外部环境暂不可用，已降为个股保守模式");
+          setEventRadarError(data.eventRadar ? "" : "事件雷达暂不可用，不使用旧消息改变信号");
+        }
       } catch {
         if (!cancelled) {
+          setMarketContext(null);
           setEventRadar(null);
-          setEventRadarError("事件雷达暂不可用；不使用旧消息改变当前信号。");
+          setMarketContextError("外部环境暂不可用，已降为个股保守模式");
+          setEventRadarError("事件雷达暂不可用，不使用旧消息改变信号");
         }
       } finally { inFlight = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), clientPollingInterval("eventRadar",marketSession.live));
+    const timer = window.setInterval(() => void load(), clientPollingInterval("deskSnapshot",marketSession.live));
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [localAuth, stockList, marketSession.live]);
+  }, [localAuth, stock?.code, stockList, marketSession.live]);
   useEffect(() => {
     if (!localAuth || !stock?.code) return;
     let cancelled = false;
@@ -1394,7 +1454,7 @@ export default function Home() {
               {A_SHARE_INTRADAY_AXIS.map(tick => {const x=intradaySlotX(tick.slot);return <line key={tick.label} x1={x} y1="0" x2={x} y2="300" className="grid-line vertical"/>})}
               {chartModel&&<><path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
-              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></g>)}
+              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <line x1="0" y1={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} x2="920" y2={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} className="last-line"/><circle cx={chartModel.lastX} cy={20+(chartModel.max-chartModel.last.price)/(chartModel.max-chartModel.min||Math.max(chartModel.max*.002,.01))*210} r="4" className="last-dot"/></>}
               <line x1="0" y1="252" x2="920" y2="252" className="volume-divider"/>
@@ -1942,6 +2002,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
   const currentExperimentTrades=currentHypotheses.reduce((total,item)=>total+item.outerQuarters.reduce((sum,quarter)=>sum+quarter.trades,0),0);
   const currentBestHypothesis=currentHypotheses.reduce<(typeof currentHypotheses)[number]|null>((best,item)=>!best||item.outOfSampleWinRate>best.outOfSampleWinRate?item:best,null);
   const currentQualified=currentExperiment?.qualifiedHypothesisIds.length??0;
+  const trainingRejectionSummary=explainTrainingRejection(currentExperiment,zijinTrainingProgress?.latest);
   const formationDiagnostic=currentExperiment?.sampleFormationDiagnostic??null;
   const formationStageLabels:Record<string,string>={
     "causal-anchor":"因果拐点候选","session":"进入指定时段","observable-regime":"符合震荡状态",
@@ -1997,6 +2058,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
       {zijinTrainingProgress?<>
         <div className={`zijin-training-state-note ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'warning':zijinTrainingProgress.status}`}><b>{zijinTrainingConnection==='error'?'状态接口连接失败':trainingStale?'训练任务可能中断':schedulerOffline?'自动调度器离线':zijinTrainingProgress.status==="running"?'服务器正在计算':'本轮已结束'}</b><span>{zijinTrainingConnection==='error'?'页面保留最后一次真实结果并自动重试，不会伪造心跳。':trainingStale?'页面保留最后一次真实进度，不会自动补数。':schedulerOffline?'第 4 轮已经真实完成，但后台没有按计划继续检查新数据；需要恢复服务器自动训练服务。':zijinTrainingProgress.status==="running"?'页面每 2 秒读取服务器状态；切换页面不会影响后台训练。':'100% 表示本轮审计流程完成，不代表系统仍在持续训练。页面每 30 秒检查是否有新任务。'}</span></div>
         <div className="zijin-training-stats"><p><span>服务器当前步骤</span><b>{activeResearchStageLabel}</b><small>{zijinTrainingProgress.status==='running'?`${zijinTrainingProgress.progress}% · ${zijinTrainingProgress.automation?.run.elapsedSeconds??0} 秒`:`最近任务 ${zijinTrainingProgress.runId}`}</small></p><p><span>最近样本外交易</span><b>{currentExperiment?`${currentExperimentTrades} 笔`:'--'}</b><small>{currentHypotheses.length} 个独立假设 · 不读取未来分钟</small></p><p><span>表现最好的一组</span><b>{currentBestHypothesis?`${(currentBestHypothesis.outOfSampleWinRate*100).toFixed(1)}%`:'--'}</b><small>{currentBestHypothesis?.name??'等待实验报告'} · 仅为样本外胜率</small></p><p><span>获准进入下一步</span><b>{currentExperiment?`${currentQualified}/${currentHypotheses.length}`:'--'}</b><small>{currentExperiment?`账本 ${currentExperiment.ledger.runRecords} 条 · ${currentExperiment.reads2026?'已读取':'2026 未读取'}`:'等待报告落盘'}</small></p></div>
+        {!currentQualified&&<div className="zijin-rejection-plain"><header><span>为什么未通过</span><b>{trainingRejectionSummary.headline}</b></header><ul>{trainingRejectionSummary.reasons.map(reason=><li key={reason}>{reason}</li>)}</ul><footer><b>下一步</b><span>{trainingRejectionSummary.next}</span></footer></div>}
         {formationDiagnostic&&<details className="zijin-sample-diagnostic">
           <summary><span><b>为什么有的实验是 0 笔？</b><small>逐层查看候选在哪个门槛被过滤；本区只解释结果，不参与选参</small></span><em>净目标 {formationDiagnostic.outcomeLabel.netTargetPct[0].toFixed(2)}%–{formationDiagnostic.outcomeLabel.netTargetPct[1].toFixed(2)}%</em></summary>
           <div className="zijin-sample-diagnostic-grid">{formationDiagnostic.hypotheses.map(item=>{
