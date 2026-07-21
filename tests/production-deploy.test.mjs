@@ -60,6 +60,21 @@ test("production deploy uses blue-green Web slots and switches traffic only afte
   assert.ok(trafficSwitch > candidateHealth);
 });
 
+test("production deploy replaces only the inactive Web slot", () => {
+  const script = read("scripts/deploy-production.sh");
+  const prepareDefinition = script.indexOf("prepare_candidate_slot() {");
+  const prepareCall = script.indexOf('prepare_candidate_slot "$active_slot" "$candidate_slot"');
+  const candidateStart = script.indexOf('compose_up "$compose_file"', prepareCall);
+
+  assert.ok(prepareDefinition > 0);
+  assert.ok(prepareCall > prepareDefinition);
+  assert.ok(candidateStart > prepareCall);
+  assert.match(script, /if \[\[ "\$active_container" == "\$candidate_container" \]\]/);
+  assert.match(script, /container_is_healthy "\$active_container"/);
+  assert.match(script, /docker container rm --force "\$candidate_container"/);
+  assert.doesNotMatch(script, /docker container rm --force "\$active_container"/);
+});
+
 test("systemd timer and installer enable recurring safe deploys", () => {
   const service = read("deploy/systemd/rabbit-quant-deploy.service");
   const timer = read("deploy/systemd/rabbit-quant-deploy.timer");

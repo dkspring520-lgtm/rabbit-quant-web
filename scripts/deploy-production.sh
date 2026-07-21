@@ -165,6 +165,26 @@ other_slot() {
   [[ "$1" == "green" ]] && printf 'blue' || printf 'green'
 }
 
+prepare_candidate_slot() {
+  local active_slot="$1" candidate_slot="$2"
+  local active_container candidate_container
+  active_container="$(slot_container "$active_slot")"
+  candidate_container="$(slot_container "$candidate_slot")"
+
+  if [[ "$active_container" == "$candidate_container" ]]; then
+    log "拒绝准备候选槽：活动容器与候选容器相同。"
+    return 1
+  fi
+  if ! container_is_healthy "$active_container"; then
+    log "活动槽 $active_slot 不健康，拒绝清理任何备用容器。"
+    return 1
+  fi
+  if docker container inspect "$candidate_container" >/dev/null 2>&1; then
+    log "清理非活动候选槽 $candidate_slot 的旧容器 $candidate_container。"
+    docker container rm --force "$candidate_container" >/dev/null
+  fi
+}
+
 write_nginx_upstream() {
   local port="$1" previous temp
   mkdir -p "$(dirname "$NGINX_UPSTREAM_FILE")"
@@ -343,6 +363,7 @@ active_origin="http://$(slot_service "$active_slot"):3000"
 
 current_stage="切换线上容器"
 log "构建全部通过，开始切换到 $short_sha。"
+prepare_candidate_slot "$active_slot" "$candidate_slot"
 if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$target_sha" "$build_time" "$active_origin" "$candidate_service"; then
   log "容器切换命令失败，准备恢复旧镜像。"
   switch_failed=1
