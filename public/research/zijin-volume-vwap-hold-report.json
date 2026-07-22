@@ -48,6 +48,19 @@
     },
     "decision": "拒绝1至3倍；保留2至3倍作为扩样候选。该阈值来自本轮诊断，必须计入试验次数，不能直接上线。"
   },
+  "narrowProfitBandDiagnostic": {
+    "fixedEntry": "2至3倍量、偏离VWAP至少0.35%、事前周期方向一致、实时拐头，下一分钟成交",
+    "bestRange": {
+      "minimumProtectedNetPct": 0.2,
+      "maximumProtectedNetPct": 0.3,
+      "givebackPct": 0.05,
+      "maximumHoldMinutes": 15
+    },
+    "research2022To2024": { "trades": 11, "winRate": 90.91, "net": 2129.44, "profitFactor": 4.33 },
+    "validation2025": { "trades": 6, "winRate": 83.33, "net": 2192.8, "profitFactor": 67.93 },
+    "tradeoff": "相较0.64%至1.00%利润带，胜率更高且持有时间更短，但单笔和总净收益更低；本轮只改变退出，不增加入场次数。",
+    "decision": "登记为短持有候选；样本外仅6笔，不能直接修改V4。"
+  },
   "results": {
     "target064Or20Minutes": {
       "research2022To2024": { "trades": 36, "winRate": 50.0, "net": 632.98 },
