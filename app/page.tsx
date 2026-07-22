@@ -23,6 +23,7 @@ import { compactChartLabelKey, compactChartLabelKeys } from "@/lib/compact-chart
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
+import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
 import PublicLanding from "./public-landing";
 
 const LIVE_CHART = Object.freeze({
@@ -208,13 +209,15 @@ function FourRabbitAutomationDashboard({progress}:{progress:ZijinTrainingProgres
 }
 
 type StrategyProfile = "稳健档" | "平衡档" | "灵敏档";
-type AccountPreferences = { stock:string; baseShares:number; risk:string; strategyProfile:StrategyProfile };
+type ProfitMode = "standard" | "zijin-small-spread";
+type AccountPreferences = { stock:string; baseShares:number; risk:string; strategyProfile:StrategyProfile; profitMode:ProfitMode };
 type StockPositionMap = Record<string, StockPosition>;
-const DEFAULT_PREFERENCES:AccountPreferences={stock:"601899 紫金矿业",baseShares:0,risk:"稳健",strategyProfile:"平衡档"};
+const DEFAULT_PREFERENCES:AccountPreferences={stock:"601899 紫金矿业",baseShares:0,risk:"稳健",strategyProfile:"平衡档",profitMode:"standard"};
 const normalizeAccountPreferences=(value:Partial<AccountPreferences>|null|undefined):AccountPreferences=>({
   ...DEFAULT_PREFERENCES,
   ...(value??{}),
   strategyProfile:normalizeStrategyProfile(value?.strategyProfile) as StrategyProfile,
+  profitMode:normalizeProfitMode(value?.profitMode) as ProfitMode,
 });
 
 function resolveStockPosition(positions:StockPositionMap, preferences:AccountPreferences, code:string) {
@@ -559,6 +562,13 @@ export default function Home() {
   const [compactChartLabels, setCompactChartLabels] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const stock = stockList[activeStock] || stockList[0];
+  const activeProfitMode=preferences.profitMode;
+  const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
+  const setProfitMode=(value:ProfitMode)=>setPreferences(current=>{
+    const next={...current,profitMode:value};
+    if(!demoMode&&accountName){try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}}
+    return next;
+  });
   useEffect(()=>{
     let next:UiTheme="dark";
     try{
@@ -796,7 +806,8 @@ export default function Home() {
     profile,
     previousClose:activeQuote?.previousClose ?? null,
     randomValue:0,
-  }),[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose]);
+    ...smartTProfitModeOptions(stock?.code,preferences.profitMode),
+  }),[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose,stock?.code,preferences.profitMode]);
   const currentObservations=(liveEngine.observations ?? []) as ReplayObservation[];
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
@@ -866,6 +877,7 @@ export default function Home() {
       const itemPosition=resolveStockPosition(stockPositions,preferences,item.code);
       const replay=item.code===stock?.code ? liveEngine : runSmartTReplay(snapshot.minutes,{
         capital:200_000,baseShares:itemPosition.plannedBase,sellable:itemPosition.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:snapshot.quote.previousClose??null,randomValue:0,
+        ...smartTProfitModeOptions(item.code,preferences.profitMode),
       });
       const observations=(replay.observations??[]) as ReplayObservation[];
       const formalCycles=replay.trades;
@@ -907,6 +919,7 @@ export default function Home() {
       profile,
       previousClose:session.previousClose,
       randomValue:0,
+      ...smartTProfitModeOptions(stock?.code,preferences.profitMode),
     }));
     const cycles=results.reduce((sum,item)=>sum+item.trades,0);
     const wins=results.reduce((sum,item)=>sum+item.wins,0);
@@ -914,7 +927,7 @@ export default function Home() {
     const maxDrawdown=results.length?Math.max(...results.map(item=>item.maxDrawdown)):0;
     const confidence=cycles>=20?"高":cycles>=8?"中":"样本不足";
     return {sessions:sessions.length,cycles,wins,net,maxDrawdown,confidence,winRate:cycles?wins/cycles:null};
-  },[currentMarket?.intradaySessions,activePosition.plannedBase,activePosition.sellable,profile]);
+  },[currentMarket?.intradaySessions,activePosition.plannedBase,activePosition.sellable,profile,stock?.code,preferences.profitMode]);
   const liveAgents=useMemo(()=>agents.map((agent)=>({
     ...agent,
     state:agent.id==="training"?`${personalStrategyStats.sessions}日已读取`:agent.id==="challenger"?`${personalStrategyStats.cycles}闭环已核对`:agent.id==="risk"?(personalStrategyStats.maxDrawdown<.03?"风控绿灯":"需要关注"):"正式版锁定",
@@ -1110,6 +1123,7 @@ export default function Home() {
       const itemPosition=active?effectiveLivePosition:resolveStockPosition(stockPositions,preferences,item.code);
       const replay=active?liveEngine:runSmartTReplay(points,{
         capital:200_000,baseShares:itemPosition.openingShares,sellable:itemPosition.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:snapshot?.quote.previousClose??null,randomValue:0,
+        ...smartTProfitModeOptions(item.code,preferences.profitMode),
       });
       const observations=(replay.observations??[]) as ReplayObservation[];
       const latest=replay.actions.at(-1);
@@ -1615,7 +1629,7 @@ export default function Home() {
             <small>{tradeLedgerSummary.oversold?'本机流水显示卖出超过昨日可卖或当前持仓为负，请立即核对券商成交。':cycleQuantity<100?'当前股票未设置足够的计划底仓与剩余可卖数量，请到持仓对账核对。':cycleStage === 'ready' ? (signalMode === '正T' ? `本股今日剩余可卖 ${effectiveLivePosition.sellable.toLocaleString()} 股；买入后需卖出等量旧仓。` : '卖出后需在 14:50 前买回等量股份。') : cycleStage === 'opened' ? `尚有 ${cycleQuantity.toLocaleString()} 股未配对，新的${signalMode}信号已冻结。` : '买卖数量相等，实际持仓已恢复计划底仓。'}</small>
           </div>
           <div className="decision-stats live-performance"><div title="使用当前股票最近完整交易日的真实分时，按当前V4档位、费用和滑点计算"><span>本股历史胜率</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b><small>{personalStrategyStats.wins}/{personalStrategyStats.cycles} 个闭环</small></div><div><span>有效样本</span><b>{personalStrategyStats.sessions}<small> 日</small></b><small>可信度：{personalStrategyStats.confidence}</small></div><div><span>历史扣费净收益</span><b className={personalStrategyStats.net>0?'positive':personalStrategyStats.net<0?'negative':''}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b><small>随当前股票与档位更新</small></div></div>
-          <div className="risk-box"><div><span>扣费净止盈区间</span><b>+0.64% ~ +1.00%</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>扣费净收益达到 0.64% 后只启动利润保护，不立即卖：走势继续有利则持有，出现连续反向动能、明显回吐或跌破保护底线才退出；达到 1.00% 上限直接锁定。若价格重新站回 VWAP 并放量上攻，反T预案立即失效。</p></div>
+          <div className="risk-box"><div><span>当前利润模式</span><b>{activeProfitSummary.label}</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>{activeProfitSummary.id==="zijin-small-spread"?"每股毛价差至少 ¥0.10，并且扣除佣金、印花税和双向滑点后至少盈利 ¥30 才启动保护；继续上涨则持有，回吐后退出，0.30% 净收益直接锁定。":"扣费净收益达到 0.64% 后启动利润保护；走势继续有利则持有，出现连续反向动能或明显回吐才退出，达到 1.00% 上限直接锁定。"}</p></div>
           <button className="automation-reserved" disabled><span><i />自动交易接口</span><b>已预留 · 当前关闭</b></button>
           <div className="position-row"><span>计划仓位</span><div className="position-dots"><i className="on"/><i/><i/></div><b>1 / 3</b></div>
         </aside>
@@ -1638,7 +1652,7 @@ export default function Home() {
           <div className="agent-grid">{liveAgents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
+      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -1649,6 +1663,13 @@ export default function Home() {
               {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'至少 4/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 4 分钟',risk:'默认推荐'},
               {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'至少 4/6',cycles:'每日最多 2 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 3 分钟',risk:'候补更多，但仍需成本与风控过滤'},
             ].map(item=><button key={item.name} onClick={()=>setProfile(normalizeStrategyProfile(item.name) as StrategyProfile)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
+          </div>
+          <div className="profit-mode-panel">
+            <div><span>利润模式</span><h3>{stock.code==="601899"?"紫金矿业可选择小价差":"当前股票使用标准价差"}</h3><p>只改变费用后的盈利门槛，不降低趋势、VWAP、量价、仓位和风控条件。</p></div>
+            <div className="profit-mode-actions">
+              <button className={activeProfitMode==="standard"?'selected':''} onClick={()=>setProfitMode("standard")}><b>标准价差</b><small>0.64% 保护 / 1.00% 锁定</small></button>
+              <button disabled={stock.code!=="601899"} className={activeProfitMode==="zijin-small-spread"&&stock.code==="601899"?'selected':''} onClick={()=>setProfitMode("zijin-small-spread")}><b>紫金小价差</b><small>每股 ≥ ¥0.10 / 扣费净利 ≥ ¥30</small></button>
+            </div>
           </div>
           <div className="custom-strategy"><div className="custom-head"><div><h3>自定义规则草稿</h3><p>用于记录你的研究想法。自然语言目前不会直接变成可执行参数，也不会冒充已运行策略。</p></div><span>仅保存备注</span></div><textarea value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} aria-label="自定义做T规则草稿"/><div className="hard-guards"><span>正式执行仍受：</span><b>可卖数量</b><b>费用与滑点</b><b>14:30开仓限制</b><b>尾盘仓位恢复</b><b>连续失败熔断</b></div></div>
           <div className="opening-rule"><span>开盘因果规则</span><p>09:30立即开始扫描；积累至少4个真实分钟点后即可出现候选。低开重新站上VWAP、高开跌破VWAP且确认后，分两次各 1/6；早盘累计不超过 1/3，所有判断只使用当时及此前数据。</p><button onClick={()=>{try{localStorage.setItem(`rabbit-custom-strategy:${accountName.toLowerCase()}`,customStrategy)}catch{}setStrategyOpen(false)}}>保存规则草稿</button></div>
@@ -1845,7 +1866,7 @@ function OnboardingView({accountName,initial,initialList,initialPositions,maxSto
       return [item.code,confirmStockPosition(window.localStorage,accountName,position)];
     }));
     const defaultPosition=savedPositions[selectedCode]??normalizeStockPosition({},selectedCode);
-    onSave({stock,baseShares:defaultPosition.plannedBase,risk,strategyProfile:initial.strategyProfile},list,savedPositions);
+    onSave({stock,baseShares:defaultPosition.plannedBase,risk,strategyProfile:initial.strategyProfile,profitMode:initial.profitMode},list,savedPositions);
   };
   return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>每只股票独立保存持仓，切换股票不会串用底仓。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票 · {list.length}/{maxStocks}</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>setNewCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="off" placeholder="6位代码" disabled={list.length>=maxStocks}/><input value={newName} onChange={e=>setNewName(e.target.value)} autoComplete="off" placeholder="股票名称" disabled={list.length>=maxStocks}/><button onClick={add} disabled={list.length>=maxStocks}>{list.length>=maxStocks?`已达 ${maxStocks} 只上限`:'＋ 添加'}</button></div>{listError&&<small className="list-error">{listError}</small>}<small>当前会员最多同时监控 {maxStocks} 只股票；先点击一只股票，再单独填写它的持仓。</small></div></div><div className="onboarding-step"><b>02</b><div><span>{selectedStock?`${selectedStock.name}（${selectedCode}）持仓`:'当前股票持仓'}</span><div className="position-setup-grid"><label><span>计划底仓</span><div><input type="text" inputMode="numeric" value={selectedPosition.plannedBase||''} onChange={event=>updatePosition('plannedBase',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>收盘恢复目标</small></label><label><span>开盘实际持仓</span><div><input type="text" inputMode="numeric" value={selectedPosition.openingShares||''} onChange={event=>updatePosition('openingShares',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>今日开盘前实际数量</small></label><label><span>昨日可卖</span><div><input type="text" inputMode="numeric" value={selectedPosition.sellable||''} onChange={event=>updatePosition('sellable',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>受 T+1 规则约束</small></label></div><small>昨日可卖不会超过开盘实际持仓；不足 100 股时，本股不会生成正式做 T 执行信号。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={save}>保存全部股票持仓 <span>→</span></button></div></div>;
 }
@@ -1908,7 +1929,7 @@ const EXTERNAL_FACTOR_PLAIN_COPY:Record<string,string>={
 type AutoResearchSample = { date:string; cycles:number; wins:number; net:number; status:string };
 type ZijinResearchBundle = typeof import("@/lib/zijin-research-bundle")["zijinResearchBundle"];
 
-function SingleStockResearchView({accountName,stock,quote,marketData,profile,position,manualCount,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;profile:string;position:StockPosition;manualCount:number;onOpenConsole:()=>void}) {
+function SingleStockResearchView({accountName,stock,quote,marketData,profile,profitMode,position,manualCount,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;profile:string;profitMode:ProfitMode;position:StockPosition;manualCount:number;onOpenConsole:()=>void}) {
   const [zijinResearchBundle,setZijinResearchBundle]=useState<ZijinResearchBundle|null>(null);
   const [zijinResearchBundleError,setZijinResearchBundleError]=useState(false);
   const [zijinTrainingProgress,setZijinTrainingProgress]=useState<ZijinTrainingProgress|null>(null);
@@ -2007,9 +2028,9 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pos
     .sort((left,right)=>right.date.localeCompare(left.date))
     .slice(0,20)
     .map(session=>{
-      const result=runSmartTReplay(session.minutes,{capital:200_000,baseShares:position.plannedBase,sellable:position.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:session.previousClose,randomValue:0});
+      const result=runSmartTReplay(session.minutes,{capital:200_000,baseShares:position.plannedBase,sellable:position.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:session.previousClose,randomValue:0,...smartTProfitModeOptions(stock.code,profitMode)});
       return {date:session.date,cycles:result.trades,wins:result.wins,net:result.net,status:result.trades?`${result.trades} 个闭环 · ${money(result.net)}`:"无正式信号"};
-    }),[relevantData?.intradaySessions,position.plannedBase,position.sellable,profile]);
+    }),[relevantData?.intradaySessions,position.plannedBase,position.sellable,profile,stock.code,profitMode]);
   const autoCycles=autoSamples.reduce((sum,item)=>sum+item.cycles,0);
   const autoWins=autoSamples.reduce((sum,item)=>sum+item.wins,0);
   const autoNet=autoSamples.reduce((sum,item)=>sum+item.net,0);
@@ -2374,7 +2395,7 @@ function HoldingsView({position,stock,tradingDate,rows,onRowsChange}:{position:S
   </section>;
 }
 
-function BacktestView({ profile, setProfile, position, stock, stocks, activeStock, onSelectStock }: { profile: StrategyProfile; setProfile: (value: StrategyProfile) => void; position:StockPosition; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void }) {
+function BacktestView({ profile, setProfile, profitMode, setProfitMode, position, stock, stocks, activeStock, onSelectStock }: { profile: StrategyProfile; setProfile: (value: StrategyProfile) => void; profitMode:ProfitMode; setProfitMode:(value:ProfitMode)=>void; position:StockPosition; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void }) {
   const [capital, setCapital] = useState(200000);
   const [baseShares, setBaseShares] = useState(position.plannedBase);
   const [sellable, setSellable] = useState(position.sellable);
@@ -2417,6 +2438,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
     capital:account?.capital ?? capital,baseShares:account?.baseShares ?? baseShares,sellable:account?.sellable ?? sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,profile,
     previousClose:data.quote.previousClose ?? data.bars.at(-2)?.close ?? null,
     randomValue:0,
+    ...smartTProfitModeOptions(data.quote.code??stock.code,profitMode),
   });
   const replayLegacy=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number})=>runIntradayBlindReplayLegacy(data.minutes ?? [],account?.capital ?? capital,account?.baseShares ?? baseShares,account?.sellable ?? sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,0);
   const fetchStock=async (code:string) => {
@@ -2718,6 +2740,7 @@ function BacktestView({ profile, setProfile, position, stock, stocks, activeStoc
           <small className="config-inline-help">首次运行会读取可用的完整交易日；随后可选择历史日期重新逐分钟回放。</small>
         </label>
         <label>V4 策略档位<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item as StrategyProfile)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；同一套 Smart-T 融合策略 V4，仅调整确认门槛与信号频率。</small></label>
+        {stock.code==="601899"&&<label>紫金利润模式<div className="profile-picker profit-picker"><button type="button" className={profitMode==="standard"?'active':''} onClick={()=>setProfitMode("standard")}>标准价差</button><button type="button" className={profitMode==="zijin-small-spread"?'active':''} onClick={()=>setProfitMode("zijin-small-spread")}>小价差</button></div><small className="config-inline-help">小价差档要求每股至少 ¥0.10、扣费净利至少 ¥30；趋势、VWAP、量价和硬风控不放宽。</small></label>}
         <div className="broker-account-box">
           <div className="broker-account-head"><b>模拟证券账户</b><span>仅用于回测撮合，不连接真实券商</span></div>
           <div className="field-pair"><label>可用资金（现金）<NumberStepper value={capital} unit="元" step={10000} min={0} onChange={setCapital}/><small>可直接输入；正 T 先买入时受此金额约束</small></label><label>计划底仓（收盘目标）<NumberStepper value={baseShares} unit="股" step={100} min={0} onChange={setBaseShares}/><small>开盘前已有、收盘时应恢复的持仓数量</small></label></div>
