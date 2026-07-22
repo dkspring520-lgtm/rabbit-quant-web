@@ -42,9 +42,10 @@ test("day mode replaces legacy night surfaces without losing A-share colors", ()
   assert.match(theme, /\.negative,[^}]+color:var\(--green\) !important/s);
 });
 
-test("day mode uses one coherent daylight shell with a focused dark logo cell", () => {
+test("day mode uses one coherent daylight shell including the supplied night logo", () => {
   assert.match(theme, /\.topbar \{\s*background:#f7f9f9/);
-  assert.match(theme, /\.topbar \.brand \{\s*background:#070b10/);
+  assert.match(theme, /\.topbar \.brand \{\s*background:#ffffff/);
+  assert.match(theme, /filter:invert\(1\) hue-rotate\(180deg\) saturate\(\.95\)/);
   assert.match(theme, /\.topbar \.top-actions \{\s*background:transparent/);
   assert.match(theme, /\.topbar \.main-nav button\.active \{\s*color:var\(--text\)/);
   assert.match(theme, /\.chart-wrap \{\s*background:linear-gradient\(180deg,#f5f7f7,#edf1f2\)/);
