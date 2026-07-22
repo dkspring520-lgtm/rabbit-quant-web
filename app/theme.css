@@ -11,26 +11,26 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg:#f5f7f8;
-  --surface:#ffffff;
-  --surface-2:#f0f3f4;
-  --panel:#ffffff;
+  --bg:#edf2f4;
+  --surface:#f8fafb;
+  --surface-2:#e8eef0;
+  --panel:#f7fafb;
   --panel-strong:#ffffff;
   --field:#ffffff;
-  --line:#d7dee1;
-  --line-soft:#e8edef;
-  --text:#172026;
-  --text-soft:#2b363d;
-  --muted:#5f6c74;
-  --dim:#879299;
-  --teal:#087a70;
-  --teal-2:#0a8d81;
-  --coral:#d74444;
-  --amber:#9b6808;
-  --green:#16865b;
-  --red:#d74444;
-  --grid:#dce3e5;
-  --shadow:rgba(31,45,52,.12);
+  --line:#cbd6da;
+  --line-soft:#dde5e8;
+  --text:#162126;
+  --text-soft:#29363c;
+  --muted:#55636b;
+  --dim:#7a878e;
+  --teal:#007f74;
+  --teal-2:#009487;
+  --coral:#d83f45;
+  --amber:#9d6800;
+  --green:#078454;
+  --red:#d83f45;
+  --grid:#d4dfe3;
+  --shadow:rgba(26,42,50,.14);
 }
 
 .theme-toggle {
@@ -72,7 +72,9 @@
 }
 
 :root[data-theme="light"] .topbar {
-  box-shadow:0 2px 14px rgba(31,45,52,.055);
+  background:#070b10;
+  border-bottom-color:#253036;
+  box-shadow:0 3px 18px rgba(24,39,47,.18);
 }
 
 :root[data-theme="light"] .grid-line,
@@ -393,6 +395,140 @@
 
 :root[data-theme="light"] .zijin-training-live {
   background:linear-gradient(135deg,rgba(8,122,112,.055),rgba(255,255,255,.65));
+}
+
+/* A dark brand rail keeps the supplied navy logo visually integrated while
+   the trading canvas remains a calm daylight workspace. */
+:root[data-theme="light"] .topbar .brand {
+  border-right-color:#253036;
+}
+
+:root[data-theme="light"] .topbar .brand-primary-logo {
+  filter:drop-shadow(0 5px 14px rgba(0,0,0,.26));
+}
+
+:root[data-theme="light"] .topbar .main-nav button {
+  color:#9ba8ae;
+}
+
+:root[data-theme="light"] .topbar .main-nav button:hover,
+:root[data-theme="light"] .topbar .main-nav button.active {
+  color:#f6f8f9;
+}
+
+:root[data-theme="light"] .topbar .main-nav button.active:after {
+  background:#21cbb8;
+}
+
+:root[data-theme="light"] .topbar .top-actions {
+  background:transparent;
+}
+
+:root[data-theme="light"] .topbar :is(
+  .profile-cycle,
+  .strategy-help,
+  .account-button,
+  .icon-button,
+  select
+) {
+  background:#10161a;
+  border-color:#2c373d;
+  color:#e7edef;
+}
+
+:root[data-theme="light"] .topbar :is(
+  .profile-cycle,
+  .strategy-help,
+  .account-button,
+  .icon-button,
+  select
+):hover {
+  background:#172025;
+  border-color:#3a484f;
+  color:#fff;
+}
+
+:root[data-theme="light"] .topbar .account-button>span {
+  background:#123733;
+  color:#76dfd1;
+}
+
+:root[data-theme="light"] .ticker,
+:root[data-theme="light"] .stock-head {
+  background:var(--panel-strong);
+}
+
+:root[data-theme="light"] .ticker {
+  box-shadow:0 2px 8px rgba(26,42,50,.04);
+}
+
+:root[data-theme="light"] .ticker-item.selected,
+:root[data-theme="light"] .ticker button.selected {
+  background:#edf6f5;
+}
+
+:root[data-theme="light"] .session-ribbon {
+  background:linear-gradient(90deg,#e0f2ef,#edf7f6 48%,#f4f8f9);
+  border-bottom-color:#b9ded8;
+}
+
+:root[data-theme="light"] .chart-zone {
+  background:#f8fafb;
+}
+
+:root[data-theme="light"] .chart-tools {
+  background:#f3f7f8;
+  border-bottom-color:var(--line);
+}
+
+:root[data-theme="light"] .chart-wrap {
+  background:linear-gradient(180deg,#fbfcfd,#f5f8f9);
+}
+
+:root[data-theme="light"] .decision-zone {
+  background:#f3f6f7;
+}
+
+:root[data-theme="light"] .decision-zone>section,
+:root[data-theme="light"] .decision-zone>div,
+:root[data-theme="light"] .signal-layer,
+:root[data-theme="light"] .alert-channel {
+  border-color:var(--line);
+}
+
+:root[data-theme="light"] .grid-line {
+  stroke:#cfdadd;
+}
+
+:root[data-theme="light"] .price-path,
+:root[data-theme="light"] .last-line {
+  stroke:var(--red);
+}
+
+:root[data-theme="light"] .vwap-path {
+  stroke:var(--teal);
+}
+
+:root[data-theme="light"] .coral-line {
+  background:var(--red);
+}
+
+:root[data-theme="light"] .teal-line {
+  background:var(--teal);
+}
+
+:root[data-theme="light"] :is(.stock-head,.chart-tools,.decision-zone,.ticker) {
+  border-color:var(--line);
+}
+
+:root[data-theme="light"] :is(.tool-button,.icon-button) {
+  border-color:#bdc9ce;
+}
+
+:root[data-theme="light"] :is(.tool-button,.icon-button):hover {
+  background:#e7eef0;
+  border-color:#9eafb6;
+  color:var(--text);
 }
 
 @media (max-width:760px) {

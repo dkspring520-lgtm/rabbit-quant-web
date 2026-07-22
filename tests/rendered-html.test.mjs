@@ -89,7 +89,7 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.doesNotMatch(source, /result\?\.trades===0&&visibleBacktestObservations\.map/);
   assert.doesNotMatch(source, /result\?\.trades===0&&visibleBacktestObservations\.length/);
   assert.match(source, /observation\.confirmationLabel/);
-  assert.match(source, /pointPosition\(observation\.time\)/);
+  assert.match(source, /pointPosition\(observation\.time,observation\.price\)/);
   assert.doesNotMatch(source, /pointPosition\(observation\.pivotTime/);
   assert.match(source, /const reserveLabel=/);
   assert.match(source, /const occupied:LabelBox\[\]=\[\]/);
@@ -394,4 +394,11 @@ test("the app uses a global minimalist presentation without hiding decision evid
   assert.match(minimal, /\.minimal-ui \.research-purpose/);
   assert.doesNotMatch(minimal, /\.market-risk-lock[^\{]*\{[^}]*display:\s*none/);
   assert.doesNotMatch(minimal, /\.alert-reason[^\{]*\{[^}]*display:\s*none/);
+});
+
+test("intraday markers use the recorded causal price", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /pointPosition\(action\.time,action\.price\)/);
+  assert.match(source, /pointPosition\(observation\.time,observation\.price\)/);
 });
