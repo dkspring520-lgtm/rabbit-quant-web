@@ -88,6 +88,7 @@ services:
       ZIJIN_SHADOW_MARKET_ORIGIN: ${RABBIT_QUANT_ACTIVE_WEB_ORIGIN:-http://web-blue:3000}
       ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
       ZIJIN_SHADOW_LEDGER_PATH: /training-runtime/shadow/zijin-shadow-ab-events.jsonl
+      ZIJIN_SHADOW_MINUTES_DIR: /training-runtime/shadow/minutes/601899
       ZIJIN_SHADOW_POLL_MS: "15000"
       ZIJIN_SHADOW_IDLE_POLL_MS: "60000"
       ZIJIN_SHADOW_PEERS: "600489,600547,603993,601168,600362,000630"

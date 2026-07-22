@@ -12,6 +12,7 @@ import {
 const origin = process.env.ZIJIN_SHADOW_MARKET_ORIGIN || "http://web:3000";
 const statePath = process.env.ZIJIN_SHADOW_STATE_PATH || "/training-state/zijin-shadow-ab.json";
 const ledgerPath = process.env.ZIJIN_SHADOW_LEDGER_PATH || "/training-runtime/shadow/zijin-shadow-ab-events.jsonl";
+const minuteArchiveDir = process.env.ZIJIN_SHADOW_MINUTES_DIR || "/training-runtime/shadow/minutes/601899";
 const pollMs = Math.max(5_000, Number(process.env.ZIJIN_SHADOW_POLL_MS) || 15_000);
 const idlePollMs = Math.max(30_000, Number(process.env.ZIJIN_SHADOW_IDLE_POLL_MS) || 60_000);
 const targetCode = "601899";
@@ -34,6 +35,28 @@ async function saveState(state) {
   const temporary = `${statePath}.tmp`;
   await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   await rename(temporary, statePath);
+}
+
+async function saveMinuteArchive(date, payload, minutes) {
+  await mkdir(minuteArchiveDir, { recursive: true });
+  const path = `${minuteArchiveDir}/${date}.json`;
+  const temporary = `${path}.tmp`;
+  const archive = {
+    schemaVersion: 1,
+    code: targetCode,
+    name: "紫金矿业",
+    marketDate: date,
+    updatedAt: new Date().toISOString(),
+    provider: payload.provider || null,
+    minuteProvider: payload.minuteProvider || null,
+    sourceTimestamp: payload.sourceTimestamp || null,
+    fetchedAt: payload.fetchedAt || null,
+    previousClose: Number(payload.quote?.previousClose) || null,
+    quote: payload.quote,
+    minutes,
+  };
+  await writeFile(temporary, `${JSON.stringify(archive, null, 2)}\n`, "utf8");
+  await rename(temporary, path);
 }
 
 async function fetchStock(code) {
@@ -106,6 +129,7 @@ async function observe(state) {
     : []);
   const externalContext = await fetchExternalContext(payload);
   const date = marketDate(payload);
+  await saveMinuteArchive(date, payload, minutes);
   const lastIndex = minutes.length - 1;
   let indices;
   if (state.marketDate !== date || !state.lastProcessedMinute) {
