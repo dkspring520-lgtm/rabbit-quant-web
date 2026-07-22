@@ -28,6 +28,13 @@ test("ordinary volume does not create the experimental reminder", () => {
   assert.equal(evaluateZijinExperimentalReminder(ordinary), null);
 });
 
+test("a weak VWAP regime slope stays below the prospective V2 gate", () => {
+  const reminder = evaluateZijinExperimentalReminder(positivePrefix, {
+    minimumRegimeSlopePct: 99,
+  });
+  assert.equal(reminder, null);
+});
+
 test("later ordinary minutes cannot move the real-time candidate", () => {
   const atSignal = evaluateZijinExperimentalReminder(positivePrefix);
   const afterSignal = evaluateZijinExperimentalReminder([
