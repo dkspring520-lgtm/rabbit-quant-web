@@ -11,6 +11,8 @@ import round5Report from "@/public/research/zijin-round5-report.json";
 import round5Protocol from "@/scripts/zijin-round5-protocol.json";
 import round6Report from "@/public/research/zijin-round6-report.json";
 import round6Protocol from "@/scripts/zijin-round6-protocol.json";
+import round9Report from "@/public/research/zijin-round9-report.json";
+import round9Protocol from "@/scripts/zijin-round9-protocol.json";
 
 // Keep historical research evidence out of the trading-console entry bundle.
 // The browser downloads this module only after the user opens single-stock research.
@@ -28,5 +30,6 @@ export const zijinResearchBundle = Object.freeze({
   round5Protocol,
   round6Report,
   round6Protocol,
+  round9Report,
+  round9Protocol,
 });
-
