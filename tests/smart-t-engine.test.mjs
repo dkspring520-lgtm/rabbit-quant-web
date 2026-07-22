@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { PROFILES, buildCandidateObservationCycles, causalCyclePreference, causalRangeEvidence, minutesFromOpen, runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import {
+  PROFILES,
+  buildCandidateObservationCycles,
+  causalCyclePreference,
+  causalRangeEvidence,
+  confirmCandidateDirectionFlip,
+  evaluateStructuralStop,
+  minutesFromOpen,
+  runSmartTReplay,
+} from "../lib/smart-t-engine.mjs";
 
 const morningTimes = [];
 for (let hour = 9, minute = 30; hour < 11 || (hour === 11 && minute <= 30);) {
@@ -97,6 +106,77 @@ test("candidate observations form a separate causal pair without fabricating a m
   assert.equal(stillOpen.cycles.length, 0);
   assert.equal(stillOpen.open?.status, "候补未闭环");
   assert.equal(stillOpen.open?.time, "0948");
+});
+
+test("an opposite candidate cannot silently flip into a formal entry", () => {
+  const oppositeCandidate = { minute: 20 };
+  const base = {
+    oppositeCandidate,
+    pairEconomicallyDistinct: true,
+    nowMinute: 30,
+    cooldown: 8,
+    structuralConfirmation: true,
+    executionMomentumConfirmed: true,
+  };
+
+  assert.equal(confirmCandidateDirectionFlip({ ...base, pairEconomicallyDistinct: false }), false);
+  assert.equal(confirmCandidateDirectionFlip({ ...base, nowMinute: 26 }), false);
+  assert.equal(confirmCandidateDirectionFlip({ ...base, structuralConfirmation: false }), false);
+  assert.equal(confirmCandidateDirectionFlip(base), true);
+  assert.equal(confirmCandidateDirectionFlip({ ...base, oppositeCandidate: null }), true);
+});
+
+test("a normal stop waits for a confirmed pivot break instead of one noisy minute", () => {
+  const base = {
+    direction: "BUY_FIRST",
+    entryPivotPrice: 10,
+    movePct: -0.82,
+    holdMinutes: 18,
+    hardStopPct: 0.75,
+    catastrophicStopPct: 1.35,
+    stopBreakBufferPct: 0.10,
+    softStopPct: 0.40,
+    softStopMinutes: 16,
+  };
+
+  const oneMinutePoke = evaluateStructuralStop({
+    ...base,
+    beforePrice: 10.02,
+    previousPrice: 10.01,
+    currentPrice: 9.88,
+  });
+  assert.equal(oneMinutePoke.structuralStopConfirmed, false);
+  assert.equal(oneMinutePoke.stop, false);
+
+  const confirmedBreak = evaluateStructuralStop({
+    ...base,
+    beforePrice: 9.91,
+    previousPrice: 9.88,
+    currentPrice: 9.84,
+  });
+  assert.equal(confirmedBreak.structuralStopConfirmed, true);
+  assert.equal(confirmedBreak.stop, true);
+});
+
+test("the catastrophic risk line still exits immediately without waiting for confirmation", () => {
+  const result = evaluateStructuralStop({
+    direction: "BUY_FIRST",
+    currentPrice: 9.95,
+    previousPrice: 10.00,
+    beforePrice: 10.01,
+    entryPivotPrice: 9.80,
+    movePct: -1.42,
+    holdMinutes: 2,
+    hardStopPct: 0.75,
+    catastrophicStopPct: 1.35,
+    stopBreakBufferPct: 0.10,
+    softStopPct: 0.40,
+    softStopMinutes: 16,
+  });
+
+  assert.equal(result.structuralStopConfirmed, false);
+  assert.equal(result.catastrophicStop, true);
+  assert.equal(result.stop, true);
 });
 
 function openingRecoverySession(future = "rise") {
