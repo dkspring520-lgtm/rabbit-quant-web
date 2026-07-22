@@ -1,0 +1,84 @@
+{
+  "registeredAt": "2026-07-22T00:00:00+08:00",
+  "name": "Zijin volume-VWAP turn V2",
+  "status": "prospective-observation-only",
+  "isolatedFromV4": true,
+  "purpose": "Test whether a stronger causal VWAP regime slope filters no-progress entries without forcing more trades.",
+  "frozenParameters": {
+    "minimumVolumeRatio": 2,
+    "maximumVolumeRatio": 3,
+    "minimumVwapDeviationPct": 0.35,
+    "minimumAbsoluteRegimeSlopePct": 0.1,
+    "signalStart": "09:30",
+    "signalEnd": "14:30",
+    "entryExecution": "next visible minute",
+    "minimumProtectedNetPct": 0.2,
+    "maximumProtectedNetPct": 0.3,
+    "failureReviewMinutes": 7,
+    "maximumHoldMinutes": 15,
+    "maximumCyclesPerDay": 1
+  },
+  "retrospectiveFeasibilityOnly": {
+    "selection2022To2024": {
+      "trades": 10,
+      "winRatePct": 80,
+      "netCny": 1780.71
+    },
+    "outOfSample2025": {
+      "trades": 5,
+      "winRatePct": 80,
+      "netCny": 1598.85
+    },
+    "warning": "These results generated the hypothesis and cannot be reused as proof of promotion."
+  },
+  "controlledExpansionAudit": {
+    "multipleCyclesPerDay": {
+      "maximumCycles": 2,
+      "cooldownMinutes": 20,
+      "additionalTrades": 0,
+      "decision": "no sample increase"
+    },
+    "minimumVolumeRatio": [
+      {
+        "value": 1.5,
+        "selectionTrades": 20,
+        "selectionWinRatePct": 65,
+        "selectionNetCny": -751.46,
+        "outOfSampleTrades": 8,
+        "outOfSampleWinRatePct": 62.5,
+        "decision": "rejected: negative selection net after costs"
+      },
+      {
+        "value": 1.8,
+        "selectionTrades": 15,
+        "selectionWinRatePct": 73.33,
+        "selectionNetCny": 577.74,
+        "outOfSampleTrades": 7,
+        "outOfSampleWinRatePct": 57.14,
+        "decision": "rejected: out-of-sample win rate below 60 percent"
+      },
+      {
+        "value": 2,
+        "selectionTrades": 10,
+        "selectionWinRatePct": 80,
+        "selectionNetCny": 1780.71,
+        "outOfSampleTrades": 5,
+        "outOfSampleWinRatePct": 80,
+        "decision": "retained for prospective observation"
+      }
+    ]
+  },
+  "forwardGate": {
+    "startsAfter": "2026-07-22",
+    "minimumTrades": 30,
+    "minimumWinRatePct": 60,
+    "preferredWinRatePct": 70,
+    "requiresPositiveNetAfterCosts": true,
+    "requiresStableQuarterlyResults": true
+  },
+  "promotion": {
+    "automatic": false,
+    "requiresHumanReview": true,
+    "v4MutationAllowed": false
+  }
+}
