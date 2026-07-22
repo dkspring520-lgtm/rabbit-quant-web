@@ -11,26 +11,26 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg:#f2f5f4;
+  --bg:#f5f7f8;
   --surface:#ffffff;
-  --surface-2:#e9efed;
-  --panel:#f8faf9;
+  --surface-2:#f0f3f4;
+  --panel:#ffffff;
   --panel-strong:#ffffff;
   --field:#ffffff;
-  --line:#cbd5d2;
-  --line-soft:#dde4e2;
-  --text:#17201e;
-  --text-soft:#273633;
-  --muted:#586a66;
-  --dim:#7b8b87;
-  --teal:#087f73;
-  --teal-2:#0b9687;
-  --coral:#d83f3b;
-  --amber:#a96e00;
-  --green:#16845d;
-  --red:#d83f3b;
-  --grid:#d8e0de;
-  --shadow:rgba(29,48,43,.14);
+  --line:#d7dee1;
+  --line-soft:#e8edef;
+  --text:#172026;
+  --text-soft:#2b363d;
+  --muted:#5f6c74;
+  --dim:#879299;
+  --teal:#087a70;
+  --teal-2:#0a8d81;
+  --coral:#d74444;
+  --amber:#9b6808;
+  --green:#16865b;
+  --red:#d74444;
+  --grid:#dce3e5;
+  --shadow:rgba(31,45,52,.12);
 }
 
 .theme-toggle {
@@ -56,7 +56,7 @@
 }
 
 :root[data-theme="light"] .app-shell {
-  background:radial-gradient(circle at 72% 12%,rgba(8,127,115,.055),transparent 30%),var(--bg);
+  background:radial-gradient(circle at 72% 12%,rgba(8,122,112,.04),transparent 30%),var(--bg);
 }
 
 :root[data-theme="light"] .topbar,
@@ -72,7 +72,7 @@
 }
 
 :root[data-theme="light"] .topbar {
-  box-shadow:0 2px 14px rgba(29,48,43,.06);
+  box-shadow:0 2px 14px rgba(31,45,52,.055);
 }
 
 :root[data-theme="light"] .grid-line,
@@ -149,23 +149,23 @@
 }
 
 :root[data-theme="light"] .auth-brand-panel {
-  background:radial-gradient(circle at 20% 75%,rgba(8,127,115,.12),transparent 30%),linear-gradient(135deg,#eef5f3,#f8faf9);
+  background:radial-gradient(circle at 20% 75%,rgba(8,122,112,.10),transparent 30%),linear-gradient(135deg,#eef4f3,#fafcfc);
 }
 
 :root[data-theme="light"] .public-site {
-  background:radial-gradient(circle at 78% 12%,rgba(8,127,115,.08),transparent 27%),var(--bg);
+  background:radial-gradient(circle at 78% 12%,rgba(8,122,112,.055),transparent 27%),var(--bg);
 }
 
 :root[data-theme="light"] .public-nav,
 :root[data-theme="light"] .auth-entry-floating {
-  background:rgba(248,250,249,.92);
-  box-shadow:0 4px 20px rgba(29,48,43,.07);
+  background:rgba(255,255,255,.93);
+  box-shadow:0 4px 20px rgba(31,45,52,.07);
 }
 
 :root[data-theme="light"] .public-terminal {
-  background:linear-gradient(145deg,rgba(8,127,115,.055),transparent 45%),#fff;
+  background:linear-gradient(145deg,rgba(8,122,112,.045),transparent 45%),#fff;
   border-color:var(--line);
-  box-shadow:0 24px 70px rgba(29,48,43,.12);
+  box-shadow:0 24px 70px rgba(31,45,52,.11);
 }
 
 :root[data-theme="light"] :is(.onboarding-overlay,.market-overlay,.member-admin-overlay) {
@@ -177,13 +177,13 @@
 }
 
 :root[data-theme="light"] .alert-log-dialog {
-  background:rgba(250,252,251,.99);
-  box-shadow:0 -24px 70px rgba(29,48,43,.18);
+  background:rgba(255,255,255,.99);
+  box-shadow:0 -24px 70px rgba(31,45,52,.16);
 }
 
 :root[data-theme="light"] .rabbit-progress {
-  background:radial-gradient(circle at 18% 0,rgba(8,127,115,.10),transparent 35%),linear-gradient(135deg,#f7fbfa,#fff);
-  box-shadow:inset 0 0 26px rgba(8,127,115,.025),0 10px 32px rgba(29,48,43,.08);
+  background:radial-gradient(circle at 18% 0,rgba(8,122,112,.08),transparent 35%),linear-gradient(135deg,#f8fbfb,#fff);
+  box-shadow:inset 0 0 26px rgba(8,122,112,.02),0 10px 32px rgba(31,45,52,.07);
 }
 
 :root[data-theme="light"] .rabbit-progress-rail,
@@ -218,6 +218,182 @@
 }
 
 :root[data-theme="light"] select { border-color:var(--line); }
+
+/* Daylight component normalization. Some legacy modules intentionally use
+   fixed night colors, so they need an explicit daylight surface instead of
+   producing a half-dark, half-light interface. */
+:root[data-theme="light"] :is(
+  .watch-summary,
+  .lab-progress,
+  .lab-agent,
+  .promotion-card,
+  .home-terminal,
+  .workflow-grid button,
+  .account-button,
+  .account-dialog,
+  .account-plan,
+  .strategy-dialog,
+  .strategy-card,
+  .custom-strategy,
+  .opening-rule,
+  .single-run-status,
+  .stock-feedback,
+  .stock-feedback th,
+  .batch-mini-chart,
+  .batch-mini-empty,
+  .batch-cycle-details article,
+  .cycle-route,
+  .onboarding-card,
+  .stock-options button,
+  .risk-options button,
+  .share-setup button,
+  .preference-watchlist>div,
+  .member-admin-panel,
+  .member-reset-token button,
+  .member-row button,
+  .stock-agent-switch-actions button,
+  .alert-channel,
+  .alert-channel button,
+  .alert-log-toolbar select,
+  .alert-log-row.head,
+  .public-cta button,
+  .public-safety p,
+  .minimal-ui .position-card,
+  .zijin-shadow-models article
+) {
+  background:var(--surface);
+  color:var(--text);
+}
+
+:root[data-theme="light"] :is(
+  .backtest-config input,
+  .backtest-config select,
+  .field.static-field,
+  .number-stepper,
+  .profile-picker,
+  .custom-strategy textarea,
+  .replay-secondary-actions button,
+  .stock-add-row input,
+  .auth-field>input,
+  .auth-field>div
+) {
+  background:var(--field);
+  border-color:var(--line);
+  color:var(--text);
+}
+
+:root[data-theme="light"] :is(
+  .watch-toolbar button.active,
+  .strategy-card:hover,
+  .strategy-card.selected,
+  .profile-picker button.active,
+  .stock-options button.active,
+  .risk-options button.active,
+  .preference-watchlist>div.active,
+  .workflow-grid button:hover,
+  .member-head
+) {
+  background:var(--surface-2);
+}
+
+:root[data-theme="light"] :is(
+  .number-stepper>button,
+  .share-setup button,
+  .batch-detail-toggle
+) {
+  background:#f2f5f6;
+  color:var(--muted);
+}
+
+:root[data-theme="light"] .number-stepper>button:hover {
+  background:#e8efee;
+  color:var(--teal);
+}
+
+:root[data-theme="light"] :is(.account-overlay,.strategy-overlay) {
+  background:rgba(31,45,52,.42);
+}
+
+:root[data-theme="light"] :is(.positive,.ticker-event.positive,.stock-feedback td.profit) {
+  color:var(--red) !important;
+}
+
+:root[data-theme="light"] :is(.negative,.ticker-event.negative,.stock-feedback td.loss) {
+  color:var(--green) !important;
+}
+
+:root[data-theme="light"] .quote.down strong,
+:root[data-theme="light"] .quote.down span {
+  color:var(--green);
+}
+
+:root[data-theme="light"] .public-cta button:first-child,
+:root[data-theme="light"] .home-actions button:first-child,
+:root[data-theme="light"] .auth-submit,
+:root[data-theme="light"] .account-close,
+:root[data-theme="light"] .onboarding-save,
+:root[data-theme="light"] .lab-run,
+:root[data-theme="light"] .primary-action {
+  background:var(--teal);
+  color:#fff;
+  box-shadow:none;
+}
+
+:root[data-theme="light"] .primary-action:hover {
+  background:var(--teal-2);
+  box-shadow:0 8px 24px rgba(8,122,112,.14);
+}
+
+:root[data-theme="light"] .candidate-signal-marker rect {
+  fill:rgba(155,104,8,.09);
+}
+
+:root[data-theme="light"] .candidate-signal-marker.buy rect {
+  fill:rgba(8,122,112,.10);
+}
+
+:root[data-theme="light"] .candidate-signal-marker.sell rect {
+  fill:rgba(215,68,68,.09);
+}
+
+:root[data-theme="light"] .signal-marker.observation circle {
+  fill:#fff;
+}
+
+:root[data-theme="light"] .candidate-signal-marker text,
+:root[data-theme="light"] .live-signal-marker text,
+:root[data-theme="light"] .backtest-candidate-marker text {
+  stroke:#fff;
+}
+
+:root[data-theme="light"] .trade-alert-toast,
+:root[data-theme="light"] .trade-alert-toast.candidate,
+:root[data-theme="light"] .trade-alert-toast.risk {
+  background:linear-gradient(110deg,rgba(8,122,112,.08),rgba(255,255,255,.98) 62%);
+  box-shadow:0 12px 28px rgba(31,45,52,.12);
+}
+
+:root[data-theme="light"] .trade-alert-toast.candidate {
+  background:linear-gradient(110deg,rgba(155,104,8,.09),rgba(255,255,255,.98) 62%);
+}
+
+:root[data-theme="light"] .trade-alert-toast.risk {
+  background:linear-gradient(110deg,rgba(215,68,68,.08),rgba(255,255,255,.98) 62%);
+}
+
+:root[data-theme="light"] .rabbit-speech {
+  background:rgba(255,255,255,.72);
+  border-color:var(--line-soft);
+}
+
+:root[data-theme="light"] .rabbit-speech:before {
+  background:#fff;
+  border-color:var(--line-soft);
+}
+
+:root[data-theme="light"] .zijin-training-live {
+  background:linear-gradient(135deg,rgba(8,122,112,.055),rgba(255,255,255,.65));
+}
 
 @media (max-width:760px) {
   .top-actions .theme-toggle { display:grid !important; }
