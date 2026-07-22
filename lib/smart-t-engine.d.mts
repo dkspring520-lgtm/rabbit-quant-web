@@ -86,6 +86,34 @@ export function buildCandidateObservationCycles(observations: SmartTObservation[
   cycles: SmartTReplayResult["candidateCycles"];
   open: SmartTReplayResult["openCandidate"];
 };
+export function confirmCandidateDirectionFlip(input: {
+  oppositeCandidate?: null | { minute: number };
+  pairEconomicallyDistinct: boolean;
+  nowMinute: number;
+  cooldown: number;
+  structuralConfirmation: boolean;
+  executionMomentumConfirmed: boolean;
+}): boolean;
+export function evaluateStructuralStop(input: {
+  direction: "BUY_FIRST" | "SELL_FIRST";
+  currentPrice: number;
+  previousPrice: number;
+  beforePrice: number;
+  entryPivotPrice: number;
+  movePct: number;
+  holdMinutes: number;
+  hardStopPct: number;
+  catastrophicStopPct: number;
+  stopBreakBufferPct: number;
+  softStopPct: number;
+  softStopMinutes: number;
+}): {
+  stop: boolean;
+  catastrophicStop: boolean;
+  structuralStopConfirmed: boolean;
+  pivotBreakPrice: number;
+  adverseMomentum: boolean;
+};
 export const PROFILES: Record<string, {
   score: number;
   cooldown: number;
@@ -98,6 +126,8 @@ export const PROFILES: Record<string, {
   reversal: number;
   maxSellPullback: number;
   hardStopPct?: number;
+  catastrophicStopPct?: number;
+  stopBreakBufferPct?: number;
   softStopPct?: number;
   softStopMinutes?: number;
   timeExitMinutes?: number;
