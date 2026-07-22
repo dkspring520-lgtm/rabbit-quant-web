@@ -188,6 +188,12 @@ test("V4 profile gates stay monotonic from steady to balanced to sensitive", () 
   assert.ok(steady.counterTrendMinVolumeRatio >= balanced.counterTrendMinVolumeRatio && balanced.counterTrendMinVolumeRatio >= sensitive.counterTrendMinVolumeRatio);
 });
 
+test("sensitive profile exposes wider observations without repeating formal cycles", () => {
+  const sensitive = PROFILES["灵敏档"];
+
+  assert.equal(sensitive.maxCycles, 1);
+});
+
 test("every V4 profile owns the complete risk, exit and trend gate set", () => {
   const required = [
     "hardStopPct", "softStopPct", "softStopMinutes", "timeExitMinutes",

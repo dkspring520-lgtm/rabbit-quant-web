@@ -1661,7 +1661,7 @@ export default function Home() {
             {[
               {name:'稳健档',tag:'少做，只做最确定',fit:'震荡市、新手、重视回撤',score:'至少 6/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 5 分钟',risk:'候补点照常显示，正式点可能为空'},
               {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'至少 4/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 4 分钟',risk:'默认推荐'},
-              {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'至少 4/6',cycles:'每日最多 2 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 3 分钟',risk:'候补更多，但仍需成本与风控过滤'},
+              {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'至少 4/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 3 分钟',risk:'候补更多；第二轮只观察，避免重复交易稀释胜率'},
             ].map(item=><button key={item.name} onClick={()=>setProfile(normalizeStrategyProfile(item.name) as StrategyProfile)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
           </div>
           <div className="profit-mode-panel">
