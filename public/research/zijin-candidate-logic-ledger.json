@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-22",
+  "purpose": "记录紫金矿业高胜率候选逻辑；只登记可复现、扣费后统计完整的规则，不因单次高胜率直接上线。",
+  "promotionGate": {
+    "minimumOutOfSampleTrades": 30,
+    "minimumOutOfSampleWinRate": 65,
+    "minimumProfitFactor": 1.2,
+    "requiresPositiveNetAfterCosts": true,
+    "requiresCrossYearStability": true,
+    "requiresFrozenFinalBlindTest": true
+  },
+  "candidates": [
+    {
+      "id": "morning-volume-turn-positive-t",
+      "name": "早盘2.5至3倍量止跌正T",
+      "logic": "09:30至09:49出现2.5至3倍量，价格位于VWAP下方至少0.35%，随后实时回升一跳且不再创新低；下一分钟买入，费用后0.64%止盈或20分钟退出。",
+      "selection2022To2024": { "trades": 13, "winRate": 69.23, "net": 1822.92 },
+      "validation2025": { "trades": 5, "winRate": 60.0, "net": 594.0 },
+      "status": "candidate-insufficient-out-of-sample-size",
+      "blocker": "2025仅5笔，尚不足以证明60%胜率可稳定复现。"
+    },
+    {
+      "id": "midmorning-reverse-t-window",
+      "name": "10:30至10:49反T候选",
+      "logic": "仅在10:30至10:49保留符合V4因果门槛的反T信号。",
+      "selection2022To2024": { "trades": 10, "winRate": 70.0, "net": 335.4 },
+      "validation2025": { "trades": 4, "winRate": 75.0, "net": 366.4 },
+      "status": "candidate-insufficient-out-of-sample-size",
+      "blocker": "训练和验证总计仅14笔，不能把偶然高胜率当成稳定规律。"
+    },
+    {
+      "id": "prior-regime-volume-turn-profit-range",
+      "name": "事前周期方向＋倍量拐头＋利润区间保护",
+      "logic": "09:30至09:49只读取当时及此前数据：事前VWAP斜率判定上行或下行周期，2.5至3倍量后价格偏离VWAP至少0.35%并实时拐头；下一分钟成交。费用后达到0.64%开始保护，达到1.00%或从最佳收益回落0.08%时在下一分钟退出，最长45分钟。",
+      "selection2022To2024": { "trades": 6, "winRate": 83.33, "net": 3159.78, "profitFactor": 9.39 },
+      "validation2025": { "trades": 6, "winRate": 83.33, "net": 2467.74, "profitFactor": 7.6 },
+      "status": "candidate-insufficient-out-of-sample-size",
+      "blocker": "样本外只有6笔，尚未达到30笔晋级线；2026封存数据未打开。"
+    }
+  ],
+  "ensemblePolicy": {
+    "mode": "gated-router-not-union",
+    "description": "先按时段、方向和市场状态路由到单一候选逻辑；不把所有候选信号简单相加。多个独立逻辑同时确认时可提高信号等级，但必须重新做完整组合回放。",
+    "combinedBacktestCompleted": false,
+    "approvedForProduction": false
+  }
+}

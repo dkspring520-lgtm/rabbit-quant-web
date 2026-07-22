@@ -1,0 +1,75 @@
+{
+  "experiment": "zijin-volume-turn-vwap-hold",
+  "status": "research-only-not-approved",
+  "updatedAt": "2026-07-22",
+  "plainSummary": "紫金矿业偏离VWAP 1.5%已进入历史极端区，2%约为最极端的1.34%。2.5至3倍量后等待实时拐头，再按事前周期方向筛选并采用最小至最大止盈区间，出现了高潜结果；但训练期和样本外各只有6笔，尚不足以上线。",
+  "protocol": {
+    "signalWindow": "09:30-09:49",
+    "volumeEvent": "2.5x-3.0x armed for ten minutes",
+    "turnConfirmation": "one price tick and no new local extreme",
+    "execution": "next minute",
+    "slippage": "0.02% per side",
+    "commission": "0.025% with CNY 5 minimum",
+    "stampDuty": "0.05% on sell",
+    "selection": "2022-2024",
+    "validation": "2025",
+    "frozen2026Opened": false
+  },
+  "vwapDeviationDistribution2022To2025": {
+    "minuteSamples": 218994,
+    "p50Pct": 0.41,
+    "p75Pct": 0.73,
+    "p90Pct": 1.14,
+    "p95Pct": 1.43,
+    "p99Pct": 2.15,
+    "shareAtLeast1_5Pct": 4.22,
+    "shareAtLeast2_0Pct": 1.34,
+    "interpretation": "1.5%属于极端偏离观察区，2%属于罕见异常区；两者用于提高提醒等级，不直接等同于买卖点。"
+  },
+  "results": {
+    "target064Or20Minutes": {
+      "research2022To2024": { "trades": 36, "winRate": 50.0, "net": 632.98 },
+      "validation2025": { "trades": 15, "winRate": 60.0, "net": -1568.12 },
+      "positiveT": {
+        "research2022To2024": { "trades": 13, "winRate": 69.23, "net": 1822.92 },
+        "validation2025": { "trades": 5, "winRate": 60.0, "net": 594.0 }
+      },
+      "reverseT": {
+        "research2022To2024": { "trades": 23, "winRate": 39.13, "net": -1189.94 },
+        "validation2025": { "trades": 10, "winRate": 60.0, "net": -2162.12 }
+      }
+    },
+    "holdUntilVwapRecross": {
+      "research2022To2024": { "trades": 36, "winRate": 75.0, "net": 3470.22, "averageHoldMinutes": 32.56 },
+      "validation2025": { "trades": 15, "winRate": 66.67, "net": -2352.56, "averageHoldMinutes": 54.93 },
+      "positiveT": {
+        "research2022To2024": { "trades": 13, "winRate": 69.23, "net": 422.26 },
+        "validation2025": { "trades": 5, "winRate": 80.0, "net": -51.39 }
+      },
+      "reverseT": {
+        "research2022To2024": { "trades": 23, "winRate": 78.26, "net": 3047.96 },
+        "validation2025": { "trades": 10, "winRate": 60.0, "net": -2301.17 }
+      }
+    },
+    "vwapHybridRiskProtected": {
+      "research2022To2024": { "trades": 36, "winRate": 58.33, "net": 1041.81, "averageHoldMinutes": 13.14 },
+      "validation2025": { "trades": 15, "winRate": 60.0, "net": -1537.91, "averageHoldMinutes": 15.0 }
+    },
+    "priorRegimeProfitRangeCandidate": {
+      "entry": "2.5至3倍量、偏离VWAP至少0.35%、事前8分钟VWAP斜率与方向一致、实时拐头一跳，下一分钟成交",
+      "exit": "费用后达到0.64%开始保护；达到1.00%退出，或最佳收益回落0.08%退出；最长45分钟",
+      "research2022To2024": { "trades": 6, "winRate": 83.33, "net": 3159.78, "profitFactor": 9.39 },
+      "validation2025": { "trades": 6, "winRate": 83.33, "net": 2467.74, "profitFactor": 7.6 },
+      "warning": "总计仅12笔，属于高潜候选而非已证实规律。"
+    }
+  },
+  "decision": {
+    "approvedForProduction": false,
+    "keepForNextRound": "事前周期方向加2.5至3倍量实时拐头，并验证0.64%至1.00%利润保护区间",
+    "rejectForNow": [
+      "unlimited hold until VWAP recross",
+      "reverse-T volume-turn branch",
+      "using win rate alone as the promotion criterion"
+    ]
+  }
+}
