@@ -29,6 +29,10 @@ const experimentConfig = {
   minimumProtectedNetPct: Number(process.env.ZIJIN_MIN_PROFIT_PCT ?? 0.30),
   maximumProtectedNetPct: Number(process.env.ZIJIN_MAX_PROFIT_PCT ?? 0.80),
   protectedGivebackPct: Number(process.env.ZIJIN_PROFIT_GIVEBACK_PCT ?? 0.12),
+  signalStart: String(process.env.ZIJIN_SIGNAL_START ?? "0930"),
+  signalEnd: String(process.env.ZIJIN_SIGNAL_END ?? "0949"),
+  maximumCyclesPerDay: Number(process.env.ZIJIN_MAX_CYCLES ?? 1),
+  cooldownMinutes: Number(process.env.ZIJIN_COOLDOWN_MINUTES ?? 5),
 };
 
 const pct = (from, to) => (from > 0 ? (to - from) / from * 100 : 0);
@@ -81,7 +85,7 @@ function cycleResult(direction, entryRaw, exitRaw, quantity) {
 function detectEntry(points, vwaps, index, entryMode, dailyRegime) {
   if (index < 6 || index >= points.length - 1) return null;
   const time = String(points[index].time ?? "").replace(":", "").padStart(4, "0");
-  if (time < "0930" || time > "0949") return null;
+  if (time < experimentConfig.signalStart || time > experimentConfig.signalEnd) return null;
 
   const current = Number(points[index].price);
   const previous = Number(points[index - 1].price);
@@ -251,13 +255,13 @@ function dailyRegimeForSession(sessionIndex) {
   return "FLAT";
 }
 
-function replay(session, sessionIndex, entryMode, exitMode) {
+function replay(session, sessionIndex, entryMode, exitMode, startIndex = 6) {
   const points = session.minutes ?? [];
   if (points.length < 10) return null;
   const vwaps = cumulativeVwaps(points);
   const dailyRegime = dailyRegimeForSession(sessionIndex);
   let signal = null;
-  for (let index = 6; index < points.length - 1; index += 1) {
+  for (let index = Math.max(6, startIndex); index < points.length - 1; index += 1) {
     signal = detectEntry(points, vwaps, index, entryMode, dailyRegime);
     if (signal) break;
   }
@@ -285,12 +289,27 @@ function replay(session, sessionIndex, entryMode, exitMode) {
     exitMode,
     entryTime: String(points[entryIndex].time),
     exitTime: String(points[result.exitIndex].time),
+    entryIndex,
+    exitIndex: result.exitIndex,
     holdMinutes: result.exitIndex - entryIndex,
     mfePct: signal.direction === "POSITIVE_T" ? pct(entryRaw, favorablePrice) : pct(favorablePrice, entryRaw),
     maePct: signal.direction === "POSITIVE_T" ? pct(adversePrice, entryRaw) : pct(entryRaw, adversePrice),
     ...signal,
     ...result,
   };
+}
+
+function replaySession(session, sessionIndex, entryMode, exitMode) {
+  const rows = [];
+  let cursor = 6;
+  while (rows.length < experimentConfig.maximumCyclesPerDay) {
+    const row = replay(session, sessionIndex, entryMode, exitMode, cursor);
+    if (!row) break;
+    rows.push({ ...row, cycleNumber: rows.length + 1 });
+    cursor = row.exitIndex + experimentConfig.cooldownMinutes;
+    if (cursor >= (session.minutes?.length ?? 0) - 1) break;
+  }
+  return rows;
 }
 
 function stats(rows) {
@@ -316,6 +335,17 @@ function stats(rows) {
 
 function groups(rows, field, values) {
   return Object.fromEntries(values.map((value) => [value, stats(rows.filter((row) => row[field] === value))]));
+}
+
+function multiCycleAudit(rows) {
+  const completed = rows.filter((row) => row.year <= 2025);
+  const countsByDate = new Map();
+  completed.forEach((row) => countsByDate.set(row.date, (countsByDate.get(row.date) ?? 0) + 1));
+  return {
+    secondOrLaterTrades: completed.filter((row) => row.cycleNumber >= 2).length,
+    daysWithMultipleCycles: [...countsByDate.values()].filter((count) => count >= 2).length,
+    byCycleNumber: groups(completed, "cycleNumber", [1, 2, 3]),
+  };
 }
 
 function quantile(sorted, probability) {
@@ -353,7 +383,7 @@ function vwapDeviationDistribution() {
 }
 
 const results = ["TURN_ONLY", "PRIOR_INTRADAY_REGIME", "DAILY5_REGIME"].flatMap((entryMode) => ["TARGET20", "VWAP_RECROSS", "VWAP_HYBRID", "TRAILING_RANGE"].map((exitMode) => {
-  const rows = sessions.map((session, sessionIndex) => replay(session, sessionIndex, entryMode, exitMode)).filter(Boolean);
+  const rows = sessions.flatMap((session, sessionIndex) => replaySession(session, sessionIndex, entryMode, exitMode));
   const research = rows.filter((row) => row.year <= 2024);
   const validation = rows.filter((row) => row.year === 2025);
   return {
@@ -364,6 +394,7 @@ const results = ["TURN_ONLY", "PRIOR_INTRADAY_REGIME", "DAILY5_REGIME"].flatMap(
     researchByDirection: groups(research, "direction", ["POSITIVE_T", "REVERSE_T"]),
     validationByDirection: groups(validation, "direction", ["POSITIVE_T", "REVERSE_T"]),
     byYear2022To2025: groups(rows, "year", [2022, 2023, 2024, 2025]),
+    multiCycleAudit: multiCycleAudit(rows),
     exitReasons: groups(rows.filter((row) => row.year <= 2025), "exitReason", ["TARGET_064", "TIME_20", "VWAP_RECROSS", "STOP_060", "TIME_45", "FORCED_1450", "MAX_PROFIT", "PROFIT_TRAIL", "RANGE_TIME_EXIT"]),
     frozen2026: { opened: false, matchingSessionCount: rows.filter((row) => row.year >= 2026).length, resultsWithheld: true },
   };
