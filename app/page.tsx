@@ -1159,7 +1159,7 @@ export default function Home() {
         : formalFresh
           ? `${item.code}:${latest!.time}:${latest!.side}`
           : experimentalFresh
-            ? `${item.code}:experimental:${experimentalReminder!.id}`
+            ? `${item.code}:experimental:${experimentalReminder!.id}:${experimentalReminder!.stage}:${experimentalReminder!.asOfTime}`
             : agentEvaluation
               ? `${item.code}:agent:${agentEvaluation.asOfTime}:${agentEvaluation.direction}`
               : `${item.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
@@ -1170,7 +1170,7 @@ export default function Home() {
       if(alreadyAlerted)continue;
       if(!isRisk){alertedEventKeys.current.add(persistedKey);try{localStorage.setItem(persistedKey,"1");}catch{}}
       const candidateDirection=experimentalReminder?.direction??agentEvaluation?.direction??latestObservation?.direction;
-      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):(candidateDirection==="反T"?"sell":"buy");
+      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):(experimentalReminder?.stage==="experimental-exit"?(candidateDirection==="正T"?"sell":"buy"):(candidateDirection==="反T"?"sell":"buy"));
       const title=isRisk
         ? `${item.name} 风险锁定`
         : formalFresh
@@ -1191,7 +1191,9 @@ export default function Home() {
               : `${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
       queueAlert({level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
       const candidateSpeech=experimentalFresh
-        ? `${item.name}，${experimentalReminder!.direction}实验观察，出现倍量、均价线偏离与实时拐头，不是买卖指令`
+        ? experimentalReminder!.stage==="experimental-exit"
+          ? `${item.name}，${experimentalReminder!.direction}实验观察结束，${experimentalReminder!.reason}，不是买卖指令`
+          : `${item.name}，${experimentalReminder!.direction}实验观察，出现倍量、均价线偏离与实时拐头，不是买卖指令`
         : agentEvaluation
         ? `${item.name}，${agentEvaluation.direction??"做T"}专属候选观察，不是买卖指令`
         : isVwapDisplacementObservation(latestObservation)
