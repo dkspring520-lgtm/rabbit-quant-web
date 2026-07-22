@@ -12,6 +12,7 @@ const universe = [
 const rounds = Math.max(1, Number(process.argv[3]) || 100);
 const seed = process.argv[4] ?? "20260716-causal-candidates";
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:3000";
+const profile = process.argv[5] ?? "平衡档";
 
 function seededFraction(input) {
   let hash = 2166136261;
@@ -65,6 +66,7 @@ for (let round = 0; round < rounds; round += 1) {
       minCommission: true,
       slippageMode: "percent",
       forceCloseTime: "1450",
+      profile,
       previousClose: session.previousClose,
       randomValue: seededFraction(`${seed}:${round}:${stock.code}:replay`),
     });
@@ -85,7 +87,29 @@ for (let round = 0; round < rounds; round += 1) {
 }
 
 const cycleNets = trials.flatMap((trial) => trial.result.cycleNets);
+const describedCycles = trials.flatMap((trial) => trial.result.cycleNets.map((net, index) => {
+  const cycleId = index + 1;
+  const entry = trial.result.actions.find((action) => action.cycleId === cycleId && action.meta?.phase === "entry");
+  return { net, cycleId, direction: entry?.direction ?? "unknown" };
+}));
+
+function summarizeCycles(cycles) {
+  const net = cycles.reduce((sum, cycle) => sum + cycle.net, 0);
+  const wins = cycles.filter((cycle) => cycle.net > 0).length;
+  return {
+    cycles: cycles.length,
+    wins,
+    losses: cycles.length - wins,
+    winRate: cycles.length ? wins / cycles.length : null,
+    net,
+    averageNet: cycles.length ? net / cycles.length : null,
+  };
+}
+
+const cycleNumbers = [...new Set(describedCycles.map((cycle) => cycle.cycleId))];
+const directions = [...new Set(describedCycles.map((cycle) => cycle.direction))];
 const summary = {
+  profile,
   seed,
   rounds,
   stocksPerRound: 10,
@@ -110,6 +134,8 @@ const summary = {
   profitableBatches: batchNets.filter((value) => value > 0).length,
   losingBatches: batchNets.filter((value) => value < 0).length,
   noTradeBatches: batchNets.filter((value) => value === 0).length,
+  byCycleNumber: Object.fromEntries(cycleNumbers.map((cycleId) => [cycleId, summarizeCycles(describedCycles.filter((cycle) => cycle.cycleId === cycleId))])),
+  byDirection: Object.fromEntries(directions.map((direction) => [direction, summarizeCycles(describedCycles.filter((cycle) => cycle.direction === direction))])),
 };
 
 console.log(JSON.stringify(summary, null, 2));
