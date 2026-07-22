@@ -831,7 +831,10 @@ export default function Home() {
     // Formal orders get first choice of label space. Every other marker is
     // stamped at its real confirmation minute; no historical pivot is backfilled.
     const actions=liveEngine.actions.flatMap((action,index)=>{
-      const point=pointPosition(action.time);
+      // A live minute can be updated more than once by the public quote feed.
+      // Anchor the marker to the price captured by the causal decision instead
+      // of the first point sharing the same HHmm timestamp.
+      const point=pointPosition(action.time,action.price);
       if(!point)return [];
       const isSell=action.side==="卖出";
       const label=action.direction==="反T"?(isSell?"反T卖":"反T回"):(isSell?"正T卖":"正T买");
@@ -840,7 +843,7 @@ export default function Home() {
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
     const observations=visibleChartObservations.flatMap((observation,index)=>{
-      const point=pointPosition(observation.time);
+      const point=pointPosition(observation.time,observation.price);
       if(!point)return [];
       const isSell=observation.direction==="反T";
       const qualified=observation.stage!=="watch";

@@ -25,10 +25,10 @@ test("signed-in, landing, and account screens expose the same theme switch", () 
 
 test("day mode has a complete accessible palette and mobile switch", () => {
   assert.match(theme, /:root\[data-theme="light"\]/);
-  assert.match(theme, /--bg:#f5f7f8/);
-  assert.match(theme, /--surface:#ffffff/);
-  assert.match(theme, /--red:#d74444/);
-  assert.match(theme, /--green:#16865b/);
+  assert.match(theme, /--bg:#edf2f4/);
+  assert.match(theme, /--surface:#f8fafb/);
+  assert.match(theme, /--red:#d83f45/);
+  assert.match(theme, /--green:#078454/);
   assert.match(theme, /color-scheme:\s*light/);
   assert.match(theme, /\.top-actions \.theme-toggle \{ display:grid !important; \}/);
 });
@@ -40,4 +40,12 @@ test("day mode replaces legacy night surfaces without losing A-share colors", ()
   assert.match(theme, /\.minimal-ui \.position-card,/);
   assert.match(theme, /\.positive,[^}]+color:var\(--red\) !important/s);
   assert.match(theme, /\.negative,[^}]+color:var\(--green\) !important/s);
+});
+
+test("day mode uses one coherent dark brand rail above the light trading canvas", () => {
+  assert.match(theme, /\.topbar \{\s*background:#070b10/);
+  assert.match(theme, /\.topbar \.top-actions \{\s*background:transparent/);
+  assert.match(theme, /\.topbar \.main-nav button\.active \{\s*color:#f6f8f9/);
+  assert.match(theme, /\.chart-wrap \{\s*background:linear-gradient\(180deg,#fbfcfd,#f5f8f9\)/);
+  assert.match(theme, /\.decision-zone \{\s*background:#f3f6f7/);
 });
