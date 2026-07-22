@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { PROFILES, causalCyclePreference, minutesFromOpen, runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import { PROFILES, buildCandidateObservationCycles, causalCyclePreference, causalRangeEvidence, minutesFromOpen, runSmartTReplay } from "../lib/smart-t-engine.mjs";
 
 const morningTimes = [];
 for (let hour = 9, minute = 30; hour < 11 || (hour === 11 && minute <= 30);) {
@@ -60,6 +60,43 @@ test("causal cycle preference aligns positive T with up-cycles and reverse T wit
   assert.equal(causalCyclePreference(rising, 40, makeVwaps(rising), 10), "uptrend");
   assert.equal(causalCyclePreference(falling, 40, makeVwaps(falling), 10), "downtrend");
   assert.equal(causalCyclePreference(flat, 40, makeVwaps(flat), 10), "range");
+});
+
+test("V4.1 range evidence requires an already-observed two-sided VWAP history", () => {
+  const rows = sessionTimes.slice(0, 60).map((time, index) => ({
+    time,
+    price: index % 12 < 6 ? 9.94 : 10.06,
+    volume: 10_000,
+  }));
+  const vwaps = rows.map(() => 10);
+  const confirmed = causalRangeEvidence(rows, 59, vwaps);
+
+  assert.equal(confirmed.confirmed, true);
+  assert.ok(confirmed.crossings >= 2);
+  assert.ok(confirmed.amplitude >= 1);
+
+  const flatRows = rows.map((point) => ({ ...point, price: 10 }));
+  assert.equal(causalRangeEvidence(flatRows, 59, vwaps).confirmed, false);
+});
+
+test("candidate observations form a separate causal pair without fabricating a missing exit", () => {
+  const buy = { time: "0948", price: 10, direction: "正T", stage: "candidate" };
+  const laterBuy = { time: "0956", price: 9.96, direction: "正T", stage: "candidate" };
+  const sell = { time: "1012", price: 10.08, direction: "反T", stage: "candidate" };
+  const closed = buildCandidateObservationCycles([buy, laterBuy, sell]);
+
+  assert.equal(closed.cycles.length, 1);
+  assert.equal(closed.cycles[0].entryTime, "0948");
+  assert.equal(closed.cycles[0].exitTime, "1012");
+  assert.equal(closed.cycles[0].entryLabel, "候补买入");
+  assert.equal(closed.cycles[0].exitLabel, "候补卖出");
+  assert.ok(closed.cycles[0].grossPct > 0);
+  assert.equal(closed.open, null);
+
+  const stillOpen = buildCandidateObservationCycles([buy, laterBuy]);
+  assert.equal(stillOpen.cycles.length, 0);
+  assert.equal(stillOpen.open?.status, "候补未闭环");
+  assert.equal(stillOpen.open?.time, "0948");
 });
 
 function openingRecoverySession(future = "rise") {
@@ -419,6 +456,11 @@ test("a local fade above a rising VWAP cannot open a counter-trend sell cycle", 
   const result = runSmartTReplay(rows, { ...options, previousClose: 10 });
 
   assert.equal(result.actions.filter(action => action.direction === "反T").length, 0);
+  assert.ok(result.diagnostics.cycleConflicts > 0, "an up-cycle reverse-T setup must be recorded as a cycle conflict");
+  assert.ok(
+    result.observations.some(observation => observation.blockers.some(blocker => blocker.includes("上行周期只观察反T"))),
+    "the candidate layer must explain that reverse-T is observation-only during an up cycle",
+  );
   assert.ok(result.diagnostics.strongTrendBlocked > 0);
 });
 

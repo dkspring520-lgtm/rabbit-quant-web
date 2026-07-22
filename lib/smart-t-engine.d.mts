@@ -40,6 +40,26 @@ export type SmartTReplayResult = {
   curve: number[];
   curveTimes: string[];
   cycleNets: number[];
+  candidateCycles: Array<{
+    id: number;
+    direction: "正T" | "反T";
+    entryTime: string;
+    entryPrice: number;
+    entryLabel: string;
+    exitTime: string;
+    exitPrice: number;
+    exitLabel: string;
+    grossPct: number;
+    favorable: boolean;
+    status: string;
+  }>;
+  openCandidate: null | {
+    direction: "正T" | "反T";
+    time: string;
+    price: number;
+    label: string;
+    status: "候补未闭环";
+  };
   startTime: string;
   status: string;
   actions: SmartTAction[];
@@ -59,8 +79,13 @@ export type SmartTOptions = {
   profileOverrides?: Record<string, number>;
   previousClose?: number | null;
   randomValue?: number;
+  strategyVersion?: string;
 };
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
+export function buildCandidateObservationCycles(observations: SmartTObservation[]): {
+  cycles: SmartTReplayResult["candidateCycles"];
+  open: SmartTReplayResult["openCandidate"];
+};
 export const PROFILES: Record<string, {
   score: number;
   cooldown: number;
