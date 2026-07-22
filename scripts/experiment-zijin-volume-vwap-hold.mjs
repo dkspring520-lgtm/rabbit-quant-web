@@ -2,11 +2,11 @@
 /**
  * Causal Zijin experiment for symmetric VWAP reversion cycles.
  *
- * Entry: a 2.5x-3.0x volume event remains armed for ten minutes, price is at
- * least 0.35% away from cumulative VWAP, and one tick confirms a turn.
+ * Entry: a configurable volume event remains armed for ten minutes, price is
+ * sufficiently far from cumulative VWAP, and a causal turn is confirmed.
  * Execution: next minute.
- * Exit A: 0.64% after-cost target or 20 trading minutes.
- * Exit B: first confirmed VWAP recross, executed next minute, otherwise 14:50.
+ * Exit: a configured protected-profit trail, causal failure review, or maximum
+ * holding time. All decisions use only the current and earlier minutes.
  */
 
 import { createReadStream } from "node:fs";
@@ -18,6 +18,7 @@ if (!inputPath) throw new Error("usage: node experiment-zijin-volume-vwap-hold.m
 const sessions = [];
 const reader = createInterface({ input: createReadStream(inputPath, "utf8"), crlfDelay: Infinity });
 for await (const line of reader) if (line.trim()) sessions.push(JSON.parse(line));
+const includeTrades = process.env.ZIJIN_INCLUDE_TRADES === "1";
 
 const experimentConfig = {
   deviationThresholdPct: Number(process.env.ZIJIN_DEVIATION_PCT ?? 0.35),
@@ -29,6 +30,9 @@ const experimentConfig = {
   minimumProtectedNetPct: Number(process.env.ZIJIN_MIN_PROFIT_PCT ?? 0.30),
   maximumProtectedNetPct: Number(process.env.ZIJIN_MAX_PROFIT_PCT ?? 0.80),
   protectedGivebackPct: Number(process.env.ZIJIN_PROFIT_GIVEBACK_PCT ?? 0.12),
+  failureReviewMinutes: Number(process.env.ZIJIN_FAILURE_REVIEW_MINUTES ?? 7),
+  invalidationGraceMinutes: Number(process.env.ZIJIN_INVALIDATION_GRACE_MINUTES ?? 99),
+  invalidationBufferPct: Number(process.env.ZIJIN_INVALIDATION_BUFFER_PCT ?? 99),
   signalStart: String(process.env.ZIJIN_SIGNAL_START ?? "0930"),
   signalEnd: String(process.env.ZIJIN_SIGNAL_END ?? "0949"),
   maximumCyclesPerDay: Number(process.env.ZIJIN_MAX_CYCLES ?? 1),
@@ -122,14 +126,14 @@ function detectEntry(points, vwaps, index, entryMode, dailyRegime) {
     && reboundTicks >= experimentConfig.turnTicks - 0.001
     && current > previous
     && risingRegime) {
-    return { direction: "POSITIVE_T", signalIndex: index, signalTime: time, deviation: downwardDeviation, turnTicks: reboundTicks, peakVolumeRatio, vwapRegimeSlope, sessionMove, dailyRegime };
+    return { direction: "POSITIVE_T", signalIndex: index, signalTime: time, deviation: downwardDeviation, turnTicks: reboundTicks, peakVolumeRatio, vwapRegimeSlope, sessionMove, dailyRegime, invalidationPrice: low };
   }
   if (upwardDeviation >= experimentConfig.deviationThresholdPct
     && highAge >= 1
     && pullbackTicks >= experimentConfig.turnTicks - 0.001
     && current < previous
     && fallingRegime) {
-    return { direction: "REVERSE_T", signalIndex: index, signalTime: time, deviation: upwardDeviation, turnTicks: pullbackTicks, peakVolumeRatio, vwapRegimeSlope, sessionMove, dailyRegime };
+    return { direction: "REVERSE_T", signalIndex: index, signalTime: time, deviation: upwardDeviation, turnTicks: pullbackTicks, peakVolumeRatio, vwapRegimeSlope, sessionMove, dailyRegime, invalidationPrice: high };
   }
   return null;
 }
@@ -207,7 +211,7 @@ function vwapHybridExit(points, vwaps, entryIndex, direction, quantity) {
   };
 }
 
-function trailingRangeExit(points, entryIndex, direction, quantity) {
+function trailingRangeExit(points, entryIndex, direction, quantity, signal) {
   const maximumExitIndex = Math.min(
     lastIndexAtOrBefore(points, "1450"),
     entryIndex + experimentConfig.maximumHoldMinutes,
@@ -225,12 +229,25 @@ function trailingRangeExit(points, entryIndex, direction, quantity) {
     const maximumReached = netPct >= experimentConfig.maximumProtectedNetPct;
     const protectedProfitLost = protectedProfit
       && bestNetPct - netPct >= experimentConfig.protectedGivebackPct;
-    if (!maximumReached && !protectedProfitLost) continue;
+    const invalidationBreakPct = direction === "POSITIVE_T"
+      ? pct(Number(points[cursor].price), signal.invalidationPrice)
+      : pct(signal.invalidationPrice, Number(points[cursor].price));
+    const invalidated = cursor - entryIndex >= experimentConfig.invalidationGraceMinutes
+      && invalidationBreakPct >= experimentConfig.invalidationBufferPct;
+    const noProgress = cursor - entryIndex >= experimentConfig.failureReviewMinutes
+      && bestNetPct < 0;
+    if (!maximumReached && !protectedProfitLost && !invalidated && !noProgress) continue;
 
     const exitIndex = cursor + 1;
     return {
       exitIndex,
-      exitReason: maximumReached ? "MAX_PROFIT" : "PROFIT_TRAIL",
+      exitReason: invalidated
+        ? "TURN_INVALIDATED"
+        : maximumReached
+          ? "MAX_PROFIT"
+          : protectedProfitLost
+            ? "PROFIT_TRAIL"
+            : "NO_PROGRESS",
       bestNetPctBeforeExit: bestNetPct,
       ...cycleResult(direction, entryRaw, Number(points[exitIndex].price), quantity),
     };
@@ -275,7 +292,7 @@ function replay(session, sessionIndex, entryMode, exitMode, startIndex = 6) {
     : exitMode === "VWAP_HYBRID"
       ? vwapHybridExit(points, vwaps, entryIndex, signal.direction, quantity)
       : exitMode === "TRAILING_RANGE"
-        ? trailingRangeExit(points, entryIndex, signal.direction, quantity)
+        ? trailingRangeExit(points, entryIndex, signal.direction, quantity, signal)
       : target20Exit(points, entryIndex, signal.direction, quantity);
   const path = points.slice(entryIndex, result.exitIndex + 1).map((point) => Number(point.price));
   const entryRaw = Number(points[entryIndex].price);
@@ -382,7 +399,13 @@ function vwapDeviationDistribution() {
   };
 }
 
-const results = ["TURN_ONLY", "PRIOR_INTRADAY_REGIME", "DAILY5_REGIME"].flatMap((entryMode) => ["TARGET20", "VWAP_RECROSS", "VWAP_HYBRID", "TRAILING_RANGE"].map((exitMode) => {
+const entryModes = process.env.ZIJIN_ENTRY_MODE
+  ? [process.env.ZIJIN_ENTRY_MODE]
+  : ["TURN_ONLY", "PRIOR_INTRADAY_REGIME", "DAILY5_REGIME"];
+const exitModes = process.env.ZIJIN_EXIT_MODE
+  ? [process.env.ZIJIN_EXIT_MODE]
+  : ["TARGET20", "VWAP_RECROSS", "VWAP_HYBRID", "TRAILING_RANGE"];
+const results = entryModes.flatMap((entryMode) => exitModes.map((exitMode) => {
   const rows = sessions.flatMap((session, sessionIndex) => replaySession(session, sessionIndex, entryMode, exitMode));
   const research = rows.filter((row) => row.year <= 2024);
   const validation = rows.filter((row) => row.year === 2025);
@@ -395,8 +418,9 @@ const results = ["TURN_ONLY", "PRIOR_INTRADAY_REGIME", "DAILY5_REGIME"].flatMap(
     validationByDirection: groups(validation, "direction", ["POSITIVE_T", "REVERSE_T"]),
     byYear2022To2025: groups(rows, "year", [2022, 2023, 2024, 2025]),
     multiCycleAudit: multiCycleAudit(rows),
-    exitReasons: groups(rows.filter((row) => row.year <= 2025), "exitReason", ["TARGET_064", "TIME_20", "VWAP_RECROSS", "STOP_060", "TIME_45", "FORCED_1450", "MAX_PROFIT", "PROFIT_TRAIL", "RANGE_TIME_EXIT"]),
+    exitReasons: groups(rows.filter((row) => row.year <= 2025), "exitReason", ["TARGET_064", "TIME_20", "VWAP_RECROSS", "STOP_060", "TIME_45", "FORCED_1450", "MAX_PROFIT", "PROFIT_TRAIL", "TURN_INVALIDATED", "NO_PROGRESS", "RANGE_TIME_EXIT"]),
     frozen2026: { opened: false, matchingSessionCount: rows.filter((row) => row.year >= 2026).length, resultsWithheld: true },
+    ...(includeTrades ? { trades: rows } : {}),
   };
 }));
 
@@ -405,7 +429,7 @@ console.log(JSON.stringify({
     causalSignal: true,
     signalReadsFuture: false,
     symmetricDirections: true,
-    signalWindow: "09:30-09:49",
+    signalWindow: `${experimentConfig.signalStart.slice(0, 2)}:${experimentConfig.signalStart.slice(2)}-${experimentConfig.signalEnd.slice(0, 2)}:${experimentConfig.signalEnd.slice(2)}`,
     experimentConfig,
     volumeEvent: `${experimentConfig.minimumVolumeRatio}x-${Number.isFinite(experimentConfig.maximumVolumeRatio) ? experimentConfig.maximumVolumeRatio : "unlimited"}x armed for ten minutes`,
     regimeFilter: "either pre-pullback intraday VWAP slope or the five prior completed trading days, both causal",
