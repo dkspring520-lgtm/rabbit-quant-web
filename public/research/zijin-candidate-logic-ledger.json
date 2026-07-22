@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "updatedAt": "2026-07-22",
   "purpose": "记录紫金矿业高胜率候选逻辑；只登记可复现、扣费后统计完整的规则，不因单次高胜率直接上线。",
   "promotionGate": {
@@ -37,6 +37,15 @@
       "validation2025": { "trades": 6, "winRate": 83.33, "net": 2467.74, "profitFactor": 7.6 },
       "status": "candidate-insufficient-out-of-sample-size",
       "blocker": "样本外只有6笔，尚未达到30笔晋级线；2026封存数据未打开。"
+    },
+    {
+      "id": "prior-regime-volume-turn-expanded-2x",
+      "name": "2至3倍量扩样版",
+      "logic": "保持周期方向、偏离VWAP、实时拐头和0.64%至1.00%利润保护不变，只将量比下限从2.5倍放宽到2倍。",
+      "selection2022To2024": { "trades": 11, "winRate": 72.73, "net": 3944.0, "profitFactor": 3.95 },
+      "validation2025": { "trades": 6, "winRate": 83.33, "net": 2467.74, "profitFactor": 7.6 },
+      "status": "candidate-insufficient-out-of-sample-size",
+      "blocker": "样本外仍只有6笔；量比下限来自本轮阈值比较，必须计入多重试验，不能直接上线。"
     }
   ],
   "ensemblePolicy": {
