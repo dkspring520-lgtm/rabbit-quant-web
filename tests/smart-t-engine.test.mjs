@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { PROFILES, minutesFromOpen, runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import { PROFILES, causalCyclePreference, minutesFromOpen, runSmartTReplay } from "../lib/smart-t-engine.mjs";
 
 const morningTimes = [];
 for (let hour = 9, minute = 30; hour < 11 || (hour === 11 && minute <= 30);) {
@@ -37,6 +37,30 @@ const options = {
     trailActivationPct: Number.POSITIVE_INFINITY,
   },
 };
+
+test("causal cycle preference aligns positive T with up-cycles and reverse T with down-cycles", () => {
+  const makeSeries = (sign) => sessionTimes.slice(0, 50).map((time, index) => ({
+    time,
+    price: Number((10 + sign * index * 0.01).toFixed(3)),
+    volume: 10_000,
+  }));
+  const makeVwaps = (rows) => {
+    let amount = 0;
+    let volume = 0;
+    return rows.map((point) => {
+      amount += point.price * point.volume;
+      volume += point.volume;
+      return amount / volume;
+    });
+  };
+  const rising = makeSeries(1);
+  const falling = makeSeries(-1);
+  const flat = makeSeries(0);
+
+  assert.equal(causalCyclePreference(rising, 40, makeVwaps(rising), 10), "uptrend");
+  assert.equal(causalCyclePreference(falling, 40, makeVwaps(falling), 10), "downtrend");
+  assert.equal(causalCyclePreference(flat, 40, makeVwaps(flat), 10), "range");
+});
 
 function openingRecoverySession(future = "rise") {
   return sessionTimes.map((time, index) => {
