@@ -23,3 +23,16 @@ test("phone chart never promotes watch-only dots into text labels", () => {
   assert.equal(keys.has(compactChartLabelKey(watch)), false);
   assert.equal(keys.has(compactChartLabelKey(candidate)), true);
 });
+
+test("phone chart reserves a visible label for an afternoon candidate", () => {
+  const observations = [
+    { time: "0940", direction: "正T", stage: "candidate", score: 92 },
+    { time: "1005", direction: "反T", stage: "candidate", score: 88 },
+    { time: "1022", direction: "正T", stage: "candidate", score: 84 },
+    { time: "1320", direction: "反T", stage: "candidate", score: 70 },
+  ];
+  const keys = compactChartLabelKeys(observations, 3);
+
+  assert.equal(keys.has("1320:反T"), true);
+  assert.ok([...keys].some((key) => key < "1300"));
+});
