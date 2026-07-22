@@ -392,5 +392,8 @@ test("production shadow observer is isolated, restartable and never sends V4 ale
   assert.match(observer, /\/api\/market-context/);
   assert.match(observer, /\/api\/event-radar/);
   assert.match(observer, /externalCoverage/);
+  assert.match(observer, /saveMinuteArchive/);
+  assert.match(observer, /minutes\/601899/);
+  assert.match(compose, /ZIJIN_SHADOW_MINUTES_DIR/);
   assert.match(route, /Cache-Control.*no-store/);
 });

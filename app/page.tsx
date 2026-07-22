@@ -21,6 +21,7 @@ import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
 import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
 import { compactChartLabelKey, compactChartLabelKeys } from "@/lib/compact-chart-labels.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
+import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-reminder.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
@@ -1132,6 +1133,9 @@ export default function Home() {
       const agentEvaluation=active&&zijinResearchEnabled&&item.code===STOCK_AGENTS.zijin.code
         ? evaluateStockAgent({code:item.code,minutes:points,previousClose:snapshot?.quote.previousClose??null})
         : null;
+      const experimentalReminder=item.code===STOCK_AGENTS.zijin.code
+        ? evaluateZijinExperimentalReminder(points)
+        : null;
       const formalFresh=Boolean(latest&&isRecentCausalEvent(lastTime,latest.time,3));
       const riskMessage=active&&autoDecision.status==="locked"
         ? autoDecision.reason
@@ -1144,20 +1148,51 @@ export default function Home() {
       else if(isRisk)riskAlertEpisodes.current[item.code]=riskSignature;
       const candidateFresh=Boolean(latestObservation&&isRecentCausalEvent(lastTime,latestObservation.time,2));
       const agentCandidateFresh=Boolean(agentEvaluation?.status==="candidate"&&agentEvaluation.asOfTime&&isRecentCausalEvent(lastTime,agentEvaluation.asOfTime,2));
-      const isCandidate=!isRisk&&!formalFresh&&(agentEvaluation?agentCandidateFresh:Boolean(candidateFresh&&latestObservation&&!latestObservation.executable));
+      const experimentalFresh=Boolean(experimentalReminder&&isRecentCausalEvent(lastTime,experimentalReminder.asOfTime,2));
+      const isCandidate=!isRisk&&!formalFresh&&Boolean(
+        experimentalFresh
+        || (agentEvaluation ? agentCandidateFresh : candidateFresh&&latestObservation&&!latestObservation.executable)
+      );
       if(!isRisk&&!formalFresh&&!isCandidate)continue;
-      const key=isRisk?`${item.code}:risk:${riskSignature}`:formalFresh?`${item.code}:${latest!.time}:${latest!.side}`:agentEvaluation?`${item.code}:agent:${agentEvaluation.asOfTime}:${agentEvaluation.direction}`:`${item.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
+      const key=isRisk
+        ? `${item.code}:risk:${riskSignature}`
+        : formalFresh
+          ? `${item.code}:${latest!.time}:${latest!.side}`
+          : experimentalFresh
+            ? `${item.code}:experimental:${experimentalReminder!.id}`
+            : agentEvaluation
+              ? `${item.code}:agent:${agentEvaluation.asOfTime}:${agentEvaluation.direction}`
+              : `${item.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
       const eventDate=snapshot?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??"unknown-date";
       const persistedKey=`rabbit-alerted:${accountName.toLowerCase()}:${eventDate}:${key}`;
       let alreadyAlerted=!isRisk&&alertedEventKeys.current.has(persistedKey);
       try{alreadyAlerted=alreadyAlerted||(!isRisk&&localStorage.getItem(persistedKey)==="1");}catch{}
       if(alreadyAlerted)continue;
       if(!isRisk){alertedEventKeys.current.add(persistedKey);try{localStorage.setItem(persistedKey,"1");}catch{}}
-      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):((agentEvaluation?.direction??latestObservation!.direction)==="反T"?"sell":"buy");
-      const title=isRisk?`${item.name} 风险锁定`:formalFresh?`${item.name} ${latest!.direction}${latest!.side}`:agentEvaluation?`${item.name} · ${agentEvaluation.title}`:`${item.name} ${latestObservation!.direction}候选观察`;
-      const message=isRisk?riskMessage:formalFresh?(latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`):agentEvaluation?`${agentEvaluation.reasons[0]}；紫金研究模型观察，不是买卖指令。`:`${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
+      const candidateDirection=experimentalReminder?.direction??agentEvaluation?.direction??latestObservation?.direction;
+      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):(candidateDirection==="反T"?"sell":"buy");
+      const title=isRisk
+        ? `${item.name} 风险锁定`
+        : formalFresh
+          ? `${item.name} ${latest!.direction}${latest!.side}`
+          : experimentalFresh
+            ? `${item.name} · ${experimentalReminder!.title}`
+            : agentEvaluation
+              ? `${item.name} · ${agentEvaluation.title}`
+              : `${item.name} ${latestObservation!.direction}候选观察`;
+      const message=isRisk
+        ? riskMessage
+        : formalFresh
+          ? (latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`)
+          : experimentalFresh
+            ? `${experimentalReminder!.reason}${experimentalReminder!.plan} 这是实验观察，不是买卖指令。`
+            : agentEvaluation
+              ? `${agentEvaluation.reasons[0]}；紫金研究模型观察，不是买卖指令。`
+              : `${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
       queueAlert({level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
-      const candidateSpeech=agentEvaluation
+      const candidateSpeech=experimentalFresh
+        ? `${item.name}，${experimentalReminder!.direction}实验观察，出现倍量、均价线偏离与实时拐头，不是买卖指令`
+        : agentEvaluation
         ? `${item.name}，${agentEvaluation.direction??"做T"}专属候选观察，不是买卖指令`
         : isVwapDisplacementObservation(latestObservation)
         ? `${item.name}，价格${latestObservation!.direction==="正T"?"低位":"高位"}偏离均价线，请观察确认，不是买卖指令`
