@@ -11,26 +11,26 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg:#edf2f4;
-  --surface:#f8fafb;
-  --surface-2:#e8eef0;
-  --panel:#f7fafb;
+  --bg:#e9eef0;
+  --surface:#f7f9f9;
+  --surface-2:#e4ebeb;
+  --panel:#f1f5f5;
   --panel-strong:#ffffff;
   --field:#ffffff;
-  --line:#cbd6da;
-  --line-soft:#dde5e8;
-  --text:#162126;
-  --text-soft:#29363c;
-  --muted:#55636b;
-  --dim:#7a878e;
-  --teal:#007f74;
-  --teal-2:#009487;
-  --coral:#d83f45;
-  --amber:#9d6800;
-  --green:#078454;
-  --red:#d83f45;
-  --grid:#d4dfe3;
-  --shadow:rgba(26,42,50,.14);
+  --line:#c2ced1;
+  --line-soft:#d5dee0;
+  --text:#18262c;
+  --text-soft:#34444b;
+  --muted:#5f6f77;
+  --dim:#879399;
+  --teal:#087f73;
+  --teal-2:#009b8a;
+  --coral:#d74b50;
+  --amber:#9b6911;
+  --green:#21845f;
+  --red:#d74b50;
+  --grid:#cbd7da;
+  --shadow:rgba(31,49,57,.12);
 }
 
 .theme-toggle {
@@ -72,9 +72,9 @@
 }
 
 :root[data-theme="light"] .topbar {
-  background:#070b10;
-  border-bottom-color:#253036;
-  box-shadow:0 3px 18px rgba(24,39,47,.18);
+  background:#f7f9f9;
+  border-bottom-color:var(--line);
+  box-shadow:0 2px 14px rgba(31,49,57,.08);
 }
 
 :root[data-theme="light"] .grid-line,
@@ -397,10 +397,11 @@
   background:linear-gradient(135deg,rgba(8,122,112,.055),rgba(255,255,255,.65));
 }
 
-/* A dark brand rail keeps the supplied navy logo visually integrated while
-   the trading canvas remains a calm daylight workspace. */
+/* Keep only the logo cell dark. The navigation and trading canvas share one
+   daylight palette, avoiding a visually split black/white interface. */
 :root[data-theme="light"] .topbar .brand {
-  border-right-color:#253036;
+  background:#070b10;
+  border-right-color:#263238;
 }
 
 :root[data-theme="light"] .topbar .brand-primary-logo {
@@ -408,16 +409,16 @@
 }
 
 :root[data-theme="light"] .topbar .main-nav button {
-  color:#9ba8ae;
+  color:var(--muted);
 }
 
 :root[data-theme="light"] .topbar .main-nav button:hover,
 :root[data-theme="light"] .topbar .main-nav button.active {
-  color:#f6f8f9;
+  color:var(--text);
 }
 
 :root[data-theme="light"] .topbar .main-nav button.active:after {
-  background:#21cbb8;
+  background:var(--teal);
 }
 
 :root[data-theme="light"] .topbar .top-actions {
@@ -431,9 +432,9 @@
   .icon-button,
   select
 ) {
-  background:#10161a;
-  border-color:#2c373d;
-  color:#e7edef;
+  background:#ffffff;
+  border-color:var(--line);
+  color:var(--text);
 }
 
 :root[data-theme="light"] .topbar :is(
@@ -443,14 +444,14 @@
   .icon-button,
   select
 ):hover {
-  background:#172025;
-  border-color:#3a484f;
-  color:#fff;
+  background:#e8efef;
+  border-color:#9fb0b5;
+  color:var(--text);
 }
 
 :root[data-theme="light"] .topbar .account-button>span {
-  background:#123733;
-  color:#76dfd1;
+  background:#dcece9;
+  color:var(--teal);
 }
 
 :root[data-theme="light"] .ticker,
@@ -464,29 +465,29 @@
 
 :root[data-theme="light"] .ticker-item.selected,
 :root[data-theme="light"] .ticker button.selected {
-  background:#edf6f5;
+  background:#e5f0ee;
 }
 
 :root[data-theme="light"] .session-ribbon {
-  background:linear-gradient(90deg,#e0f2ef,#edf7f6 48%,#f4f8f9);
-  border-bottom-color:#b9ded8;
+  background:linear-gradient(90deg,#dcece9,#e8f1ef 48%,#eef3f3);
+  border-bottom-color:#afd3cd;
 }
 
 :root[data-theme="light"] .chart-zone {
-  background:#f8fafb;
+  background:#edf1f2;
 }
 
 :root[data-theme="light"] .chart-tools {
-  background:#f3f7f8;
+  background:#f7f9f9;
   border-bottom-color:var(--line);
 }
 
 :root[data-theme="light"] .chart-wrap {
-  background:linear-gradient(180deg,#fbfcfd,#f5f8f9);
+  background:linear-gradient(180deg,#f5f7f7,#edf1f2);
 }
 
 :root[data-theme="light"] .decision-zone {
-  background:#f3f6f7;
+  background:#e8edef;
 }
 
 :root[data-theme="light"] .decision-zone>section,
@@ -497,7 +498,7 @@
 }
 
 :root[data-theme="light"] .grid-line {
-  stroke:#cfdadd;
+  stroke:#c4d0d3;
 }
 
 :root[data-theme="light"] .price-path,
