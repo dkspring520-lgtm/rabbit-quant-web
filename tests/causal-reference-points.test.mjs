@@ -64,3 +64,29 @@ test("future suffix cannot move an already emitted causal reference", () => {
   assert.equal(fullBuy.time, prefixBuy.time);
   assert.equal(fullBuy.pivotTime, prefixBuy.pivotTime);
 });
+
+test("completed-day references include afternoon engine observations", () => {
+  const source = [
+    ...minutes(Array.from({ length: 32 }, (_, index) => 10 + Math.sin(index / 2) * 0.08)),
+    ...Array.from({ length: 32 }, (_, index) => ({
+      time: `13${String(index).padStart(2, "0")}`,
+      price: 10 + Math.sin(index / 2) * 0.09,
+      volume: 1_000,
+    })),
+  ];
+  const observations = [
+    { time: "0942", price: 10.03, direction: "正T", score: 6, stage: "candidate", executable: false },
+    { time: "1004", price: 10.07, direction: "正T", score: 5, stage: "candidate", executable: false },
+    { time: "1320", price: 9.98, direction: "正T", score: 3, stage: "candidate", executable: false },
+    { time: "0948", price: 10.08, direction: "反T", score: 6, stage: "candidate", executable: false },
+    { time: "1316", price: 10.06, direction: "反T", score: 3, stage: "candidate", executable: false },
+  ];
+  const points = buildCausalReferencePoints(source, observations);
+
+  for (const direction of ["正T", "反T"]) {
+    const side = points.filter((point) => point.direction === direction);
+    assert.equal(side.length, 2);
+    assert.ok(side.some((point) => point.time < "1300"));
+    assert.ok(side.some((point) => point.time >= "1300"));
+  }
+});
