@@ -397,15 +397,19 @@
   background:linear-gradient(135deg,rgba(8,122,112,.055),rgba(255,255,255,.65));
 }
 
-/* Keep only the logo cell dark. The navigation and trading canvas share one
-   daylight palette, avoiding a visually split black/white interface. */
+/* The supplied lockup is a night asset. In daylight mode its black background
+   and white lettering are inverted while hue rotation preserves cyan/green. */
 :root[data-theme="light"] .topbar .brand {
-  background:#070b10;
-  border-right-color:#263238;
+  background:#ffffff;
+  border-right-color:var(--line);
 }
 
-:root[data-theme="light"] .topbar .brand-primary-logo {
-  filter:drop-shadow(0 5px 14px rgba(0,0,0,.26));
+:root[data-theme="light"] :is(
+  .topbar .brand-primary-logo,
+  .public-brand .brand-primary-logo,
+  .auth-brand .brand-primary-logo
+) {
+  filter:invert(1) hue-rotate(180deg) saturate(.95) drop-shadow(0 4px 10px rgba(31,49,57,.10));
 }
 
 :root[data-theme="light"] .topbar .main-nav button {
