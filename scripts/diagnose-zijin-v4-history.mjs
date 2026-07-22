@@ -56,8 +56,40 @@ function recentVolumeContext(points, index) {
   const peakRatio = Math.max(...ratios);
   return {
     peakRatio,
-    label: peakRatio >= 3 ? "近5分钟≥3倍巨量" : peakRatio >= 1.8 ? "近5分钟1.8-3倍量" : "近5分钟无倍量",
+    label: peakRatio >= 3 ? "近5分钟≥3倍巨量" : peakRatio >= 2.5 ? "近5分钟2.5-3倍量" : "近5分钟无巨量",
   };
+}
+
+function directOrderCost(side, price, quantity) {
+  const turnover = price * quantity;
+  return Math.max(5, turnover * 0.00025) + (side === "卖出" ? turnover * 0.0005 : 0);
+}
+
+function directCycle(direction, entryRaw, exitRaw, quantity) {
+  const entry = direction === "正T" ? entryRaw * 1.0002 : entryRaw * 0.9998;
+  const exit = direction === "正T" ? exitRaw * 0.9998 : exitRaw * 1.0002;
+  const gross = direction === "正T" ? (exit - entry) * quantity : (entry - exit) * quantity;
+  const fees = direction === "正T"
+    ? directOrderCost("买入", entry, quantity) + directOrderCost("卖出", exit, quantity)
+    : directOrderCost("卖出", entry, quantity) + directOrderCost("买入", exit, quantity);
+  return { net: gross - fees, entry };
+}
+
+function simulateObservation(points, observationIndex, direction, quantity) {
+  const entryIndex = observationIndex + 1;
+  const maximumExitIndex = Math.min(points.length - 1, entryIndex + 20);
+  if (entryIndex >= points.length || maximumExitIndex <= entryIndex) return null;
+  let exitIndex = maximumExitIndex;
+  let result = directCycle(direction, Number(points[entryIndex].price), Number(points[exitIndex].price), quantity);
+  for (let cursor = entryIndex + 1; cursor <= maximumExitIndex; cursor += 1) {
+    const projected = directCycle(direction, Number(points[entryIndex].price), Number(points[cursor].price), quantity);
+    if (projected.net / Math.max(1, projected.entry * quantity) * 100 >= 0.64) {
+      result = projected;
+      exitIndex = cursor;
+      break;
+    }
+  }
+  return { net: result.net, targetHit: exitIndex < maximumExitIndex };
 }
 
 function ratioBucket(value) {
@@ -106,6 +138,7 @@ for await (const line of reader) {
     const futureLow = Math.min(...future.map((point) => Number(point.price)));
     const volumeContext = recentVolumeContext(session.minutes, observationIndex);
     const tradingSession = observationTime < "1200" ? "上午" : "下午";
+    const direct = simulateObservation(session.minutes, observationIndex, observation.direction, shares);
     const favorable = observation.direction === "正T"
       ? percent(entryPrice, futureHigh)
       : percent(futureLow, entryPrice);
@@ -114,6 +147,7 @@ for await (const line of reader) {
       : Math.max(0, percent(entryPrice, futureHigh));
     observationRows.push({
       date: session.date,
+      year: String(session.date).slice(0, 4),
       partition,
       timeBucket: timeBucket(observation.time),
       direction: observation.direction,
@@ -121,11 +155,15 @@ for await (const line of reader) {
       tradingSession,
       volumeContext: volumeContext.label,
       sessionVolumeDirection: `${tradingSession} · ${volumeContext.label} · ${observation.direction}`,
+      timeVolumeDirection: `${timeBucket(observation.time)} · ${volumeContext.label} · ${observation.direction}`,
+      yearTimeVolumeDirection: `${String(session.date).slice(0, 4)} · ${timeBucket(observation.time)} · ${volumeContext.label} · ${observation.direction}`,
       stage: observation.stage ?? "watch",
       executable: Boolean(observation.executable),
       favorable,
       adverse,
       target075Hit: favorable >= 0.75,
+      directNet: direct?.net ?? 0,
+      directTargetHit: Boolean(direct?.targetHit),
     });
   }
   if (!replay.trades) continue;
@@ -138,6 +176,7 @@ for await (const line of reader) {
   const tradingSession = entryTime < "1200" ? "上午" : "下午";
   rows.push({
     date: session.date,
+    year: String(session.date).slice(0, 4),
     partition,
     net: replay.net,
     direction: entry.direction,
@@ -147,6 +186,8 @@ for await (const line of reader) {
     tradingSession,
     volumeContext: volumeContext.label,
     sessionVolumeDirection: `${tradingSession} · ${volumeContext.label} · ${entry.direction}`,
+    timeVolumeDirection: `${timeBucket(entry.time)} · ${volumeContext.label} · ${entry.direction}`,
+    yearTimeVolumeDirection: `${String(session.date).slice(0, 4)} · ${timeBucket(entry.time)} · ${volumeContext.label} · ${entry.direction}`,
     regime: entry.meta?.regime ?? "unknown",
     cyclePreference: entry.meta?.cyclePreference ?? "range",
     cycleAlignment: entry.meta?.cyclePreference === "range"
@@ -174,6 +215,11 @@ function observationStats(source) {
     target075HitRate: source.length ? round(targetHits.length / source.length * 100) : 0,
     averageMfe20: source.length ? round(source.reduce((sum, row) => sum + row.favorable, 0) / source.length) : 0,
     averageMae20: source.length ? round(source.reduce((sum, row) => sum + row.adverse, 0) / source.length) : 0,
+    directWins: source.filter((row) => row.directNet > 0).length,
+    directWinRate: source.length ? round(source.filter((row) => row.directNet > 0).length / source.length * 100) : 0,
+    directTargetHits: source.filter((row) => row.directTargetHit).length,
+    directNet: round(source.reduce((sum, row) => sum + row.directNet, 0)),
+    directAverageNet: source.length ? round(source.reduce((sum, row) => sum + row.directNet, 0) / source.length) : 0,
   };
 }
 
@@ -214,11 +260,15 @@ function partitionReport(partition) {
     byObservationTimeDirection: groupedObservations(observations, "timeDirection"),
     byObservationVolumeContext: groupedObservations(observations, "volumeContext"),
     byObservationSessionVolumeDirection: groupedObservations(observations, "sessionVolumeDirection"),
+    byObservationTimeVolumeDirection: groupedObservations(observations, "timeVolumeDirection"),
+    byObservationYearTimeVolumeDirection: groupedObservations(observations, "yearTimeVolumeDirection"),
     byDirection: grouped(source, "direction"),
     byEntryTime: grouped(source, "timeBucket"),
     byEntryTimeDirection: grouped(source, "timeDirection"),
     byVolumeContext: grouped(source, "volumeContext"),
     bySessionVolumeDirection: grouped(source, "sessionVolumeDirection"),
+    byTimeVolumeDirection: grouped(source, "timeVolumeDirection"),
+    byYearTimeVolumeDirection: grouped(source, "yearTimeVolumeDirection"),
     byCycleAlignment: grouped(source, "cycleAlignment"),
     byVolumeRatio: grouped(source, "ratioBucket"),
     byOpening: grouped(source, "opening"),
