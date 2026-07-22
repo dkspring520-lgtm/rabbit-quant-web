@@ -25,8 +25,19 @@ test("signed-in, landing, and account screens expose the same theme switch", () 
 
 test("day mode has a complete accessible palette and mobile switch", () => {
   assert.match(theme, /:root\[data-theme="light"\]/);
-  assert.match(theme, /--bg:#f2f5f4/);
+  assert.match(theme, /--bg:#f5f7f8/);
   assert.match(theme, /--surface:#ffffff/);
+  assert.match(theme, /--red:#d74444/);
+  assert.match(theme, /--green:#16865b/);
   assert.match(theme, /color-scheme:\s*light/);
   assert.match(theme, /\.top-actions \.theme-toggle \{ display:grid !important; \}/);
+});
+
+test("day mode replaces legacy night surfaces without losing A-share colors", () => {
+  assert.match(theme, /\.watch-summary,/);
+  assert.match(theme, /\.strategy-dialog,/);
+  assert.match(theme, /\.alert-log-row\.head,/);
+  assert.match(theme, /\.minimal-ui \.position-card,/);
+  assert.match(theme, /\.positive,[^}]+color:var\(--red\) !important/s);
+  assert.match(theme, /\.negative,[^}]+color:var\(--green\) !important/s);
 });
