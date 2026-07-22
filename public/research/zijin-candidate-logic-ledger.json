@@ -46,6 +46,15 @@
       "validation2025": { "trades": 6, "winRate": 83.33, "net": 2467.74, "profitFactor": 7.6 },
       "status": "candidate-insufficient-out-of-sample-size",
       "blocker": "样本外仍只有6笔；量比下限来自本轮阈值比较，必须计入多重试验，不能直接上线。"
+    },
+    {
+      "id": "prior-regime-volume-turn-narrow-profit",
+      "name": "倍量拐头窄利润短持有版",
+      "logic": "2至3倍量、偏离VWAP至少0.35%、事前周期方向一致并实时拐头；下一分钟成交。费用后达到0.20%进入保护，达到0.30%退出或利润回吐0.05%时下一分钟退出，最长15分钟。",
+      "selection2022To2024": { "trades": 11, "winRate": 90.91, "net": 2129.44, "profitFactor": 4.33 },
+      "validation2025": { "trades": 6, "winRate": 83.33, "net": 2192.8, "profitFactor": 67.93 },
+      "status": "candidate-insufficient-out-of-sample-size",
+      "blocker": "只改善现有信号的退出，尚未验证同一天多次闭环；样本外只有6笔。"
     }
   ],
   "ensemblePolicy": {
