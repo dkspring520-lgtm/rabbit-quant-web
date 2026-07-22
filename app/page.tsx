@@ -498,9 +498,11 @@ const agents = [
   { id: "official", avatar: "/agents/official.png", name: "正式兔", role: "管理影子观察资格" },
 ];
 const strategyProfiles = STRATEGY_PROFILES;
+type UiTheme = "dark" | "light";
 
 
 export default function Home() {
+  const [uiTheme,setUiTheme]=useState<UiTheme>("dark");
   const [authReady, setAuthReady] = useState(false);
   const [localAuth, setLocalAuth] = useState(false);
   const [authScreen,setAuthScreen]=useState<'landing'|'account'>('landing');
@@ -557,6 +559,21 @@ export default function Home() {
   const [compactChartLabels, setCompactChartLabels] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const stock = stockList[activeStock] || stockList[0];
+  useEffect(()=>{
+    let next:UiTheme="dark";
+    try{
+      const stored=localStorage.getItem("rabbit-ui-theme");
+      next=stored==="light"?"light":document.documentElement.dataset.theme==="light"?"light":"dark";
+    }catch{}
+    document.documentElement.dataset.theme=next;
+    setUiTheme(next);
+  },[]);
+  const toggleUiTheme=()=>setUiTheme(current=>{
+    const next:UiTheme=current==="dark"?"light":"dark";
+    document.documentElement.dataset.theme=next;
+    try{localStorage.setItem("rabbit-ui-theme",next)}catch{}
+    return next;
+  });
   useEffect(()=>{
     if(!localAuth||!accountName||!stockList.length)return;
     const signature=stockList.map(item=>`${item.code}:${item.name}`).join('|');
@@ -1440,8 +1457,8 @@ export default function Home() {
   if(!authReady) return <main className="auth-loading"><img src="/rabbit-logo-compact.png" alt="双兔助手 做T神器"/></main>;
   if(!localAuth){
     const enterDemo=()=>{setDemoMode(true);setAccountName('演示访客');setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setProfile(DEFAULT_PREFERENCES.strategyProfile);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true)};
-    if(authScreen==='landing')return <PublicLanding onDemo={enterDemo} onAccount={()=>setAuthScreen('account')}/>;
-    return <AuthView onBack={()=>setAuthScreen('landing')} onDemo={enterDemo} onAuthenticated={(name,isNew,remember)=>{setDemoMode(false);setAccountName(name);setAccountRole(localStorage.getItem('rabbit-account-role')||'member');remoteSyncReady.current=false;setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setProfile(DEFAULT_PREFERENCES.strategyProfile);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){const restored=normalizeAccountPreferences(JSON.parse(saved));setPreferences(restored);setProfile(restored.strategyProfile);setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=prepareWatchlistForCurrentEntry(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
+    if(authScreen==='landing')return <PublicLanding onDemo={enterDemo} onAccount={()=>setAuthScreen('account')} theme={uiTheme} onToggleTheme={toggleUiTheme}/>;
+    return <AuthView theme={uiTheme} onToggleTheme={toggleUiTheme} onBack={()=>setAuthScreen('landing')} onDemo={enterDemo} onAuthenticated={(name,isNew,remember)=>{setDemoMode(false);setAccountName(name);setAccountRole(localStorage.getItem('rabbit-account-role')||'member');remoteSyncReady.current=false;setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setProfile(DEFAULT_PREFERENCES.strategyProfile);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){const restored=normalizeAccountPreferences(JSON.parse(saved));setPreferences(restored);setProfile(restored.strategyProfile);setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=prepareWatchlistForCurrentEntry(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
   }
 
   return (
@@ -1461,6 +1478,7 @@ export default function Home() {
           <button className="profile-cycle" onClick={()=>setStrategyOpen(true)} aria-label={`Smart-T V4 当前使用${profile}，点击查看策略档位`} title="操盘台与模拟回测共用此档位"><span>V4 · {profile.replace('档','')}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
           <button className="account-button" onClick={()=>setAccountOpen(true)} aria-label="打开账户中心"><span>{accountName.slice(0,1).toUpperCase()}</span><b>{accountName}</b><i>⌄</i></button>
+          <button className="icon-button theme-toggle" type="button" onClick={toggleUiTheme} aria-label={uiTheme==='dark'?'切换到白天模式':'切换到黑夜模式'} title={uiTheme==='dark'?'白天模式':'黑夜模式'}><span aria-hidden="true">{uiTheme==='dark'?'☀':'☾'}</span></button>
           <button className="icon-button" onClick={()=>setOnboardingOpen(true)} aria-label="打开账户与监控设置" title="账户与监控设置">⚙</button>
         </div>
       </header>
@@ -1651,7 +1669,7 @@ export default function Home() {
   );
 }
 
-function AuthView({onAuthenticated,onBack,onDemo}:{onAuthenticated:(name:string,isNew:boolean,remember:boolean)=>void;onBack:()=>void;onDemo:()=>void}) {
+function AuthView({onAuthenticated,onBack,onDemo,theme,onToggleTheme}:{onAuthenticated:(name:string,isNew:boolean,remember:boolean)=>void;onBack:()=>void;onDemo:()=>void;theme:UiTheme;onToggleTheme:()=>void}) {
   const [mode,setMode]=useState<'login'|'register'>('login');
   const [username,setUsername]=useState('');
   const [password,setPassword]=useState('');
@@ -1702,6 +1720,7 @@ function AuthView({onAuthenticated,onBack,onDemo}:{onAuthenticated:(name:string,
     <div className="auth-entry-floating">
       <button type="button" onClick={onBack}>← 产品首页</button>
       <span><a href="/terms" target="_blank" rel="noreferrer">用户协议</a><i/> <a href="/privacy" target="_blank" rel="noreferrer">隐私政策</a></span>
+      <button className="theme-toggle" type="button" onClick={onToggleTheme} aria-label={theme==='dark'?'切换到白天模式':'切换到黑夜模式'} title={theme==='dark'?'白天模式':'黑夜模式'}><span aria-hidden="true">{theme==='dark'?'☀':'☾'}</span></button>
       <button type="button" onClick={onDemo}>免注册演示</button>
     </div>
     <section className="auth-brand-panel"><div className="auth-brand"><img className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志"/><span><b aria-label="双兔助手 做T神器"><span aria-hidden="true">双兔助手</span></b><small>做T神器 · RABBIT QUANT</small></span></div><div className="auth-message"><span className="eyebrow">RABBIT SMART‑T</span><h1>把复杂的盘面，<br/><em>变成简单的操作。</em></h1><p>多股监控、正反T决策、当日仓位闭环与四兔持续训练。</p></div><div className="auth-points"><span><i/>市场雷达硬门控</span><span><i/>T+1可卖数量校验</span><span><i/>收盘恢复计划底仓</span></div><small className="auth-disclaimer">策略研究工具 · 不构成投资建议</small></section>

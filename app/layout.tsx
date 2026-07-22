@@ -13,6 +13,7 @@ import "./public-landing.css";
 import "./legal.css";
 import "./mobile.css";
 import "./minimal.css";
+import "./theme.css";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -35,7 +36,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('rabbit-ui-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark'}catch(e){document.documentElement.dataset.theme='dark'}})();`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

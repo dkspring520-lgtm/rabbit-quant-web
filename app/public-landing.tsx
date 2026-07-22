@@ -5,6 +5,8 @@ import Link from "next/link";
 type PublicLandingProps = {
   onDemo: () => void;
   onAccount: () => void;
+  theme: "dark" | "light";
+  onToggleTheme: () => void;
 };
 
 const productFeatures = [
@@ -14,7 +16,7 @@ const productFeatures = [
   { number:"04", title:"多股事件雷达", copy:"监控列表与消息雷达联动；过期、重复或无法确认的消息不直接改变正式信号。" },
 ];
 
-export default function PublicLanding({onDemo,onAccount}:PublicLandingProps) {
+export default function PublicLanding({onDemo,onAccount,theme,onToggleTheme}:PublicLandingProps) {
   const openZijinExperiment=()=>{
     window.history.replaceState({},"","/?view=zijin-lab");
     onDemo();
@@ -23,6 +25,7 @@ export default function PublicLanding({onDemo,onAccount}:PublicLandingProps) {
     <header className="public-nav">
       <a className="public-brand" href="#top" aria-label="双兔助手 做T神器首页"><img className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志"/><span><b>双兔助手</b><small>做T神器 · SMART-T SYSTEM</small></span></a>
       <nav aria-label="产品导航"><a href="#features">核心功能</a><a href="#workflow">使用流程</a><a href="#safety">安全边界</a><Link href="/?view=zijin-lab" onClick={event=>{event.preventDefault();openZijinExperiment()}}>紫金实验进度</Link></nav>
+      <button className="theme-toggle public-theme-toggle" type="button" onClick={onToggleTheme} aria-label={theme==='dark'?'切换到白天模式':'切换到黑夜模式'} title={theme==='dark'?'白天模式':'黑夜模式'}><span aria-hidden="true">{theme==='dark'?'☀':'☾'}</span></button>
       <button onClick={onAccount}>登录 / 注册</button>
     </header>
 

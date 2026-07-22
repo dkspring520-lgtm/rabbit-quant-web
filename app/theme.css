@@ -1,0 +1,227 @@
+/* Dual appearance system. Dark remains the product default; light is a calm
+   daylight trading surface rather than a pure-white recolor. */
+:root {
+  color-scheme: dark;
+  --panel:#0a0d0c;
+  --panel-strong:#070a09;
+  --field:#101413;
+  --grid:#202524;
+  --shadow:rgba(0,0,0,.42);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg:#f2f5f4;
+  --surface:#ffffff;
+  --surface-2:#e9efed;
+  --panel:#f8faf9;
+  --panel-strong:#ffffff;
+  --field:#ffffff;
+  --line:#cbd5d2;
+  --line-soft:#dde4e2;
+  --text:#17201e;
+  --text-soft:#273633;
+  --muted:#586a66;
+  --dim:#7b8b87;
+  --teal:#087f73;
+  --teal-2:#0b9687;
+  --coral:#d83f3b;
+  --amber:#a96e00;
+  --green:#16845d;
+  --red:#d83f3b;
+  --grid:#d8e0de;
+  --shadow:rgba(29,48,43,.14);
+}
+
+.theme-toggle {
+  width:36px;
+  min-width:36px;
+  padding:0 !important;
+  display:grid !important;
+  place-items:center;
+  font-size:17px !important;
+  line-height:1;
+}
+
+.theme-toggle span { display:block; transform:translateY(-1px); }
+
+:root[data-theme="light"] body,
+:root[data-theme="light"] .app-shell,
+:root[data-theme="light"] .product-home,
+:root[data-theme="light"] .module-view,
+:root[data-theme="light"] .holdings-view,
+:root[data-theme="light"] .backtest-view {
+  background:var(--bg);
+  color:var(--text);
+}
+
+:root[data-theme="light"] .app-shell {
+  background:radial-gradient(circle at 72% 12%,rgba(8,127,115,.055),transparent 30%),var(--bg);
+}
+
+:root[data-theme="light"] .topbar,
+:root[data-theme="light"] .ticker,
+:root[data-theme="light"] .decision-zone,
+:root[data-theme="light"] .recovery-panel,
+:root[data-theme="light"] .backtest-config,
+:root[data-theme="light"] .market-list,
+:root[data-theme="light"] .public-site,
+:root[data-theme="light"] .auth-page,
+:root[data-theme="light"] .auth-form-panel {
+  background:var(--panel);
+}
+
+:root[data-theme="light"] .topbar {
+  box-shadow:0 2px 14px rgba(29,48,43,.06);
+}
+
+:root[data-theme="light"] .grid-line,
+:root[data-theme="light"] .volume-divider,
+:root[data-theme="light"] .public-grid {
+  stroke:var(--grid);
+}
+
+:root[data-theme="light"] .last-dot { stroke:#fff; }
+:root[data-theme="light"] .volume { opacity:.72; }
+
+:root[data-theme="light"] :is(
+  .signal-layer,
+  .training-role-grid p,
+  .context-radar-grid>span,
+  .event-radar-list>a,
+  .candidate-audit-list article,
+  .research-card,
+  .training-purpose,
+  .lab-results,
+  .lab-agent,
+  .position-card,
+  .position-overview,
+  .manual-trade-form,
+  .closure-guard,
+  .radar-gate,
+  .training-console,
+  .broker-account-box,
+  .market-row,
+  .market-title,
+  .public-feature-grid article,
+  .public-signal,
+  .auth-card,
+  .auth-local-note,
+  .onboarding-card,
+  .preference-watchlist>div,
+  .strategy-detail,
+  .publish-card,
+  .detail-rules,
+  .member-admin-panel,
+  .member-row button,
+  .stock-agent-switch-actions button
+) {
+  background:var(--surface);
+}
+
+:root[data-theme="light"] :is(
+  .signal-funnel-note,
+  .training-scope-strip p,
+  .event-radar-summary,
+  .ledger-title,
+  .field.static-field,
+  .backtest-config input,
+  .backtest-config select,
+  .manual-trade-form input,
+  .manual-trade-form select,
+  .publish-card input,
+  .publish-card textarea,
+  .publish-card select,
+  .auth-field>input,
+  .auth-field>div,
+  .stock-add-row input
+) {
+  background:var(--field);
+}
+
+:root[data-theme="light"] :is(.ticker-item.selected,.agent:hover,.event-radar-list>a:hover,.ledger-filter button.active) {
+  background:var(--surface-2);
+}
+
+:root[data-theme="light"] .workspace:fullscreen,
+:root[data-theme="light"] .workspace.workspace-fullscreen {
+  background:var(--bg);
+}
+
+:root[data-theme="light"] .auth-brand-panel {
+  background:radial-gradient(circle at 20% 75%,rgba(8,127,115,.12),transparent 30%),linear-gradient(135deg,#eef5f3,#f8faf9);
+}
+
+:root[data-theme="light"] .public-site {
+  background:radial-gradient(circle at 78% 12%,rgba(8,127,115,.08),transparent 27%),var(--bg);
+}
+
+:root[data-theme="light"] .public-nav,
+:root[data-theme="light"] .auth-entry-floating {
+  background:rgba(248,250,249,.92);
+  box-shadow:0 4px 20px rgba(29,48,43,.07);
+}
+
+:root[data-theme="light"] .public-terminal {
+  background:linear-gradient(145deg,rgba(8,127,115,.055),transparent 45%),#fff;
+  border-color:var(--line);
+  box-shadow:0 24px 70px rgba(29,48,43,.12);
+}
+
+:root[data-theme="light"] :is(.onboarding-overlay,.market-overlay,.member-admin-overlay) {
+  background:rgba(32,45,42,.45);
+}
+
+:root[data-theme="light"] .alert-log-overlay {
+  background:linear-gradient(180deg,rgba(238,244,242,.08),rgba(50,65,61,.22));
+}
+
+:root[data-theme="light"] .alert-log-dialog {
+  background:rgba(250,252,251,.99);
+  box-shadow:0 -24px 70px rgba(29,48,43,.18);
+}
+
+:root[data-theme="light"] .rabbit-progress {
+  background:radial-gradient(circle at 18% 0,rgba(8,127,115,.10),transparent 35%),linear-gradient(135deg,#f7fbfa,#fff);
+  box-shadow:inset 0 0 26px rgba(8,127,115,.025),0 10px 32px rgba(29,48,43,.08);
+}
+
+:root[data-theme="light"] .rabbit-progress-rail,
+:root[data-theme="light"] .rabbit-progress-orbit {
+  background:#e5ece9;
+  box-shadow:inset 0 0 10px rgba(29,48,43,.14);
+}
+
+:root[data-theme="light"] .rabbit-progress-orbit {
+  box-shadow:0 0 0 4px rgba(229,236,233,.92),0 0 18px color-mix(in srgb,var(--rabbit-progress-color) 28%,transparent);
+}
+
+:root[data-theme="light"] .rabbit-progress-orbit>i { border-color:#e5ece9; }
+
+:root[data-theme="light"] .candidate-signal-marker circle { fill:#fff; }
+:root[data-theme="light"] .candidate-signal-marker text,
+:root[data-theme="light"] .live-signal-marker text {
+  stroke:#fff;
+  stroke-width:3px;
+}
+
+:root[data-theme="light"] .live-signal-marker circle { stroke:#fff; }
+
+:root[data-theme="light"] .primary-action:disabled {
+  background:#e4e9e7;
+  color:#7d8986;
+}
+
+:root[data-theme="light"] .primary-action.confirmed {
+  background:#dff0ec;
+  color:var(--teal);
+}
+
+:root[data-theme="light"] select { border-color:var(--line); }
+
+@media (max-width:760px) {
+  .top-actions .theme-toggle { display:grid !important; }
+  .public-theme-toggle { margin-left:auto !important; }
+  .public-nav .public-theme-toggle + button { flex:0 0 auto; margin-left:0; }
+  .auth-entry-floating .theme-toggle { flex:0 0 36px; }
+}
