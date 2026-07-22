@@ -1974,6 +1974,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
   const [zijinTrainingFetchedAt,setZijinTrainingFetchedAt]=useState<string|null>(null);
   const [zijinShadow,setZijinShadow]=useState<ZijinShadowAB|null>(null);
   const [zijinShadowConnection,setZijinShadowConnection]=useState<"loading"|"ok"|"error">("loading");
+  const [researchExpanded,setResearchExpanded]=useState(false);
   useEffect(()=>{
     let active=true;
     void import("@/lib/zijin-research-bundle")
@@ -2018,6 +2019,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
       const resetTimer=window.setTimeout(()=>{setZijinShadow(null);setZijinShadowConnection("loading");},0);
       return()=>window.clearTimeout(resetTimer);
     }
+    if(!researchExpanded)return;
     let active=true;
     let timer:number|undefined;
     const load=async()=>{
@@ -2040,11 +2042,10 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
     };
     void load();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
-  },[stock.code]);
+  },[stock.code,researchExpanded]);
   const storageKey=`rabbit-stock-research:${accountName.toLowerCase()}:${stock.code}`;
   const [notes,setNotes]=useState<StockResearchNote[]>(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];return Array.isArray(parsed)?parsed:[]}catch{return [];}});
   const [feedback,setFeedback]=useState('');
-  const [researchExpanded,setResearchExpanded]=useState(false);
   const [mode,setMode]=useState('观察');
   const [outcome,setOutcome]=useState('待验证');
   const [saveMessage,setSaveMessage]=useState('');
@@ -2060,19 +2061,21 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
     const upDays=recent.filter(bar=>bar.close>=bar.open).length;
     return {range,volumeRatio:averageVolume?latest.volume/averageVolume:0,trend:latest.close>=ma20?'日线仍在20日均价上方':'日线位于20日均价下方',close:quote?.price??latest.close,ma20,upDays};
   },[bars,quote?.price]);
-  const autoSamples=useMemo<AutoResearchSample[]>(()=>[...(relevantData?.intradaySessions??[])]
+  const researchSessions=useMemo(()=>[...(relevantData?.intradaySessions??[])]
     .filter(session=>session.minutes.length>=180)
     .sort((left,right)=>right.date.localeCompare(left.date))
-    .slice(0,20)
+    .slice(0,20),[relevantData?.intradaySessions]);
+  const autoSampleDayCount=researchSessions.length;
+  const autoSamples=useMemo<AutoResearchSample[]>(()=>researchExpanded?researchSessions
     .map(session=>{
       const result=runSmartTReplay(session.minutes,{capital:200_000,baseShares:position.plannedBase,sellable:position.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:session.previousClose,randomValue:0,...smartTProfitModeOptions(stock.code,profitMode)});
       return {date:session.date,cycles:result.trades,wins:result.wins,net:result.net,status:result.trades?`${result.trades} 个闭环 · ${money(result.net)}`:"无正式信号"};
-    }),[relevantData?.intradaySessions,position.plannedBase,position.sellable,profile,stock.code,profitMode]);
+    }):[],[researchExpanded,researchSessions,position.plannedBase,position.sellable,profile,stock.code,profitMode]);
   const autoCycles=autoSamples.reduce((sum,item)=>sum+item.cycles,0);
   const autoWins=autoSamples.reduce((sum,item)=>sum+item.wins,0);
   const autoNet=autoSamples.reduce((sum,item)=>sum+item.net,0);
   const zijinOpeningEvidence=useMemo(()=>{
-    if(stock.code!=="601899")return null;
+    if(!researchExpanded||stock.code!=="601899")return null;
     const sessions=[...(relevantData?.intradaySessions??[])]
       .filter(session=>session.minutes.length>=6)
       .sort((left,right)=>right.date.localeCompare(left.date))
@@ -2091,13 +2094,13 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
       if(firstCandidate.direction==="反T")reverseDays+=1;
     }
     return {sessions:sessions.length,candidateDays,positiveDays,reverseDays};
-  },[stock.code,relevantData?.intradaySessions]);
-  const zijinFactorResearch=useMemo(()=>stock.code==="601899"?analyzeZijinFactorResearch({
+  },[researchExpanded,stock.code,relevantData?.intradaySessions]);
+  const zijinFactorResearch=useMemo(()=>researchExpanded&&stock.code==="601899"?analyzeZijinFactorResearch({
     sessions:relevantData?.intradaySessions??[],
     liveMinutes:relevantData?.minutes??[],
     previousClose:relevantData?.quote.previousClose??null,
-  }):null,[stock.code,relevantData?.intradaySessions,relevantData?.minutes,relevantData?.quote]);
-  const samples=autoSamples.length+notes.length+manualCount;
+  }):null,[researchExpanded,stock.code,relevantData?.intradaySessions,relevantData?.minutes,relevantData?.quote]);
+  const samples=autoSampleDayCount+notes.length+manualCount;
   const maturity=samples<10?'样本不足':samples<30?'观察中':'候选验证';
   const candidate=stats.range===0?'等待数据形成候选':stats.range<3.5?'低波动回踩观察':'高波动分批观察';
   const saveNote=()=>{const note=feedback.trim();if(!note)return;const next=[{id:`${Date.now()}`,date:new Date().toLocaleDateString('zh-CN'),mode,outcome,note},...notes];setNotes(next);try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}setFeedback('');setOutcome('待验证');setSaveMessage(`已保存：${mode} · ${outcome}`);window.setTimeout(()=>setSaveMessage(''),2500);};
@@ -2166,7 +2169,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
   return <section className="stock-research-view">
     <div className="research-head"><div><span className="eyebrow">SINGLE STOCK RESEARCH</span><h1>先看结论，再看细节</h1><p>这里负责研究一只股票的习惯；实时买卖提醒仍在操盘台。</p></div><button onClick={onOpenConsole}>去看今日信号 →</button></div>
     {researchExpanded&&<div className="research-purpose"><b>这个页面只回答 3 个问题</b><div><p><i>01</i><span><strong>它平时怎么走？</strong><small>看振幅、趋势、量能和日内习惯</small></span></p><p><i>02</i><span><strong>什么做 T 条件更适合？</strong><small>根据历史记录形成观察方案</small></span></p><p><i>03</i><span><strong>今天的信号靠谱吗？</strong><small>把历史股性作为操盘台的参考背景</small></span></p></div><em>看实时买卖信号请进入“操盘台”</em></div>}
-    <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSamples.length} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
+    <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSampleDayCount} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
     <div className="research-overview-actions"><div><b>核心内容已展开</b><span>{researchExpanded?'正在显示训练证据、人工复盘和全部研究数据。':'训练证据、人工复盘和专业数据已收起。'}</span></div><button type="button" aria-expanded={researchExpanded} onClick={()=>setResearchExpanded(value=>!value)}>{researchExpanded?'收起研究详情':'展开研究详情'}</button></div>
     {stock.code==="601899"&&<article className={`research-compact-training ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'stale':zijinTrainingProgress?.status??'loading'}`}><div><span>紫金研究模型</span><b>{zijinTrainingConnection==='error'?'训练状态接口暂时无法连接':!zijinTrainingProgress?'正在读取训练记录':trainingStale?'训练任务心跳超时':schedulerOffline?'最近一轮已结束 · 自动调度器离线':zijinTrainingProgress.status==='running'?activeResearchStageLabel:currentQualified?'发现候选，等待人工评审':'本轮未通过 · 在线等待新实验'}</b><small>{zijinTrainingFetchedAt?`页面最近核对：${new Date(zijinTrainingFetchedAt).toLocaleString('zh-CN',{hour12:false})}`:'只展示真实训练结果，不会自动修改 V4。'}</small></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></article>}
     {stock.code==="601899"&&researchExpanded&&<div id="zijin-experiment-progress" className={`zijin-training-live zijin-training-prominent ${trainingStale?'stale':zijinTrainingProgress?.status??'loading'}`}>
@@ -2271,7 +2274,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
       </>:<footer><span>训练数据仍在服务器保留，页面会自动重试</span><b>连接中</b></footer>}
     </div>}
     <div className="research-grid">
-      <div className="research-column research-primary"><article className="research-card research-summary"><span>当前结论</span><h2>{candidate}</h2><p>{stats.trend}；近20日平均振幅 {stats.range?`${stats.range.toFixed(2)}%`:'待计算'}。已回放 {autoSamples.length} 个交易日，形成 {autoCycles} 个闭环，扣费后 {autoSamples.length?money(autoNet):'等待样本'}。</p><div><b>研究参考</b><small>正式买卖点仍由操盘台 V4 逐分钟过滤。</small></div></article>{researchExpanded&&<article className="research-card feedback-card"><span>人工确认</span><p>如需纠正系统结论，选择标签并写一句原因。</p><div className="feedback-control"><small>判断类型</small><div>{['观察','正T','反T'].map(item=><button key={item} className={mode===item?'active':''} onClick={()=>{setMode(item);setSaveMessage('')}}>{item}{mode===item?' ✓':''}</button>)}</div></div><div className="feedback-control"><small>实际结果</small><div>{['待验证','有效','无效'].map(item=><button key={item} className={outcome===item?'active':''} onClick={()=>{setOutcome(item);setSaveMessage('')}}>{item}{outcome===item?' ✓':''}</button>)}</div></div><textarea value={feedback} onChange={event=>{setFeedback(event.target.value);setSaveMessage('')}} placeholder="例如：量能未跟上，因此没有执行。"/><button onClick={saveNote} disabled={!feedback.trim()}>{saveMessage||'保存人工确认'}</button></article>}</div>
+      <div className="research-column research-primary"><article className="research-card research-summary"><span>当前结论</span><h2>{candidate}</h2><p>{stats.trend}；近20日平均振幅 {stats.range?`${stats.range.toFixed(2)}%`:'待计算'}。{researchExpanded?`已回放 ${autoSamples.length} 个交易日，形成 ${autoCycles} 个闭环，扣费后 ${autoSamples.length?money(autoNet):'等待样本'}。`:`已取得 ${autoSampleDayCount} 个完整交易日；展开研究详情后计算闭环、费用与胜率。`}</p><div><b>研究参考</b><small>正式买卖点仍由操盘台 V4 逐分钟过滤。</small></div></article>{researchExpanded&&<article className="research-card feedback-card"><span>人工确认</span><p>如需纠正系统结论，选择标签并写一句原因。</p><div className="feedback-control"><small>判断类型</small><div>{['观察','正T','反T'].map(item=><button key={item} className={mode===item?'active':''} onClick={()=>{setMode(item);setSaveMessage('')}}>{item}{mode===item?' ✓':''}</button>)}</div></div><div className="feedback-control"><small>实际结果</small><div>{['待验证','有效','无效'].map(item=><button key={item} className={outcome===item?'active':''} onClick={()=>{setOutcome(item);setSaveMessage('')}}>{item}{outcome===item?' ✓':''}</button>)}</div></div><textarea value={feedback} onChange={event=>{setFeedback(event.target.value);setSaveMessage('')}} placeholder="例如：量能未跟上，因此没有执行。"/><button onClick={saveNote} disabled={!feedback.trim()}>{saveMessage||'保存人工确认'}</button></article>}</div>
       <div className="research-column research-secondary"><article className="research-card"><span>股性速览</span><div className="fingerprint"><p><small>平均振幅</small><b>{stats.range?`${stats.range.toFixed(2)}%`:'--'}</b></p><p><small>阳线天数</small><b>{bars.length?`${stats.upDays}/20`:'--'}</b></p><p><small>20日均价</small><b>{stats.ma20?stats.ma20.toFixed(2):'--'}</b></p><p><small>量能比</small><b>{stats.volumeRatio?`${stats.volumeRatio.toFixed(2)}×`:'--'}</b></p></div></article>{researchExpanded&&<article className="research-card"><span>待验证规律</span><ul className="candidate-list">{zijinOpeningEvidence&&<li><b>紫金早盘高波动观察</b><small>09:30–10:30 只用当时已出现的振幅、VWAP、三分钟动量与量比；近 {zijinOpeningEvidence.sessions} 个完整样本中 {zijinOpeningEvidence.candidateDays} 日形成候选（正T {zijinOpeningEvidence.positiveDays} / 反T {zijinOpeningEvidence.reverseDays}），尚不直接执行。</small><em>{zijinOpeningEvidence.sessions>=10?'验证中':'收集中'}</em></li>}<li><b>{candidate}</b><small>{stats.range<3.5?'振幅偏小时，提高确认门槛。':'波动偏大时，缩小单次仓位。'}</small><em>{autoSamples.length>=10?'验证中':'收集中'}</em></li><li><b>{stats.trend.includes('上方')?'趋势内回撤观察':'均值回归观察'}</b><small>{autoCycles?`已形成 ${autoCycles} 个闭环，盈利 ${autoWins} 个。`:'还没有足够正式闭环。'}</small><em>{autoCycles>=20?'可评审':'待样本'}</em></li></ul></article>}</div>
     </div>
     {zijinFactorResearch&&researchExpanded&&<section className="zijin-factor-lab">
