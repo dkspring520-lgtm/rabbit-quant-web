@@ -252,8 +252,10 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
 type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; edge:number; executable:boolean; stage?:"watch"|"candidate"; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; blockers:string[]; reason:string };
+type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; favorable:boolean; status:string };
+type OpenCandidateObservation = { direction:"正T"|"反T"; time:string; price:number; label:string; status:"候补未闭环" };
 type DeskHistoryRow = { time:string; direction:string; price:string; quantity:string; spread:string; status:string; tone?:"buy"|"sell"|"candidate" };
-type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
+type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; candidateCycles?:CandidateObservationCycle[]; openCandidate?:OpenCandidateObservation|null; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
 type ReplayMinute = { time:string; price:number; volume:number };
 type StockUniverseItem = { code:string; name:string; industry:string; market:string };
@@ -2873,6 +2875,14 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
             <span><small>成本拦截</small><b>{result.diagnostics?.costBlocked ?? 0}</b></span>
             <span><small>资金/仓位拦截</small><b>{result.diagnostics?.cashBlocked ?? 0}</b></span>
             <span><small>正式闭环</small><b>{result.trades}</b></span>
+          </div>
+          <div className="candidate-cycle-summary">
+            <div className="candidate-cycle-heading"><span><b>候补观察闭环</b><small>只复盘方向是否接续，不计入正式胜率与收益</small></span><em>{result.candidateCycles?.length ?? 0} 个已闭环{result.openCandidate?" · 1 个未闭环":""}</em></div>
+            {result.candidateCycles?.length?<div className="candidate-cycle-list">{result.candidateCycles.map(cycle=><article className={cycle.favorable?"favorable":"unfavorable"} key={`${cycle.id}-${cycle.entryTime}-${cycle.exitTime}`}>
+              <span><b>{cycle.direction} 候补 #{cycle.id}</b><small>{formatTime(cycle.entryTime)} {cycle.entryLabel} ¥{cycle.entryPrice.toFixed(2)} → {formatTime(cycle.exitTime)} {cycle.exitLabel} ¥{cycle.exitPrice.toFixed(2)}</small></span>
+              <em>{cycle.status} · {cycle.grossPct>=0?"+":""}{cycle.grossPct.toFixed(2)}%</em>
+            </article>)}</div>:<p className="candidate-cycle-empty">尚未出现方向相反、可配对的后续候补点。</p>}
+            {result.openCandidate&&<div className="candidate-cycle-open"><span><b>{result.openCandidate.status}</b><small>{formatTime(result.openCandidate.time)} · {result.openCandidate.label} · ¥{result.openCandidate.price.toFixed(2)}</small></span><em>等待后续独立候补点，不用收盘价补造结果</em></div>}
           </div>
           {visibleBacktestObservations.length>0?<div className="candidate-audit-list">{visibleBacktestObservations.map((observation,index)=>{
             const pivotState=observation.pivotAssessment==="strong"?"强确认":observation.pivotAssessment==="confirmed"?"已确认":"未确认";
