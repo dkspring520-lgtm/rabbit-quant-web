@@ -8,6 +8,8 @@ import {
   causalRangeEvidence,
   confirmCandidateDirectionFlip,
   crossedVwapCausally,
+  detectFallingKnifeConflict,
+  detectRisingKnifeConflict,
   describeVwapConfirmation,
   evaluateStructuralStop,
   minutesFromOpen,
@@ -30,6 +32,109 @@ test("VWAP crossing compares each minute against its own causal VWAP", () => {
   assert.equal(crossedVwapCausally({ direction: "BUY_FIRST", pivotDeviation: 0.05, currentDeviation: 0.26 }), false);
   assert.equal(crossedVwapCausally({ direction: "SELL_FIRST", pivotDeviation: 0.82, currentDeviation: -0.18 }), true);
   assert.equal(crossedVwapCausally({ direction: "SELL_FIRST", pivotDeviation: -0.05, currentDeviation: -0.18 }), false);
+});
+
+test("falling-knife guard blocks a buy during a still-declining structure", () => {
+  const broadDecline = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.92,
+    crossedVwap: false,
+    vwapMomentum15: -0.16,
+    vwapMomentum30: -0.95,
+    sessionMove: -0.05,
+    prePivotMove10: -0.80,
+    pivotAge: 3,
+  });
+  const weakSession = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.78,
+    crossedVwap: false,
+    vwapMomentum15: -0.08,
+    vwapMomentum30: -0.12,
+    sessionMove: -1.19,
+    prePivotMove10: -0.55,
+    pivotAge: 2,
+  });
+  const earlyBounce = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.80,
+    crossedVwap: false,
+    vwapMomentum15: -0.03,
+    vwapMomentum30: -0.07,
+    sessionMove: 0.16,
+    prePivotMove10: -1.28,
+    pivotAge: 2,
+  });
+
+  assert.equal(broadDecline.blocked, true);
+  assert.equal(broadDecline.broadVwapDecline, true);
+  assert.equal(weakSession.blocked, true);
+  assert.equal(weakSession.weakSessionDecline, true);
+  assert.equal(earlyBounce.blocked, true);
+  assert.equal(earlyBounce.rapidDeclineUnconfirmed, true);
+});
+
+test("falling-knife guard releases after causal stabilisation or VWAP recovery", () => {
+  const confirmedBounce = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.55,
+    crossedVwap: false,
+    vwapMomentum15: -0.03,
+    vwapMomentum30: -0.11,
+    sessionMove: -0.10,
+    prePivotMove10: -0.58,
+    pivotAge: 3,
+  });
+  const reclaimedVwap = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: 0.05,
+    crossedVwap: true,
+    vwapMomentum15: -0.16,
+    vwapMomentum30: -0.95,
+    sessionMove: -1.20,
+    prePivotMove10: -1.10,
+    pivotAge: 1,
+  });
+  const neutralReverseT = detectFallingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 0.80,
+    crossedVwap: false,
+    vwapMomentum15: 0.15,
+    vwapMomentum30: 0.45,
+    sessionMove: 1.50,
+    prePivotMove10: 1.10,
+    pivotAge: 1,
+  });
+
+  assert.equal(confirmedBounce.blocked, false);
+  assert.equal(reclaimedVwap.blocked, false);
+  assert.equal(neutralReverseT.blocked, false, "the buy-side guard must not alter sell-first / buy-back cycles");
+});
+
+test("rising-knife guard blocks selling into an unfinished rise", () => {
+  const strongRise = detectRisingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 0.82,
+    crossedVwap: false,
+    vwapMomentum15: 0.16,
+    vwapMomentum30: 0.48,
+    sessionMove: 1.80,
+    prePivotMove10: 1.10,
+    pivotAge: 2,
+  });
+  const confirmedTurn = detectRisingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 0.55,
+    crossedVwap: false,
+    vwapMomentum15: 0.03,
+    vwapMomentum30: 0.11,
+    sessionMove: 0.40,
+    prePivotMove10: 0.58,
+    pivotAge: 3,
+  });
+
+  assert.equal(strongRise.blocked, true);
+  assert.equal(confirmedTurn.blocked, false);
 });
 
 const morningTimes = [];
@@ -133,14 +238,15 @@ test("an opposite candidate cannot silently flip into a formal entry", () => {
   const base = {
     oppositeCandidate,
     pairEconomicallyDistinct: true,
-    nowMinute: 30,
+    nowMinute: 50,
     cooldown: 8,
+    minimumFlipMinutes: 30,
     structuralConfirmation: true,
     executionMomentumConfirmed: true,
   };
 
   assert.equal(confirmCandidateDirectionFlip({ ...base, pairEconomicallyDistinct: false }), false);
-  assert.equal(confirmCandidateDirectionFlip({ ...base, nowMinute: 26 }), false);
+  assert.equal(confirmCandidateDirectionFlip({ ...base, nowMinute: 49 }), false);
   assert.equal(confirmCandidateDirectionFlip({ ...base, structuralConfirmation: false }), false);
   assert.equal(confirmCandidateDirectionFlip(base), true);
   assert.equal(confirmCandidateDirectionFlip({ ...base, oppositeCandidate: null }), true);
