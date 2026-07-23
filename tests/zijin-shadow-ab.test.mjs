@@ -167,24 +167,42 @@ test("round-14 accepts only a causal early VWAP recovery from a low anchor", () 
 });
 
 test("round-14 features and decision ignore all later minutes", () => {
-  const prices = [100, 100, 100, 99, 98, 98, 98.2, 98.4, 98.5, 99.6];
+  const prices = [100, 99.5, 98.5, 97.5, 97, 97.5, 97.3, 97, 97.6, 97.7];
   const recoveryMinutes = prices.map((price, index) => ({ time: `09${String(30 + index).padStart(2, "0")}`, price, volume: 100 }));
   const recoveryPeers = Array.from({ length: 6 }, (_, peerIndex) => ({
     code: `recovery-peer-${peerIndex}`,
     minutes: recoveryMinutes.map((point, index) => ({ ...point, price: 50 + peerIndex + index * 0.04 })),
   }));
-  const before = computeVisibleFeatures({ minutes: recoveryMinutes, index: 7, previousClose: 100, peers: recoveryPeers });
-  const changedFuture = recoveryMinutes.map((point, index) => index > 7 ? { ...point, price: point.price * 20 } : point);
-  const after = computeVisibleFeatures({ minutes: changedFuture, index: 7, previousClose: 100, peers: recoveryPeers });
+  const before = computeVisibleFeatures({ minutes: recoveryMinutes, index: 8, previousClose: 100, peers: recoveryPeers });
+  const changedFuture = recoveryMinutes.map((point, index) => index > 8 ? { ...point, price: point.price * 20 } : point);
+  const after = computeVisibleFeatures({ minutes: changedFuture, index: 8, previousClose: 100, peers: recoveryPeers });
   assert.deepEqual(after, before);
   assert.equal(evaluateShadowCandidate("E", before).passed, true);
 
   const state = createShadowState("2026-07-21T01:32:00.000Z");
-  const candidate = processVisibleMinute(state, { marketDate: "20260722", minutes: recoveryMinutes, index: 7, previousClose: 100, peers: recoveryPeers });
+  const candidate = processVisibleMinute(state, { marketDate: "20260722", minutes: recoveryMinutes, index: 8, previousClose: 100, peers: recoveryPeers });
   assert.equal(candidate.find((event) => event.model === "E")?.event, "candidate");
-  const entry = processVisibleMinute(state, { marketDate: "20260722", minutes: recoveryMinutes, index: 8, previousClose: 100, peers: recoveryPeers });
+  const entry = processVisibleMinute(state, { marketDate: "20260722", minutes: recoveryMinutes, index: 9, previousClose: 100, peers: recoveryPeers });
   assert.equal(entry.find((event) => event.model === "E")?.event, "entry");
-  assert.equal(entry.find((event) => event.model === "E")?.price, 98.5);
+  assert.equal(entry.find((event) => event.model === "E")?.price, 97.7);
+});
+
+test("Zijin shadow models cannot bypass the shared trend-direction hard gate", () => {
+  const longFeatures = {
+    time: "0937",
+    buyTrendContinuationRisk: { blocked: true, reason: "下降途中尚未确认止跌" },
+  };
+  const blockedLong = evaluateShadowCandidate("E", longFeatures);
+  assert.equal(blockedLong.passed, false);
+  assert.match(blockedLong.failures[0], /方向硬门禁.*下降途中/);
+
+  const shortFeatures = {
+    time: "1010",
+    sellTrendContinuationRisk: { blocked: true, reason: "上涨途中尚未确认转弱" },
+  };
+  const blockedShort = evaluateShadowCandidate("D", shortFeatures);
+  assert.equal(blockedShort.passed, false);
+  assert.match(blockedShort.failures[0], /方向硬门禁.*上涨途中/);
 });
 
 test("external factors are recorded as prospective evidence without changing frozen model E", () => {
