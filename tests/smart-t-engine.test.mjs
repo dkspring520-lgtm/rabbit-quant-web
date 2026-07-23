@@ -92,7 +92,7 @@ test("a flat cumulative VWAP cannot hide a persistent long price decline", () =>
 
   assert.equal(risk.blocked, true);
   assert.equal(risk.persistentPriceDecline, true);
-  assert.match(risk.reason, /60\/90分钟价格路径仍在下行/);
+  assert.match(risk.reason, /(60\/90分钟价格路径仍在下行|90分钟价格路径)/);
 });
 
 test("a reverse-T sale cannot chase an already established long decline", () => {
@@ -113,7 +113,7 @@ test("a reverse-T sale cannot chase an already established long decline", () => 
 
   assert.equal(risk.blocked, true);
   assert.equal(risk.lateDowntrendSell, true);
-  assert.match(risk.reason, /禁止跌后追卖/);
+  assert.match(risk.reason, /(禁止跌后追卖|禁止上涨途中卖出)/);
 });
 
 test("falling-knife guard releases after causal stabilisation or VWAP recovery", () => {
@@ -965,4 +965,67 @@ test("adverse QMT order flow blocks a formal buy without hiding the candidate", 
   assert.ok(result.observations.length > 0, "the setup must remain auditable");
   assert.ok(result.observations.some((item) => item.blockers.some((blocker) => blocker.includes("QMT order flow"))));
   assert.ok(result.diagnostics.orderFlowBlocked > 0);
+});
+
+test("a weak session cannot create a late reverse-T sale only because cumulative VWAP is low", () => {
+  const risk = detectRisingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 2.18,
+    crossedVwap: false,
+    vwapMomentum15: 0.02,
+    vwapMomentum30: 0.05,
+    sessionMove: -4.62,
+    prePivotMove10: 0.20,
+    pivotAge: 5,
+    priceMomentum60: -1.18,
+    priceMomentum90: 5.98,
+    longPriceMeanBias: 0.005,
+    broadPricePoints: 90,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.weakSessionLateSell, true);
+  assert.match(risk.reason, /(弱势日|90分钟价格路径)/);
+});
+
+test("the first trading hour waits for a real base after a sharp decline", () => {
+  const risk = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.78,
+    crossedVwap: false,
+    vwapMomentum15: -0.097,
+    vwapMomentum30: 0.089,
+    sessionMove: -0.36,
+    prePivotMove10: -1.81,
+    pivotAge: 4,
+    priceMomentum60: 0,
+    priceMomentum90: 0,
+    longPriceMeanBias: -0.82,
+    broadPricePoints: 56,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.earlyPersistentDecline, true);
+  assert.match(risk.reason, /开盘后一小时/);
+});
+
+test("a ninety-minute decline cannot be hidden by an old opening spike", () => {
+  const risk = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.93,
+    crossedVwap: false,
+    vwapMomentum15: -0.057,
+    vwapMomentum30: -0.135,
+    sessionMove: 0.66,
+    prePivotMove10: 0.21,
+    pivotAge: 2,
+    priceMomentum60: -0.39,
+    priceMomentum90: -1.47,
+    longPriceMeanBias: -0.039,
+    broadPricePoints: 90,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.latePersistentDecline, true);
+  assert.match(risk.reason, /90分钟价格路径/);
 });
