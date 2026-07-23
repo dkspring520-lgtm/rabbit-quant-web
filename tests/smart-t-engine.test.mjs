@@ -215,6 +215,42 @@ test("rising-knife guard blocks selling into an unfinished rise", () => {
   assert.equal(confirmedTurn.blocked, false);
 });
 
+test("heavy opening volume cannot flatten away a late recovery trend", () => {
+  const risingRecovery = detectRisingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 1.81,
+    crossedVwap: false,
+    vwapMomentum15: 0.013,
+    vwapMomentum30: 0.045,
+    sessionMove: -1.44,
+    prePivotMove10: 0,
+    pivotAge: 5,
+    priceMomentum60: -0.32,
+    priceMomentum90: 1.81,
+    longPriceMeanBias: 0.20,
+    broadPricePoints: 90,
+  });
+  const fallingRecovery = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -1.81,
+    crossedVwap: false,
+    vwapMomentum15: -0.013,
+    vwapMomentum30: -0.045,
+    sessionMove: 1.44,
+    prePivotMove10: 0,
+    pivotAge: 5,
+    priceMomentum60: 0.32,
+    priceMomentum90: -1.81,
+    longPriceMeanBias: -0.20,
+    broadPricePoints: 90,
+  });
+
+  assert.equal(risingRecovery.blocked, true);
+  assert.equal(risingRecovery.lateRecoveryRise, true);
+  assert.equal(fallingRecovery.blocked, true);
+  assert.equal(fallingRecovery.lateRecoveryDecline, true);
+});
+
 const morningTimes = [];
 for (let hour = 9, minute = 30; hour < 11 || (hour === 11 && minute <= 30);) {
   morningTimes.push(`${String(hour).padStart(2, "0")}${String(minute).padStart(2, "0")}`);
