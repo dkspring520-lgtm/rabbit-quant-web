@@ -25,6 +25,7 @@ import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-remi
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
+import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
 import PublicLanding from "./public-landing";
 
 const LIVE_CHART = Object.freeze({
@@ -2486,7 +2487,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   };
   const replay=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number}):BacktestResult=>runSmartTReplay(data.minutes ?? [],{
     capital:account?.capital ?? capital,baseShares:account?.baseShares ?? baseShares,sellable:account?.sellable ?? sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,profile,
-    previousClose:data.quote.previousClose ?? data.bars.at(-2)?.close ?? null,
+    previousClose:data.quote.previousClose ?? null,
     randomValue:0,
     ...smartTProfitModeOptions(data.quote.code??stock.code,profitMode),
   });
@@ -2499,7 +2500,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const sessionData=(data:MarketData,session:IntradaySession):MarketData=>{
     const prices=session.minutes.map(point=>point.price);
     const open=prices[0] ?? null; const price=prices.at(-1) ?? null;
-    const previousClose=session.previousClose;
+    const previousClose=resolveHistoricalPreviousClose(session,data.bars);
     return {...data,sampleDate:session.date,minutes:session.minutes,intradaySessions:data.intradaySessions,quote:{...data.quote,price,previousClose,open,high:prices.length?Math.max(...prices):null,low:prices.length?Math.min(...prices):null,change:price!==null&&previousClose!==null?price-previousClose:null,changePercent:price!==null&&previousClose?((price-previousClose)/previousClose)*100:null}};
   };
   const runSingle = async () => {
