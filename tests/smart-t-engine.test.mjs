@@ -7,6 +7,7 @@ import {
   causalCyclePreference,
   causalRangeEvidence,
   confirmCandidateDirectionFlip,
+  crossedVwapCausally,
   describeVwapConfirmation,
   evaluateStructuralStop,
   minutesFromOpen,
@@ -22,6 +23,13 @@ test("VWAP confirmation wording separates the earlier pivot from the current sid
     describeVwapConfirmation({ direction: "SELL_FIRST", pivotDeviation: 0.82, currentDeviation: -0.18, volumeRatio: 2.1 }),
     "此前高点位于 VWAP 上方 0.82%，当前已跌回 VWAP 下方 0.18%；倍量 2.10×",
   );
+});
+
+test("VWAP crossing compares each minute against its own causal VWAP", () => {
+  assert.equal(crossedVwapCausally({ direction: "BUY_FIRST", pivotDeviation: -0.69, currentDeviation: 0.26 }), true);
+  assert.equal(crossedVwapCausally({ direction: "BUY_FIRST", pivotDeviation: 0.05, currentDeviation: 0.26 }), false);
+  assert.equal(crossedVwapCausally({ direction: "SELL_FIRST", pivotDeviation: 0.82, currentDeviation: -0.18 }), true);
+  assert.equal(crossedVwapCausally({ direction: "SELL_FIRST", pivotDeviation: -0.05, currentDeviation: -0.18 }), false);
 });
 
 const morningTimes = [];
