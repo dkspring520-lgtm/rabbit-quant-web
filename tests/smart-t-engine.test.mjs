@@ -74,6 +74,27 @@ test("falling-knife guard blocks a buy during a still-declining structure", () =
   assert.equal(earlyBounce.rapidDeclineUnconfirmed, true);
 });
 
+test("a flat cumulative VWAP cannot hide a persistent long price decline", () => {
+  const risk = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -1.04,
+    crossedVwap: false,
+    vwapMomentum15: -0.02,
+    vwapMomentum30: -0.06,
+    sessionMove: 0.99,
+    prePivotMove10: -0.33,
+    pivotAge: 6,
+    priceMomentum60: -0.65,
+    priceMomentum90: -1.29,
+    longPriceMeanBias: -0.06,
+    broadPricePoints: 90,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.persistentPriceDecline, true);
+  assert.match(risk.reason, /60\/90分钟价格路径仍在下行/);
+});
+
 test("falling-knife guard releases after causal stabilisation or VWAP recovery", () => {
   const confirmedBounce = detectFallingKnifeConflict({
     direction: "BUY_FIRST",
