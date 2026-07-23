@@ -1199,7 +1199,7 @@ export default function Home() {
         : agentEvaluation
         ? `${item.name}，${agentEvaluation.direction??"做T"}专属候选观察，不是买卖指令`
         : isVwapDisplacementObservation(latestObservation)
-        ? `${item.name}，价格${latestObservation!.direction==="正T"?"低位":"高位"}偏离均价线，请观察确认，不是买卖指令`
+        ? `${item.name}，${latestObservation!.reason.split("；")[0]}，请观察确认，不是买卖指令`
         : `${item.name}，${latestObservation?.direction??"做T"}候选观察，不是买卖指令`;
       if(alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latest!.direction}${latest!.side}提醒`:candidateSpeech,isRisk);
       if(alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
