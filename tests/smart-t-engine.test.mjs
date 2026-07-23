@@ -6,6 +6,7 @@ import {
   buildCandidateObservationCycles,
   causalCyclePreference,
   causalRangeEvidence,
+  causalVolatilityScale,
   confirmCandidateDirectionFlip,
   crossedVwapCausally,
   detectFallingKnifeConflict,
@@ -15,6 +16,41 @@ import {
   minutesFromOpen,
   runSmartTReplay,
 } from "../lib/smart-t-engine.mjs";
+
+test("causal realised volatility widens high-volatility minutes without fake ATR", () => {
+  const low = Array.from({ length: 40 }, (_, index) => ({
+    time: `10${String(index).padStart(2, "0")}`,
+    price: 10 + index * 0.001,
+    volume: 1_000,
+  }));
+  const high = Array.from({ length: 40 }, (_, index) => ({
+    time: `10${String(index).padStart(2, "0")}`,
+    price: 10 + (index % 2 === 0 ? -0.035 : 0.035) + index * 0.002,
+    volume: 1_000,
+  }));
+
+  const lowVolatility = causalVolatilityScale(low, 39);
+  const highVolatility = causalVolatilityScale(high, 39);
+
+  assert.equal(lowVolatility.samples, 30);
+  assert.equal(highVolatility.samples, 30);
+  assert.ok(highVolatility.realisedPct > lowVolatility.realisedPct);
+  assert.ok(highVolatility.scale > lowVolatility.scale);
+  assert.equal(lowVolatility.scale, 0.8);
+});
+
+test("causal realised volatility is unchanged when future minutes are appended", () => {
+  const rows = Array.from({ length: 60 }, (_, index) => ({
+    time: `10${String(index).padStart(2, "0")}`,
+    price: 10 + Math.sin(index / 3) * 0.05,
+    volume: 1_000 + index,
+  }));
+
+  assert.deepEqual(
+    causalVolatilityScale(rows, 30),
+    causalVolatilityScale(rows.slice(0, 31), 30),
+  );
+});
 
 test("VWAP confirmation wording separates the earlier pivot from the current side", () => {
   assert.equal(
@@ -1017,6 +1053,37 @@ test("the first trading hour waits for a real base after a sharp decline", () =>
   assert.equal(risk.blocked, true);
   assert.equal(risk.earlyPersistentDecline, true);
   assert.match(risk.reason, /开盘后一小时/);
+});
+
+test("classic V4 stays fixed unless causal volatility mode is explicitly selected", () => {
+  const rows = openingRecoverySession("rise");
+  const baseline = runSmartTReplay(rows, options);
+  const explicitFixed = runSmartTReplay(rows, { ...options, volatilityMode: "fixed" });
+
+  assert.deepEqual(explicitFixed.actions, baseline.actions);
+  assert.deepEqual(explicitFixed.cycleNets, baseline.cycleNets);
+  assert.equal(explicitFixed.diagnostics.volatilityAdaptivePoints, 0);
+  assert.equal(explicitFixed.diagnostics.volatilityScaleAvg, 1);
+});
+
+test("causal volatility shadow reports its scale and reproduces an entry from the exact prefix", () => {
+  const rows = openingRecoverySession("rise");
+  const full = runSmartTReplay(rows, { ...options, volatilityMode: "causal-realized" });
+
+  assert.ok(full.diagnostics.volatilityAdaptivePoints > 0);
+  assert.ok(full.diagnostics.volatilityScaleMin >= 0.8);
+  assert.ok(full.diagnostics.volatilityScaleMax <= 1.3);
+  assert.ok(full.diagnostics.realisedVolatilityPctAvg > 0);
+
+  if (full.actions.length) {
+    const entry = full.actions[0];
+    const entryIndex = rows.findIndex((point) => point.time === entry.time);
+    const prefix = runSmartTReplay(rows.slice(0, entryIndex + 1), {
+      ...options,
+      volatilityMode: "causal-realized",
+    });
+    assert.deepEqual(prefix.actions, [entry]);
+  }
 });
 
 test("a ninety-minute decline cannot be hidden by an old opening spike", () => {
