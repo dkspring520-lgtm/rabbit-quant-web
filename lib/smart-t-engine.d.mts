@@ -98,8 +98,20 @@ export type SmartTOptions = {
   randomValue?: number;
   strategyVersion?: string;
   gateAudit?: boolean;
+  volatilityMode?: "fixed" | "causal-realized";
 };
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
+export function causalVolatilityScale(
+  points: SmartTMinute[],
+  index: number,
+  options?: {
+    window?: number;
+    referencePct?: number;
+    minScale?: number;
+    maxScale?: number;
+    minSamples?: number;
+  },
+): { scale: number; realisedPct: number; samples: number };
 export function buildCandidateObservationCycles(observations: SmartTObservation[]): {
   cycles: SmartTReplayResult["candidateCycles"];
   open: SmartTReplayResult["openCandidate"];
