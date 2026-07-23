@@ -65,6 +65,23 @@ export type SmartTReplayResult = {
   actions: SmartTAction[];
   observations: SmartTObservation[];
   diagnostics: Record<string, number>;
+  gateAudit: null | {
+    mode: "research-only-post-replay";
+    horizonMinutes: number;
+    rejectedCandidateMinutes: number;
+    auditedCandidateMinutes: number;
+    favourableRejected: number;
+    gates: Record<string, {
+      rejected: number;
+      soleReject: number;
+      favourable: number;
+      favourableRate: number;
+      soleFavourable: number;
+      soleFavourableRate: number;
+      averageMfePct: number;
+      averageMaePct: number;
+    }>;
+  };
 };
 export type SmartTOptions = {
   capital: number;
@@ -80,6 +97,7 @@ export type SmartTOptions = {
   previousClose?: number | null;
   randomValue?: number;
   strategyVersion?: string;
+  gateAudit?: boolean;
 };
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
 export function buildCandidateObservationCycles(observations: SmartTObservation[]): {

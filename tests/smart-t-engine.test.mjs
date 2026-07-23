@@ -379,6 +379,18 @@ test("future prices cannot rewrite an already emitted signal", () => {
   assert.equal(beforeCutoff(rising).length, 1);
 });
 
+test("gate audit labels rejected candidates after replay without changing V4 decisions", () => {
+  const rows = openingRecoverySession("rise");
+  const classic = runSmartTReplay(rows, options);
+  const audited = runSmartTReplay(rows, { ...options, gateAudit: true });
+
+  assert.deepEqual(audited.actions, classic.actions);
+  assert.deepEqual(audited.cycleNets, classic.cycleNets);
+  assert.equal(audited.gateAudit?.mode, "research-only-post-replay");
+  assert.equal(audited.gateAudit?.horizonMinutes, 30);
+  assert.ok((audited.gateAudit?.rejectedCandidateMinutes ?? 0) >= 0);
+});
+
 test("every replay prefix matches the same moment inside a full-day replay", () => {
   const rows = openingRecoverySession("rise");
   const full = runSmartTReplay(rows, options);
