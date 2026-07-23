@@ -811,7 +811,7 @@ test("a gap-up day uses yesterday's close to block a shallow afternoon reverse-T
   assert.ok(result.diagnostics.strongSellTrendBlocked > 0);
 });
 
-test("an already-confirmed local valley can clear a short regime label without reading future prices", () => {
+test("an already-confirmed local valley remains observational during the trend-risk cooling window", () => {
   const rows = sessionTimes.slice(0, 90).map((time, index) => {
     let price;
     if (index <= 49) price = 10;
@@ -822,17 +822,15 @@ test("an already-confirmed local valley can clear a short regime label without r
     return { time, price: Number(price.toFixed(3)), volume: 10_000 };
   });
   const full = runSmartTReplay(rows, { ...options, previousClose: 10 });
-  const entry = full.actions[0];
-  const entryIndex = rows.findIndex((point) => point.time === entry?.time);
-  const prefix = runSmartTReplay(rows.slice(0, entryIndex + 1), { ...options, previousClose: 10 });
+  const candidate = full.observations.find((item) => item.direction === "正T" && item.stage === "candidate");
+  const candidateIndex = rows.findIndex((point) => point.time === candidate?.time);
+  const prefix = runSmartTReplay(rows.slice(0, candidateIndex + 1), { ...options, previousClose: 10 });
 
-  assert.equal(entry?.side, "买入");
-  assert.equal(entry?.direction, "正T");
-  assert.ok(entryIndex > 0);
-  assert.deepEqual(prefix.actions, [entry], "the entry must exist at the same minute before later prices are appended");
-  assert.equal(full.trades, 1);
-  assert.equal(full.wins, 1);
-  assert.match(full.actions[1].reason, /扣费净止盈/);
+  assert.ok(candidateIndex > 0);
+  assert.equal(candidate?.confirmationLabel, "转强确认");
+  assert.ok(candidate?.blockers.some((item) => item.includes("连续确认 8 分钟")));
+  assert.deepEqual(prefix.actions, [], "the cooling veto must already exist at the candidate minute");
+  assert.deepEqual(full.actions, [], "a local rebound must not buy immediately after a broad decline veto");
 });
 
 test("a 1.0%-1.35% one-way move keeps a small counter move observational in both directions", () => {

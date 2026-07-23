@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { detectFallingKnifeConflict } from "../lib/smart-t-engine.mjs";
+import {
+  detectFallingKnifeConflict,
+  isLiquidEntryTime,
+  isTrendRiskCooling,
+} from "../lib/smart-t-engine.mjs";
 
 test("an afternoon rebound below a still-falling VWAP remains an observation", () => {
   const risk = detectFallingKnifeConflict({
@@ -21,4 +25,16 @@ test("an afternoon rebound below a still-falling VWAP remains an observation", (
 
   assert.equal(risk.blocked, true);
   assert.equal(risk.latePersistentDecline, true);
+});
+
+test("14:30 is a hard no-new-entry boundary", () => {
+  assert.equal(isLiquidEntryTime("1429"), true);
+  assert.equal(isLiquidEntryTime("1430"), false);
+  assert.equal(isLiquidEntryTime("1431"), false);
+});
+
+test("a broad trend veto cannot disappear on the next minute", () => {
+  assert.equal(isTrendRiskCooling(14 * 60 + 29, 14 * 60 + 30), true);
+  assert.equal(isTrendRiskCooling(14 * 60 + 29, 14 * 60 + 36), true);
+  assert.equal(isTrendRiskCooling(14 * 60 + 29, 14 * 60 + 37), false);
 });

@@ -312,9 +312,9 @@ test("random 10-stock replay randomizes stock-days and separates references from
   assert.match(source, /从近 5 个可用完整交易日中随机选一天|sampleWithSeed\(sessionPool,1/);
   assert.match(source, /全A股随机10股真实分时批次/);
   assert.match(source, /全市场列表不可用时会明确显示/);
-  assert.match(source, /每股最多展示 2 个候补买点和 2 个候补卖点/);
-  assert.match(source, /候补点不可执行/);
-  assert.match(source, /才升级为正式候选或正式交易/);
+  assert.match(source, /每股最多展示 2 个低位\/反弹参考和 2 个高位\/回落参考/);
+  assert.match(source, /自动参考不可执行/);
+  assert.match(source, /才标为候补买卖点或正式交易/);
   assert.doesNotMatch(source, /固定代表组/);
   assert.match(source, /"600519": "贵州茅台"/);
   assert.match(source, /"300750": "宁德时代"/);

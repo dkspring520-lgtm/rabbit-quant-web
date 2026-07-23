@@ -23,6 +23,7 @@ test("completed stock day receives one or two causal references on each side", (
   assert.deepEqual(new Set(points.map((point) => point.direction)), new Set(["正T", "反T"]));
   assert.ok([...new Set(points.map((point) => point.direction))].every((direction) => points.filter((point) => point.direction === direction).length <= 2));
   assert.ok(points.every((point) => point.executable === false));
+  assert.ok(points.every((point) => !/候补买点|候补卖点/.test(point.confirmationLabel)));
 });
 
 test("reference is stamped on confirmation minute instead of earlier pivot", () => {
