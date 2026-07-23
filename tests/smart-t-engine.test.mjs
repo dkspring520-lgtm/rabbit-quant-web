@@ -7,10 +7,22 @@ import {
   causalCyclePreference,
   causalRangeEvidence,
   confirmCandidateDirectionFlip,
+  describeVwapConfirmation,
   evaluateStructuralStop,
   minutesFromOpen,
   runSmartTReplay,
 } from "../lib/smart-t-engine.mjs";
+
+test("VWAP confirmation wording separates the earlier pivot from the current side", () => {
+  assert.equal(
+    describeVwapConfirmation({ direction: "BUY_FIRST", pivotDeviation: -0.69, currentDeviation: 0.26, volumeRatio: 0.53 }),
+    "此前低点位于 VWAP 下方 0.69%，当前已站回 VWAP 上方 0.26%；量比 0.53×",
+  );
+  assert.equal(
+    describeVwapConfirmation({ direction: "SELL_FIRST", pivotDeviation: 0.82, currentDeviation: -0.18, volumeRatio: 2.1 }),
+    "此前高点位于 VWAP 上方 0.82%，当前已跌回 VWAP 下方 0.18%；倍量 2.10×",
+  );
+});
 
 const morningTimes = [];
 for (let hour = 9, minute = 30; hour < 11 || (hour === 11 && minute <= 30);) {
