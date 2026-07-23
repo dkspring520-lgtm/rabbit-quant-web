@@ -95,6 +95,27 @@ test("a flat cumulative VWAP cannot hide a persistent long price decline", () =>
   assert.match(risk.reason, /60\/90分钟价格路径仍在下行/);
 });
 
+test("a reverse-T sale cannot chase an already established long decline", () => {
+  const risk = detectRisingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 1.22,
+    crossedVwap: false,
+    vwapMomentum15: 0.02,
+    vwapMomentum30: 0.06,
+    sessionMove: 0.24,
+    prePivotMove10: 0.24,
+    pivotAge: 7,
+    priceMomentum60: -0.48,
+    priceMomentum90: -0.24,
+    longPriceMeanBias: -0.29,
+    broadPricePoints: 90,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.lateDowntrendSell, true);
+  assert.match(risk.reason, /禁止跌后追卖/);
+});
+
 test("falling-knife guard releases after causal stabilisation or VWAP recovery", () => {
   const confirmedBounce = detectFallingKnifeConflict({
     direction: "BUY_FIRST",
