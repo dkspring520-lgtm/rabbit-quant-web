@@ -5,6 +5,7 @@ import {
   PROFILES,
   buildCandidateObservationCycles,
   causalCyclePreference,
+  causalPersistentDirection,
   causalRangeEvidence,
   causalVolatilityScale,
   confirmCandidateDirectionFlip,
@@ -251,6 +252,26 @@ test("heavy opening volume cannot flatten away a late recovery trend", () => {
   assert.equal(fallingRecovery.lateRecoveryDecline, true);
 });
 
+test("late recovery guard blocks the real boundary that previously allowed a losing reverse T", () => {
+  const result = detectRisingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 0.825,
+    crossedVwap: false,
+    vwapMomentum15: 0.033,
+    vwapMomentum30: 0.068,
+    sessionMove: 1.111,
+    prePivotMove10: 0,
+    pivotAge: 7,
+    priceMomentum60: 0.791,
+    priceMomentum90: 1.595,
+    longPriceMeanBias: 0.313,
+    broadPricePoints: 90,
+  });
+
+  assert.equal(result.blocked, true);
+  assert.equal(result.lateRecoveryRise, true);
+});
+
 const morningTimes = [];
 for (let hour = 9, minute = 30; hour < 11 || (hour === 11 && minute <= 30);) {
   morningTimes.push(`${String(hour).padStart(2, "0")}${String(minute).padStart(2, "0")}`);
@@ -282,6 +303,11 @@ const options = {
   // quality gates are covered separately so they do not invalidate fixtures.
   profileOverrides: {
     maxOpeningChasePct: Number.POSITIVE_INFINITY,
+    maxOpeningRepairPremiumPct: Number.POSITIVE_INFINITY,
+    minOpeningRepairSessionMove: Number.NEGATIVE_INFINITY,
+    maxOpeningRepairPremiumPivotAge: Number.POSITIVE_INFINITY,
+    maxOpeningRepairPivotAge: Number.POSITIVE_INFINITY,
+    requireOpeningFadeVwapCross: false,
     trailActivationPct: Number.POSITIVE_INFINITY,
   },
 };
@@ -308,6 +334,35 @@ test("causal cycle preference aligns positive T with up-cycles and reverse T wit
   assert.equal(causalCyclePreference(rising, 40, makeVwaps(rising), 10), "uptrend");
   assert.equal(causalCyclePreference(falling, 40, makeVwaps(falling), 10), "downtrend");
   assert.equal(causalCyclePreference(flat, 40, makeVwaps(flat), 10), "range");
+});
+
+test("a persistent rebound after a weak open creates a causal sell-first veto", () => {
+  const rows = sessionTimes.slice(0, 105).map((time, index) => ({
+    time,
+    price: index <= 45
+      ? Number((16.2 - index * 0.014).toFixed(3))
+      : Number((15.57 + (index - 45) * 0.015).toFixed(3)),
+    volume: 10_000,
+  }));
+  assert.equal(causalPersistentDirection(rows, 94), "uptrend");
+
+  const changedFuture = rows.map((point, index) => index > 94
+    ? { ...point, price: point.price * 0.8 }
+    : point);
+  assert.equal(
+    causalPersistentDirection(changedFuture, 94),
+    "uptrend",
+    "minutes after the decision must not change the causal direction veto",
+  );
+});
+
+test("a persistent decline creates a causal buy-first veto", () => {
+  const rows = sessionTimes.slice(0, 105).map((time, index) => ({
+    time,
+    price: Number((18.4 - index * 0.014).toFixed(3)),
+    volume: 10_000,
+  }));
+  assert.equal(causalPersistentDirection(rows, 94), "downtrend");
 });
 
 test("V4.1 range evidence requires an already-observed two-sided VWAP history", () => {
@@ -720,6 +775,11 @@ test("the production profit trail exits only after an observed pullback and stay
     ...options,
     profileOverrides: {
       maxOpeningChasePct: Number.POSITIVE_INFINITY,
+      maxOpeningRepairPremiumPct: Number.POSITIVE_INFINITY,
+      minOpeningRepairSessionMove: Number.NEGATIVE_INFINITY,
+      maxOpeningRepairPremiumPivotAge: Number.POSITIVE_INFINITY,
+      maxOpeningRepairPivotAge: Number.POSITIVE_INFINITY,
+      requireOpeningFadeVwapCross: false,
       targetNetPct: 0.15,
       maxTargetNetPct: 0.80,
       trailActivationPct: 0.15,
@@ -1091,6 +1151,52 @@ test("the first trading hour waits for a real base after a sharp decline", () =>
   assert.match(risk.reason, /开盘后一小时/);
 });
 
+test("a thirty-minute decline cannot become a buy after only a tiny rebound", () => {
+  const risk = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.80,
+    crossedVwap: false,
+    vwapMomentum15: -0.047,
+    vwapMomentum30: -0.038,
+    sessionMove: 2.36,
+    prePivotMove10: -0.67,
+    pivotAge: 2,
+    priceMomentum30: -1.45,
+    priceMomentum60: -0.16,
+    priceMomentum90: 0,
+    longPriceMeanBias: -0.60,
+    broadPricePoints: 75,
+    pivotReversal: 0.24,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.midPersistentDecline, true);
+  assert.match(risk.reason, /下降途中先买/);
+});
+
+test("a thirty-minute rise cannot become a reverse-T sale after only a tiny fade", () => {
+  const risk = detectRisingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 0.80,
+    crossedVwap: false,
+    vwapMomentum15: 0.047,
+    vwapMomentum30: 0.038,
+    sessionMove: 2.36,
+    prePivotMove10: 0.67,
+    pivotAge: 2,
+    priceMomentum30: 1.45,
+    priceMomentum60: 0.16,
+    priceMomentum90: 0,
+    longPriceMeanBias: 0.60,
+    broadPricePoints: 75,
+    pivotReversal: 0.24,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.midPersistentRise, true);
+  assert.match(risk.reason, /上涨途中先卖/);
+});
+
 test("classic V4 stays fixed unless causal volatility mode is explicitly selected", () => {
   const rows = openingRecoverySession("rise");
   const baseline = runSmartTReplay(rows, options);
@@ -1141,4 +1247,48 @@ test("a ninety-minute decline cannot be hidden by an old opening spike", () => {
   assert.equal(risk.blocked, true);
   assert.equal(risk.latePersistentDecline, true);
   assert.match(risk.reason, /90分钟价格路径/);
+});
+
+test("a broad falling path stays blocked when the latest thirty-minute decline is slow", () => {
+  const risk = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.82,
+    crossedVwap: false,
+    vwapMomentum15: -0.04,
+    vwapMomentum30: -0.066,
+    sessionMove: -0.75,
+    prePivotMove10: -0.15,
+    pivotAge: 6,
+    pivotReversal: 0.252,
+    priceMomentum30: -0.18,
+    priceMomentum60: -0.42,
+    priceMomentum90: -0.55,
+    longPriceMeanBias: -0.242,
+    broadPricePoints: 89,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.midPersistentDecline, true);
+});
+
+test("a broad rising path stays blocked when the latest thirty-minute rise is slow", () => {
+  const risk = detectRisingKnifeConflict({
+    direction: "SELL_FIRST",
+    currentDeviation: 0.94,
+    crossedVwap: false,
+    vwapMomentum15: 0.04,
+    vwapMomentum30: 0.055,
+    sessionMove: 1.15,
+    prePivotMove10: 0.15,
+    pivotAge: 6,
+    pivotReversal: 0.281,
+    priceMomentum30: 0.28,
+    priceMomentum60: 0.66,
+    priceMomentum90: 0.72,
+    longPriceMeanBias: 0.535,
+    broadPricePoints: 80,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.midPersistentRise, true);
 });

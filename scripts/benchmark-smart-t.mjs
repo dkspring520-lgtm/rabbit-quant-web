@@ -12,6 +12,9 @@ const universe = [
 const rounds = Math.max(1, Number(process.argv[3]) || 100);
 const seed = process.argv[4] ?? "20260716-causal-candidates";
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:3000";
+const profileOverrides = process.env.SMART_T_OVERRIDES
+  ? JSON.parse(process.env.SMART_T_OVERRIDES)
+  : {};
 const profile = process.argv[5] ?? "平衡档";
 
 function seededFraction(input) {
@@ -67,6 +70,7 @@ for (let round = 0; round < rounds; round += 1) {
       slippageMode: "percent",
       forceCloseTime: "1450",
       profile,
+      profileOverrides,
       previousClose: session.previousClose,
       randomValue: seededFraction(`${seed}:${round}:${stock.code}:replay`),
     });
@@ -90,7 +94,41 @@ const cycleNets = trials.flatMap((trial) => trial.result.cycleNets);
 const describedCycles = trials.flatMap((trial) => trial.result.cycleNets.map((net, index) => {
   const cycleId = index + 1;
   const entry = trial.result.actions.find((action) => action.cycleId === cycleId && action.meta?.phase === "entry");
-  return { net, cycleId, direction: entry?.direction ?? "unknown" };
+  const exit = trial.result.actions.find((action) => action.cycleId === cycleId && action.meta?.phase === "exit");
+  return {
+    net,
+    cycleId,
+    code: trial.code,
+    name: trial.name,
+    date: trial.date,
+    direction: entry?.direction ?? "unknown",
+    entryTime: entry?.time ?? null,
+    exitTime: exit?.time ?? null,
+    exitType: exit?.meta?.exitType ?? null,
+  };
+}));
+
+const repeatedTradeDays = Object.values(describedCycles.reduce((groups, cycle) => {
+  const key = `${cycle.code}:${cycle.date}:${cycle.direction}:${cycle.entryTime}:${cycle.exitTime}`;
+  const current = groups[key] ?? {
+    code: cycle.code,
+    name: cycle.name,
+    date: cycle.date,
+    direction: cycle.direction,
+    entryTime: cycle.entryTime,
+    exitTime: cycle.exitTime,
+    exitType: cycle.exitType,
+    occurrences: 0,
+    net: 0,
+  };
+  current.occurrences += 1;
+  current.net += cycle.net;
+  groups[key] = current;
+  return groups;
+}, {})).sort((left, right) => right.occurrences - left.occurrences);
+const uniqueCycles = repeatedTradeDays.map((cycle) => ({
+  ...cycle,
+  net: cycle.occurrences ? cycle.net / cycle.occurrences : 0,
 }));
 
 function summarizeCycles(cycles) {
@@ -110,6 +148,7 @@ const cycleNumbers = [...new Set(describedCycles.map((cycle) => cycle.cycleId))]
 const directions = [...new Set(describedCycles.map((cycle) => cycle.direction))];
 const summary = {
   profile,
+  profileOverrides,
   seed,
   rounds,
   stocksPerRound: 10,
@@ -136,6 +175,14 @@ const summary = {
   noTradeBatches: batchNets.filter((value) => value === 0).length,
   byCycleNumber: Object.fromEntries(cycleNumbers.map((cycleId) => [cycleId, summarizeCycles(describedCycles.filter((cycle) => cycle.cycleId === cycleId))])),
   byDirection: Object.fromEntries(directions.map((direction) => [direction, summarizeCycles(describedCycles.filter((cycle) => cycle.direction === direction))])),
+  uniqueTradeDays: repeatedTradeDays.length,
+  uniqueCompletedCycles: uniqueCycles.length,
+  uniqueWinningCycles: uniqueCycles.filter((cycle) => cycle.net > 0).length,
+  uniqueLosingCycles: uniqueCycles.filter((cycle) => cycle.net < 0).length,
+  uniqueNetWinRate: uniqueCycles.length
+    ? (uniqueCycles.filter((cycle) => cycle.net > 0).length / uniqueCycles.length) * 100
+    : null,
+  repeatedTradeDays: repeatedTradeDays.slice(0, 20),
 };
 
 console.log(JSON.stringify(summary, null, 2));
