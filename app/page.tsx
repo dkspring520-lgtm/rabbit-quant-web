@@ -139,7 +139,7 @@ type ZijinShadowAB = {
   costPolicy:{baseRoundTripPct:number;stressRoundTripPct:number};
   targetPolicy:{minimumNetPct:number;maximumNetPct:number;maximumHoldMinutes:number};
   prospectiveGate:{minimumResolvedTrades:number;minimumResearchCandidateWinRate?:number;minimumWinRate:number;requirePositiveBaseNetPct:boolean;requirePositiveStressNetPct:boolean;manualReviewRequired:boolean};
-  models:Record<"A"|"B"|"C"|"D"|"E"|"F",{
+  models:Record<"A"|"B"|"C"|"D"|"E"|"F"|"G",{
     id:string;label:string;sourceRound:number;sessionStart:string;sessionEnd:string;maxSignalsPerDay:number;side:"long"|"short";executionMode?:"shadow-trade"|"observe-only";
     today:{candidates:number;entries:number;exits:number;wins:number;netPct:number;lastDecision:string;activeTrade:null|{pendingEntry?:boolean;entryTime?:string;entryPrice?:number}};
     total:{candidateDays:number;candidates:number;resolvedTrades:number;wins:number;winRate:number|null;netPct:number;stressNetPct:number};
@@ -2185,10 +2185,10 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
       />
       {zijinTrainingProgress&&<FourRabbitAutomationDashboard progress={zijinTrainingProgress}/>}
       <details className={`zijin-shadow-ab ${zijinShadow?.status??"loading"}`} open>
-        <summary><span><b>第10–15轮 · 紫金真实前瞻观察</b><small>新增外部共振正T：黄金、铜价、大盘和港股紫金只读取信号当时已经发布的数据；不回填历史、不影响 V4、不发送正式提醒</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
+        <summary><span><b>第10–16轮 · 紫金真实前瞻观察</b><small>第16轮新增沪金、沪铜、有色ETF、黄金ETF和美元人民币，按商品与权益传导分组形成共识；只累计登记后的新样本，不回填历史、不影响 V4</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
         {zijinShadow?<div className="zijin-shadow-body">
           <header><div><span>这张看板看什么</span><b>先积累 50 笔真实前瞻闭环，再看扣费胜率和净收益；65% 可保留研究，70% 才能申请人工评审</b></div><p><span>真实前瞻事件</span><b>{zijinShadow.integrity.eventCount} 条</b><small>只追加，不覆盖</small></p><p><span>费用口径</span><b>{zijinShadow.costPolicy.baseRoundTripPct.toFixed(2)}%</b><small>压力成本 {zijinShadow.costPolicy.stressRoundTripPct.toFixed(2)}%</small></p></header>
-          <div className="zijin-shadow-models">{(["A","B","C","D","E","F"] as const).map(key=>{
+          <div className="zijin-shadow-models">{(["A","B","C","D","E","F","G"] as const).map(key=>{
             const model=zijinShadow.models[key];
             if(!model)return null;
             const reason=Object.entries(model.rejectionReasons).sort((left,right)=>right[1]-left[1])[0];
@@ -2203,7 +2203,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
             const reviewReady=evidenceReady&&model.total.winRate!==null&&model.total.winRate>=requiredWinRate&&positiveAfterCosts;
             const researchReady=evidenceReady&&model.total.winRate!==null&&model.total.winRate>=researchWinRate&&positiveAfterCosts;
             const plainStatus=observeOnly?"反T仅观察":!evidenceReady?"积累新样本":reviewReady?"达到评审线":researchReady?"保留研究":"未达到候选线";
-            return <article key={key} className={key==="E"||key==="F"?"focus":""}>
+            return <article key={key} className={key==="E"||key==="F"||key==="G"?"focus":""}>
               <div><span>{model.label}</span><em>第{model.sourceRound}轮 · {model.side==="short"?"反T":"正T"} · {observeOnly?"只观察":"影子闭环"} · {model.sessionStart.slice(0,2)}:{model.sessionStart.slice(2)}–{model.sessionEnd.slice(0,2)}:{model.sessionEnd.slice(2)}</em></div>
               <p><span>{observeOnly?"候选观察":"新样本证据"}</span><b>{evidenceCount}/{minimum} 笔</b></p>
               <p><span>当前结论</span><b className={reviewReady?"positive":researchReady?"candidate":evidenceReady?"negative":"neutral"}>{plainStatus}</b></p>

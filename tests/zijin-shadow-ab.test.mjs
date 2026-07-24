@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   appendIntegrity,
+  causalExternalConsensus,
   causalExternalSnapshot,
   computeVisibleFeatures,
   createShadowState,
@@ -23,6 +24,7 @@ const round12Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-roun
 const round13Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round13-protocol.json", import.meta.url), "utf8"));
 const round14Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round14-protocol.json", import.meta.url), "utf8"));
 const round15Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round15-protocol.json", import.meta.url), "utf8"));
+const round16Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round16-protocol.json", import.meta.url), "utf8"));
 
 const minutes = [
   { time: "0930", price: 99.00, volume: 100 },
@@ -88,6 +90,7 @@ test("positive models shadow trade while reverse models are observation only", (
   assert.equal(SHADOW_MODELS.D.executionMode, "observe-only");
   assert.equal(SHADOW_MODELS.E.executionMode, "shadow-trade");
   assert.equal(SHADOW_MODELS.F.executionMode, "shadow-trade");
+  assert.equal(SHADOW_MODELS.G.executionMode, "shadow-trade");
 });
 
 test("legacy A/B state upgrades in place and preserves its evidence", () => {
@@ -108,6 +111,8 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   assert.equal(upgraded.models.E.side, "long");
   assert.equal(upgraded.models.F.id, "round15-positive-external-resonance");
   assert.equal(upgraded.models.F.side, "long");
+  assert.equal(upgraded.models.G.id, "round16-positive-multi-market-consensus");
+  assert.equal(upgraded.models.G.side, "long");
   assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 50);
   assert.equal(upgraded.prospectiveGate.minimumResearchCandidateWinRate, 0.65);
   assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.70);
@@ -224,7 +229,9 @@ test("external factors are recorded as prospective evidence without changing fro
     intradayPosition: 0.23, vwapBiasPct: -0.45, volumeRatio: 1,
     peerBreadth3: 0.67, peerCoverage: 1,
   };
-  assert.deepEqual(externalContext.coverage, { ready: 5, total: 5, missing: [] });
+  assert.equal(externalContext.coverage.ready, 5);
+  assert.equal(externalContext.coverage.total, 10);
+  assert.equal(externalContext.coverage.missing.length, 5);
   assert.equal(evaluateShadowCandidate("E", { ...base, externalContext }).passed, true);
   assert.equal(evaluateShadowCandidate("E", { ...base, externalContext: { coverage: { ready: 0, total: 5 } } }).passed, true);
 });
@@ -285,6 +292,30 @@ test("round-15 accepts a causal external-resonance positive-T turn and rejects m
   });
   assert.equal(adverse.passed, false);
   assert.ok(adverse.failures.some((reason) => reason.includes("重大利空")));
+});
+
+test("round-16 uses newly connected real factors as causal group consensus", () => {
+  const factors = [
+    ["gold", 0.4], ["copper", -0.2], ["domesticGold", 0.2], ["domesticCopper", -0.1],
+    ["market", 0.1], ["hkZijin", 0.8], ["metalsEtf", 0.3], ["goldEtf", 0.2],
+    ["usdCny", -0.1],
+  ].map(([key, value]) => ({
+    key, value, available: true, sourceTimestamp: "2026-07-24T01:36:00.000Z",
+  }));
+  const externalContext = { factors, latestEvents: [] };
+  const consensus = causalExternalConsensus(externalContext, "20260724", "0937");
+  assert.equal(consensus.ready, 9);
+  assert.equal(consensus.supportGroups, 2);
+  const base = {
+    marketDate: "20260724", time: "0937",
+    return3Pct: 0.12, previousReturn3Pct: -0.05,
+    ma5Slope3Pct: -0.01, previousMa5Slope3Pct: -0.02,
+    intradayPosition: 0.32, vwapBiasPct: -0.10,
+    volumeRatio: 0.8, peerCoverage: 1, externalContext,
+  };
+  assert.equal(evaluateShadowCandidate("G", base).passed, true);
+  const futureFactors = factors.map((factor) => ({ ...factor, sourceTimestamp: "2026-07-24T01:38:00.000Z" }));
+  assert.equal(evaluateShadowCandidate("G", { ...base, externalContext: { factors: futureFactors, latestEvents: [] } }).passed, false);
 });
 
 test("candidate fills only on next visible minute and then resolves after costs", () => {
@@ -379,14 +410,26 @@ test("round-15 is preregistered, causal, prospective-only and isolated from V4",
   assert.equal(round15Protocol.prospectiveGate.minimumWinRate, 0.70);
 });
 
-test("single-stock research shows model F with plain 65 and 70 percent gates", () => {
-  assert.match(page, /\["A","B","C","D","E","F"\]/);
-  assert.match(page, /第10–15轮 · 紫金真实前瞻观察/);
-  assert.match(page, /新增外部共振正T/);
+test("round-16 freezes old rounds and trains only on newly observed real-factor samples", () => {
+  assert.equal(round16Protocol.status, "prospective-shadow-only");
+  assert.equal(round16Protocol.researchDisclosure.usesTodayToTuneThresholds, false);
+  assert.equal(round16Protocol.researchDisclosure.usesHistoricalExternalFactors, false);
+  assert.equal(round16Protocol.researchDisclosure.backfillAfterRegistration, false);
+  assert.equal(round16Protocol.researchDisclosure.affectsV4, false);
+  assert.deepEqual(round16Protocol.prospectiveSamplePolicy.oldRoundsRemainFrozen, [11, 15]);
+  assert.equal(round16Protocol.prospectiveSamplePolicy.appendOnlyLedger, true);
+  assert.equal(round16Protocol.prospectiveGate.minimumResolvedTrades, 50);
+  assert.equal(round16Protocol.prospectiveGate.minimumWinRate, 0.70);
+});
+
+test("single-stock research shows model G with plain 65 and 70 percent gates", () => {
+  assert.match(page, /\["A","B","C","D","E","F","G"\]/);
+  assert.match(page, /第10–16轮 · 紫金真实前瞻观察/);
+  assert.match(page, /沪金、沪铜、有色ETF、黄金ETF和美元人民币/);
   assert.match(page, /反T仅为研究证据/);
   assert.match(page, /65% 保留研究 · 70% 申请评审/);
   assert.match(page, /积累新样本/);
-  assert.match(page, /不回填历史、不影响 V4、不发送正式提醒/);
+  assert.match(page, /只累计登记后的新样本，不回填历史、不影响 V4/);
 });
 
 test("audit records form an append-only SHA-256 chain", () => {
