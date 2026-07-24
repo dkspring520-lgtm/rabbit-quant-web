@@ -8,6 +8,7 @@ import {
   causalPersistentDirection,
   causalRangeEvidence,
   causalVolatilityScale,
+  consolidateTrendRiskVotes,
   confirmCandidateDirectionFlip,
   crossedVwapCausally,
   detectFallingKnifeConflict,
@@ -17,6 +18,28 @@ import {
   minutesFromOpen,
   runSmartTReplay,
 } from "../lib/smart-t-engine.mjs";
+
+test("trend risk voting collapses correlated detectors into independent groups", () => {
+  const correlated = consolidateTrendRiskVotes({
+    cycleConflict: true,
+    persistentDirectionConflict: true,
+    broadTrendConflict: true,
+    rawRegimeConflict: true,
+  });
+  assert.equal(correlated.votes, 1);
+  assert.deepEqual(correlated.groups, {
+    cycleRegime: true,
+    oneWayContinuation: false,
+    weakReversalQuality: false,
+  });
+
+  const independent = consolidateTrendRiskVotes({
+    cycleConflict: true,
+    trendImpulseConflict: true,
+    weakRecoveryConflict: true,
+  });
+  assert.equal(independent.votes, 3);
+});
 
 test("causal realised volatility widens high-volatility minutes without fake ATR", () => {
   const low = Array.from({ length: 40 }, (_, index) => ({
