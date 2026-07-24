@@ -1,5 +1,11 @@
 import fs from "node:fs";
-import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import { pathToFileURL } from "node:url";
+
+const enginePath = process.env.SMART_T_ENGINE_PATH;
+const engineModule = enginePath
+  ? await import(pathToFileURL(enginePath).href)
+  : await import("../lib/smart-t-engine.mjs");
+const { runSmartTReplay } = engineModule;
 
 const fixturePath = process.argv[2];
 const profile = process.argv[3] ?? "平衡档";
