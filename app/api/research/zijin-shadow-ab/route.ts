@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { upgradeShadowState } from "@/lib/zijin-shadow-ab.mjs";
 
 const runtimeState = process.env.ZIJIN_SHADOW_STATE_PATH || "/training-state/zijin-shadow-ab.json";
 const bundledState = resolve(process.cwd(), "public/research/zijin-shadow-ab.json");
@@ -15,9 +16,10 @@ export async function GET() {
     try {
       const payload = JSON.parse(await readFile(path, "utf8"));
       if (!valid(payload)) continue;
-      const updatedAt = Date.parse(payload.updatedAt);
+      const upgraded = upgradeShadowState(payload);
+      const updatedAt = Date.parse(upgraded.updatedAt);
       return Response.json({
-        ...payload,
+        ...upgraded,
         meta: {
           source: path === runtimeState ? "runtime" : "bundled",
           servedAt: new Date().toISOString(),
