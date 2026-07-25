@@ -15,6 +15,7 @@ x-web-common: &web-common
     ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round11-report.json
     ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
     ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
+    ZIJIN_L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
   volumes:
     - /opt/rabbit-quant-state:/training-state
   depends_on:
@@ -32,6 +33,27 @@ x-web-common: &web-common
     start_period: 60s
 
 services:
+  l2:
+    image: ${RABBIT_QUANT_L2_IMAGE:-rabbit-quant-web-l2}
+    build:
+      context: .
+      dockerfile: Dockerfile.l2
+    container_name: rabbit-quant-zijin-l2
+    restart: unless-stopped
+    env_file:
+      - /opt/rabbit-quant-secrets/l2.env
+    environment:
+      L2_NATS_URL: nats://quote5.base32.cn:4222
+      L2_SYMBOL: "601899"
+      L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
+    volumes:
+      - /opt/rabbit-quant-state:/training-state
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,time,datetime;p=json.load(open('/training-state/zijin-l2-orderflow.json'));assert time.time()-datetime.datetime.fromisoformat(p['updatedAt'].replace('Z','+00:00')).timestamp()<15"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
   web-blue:
     <<: *web-common
     image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
