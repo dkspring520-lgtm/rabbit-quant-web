@@ -40,6 +40,18 @@ test("production compose and image expose commit-aware health", () => {
   assert.match(route, /cache-control/);
 });
 
+test("the site footer displays and refreshes the deployed version", () => {
+  const page = read("app/page.tsx");
+  const css = read("app/globals.css");
+
+  assert.match(page, /function ReleaseVersion\(\)/);
+  assert.match(page, /fetch\("\/api\/control\/version",\{cache:"no-store"\}\)/);
+  assert.match(page, /window\.setInterval\(load,60_000\)/);
+  assert.match(page, /版本 V4-\{shortCommit\}/);
+  assert.match(page, /<ReleaseVersion\/>/);
+  assert.match(css, /\.release-version\{/);
+});
+
 test("production deploy uses blue-green Web slots and switches traffic only after candidate health", () => {
   const compose = read("compose.web.yml");
   const script = read("scripts/deploy-production.sh");

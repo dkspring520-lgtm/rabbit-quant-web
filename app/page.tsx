@@ -507,6 +507,23 @@ const agents = [
 const strategyProfiles = STRATEGY_PROFILES;
 type UiTheme = "dark" | "light";
 
+function ReleaseVersion() {
+  const [release,setRelease]=useState<{shortCommit?:string;buildTime?:string|null}|null>(null);
+  useEffect(()=>{
+    let active=true;
+    const load=()=>void fetch("/api/control/version",{cache:"no-store"})
+      .then(response=>response.ok?response.json():Promise.reject(new Error("version unavailable")))
+      .then((payload:{shortCommit?:string;buildTime?:string|null})=>{if(active)setRelease(payload)})
+      .catch(()=>{});
+    load();
+    const timer=window.setInterval(load,60_000);
+    return()=>{active=false;window.clearInterval(timer)};
+  },[]);
+  const shortCommit=!release?"检测中":release.shortCommit&&release.shortCommit!=="development"?release.shortCommit.slice(0,8):"本地";
+  const title=release?.buildTime?`构建时间 ${new Date(release.buildTime).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai"})}`:"正在核对服务器版本";
+  return <span className="release-version" title={title}><a href="/terms">用户协议</a> · <a href="/privacy">隐私政策</a> · <b>版本 V4-{shortCommit}</b></span>;
+}
+
 
 export default function Home() {
   const [uiTheme,setUiTheme]=useState<UiTheme>("dark");
@@ -1756,7 +1773,7 @@ export default function Home() {
       {alertLogOpen&&<AlertLogView stocks={stockList} activeCode={stock.code} onClose={()=>setAlertLogOpen(false)}/>}
       {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
 
-      <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><span><a href="/terms">用户协议</a> · <a href="/privacy">隐私政策</a> · Rabbit Quant V1.0</span></footer>
+      <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><ReleaseVersion/></footer>
     </main>
   );
 }
