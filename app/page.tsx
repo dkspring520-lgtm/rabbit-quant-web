@@ -763,8 +763,29 @@ export default function Home() {
       }
     }catch{}
   };
+  const [liveL2ByMinute,setLiveL2ByMinute]=useState<Record<string,ZijinL2State>>({});
+  useEffect(()=>{
+    if(stock?.code!=="601899"){setLiveL2ByMinute({});return;}
+    let active=true;
+    let timer:number|undefined;
+    const poll=async()=>{
+      try{
+        const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"});
+        const payload=await response.json() as ZijinL2State;
+        const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
+        if(active&&minute&&payload.status?.connected&&!payload.status.stale){
+          setLiveL2ByMinute(current=>({...current,[minute]:payload}));
+        }
+      }catch{}
+      if(active)timer=window.setTimeout(()=>void poll(),2000);
+    };
+    void poll();
+    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
+  },[stock?.code]);
   const rawMinutePoints = currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [];
-  const minutePoints = useMemo(() => rawMinutePoints.filter(point=>isAShareRegularTradingMinute(point.time)), [rawMinutePoints]);
+  const minutePoints = useMemo(() => rawMinutePoints
+    .filter(point=>isAShareRegularTradingMinute(point.time))
+    .map(point=>liveL2ByMinute[point.time]?{...point,l2:liveL2ByMinute[point.time]}:point), [rawMinutePoints,liveL2ByMinute]);
   const afterHoursPoints = useMemo(() => rawMinutePoints.filter(point=>isAShareAfterHoursFixedPriceMinute(point.time)), [rawMinutePoints]);
   const afterHoursSummary = useMemo(() => {
     if (!afterHoursPoints.length) return null;
@@ -1968,6 +1989,12 @@ const EXTERNAL_FACTOR_PLAIN_COPY:Record<string,string>={
 };
 type AutoResearchSample = { date:string; cycles:number; wins:number; net:number; status:string };
 type ZijinResearchBundle = typeof import("@/lib/zijin-research-bundle")["zijinResearchBundle"];
+type ZijinL2State = {
+  node?:string; error?:string; lastExchangeTime?:string;
+  status?:{connected?:boolean;authorized?:boolean;stale?:boolean};
+  flow?:{activeBuyRatio60s?:number|null};
+  book?:{nearTouchImbalance?:number|null};
+};
 
 function SingleStockResearchView({accountName,stock,quote,marketData,profile,profitMode,position,manualCount,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;profile:string;profitMode:ProfitMode;position:StockPosition;manualCount:number;onOpenConsole:()=>void}) {
   const [zijinResearchBundle,setZijinResearchBundle]=useState<ZijinResearchBundle|null>(null);
@@ -1977,6 +2004,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
   const [zijinTrainingFetchedAt,setZijinTrainingFetchedAt]=useState<string|null>(null);
   const [zijinShadow,setZijinShadow]=useState<ZijinShadowAB|null>(null);
   const [zijinShadowConnection,setZijinShadowConnection]=useState<"loading"|"ok"|"error">("loading");
+  const [zijinL2,setZijinL2]=useState<ZijinL2State|null>(null);
   const [researchExpanded,setResearchExpanded]=useState(false);
   useEffect(()=>{
     let active=true;
@@ -2046,6 +2074,21 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
     void load();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
   },[stock.code,researchExpanded]);
+  useEffect(()=>{
+    if(stock.code!=="601899")return;
+    let active=true;
+    let timer:number|undefined;
+    const load=async()=>{
+      try{
+        const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"});
+        const payload=await response.json() as ZijinL2State;
+        if(active)setZijinL2(payload);
+      }catch{if(active)setZijinL2({error:"L2 状态接口暂不可用"});}
+      if(active)timer=window.setTimeout(()=>void load(),5000);
+    };
+    void load();
+    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
+  },[stock.code]);
   const storageKey=`rabbit-stock-research:${accountName.toLowerCase()}:${stock.code}`;
   const [notes,setNotes]=useState<StockResearchNote[]>(()=>{try{const saved=localStorage.getItem(storageKey);const parsed=saved?JSON.parse(saved):[];return Array.isArray(parsed)?parsed:[]}catch{return [];}});
   const [feedback,setFeedback]=useState('');
@@ -2175,6 +2218,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
     <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSampleDayCount} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
     <div className="research-overview-actions"><div><b>核心内容已展开</b><span>{researchExpanded?'正在显示训练证据、人工复盘和全部研究数据。':'训练证据、人工复盘和专业数据已收起。'}</span></div><button type="button" aria-expanded={researchExpanded} onClick={()=>setResearchExpanded(value=>!value)}>{researchExpanded?'收起研究详情':'展开研究详情'}</button></div>
     {stock.code==="601899"&&<article className={`research-compact-training ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'stale':zijinTrainingProgress?.status??'loading'}`}><div><span>紫金研究模型</span><b>{zijinTrainingConnection==='error'?'训练状态接口暂时无法连接':!zijinTrainingProgress?'正在读取训练记录':trainingStale?'训练任务心跳超时':schedulerOffline?'最近一轮已结束 · 自动调度器离线':zijinTrainingProgress.status==='running'?activeResearchStageLabel:currentQualified?'发现候选，等待人工评审':'本轮未通过 · 在线等待新实验'}</b><small>{zijinTrainingFetchedAt?`页面最近核对：${new Date(zijinTrainingFetchedAt).toLocaleString('zh-CN',{hour12:false})}`:'只展示真实训练结果，不会自动修改 V4。'}</small></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></article>}
+    {stock.code==="601899"&&<article className={`research-compact-training ${zijinL2?.status?.connected&&!zijinL2.status.stale?"completed":"stale"}`}><div><span>L2 · 上海节点</span><b>{zijinL2?.status?.authorized===false?"账号暂无 601899 主题权限":zijinL2?.status?.connected?(zijinL2.status.stale?"已连接，等待新盘口":"十档与逐笔数据正常"):"正在连接 quote5.base32.cn"}</b><small>主动买占比 {zijinL2?.flow?.activeBuyRatio60s==null?"--":`${(zijinL2.flow.activeBuyRatio60s*100).toFixed(1)}%`} · 五档失衡 {zijinL2?.book?.nearTouchImbalance==null?"--":zijinL2.book.nearTouchImbalance.toFixed(3)} · 仅作 V4 确认/否决</small></div><strong>{zijinL2?.status?.stale?"等待":"L2"}</strong></article>}
     {stock.code==="601899"&&researchExpanded&&<div id="zijin-experiment-progress" className={`zijin-training-live zijin-training-prominent ${trainingStale?'stale':zijinTrainingProgress?.status??'loading'}`}>
       <RabbitProgressMeter
         label="紫金矿业 · 四兔真实训练"

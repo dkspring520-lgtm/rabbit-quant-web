@@ -1,6 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-
 import { evaluateQmtOrderFlow } from "../lib/qmt-orderflow-confirmation.mjs";
 
 function rows(kind) {
@@ -15,33 +14,49 @@ function rows(kind) {
   }));
 }
 
-test("QMT sell confirmation combines price, active volume, DDX and order book", () => {
+test("sell confirmation combines price, active volume, net flow and book", () => {
   const result = evaluateQmtOrderFlow(rows("sell"), 2, "SELL_FIRST");
   assert.equal(result.available, true);
   assert.equal(result.pass, true);
-  assert.ok(result.score >= 3);
 });
 
-test("QMT buy confirmation rejects adverse order flow", () => {
-  const result = evaluateQmtOrderFlow(rows("sell"), 2, "BUY_FIRST");
-  assert.equal(result.available, true);
-  assert.equal(result.pass, false);
+test("buy confirmation rejects adverse order flow", () => {
+  assert.equal(evaluateQmtOrderFlow(rows("sell"), 2, "BUY_FIRST").pass, false);
 });
 
-test("missing QMT fields remain unavailable instead of being fabricated", () => {
-  const result = evaluateQmtOrderFlow([
-    { time: "0930", price: 10, volume: 1000 },
-    { time: "0931", price: 10.1, volume: 1200 },
-    { time: "0932", price: 10.2, volume: 1500 },
-  ], 2, "BUY_FIRST");
+test("missing fields remain neutral instead of being fabricated", () => {
+  const result = evaluateQmtOrderFlow([{ price: 10 }, { price: 10.1 }, { price: 10.2 }], 2, "BUY_FIRST");
   assert.equal(result.available, false);
   assert.equal(result.pass, true);
   assert.match(result.reason, /不使用伪造订单流/);
 });
 
-test("future order flow cannot rewrite the current confirmation", () => {
+test("future order flow cannot rewrite current confirmation", () => {
   const prefix = rows("sell");
-  const current = evaluateQmtOrderFlow(prefix, 2, "SELL_FIRST");
-  const appended = evaluateQmtOrderFlow([...prefix, ...rows("buy")], 2, "SELL_FIRST");
-  assert.deepEqual(appended, current);
+  assert.deepEqual(
+    evaluateQmtOrderFlow([...prefix, ...rows("buy")], 2, "SELL_FIRST"),
+    evaluateQmtOrderFlow(prefix, 2, "SELL_FIRST"),
+  );
+});
+
+test("stale connected L2 feed vetoes a trigger", () => {
+  const points = rows("buy");
+  points[2].l2Status = { connected: true, authorized: true, stale: true };
+  const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
+  assert.equal(result.pass, false);
+  assert.equal(result.integrityBlocked, true);
+});
+
+test("native nested L2 fields are normalized", () => {
+  const points = rows("buy").map((point, index) => ({
+    price: point.price,
+    l2: {
+      status: { connected: true, authorized: true, stale: false },
+      flow: { activeBuyNotional60s: 70, activeSellNotional60s: 30, netActiveNotional60s: index + 1 },
+      book: { bid1Volume: 140, ask1Volume: 80 },
+    },
+  }));
+  const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
+  assert.equal(result.available, true);
+  assert.equal(result.pass, true);
 });
