@@ -17,6 +17,7 @@ import {
   describeVwapConfirmation,
   evaluateStructuralStop,
   minutesFromOpen,
+  qualifiesMatureSellReversalRiskOverride,
   runSmartTReplay,
 } from "../lib/smart-t-engine.mjs";
 
@@ -40,6 +41,36 @@ test("trend risk voting collapses correlated detectors into independent groups",
     weakRecoveryConflict: true,
   });
   assert.equal(independent.votes, 3);
+});
+
+test("mature sell reversal override accepts only a non-accelerating peak", () => {
+  const base = {
+    direction: "SELL_FIRST",
+    trendRiskVotes: 2,
+    maxTrendRiskVotes: 1,
+    trendRiskGroups: {
+      cycleRegime: true,
+      oneWayContinuation: false,
+      weakReversalQuality: true,
+    },
+    pivotAge: 4,
+    orderFlow: { available: false, pass: true, score: 0 },
+  };
+
+  assert.equal(qualifiesMatureSellReversalRiskOverride(base), true);
+  assert.equal(qualifiesMatureSellReversalRiskOverride({ ...base, pivotAge: 3 }), false);
+  assert.equal(qualifiesMatureSellReversalRiskOverride({
+    ...base,
+    trendRiskGroups: { ...base.trendRiskGroups, oneWayContinuation: true },
+  }), false);
+  assert.equal(qualifiesMatureSellReversalRiskOverride({
+    ...base,
+    orderFlow: { available: true, pass: true, score: 2 },
+  }), false);
+  assert.equal(qualifiesMatureSellReversalRiskOverride({
+    ...base,
+    orderFlow: { available: true, pass: true, score: 3 },
+  }), true);
 });
 
 test("causal realised volatility widens high-volatility minutes without fake ATR", () => {

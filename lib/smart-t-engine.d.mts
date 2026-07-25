@@ -174,6 +174,23 @@ export function evaluateStructuralStop(input: {
   pivotBreakPrice: number;
   adverseMomentum: boolean;
 };
+export function qualifiesMatureSellReversalRiskOverride(input: {
+  direction: "BUY_FIRST" | "SELL_FIRST";
+  trendRiskVotes: number;
+  maxTrendRiskVotes: number;
+  trendRiskGroups: {
+    cycleRegime: boolean;
+    oneWayContinuation: boolean;
+    weakReversalQuality: boolean;
+  };
+  pivotAge: number;
+  minPivotAge?: number;
+  orderFlow?: {
+    available?: boolean;
+    pass?: boolean;
+    score?: number;
+  };
+}): boolean;
 export const PROFILES: Record<string, {
   score: number;
   cooldown: number;
@@ -202,4 +219,7 @@ export const PROFILES: Record<string, {
   counterTrendVwap30?: number;
   counterTrendSessionMove?: number;
   counterTrendMinVolumeRatio?: number;
+  maxBuyTrendRiskVotes?: number;
+  maxSellTrendRiskVotes?: number;
+  matureSellReversalMinPivotAge?: number;
 }>;
