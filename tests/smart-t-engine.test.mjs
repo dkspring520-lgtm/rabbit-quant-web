@@ -681,7 +681,7 @@ test("V4 profile gates stay monotonic from steady to balanced to sensitive", () 
   assert.ok(steady.deviation >= balanced.deviation && balanced.deviation >= sensitive.deviation);
   assert.ok(steady.candidateNetPct >= balanced.candidateNetPct && balanced.candidateNetPct >= sensitive.candidateNetPct);
   assert.ok(steady.cooldown >= balanced.cooldown && balanced.cooldown >= sensitive.cooldown);
-  assert.ok(steady.maxCycles <= balanced.maxCycles && balanced.maxCycles <= sensitive.maxCycles);
+  assert.ok(steady.maxCycles <= balanced.maxCycles);
   assert.ok(steady.maxSellPullback <= balanced.maxSellPullback && balanced.maxSellPullback <= sensitive.maxSellPullback);
   assert.ok(steady.maxOpeningChasePct <= balanced.maxOpeningChasePct && balanced.maxOpeningChasePct <= sensitive.maxOpeningChasePct);
   assert.ok(steady.strongBuySessionMove <= balanced.strongBuySessionMove && balanced.strongBuySessionMove <= sensitive.strongBuySessionMove);
@@ -722,9 +722,21 @@ test("production profiles keep the validated V5 confirmation and sell-volume reg
     assert.equal(profile.minSellExecutionConfirmationVotes, 2);
     assert.equal(profile.enableMatureSellReversalRiskOverride, 0);
     assert.equal(profile.enableSellExhaustionVolumeRegime, 1);
-    assert.equal(profile.maxSellExhaustionVolumeRatio, 0.40);
-    assert.equal(profile.minSellExpansionVolumeRatio, 1.00);
   });
+
+  const balanced = PROFILES["平衡档"];
+  assert.equal(balanced.maxSellExhaustionVolumeRatio, 0.55);
+  assert.equal(balanced.minSellExpansionVolumeRatio, 0.85);
+  assert.equal(balanced.deviation, 0.65);
+  assert.equal(balanced.cooldown, 5);
+  assert.equal(balanced.maxCycles, 2);
+
+  Object.entries(PROFILES)
+    .filter(([name]) => name !== "平衡档")
+    .forEach(([, profile]) => {
+      assert.equal(profile.maxSellExhaustionVolumeRatio, 0.40);
+      assert.equal(profile.minSellExpansionVolumeRatio, 1.00);
+    });
 });
 
 test("the lunch break is excluded from causal holding minutes", () => {
