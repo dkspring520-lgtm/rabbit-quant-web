@@ -46,6 +46,9 @@ services:
       L2_NATS_URL: nats://quote5.base32.cn:4222
       L2_SYMBOL: "601899"
       L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
+      L2_FORWARD_PATH: /training-state/zijin-l2-forward.jsonl
+      L2_FORWARD_MIN_SAMPLES: "1200"
+      L2_FORWARD_MIN_DAYS: "10"
     volumes:
       - /opt/rabbit-quant-state:/training-state
     healthcheck:

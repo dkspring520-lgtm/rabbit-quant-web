@@ -14,6 +14,7 @@ COMPOSE_PROJECT="${RABBIT_QUANT_COMPOSE_PROJECT:-rabbit-quant-web}"
 WEB_BLUE_CONTAINER="rabbit-quant-modern-web"
 WEB_GREEN_CONTAINER="rabbit-quant-modern-web-green"
 TRAINER_CONTAINER="rabbit-quant-zijin-trainer"
+L2_CONTAINER="rabbit-quant-zijin-l2"
 NGINX_UPSTREAM_FILE="${RABBIT_QUANT_NGINX_UPSTREAM_FILE:-/etc/nginx/conf.d/rabbit-quant-active-upstream.conf}"
 NGINX_SITE_FILE="${RABBIT_QUANT_NGINX_SITE_FILE:-/etc/nginx/sites-available/rabbit-quant}"
 
@@ -82,7 +83,7 @@ record_result() {
 
 prune_release_images() {
   local repository image index
-  for repository in rabbit-quant-web rabbit-quant-trainer; do
+  for repository in rabbit-quant-web rabbit-quant-trainer rabbit-quant-l2; do
     index=0
     while IFS= read -r image; do
       [[ -n "$image" && "$image" != *":<none>" ]] || continue
@@ -90,7 +91,7 @@ prune_release_images() {
       if (( index <= IMAGE_RETENTION )); then
         continue
       fi
-      if [[ "$image" == "$previous_web_image" || "$image" == "$previous_trainer_image" || "$image" == "$web_image" || "$image" == "$trainer_image" ]]; then
+      if [[ "$image" == "$previous_web_image" || "$image" == "$previous_trainer_image" || "$image" == "$previous_l2_image" || "$image" == "$web_image" || "$image" == "$trainer_image" || "$image" == "$l2_image" ]]; then
         continue
       fi
       docker image rm "$image" >/dev/null 2>&1 || true
@@ -252,6 +253,7 @@ wait_for_release() {
     if container_is_healthy "$active_container" \
       && container_is_healthy "rabbit-quant-control" \
       && container_is_healthy "$TRAINER_CONTAINER" \
+      && container_is_healthy "$L2_CONTAINER" \
       && container_is_healthy "rabbit-quant-zijin-shadow"; then
       if curl --fail --silent --show-error --max-time 5 \
         "http://127.0.0.1:${active_port}/api/control/version" | grep -Fq "$expected_sha"; then
@@ -267,10 +269,11 @@ compose_up() {
   local compose_file="$1"
   local web_image="$2"
   local trainer_image="$3"
-  local app_commit_sha="${4:-development}"
-  local app_build_time="${5:-unknown}"
-  local active_web_origin="${6:-http://web-blue:3000}"
-  shift 6 || true
+  local l2_image="$4"
+  local app_commit_sha="${5:-development}"
+  local app_build_time="${6:-unknown}"
+  local active_web_origin="${7:-http://web-blue:3000}"
+  shift 7 || true
   local services=("$@") runtime_env
   local compose_status
 
@@ -279,6 +282,7 @@ compose_up() {
   printf '%s\n' \
     "RABBIT_QUANT_WEB_IMAGE=$web_image" \
     "RABBIT_QUANT_TRAINER_IMAGE=$trainer_image" \
+    "RABBIT_QUANT_L2_IMAGE=$l2_image" \
     "APP_COMMIT_SHA=$app_commit_sha" \
     "APP_BUILD_TIME=$app_build_time" \
     "RABBIT_QUANT_ACTIVE_WEB_ORIGIN=$active_web_origin" \
@@ -331,11 +335,13 @@ compose_file="$release_dir/compose.web.yml"
 build_time="$(date --utc --iso-8601=seconds)"
 web_image="rabbit-quant-web:$short_sha"
 trainer_image="rabbit-quant-trainer:$short_sha"
+l2_image="rabbit-quant-l2:$short_sha"
 
 current_stage="配置预检"
 log "预检 Compose 配置。"
 RABBIT_QUANT_WEB_IMAGE="$web_image" \
 RABBIT_QUANT_TRAINER_IMAGE="$trainer_image" \
+RABBIT_QUANT_L2_IMAGE="$l2_image" \
   docker compose --project-directory "$REPO_DIR" -f "$compose_file" config --quiet
 
 current_stage="构建 Web 镜像"
@@ -352,8 +358,15 @@ docker build --pull \
   --label rabbit-quant.commit="$target_sha" \
   -t "$trainer_image" -f "$release_dir/Dockerfile.trainer" "$release_dir"
 
+current_stage="build L2 collector image"
+log "Building L2 collector image $l2_image."
+docker build --pull \
+  --label rabbit-quant.commit="$target_sha" \
+  -t "$l2_image" -f "$release_dir/Dockerfile.l2" "$release_dir"
+
 previous_web_image="$(container_image "$active_container")"
 previous_trainer_image="$(container_image "$TRAINER_CONTAINER")"
+previous_l2_image="$(container_image "$L2_CONTAINER")"
 previous_sha="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${active_port}/api/control/version" 2>/dev/null | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' || true)"
 candidate_slot="$(other_slot "$active_slot")"
 candidate_port="$(slot_port "$candidate_slot")"
@@ -364,7 +377,7 @@ active_origin="http://$(slot_service "$active_slot"):3000"
 current_stage="切换线上容器"
 log "构建全部通过，开始切换到 $short_sha。"
 prepare_candidate_slot "$active_slot" "$candidate_slot"
-if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$target_sha" "$build_time" "$active_origin" "$candidate_service"; then
+if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$target_sha" "$build_time" "$active_origin" "$candidate_service"; then
   log "容器切换命令失败，准备恢复旧镜像。"
   switch_failed=1
 else
@@ -382,7 +395,7 @@ if (( switch_failed == 0 )); then
     switch_failed=1
   else
     current_stage="update support services"
-    if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$target_sha" "$build_time" "$candidate_origin" trainer control shadow; then
+    if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$target_sha" "$build_time" "$candidate_origin" l2 trainer control shadow; then
       log "Support services failed to update; traffic will be restored to the old Web."
       switch_failed=1
     fi
@@ -395,6 +408,7 @@ if (( switch_failed == 0 )) && wait_for_release "$target_sha" "$candidate_slot";
   cp "$compose_file" "$STATE_DIR/last-good-compose.yml"
   printf '%s\n' "$web_image" > "$STATE_DIR/last-good-web-image"
   printf '%s\n' "$trainer_image" > "$STATE_DIR/last-good-trainer-image"
+  printf '%s\n' "$l2_image" > "$STATE_DIR/last-good-l2-image"
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
   prune_release_images
@@ -410,14 +424,15 @@ write_nginx_upstream "$active_port" || true
 [[ -f "$rollback_compose" ]] || rollback_compose="$REPO_DIR/compose.web.yml"
 [[ -n "$previous_web_image" ]] || previous_web_image="$(cat "$STATE_DIR/last-good-web-image" 2>/dev/null || true)"
 [[ -n "$previous_trainer_image" ]] || previous_trainer_image="$(cat "$STATE_DIR/last-good-trainer-image" 2>/dev/null || true)"
+[[ -n "$previous_l2_image" ]] || previous_l2_image="$(cat "$STATE_DIR/last-good-l2-image" 2>/dev/null || true)"
 
-if [[ -z "$previous_web_image" || -z "$previous_trainer_image" ]]; then
+if [[ -z "$previous_web_image" || -z "$previous_trainer_image" || -z "$previous_l2_image" ]]; then
   log "错误：找不到旧镜像，无法自动回滚；请检查 Docker 容器。"
   record_result "failed" "健康验证失败且缺少旧镜像"
   exit 1
 fi
 
-compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "${previous_sha:-development}" "rollback" "$active_origin" trainer control shadow
+compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "$previous_l2_image" "${previous_sha:-development}" "rollback" "$active_origin" l2 trainer control shadow
 if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha" "$active_slot"; then
   log "已恢复旧版本 ${previous_sha:0:12}。"
   record_result "rolled_back" "新版本不健康，旧版本已恢复"

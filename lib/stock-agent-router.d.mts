@@ -17,7 +17,14 @@ export type StockAgentEvaluation = {
   asOfTime:string|null;
   title:string;
   reasons:string[];
-  metrics:{rangePct:number;vwapBiasPct:number;momentumPct:number;volumeRatio:number|null};
+  metrics:{
+    rangePct:number;
+    vwapBiasPct:number;
+    momentumPct:number;
+    volumeRatio:number|null;
+    trendContinuationRisk?:unknown;
+    orderFlow?:unknown;
+  };
   executable:false;
   affectsV4:false;
 };
@@ -25,6 +32,6 @@ export const STOCK_AGENTS:Readonly<{smartT:StockAgent;zijin:StockAgent}>;
 export function resolveStockAgent(code?:string|null):StockAgent;
 export function evaluateStockAgent(options?:{
   code?:string|null;
-  minutes?:{time:string;price:number;volume:number}[];
+  minutes?:{time:string;price:number;volume:number;l2?:unknown}[];
   previousClose?:number|null;
 }):StockAgentEvaluation|null;

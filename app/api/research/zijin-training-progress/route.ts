@@ -9,6 +9,7 @@ const runtimeAutomationState = process.env.ZIJIN_AUTOMATION_STATE_PATH || "/trai
 const bundledReport = resolve(process.cwd(), "public/research/zijin-round6-report.json");
 const runtimeReport = process.env.ZIJIN_TRAINING_REPORT_PATH || "/training-state/zijin-round9-report.json";
 const runtimeTrainerAlerts = process.env.ZIJIN_TRAINER_ALERTS_PATH || "/training-state/zijin-trainer-alerts.jsonl";
+const runtimeL2State = process.env.ZIJIN_L2_STATE_PATH || "/training-state/zijin-l2-orderflow.json";
 
 function parseProgressTime(value: unknown) {
   if (typeof value !== "string") return Number.NaN;
@@ -72,6 +73,23 @@ async function latestTrainerAlert() {
   }
 }
 
+async function latestL2Forward() {
+  try {
+    const payload = JSON.parse(await readFile(runtimeL2State, "utf8"));
+    if (payload?.symbol !== "601899" || !payload?.forward) return null;
+    return {
+      ...payload.forward,
+      node: payload.node ?? null,
+      connected: payload.status?.connected === true,
+      authorized: payload.status?.authorized === true,
+      stale: payload.status?.stale !== false,
+      lastExchangeTime: payload.lastExchangeTime ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function latestReport() {
   const candidates = runtimeReport === bundledReport ? [bundledReport] : [runtimeReport, bundledReport];
   for (const path of candidates) {
@@ -116,6 +134,7 @@ export async function GET() {
       const automation = await latestAutomation();
       const report = await latestReport();
       const trainerAlert = await latestTrainerAlert();
+      const l2Forward = await latestL2Forward();
       const current = mergeCurrentRun(payload, automation?.payload);
       const currentUpdatedAt = parseProgressTime(current.updatedAt);
       const currentStale = current.status === "running"
@@ -124,6 +143,7 @@ export async function GET() {
         ...current,
         automation: automation?.payload ?? null,
         currentExperiment: report?.payload ?? null,
+        l2Forward,
         meta: {
           source: path === runtimeState ? "runtime" : "bundled",
           servedAt: new Date().toISOString(),
