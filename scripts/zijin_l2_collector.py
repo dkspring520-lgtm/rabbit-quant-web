@@ -64,6 +64,17 @@ def exchange_minute(value):
     date, clock = value.split("-", 1)
     return f"{date}-{clock[:4]}" if len(date) == 8 and len(clock) >= 4 else None
 
+def trailing_big_sweep_streak(transactions, side, threshold):
+    """Count the latest same-side large prints, ignoring small-print noise."""
+    streak = 0
+    for row in reversed(transactions):
+        if row[3] < threshold:
+            continue
+        if row[1] != side:
+            break
+        streak += 1
+    return streak
+
 class Collector:
     def __init__(self):
         self.symbol = os.getenv("L2_SYMBOL", "601899")
@@ -84,6 +95,8 @@ class Collector:
         self.forward_minutes = set()
         self.forward_days = set()
         self.last_forward_minute = None
+        self.minute_bars = deque(maxlen=60)
+        self.current_minute_bar = None
         self.load_forward_index()
 
     def load_forward_index(self):
@@ -112,8 +125,57 @@ class Collector:
         for row in self.parse(message.data, SNAPSHOT):
             self.snapshot = row.copy()
             self.last_exchange_time = f"{int(row['date']):08d}-{int(row['time']):09d}"
+            minute = exchange_minute(self.last_exchange_time)
+            price = float(row["last"]) / 10000
+            if minute and price > 0:
+                self.update_minute_bar(minute, price)
             self.message_counts["snapshot"] += 1
         self.last_message_at = time.time()
+
+    def update_minute_bar(self, minute, price):
+        bar = self.current_minute_bar
+        if bar is not None and bar["minute"] == minute:
+            bar["high"] = max(bar["high"], price)
+            bar["low"] = min(bar["low"], price)
+            bar["close"] = price
+            return
+        if bar is not None:
+            self.minute_bars.append(bar)
+        self.current_minute_bar = {
+            "minute": minute, "open": price, "high": price, "low": price, "close": price,
+        }
+
+    def atr_state(self, period=14, minimum_samples=4):
+        bars = list(self.minute_bars)
+        if self.current_minute_bar is not None:
+            bars.append(dict(self.current_minute_bar))
+        if not bars:
+            return {
+                "source": "broker-l2-derived", "period": period, "samples": 0,
+                "ready": False, "atr14": None, "atrPct14": None,
+            }
+        true_ranges = []
+        previous_close = None
+        active_date = bars[-1]["minute"][:8]
+        for bar in bars:
+            if bar["minute"][:8] != active_date:
+                continue
+            high, low = bar["high"], bar["low"]
+            true_range = high - low if previous_close is None else max(
+                high - low, abs(high - previous_close), abs(low - previous_close)
+            )
+            true_ranges.append(true_range)
+            previous_close = bar["close"]
+        sample = true_ranges[-period:]
+        ready = len(sample) >= minimum_samples
+        atr = sum(sample) / len(sample) if ready else None
+        close = bars[-1]["close"]
+        return {
+            "source": "broker-l2-derived", "period": period, "samples": len(sample),
+            "ready": ready, "atr14": None if atr is None else round(atr, 6),
+            "atrPct14": None if atr is None or close <= 0 else round(atr / close * 100, 6),
+            "currentBar": bars[-1],
+        }
 
     async def on_transaction(self, message):
         received = time.time()
@@ -142,6 +204,8 @@ class Collector:
         sell = sum(row[3] for row in self.transactions if row[1] == "S")
         big_buy = sum(row[3] for row in self.transactions if row[1] == "B" and row[3] >= self.big_order)
         big_sell = sum(row[3] for row in self.transactions if row[1] == "S" and row[3] >= self.big_order)
+        buy_sweep_streak = trailing_big_sweep_streak(self.transactions, "B", self.big_order)
+        sell_sweep_streak = trailing_big_sweep_streak(self.transactions, "S", self.big_order)
         bid_volumes, ask_volumes, bid_prices, ask_prices = [], [], [], []
         if self.snapshot is not None:
             bid_volumes, ask_volumes = [int(x) for x in self.snapshot["bid_vol"]], [int(x) for x in self.snapshot["ask_vol"]]
@@ -161,7 +225,7 @@ class Collector:
         last_price = round(float(self.snapshot["last"]) / 10000, 4) if self.snapshot is not None else None
         ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
         return {
-            "schemaVersion": 2, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
+            "schemaVersion": 3, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
             "symbol": self.symbol, "updatedAt": utc_now(),
             "lastMessageAt": None if age is None else datetime.fromtimestamp(self.last_message_at, timezone.utc).isoformat().replace("+00:00", "Z"),
             "lastExchangeTime": self.last_exchange_time,
@@ -171,7 +235,11 @@ class Collector:
             "flow": {"activeBuyNotional60s": round(buy, 2), "activeSellNotional60s": round(sell, 2),
                      "activeBuyRatio60s": None if total <= 0 else round(buy / total, 6),
                      "netActiveNotional60s": round(buy - sell, 2),
+                     "bigBuyNotional60s": round(big_buy, 2),
+                     "bigSellNotional60s": round(big_sell, 2),
                      "bigOrderNetNotional60s": round(big_buy - big_sell, 2),
+                     "buySweepStreak60s": buy_sweep_streak,
+                     "sellSweepStreak60s": sell_sweep_streak,
                      "transactionCount60s": len(self.transactions), "orderCount60s": len(self.orders)},
             "book": {"bidPrices": bid_prices, "askPrices": ask_prices, "bidVolumes": bid_volumes, "askVolumes": ask_volumes,
                      "lastPrice": last_price, "bid1Volume": bid1_volume, "ask1Volume": ask1_volume,
@@ -180,6 +248,7 @@ class Collector:
                      "spreadBps": None if mid <= 0 else round((best_ask - best_bid) / mid * 10000, 4),
                      "microprice": None if microprice <= 0 else round(microprice, 4),
                      "micropriceEdgeBps": None if mid <= 0 else round((microprice - mid) / mid * 10000, 4)},
+            "volatility": self.atr_state(),
             "messages": self.message_counts,
             "forward": {
                 "path": self.forward_path, "samples": len(self.forward_minutes), "tradingDays": len(self.forward_days),
@@ -202,9 +271,9 @@ class Collector:
         if not eligible:
             return
         record = {
-            "schemaVersion": 1, "symbol": self.symbol, "source": state["source"], "node": state["node"],
+            "schemaVersion": 2, "symbol": self.symbol, "source": state["source"], "node": state["node"],
             "observedAt": state["updatedAt"], "exchangeMinute": minute,
-            "lastPrice": state["book"].get("lastPrice"), "flow": state["flow"], "book": {
+            "lastPrice": state["book"].get("lastPrice"), "flow": state["flow"], "volatility": state["volatility"], "book": {
                 key: state["book"].get(key) for key in (
                     "bid1Volume", "ask1Volume", "nearBidVolume", "nearAskVolume",
                     "nearTouchImbalance", "spreadBps", "microprice", "micropriceEdgeBps"

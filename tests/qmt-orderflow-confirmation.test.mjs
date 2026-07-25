@@ -68,6 +68,47 @@ test("abnormal spread vetoes otherwise supportive flow", () => {
   assert.equal(result.marketQualityBlocked, true);
 });
 
+test("current real snapshot can confirm without waiting for three chart points", () => {
+  const result = evaluateQmtOrderFlow([{
+    price: 10,
+    activeBuyVolume: 68,
+    activeSellVolume: 32,
+    bigOrderNet: 10,
+    bid1Volume: 140,
+    ask1Volume: 80,
+    transactionCount: 20,
+  }], 0, "BUY_FIRST");
+  assert.equal(result.available, true);
+  assert.equal(result.pass, true);
+  assert.equal(result.required, 2);
+});
+
+test("two of three aligned scans count as persistent despite one noisy minute", () => {
+  const points = rows("buy");
+  points[1] = { ...points[1], activeBuyVolume: 45, activeSellVolume: 55, ddx: -1 };
+  const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
+  assert.equal(result.persistence.aligned, 2);
+  assert.equal(result.persistence.pass, true);
+  assert.equal(result.pass, true);
+});
+
+test("real trailing large-order sweep can provide persistence confirmation", () => {
+  const point = {
+    price: 10,
+    activeBuyVolume: 55,
+    activeSellVolume: 45,
+    bigOrderNet: 20,
+    buySweepStreak: 3,
+    bid1Volume: 90,
+    ask1Volume: 110,
+    transactionCount: 20,
+  };
+  const result = evaluateQmtOrderFlow([point], 0, "BUY_FIRST");
+  assert.equal(result.persistence.sweepStreak, 3);
+  assert.equal(result.persistence.pass, true);
+  assert.equal(result.pass, true);
+});
+
 test("Zijin research summary consumes five L2 features without creating an order", () => {
   const result = summarizeZijinOrderFlow({
     l2: {

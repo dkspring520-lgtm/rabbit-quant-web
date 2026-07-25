@@ -1,4 +1,18 @@
-export type SmartTMinute = { time: string; price: number; volume: number };
+export type SmartTMinute = {
+  time: string;
+  price: number;
+  volume: number;
+  l2?: {
+    volatility?: {
+      source?: string;
+      period?: number;
+      samples?: number;
+      ready?: boolean;
+      atr14?: number | null;
+      atrPct14?: number | null;
+    };
+  };
+};
 export type SmartTAction = {
   time: string;
   side: "买入" | "卖出";
@@ -98,7 +112,7 @@ export type SmartTOptions = {
   randomValue?: number;
   strategyVersion?: string;
   gateAudit?: boolean;
-  volatilityMode?: "fixed" | "causal-realized";
+  volatilityMode?: "fixed" | "causal-realized" | "causal-hybrid";
 };
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
 export function causalVolatilityScale(
@@ -112,6 +126,22 @@ export function causalVolatilityScale(
     minSamples?: number;
   },
 ): { scale: number; realisedPct: number; samples: number };
+export function causalBrokerAtrScale(
+  points: SmartTMinute[],
+  index: number,
+  options?: {
+    referencePct?: number;
+    minScale?: number;
+    maxScale?: number;
+    minSamples?: number;
+  },
+): {
+  scale: number;
+  realisedPct: number;
+  samples: number;
+  source: string;
+  available: boolean;
+};
 export function buildCandidateObservationCycles(observations: SmartTObservation[]): {
   cycles: SmartTReplayResult["candidateCycles"];
   open: SmartTReplayResult["openCandidate"];

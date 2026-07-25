@@ -5,6 +5,7 @@ import {
   PROFILES,
   buildCandidateObservationCycles,
   causalCyclePreference,
+  causalBrokerAtrScale,
   causalPersistentDirection,
   causalRangeEvidence,
   causalVolatilityScale,
@@ -1249,6 +1250,22 @@ test("causal volatility shadow reports its scale and reproduces an entry from th
     });
     assert.deepEqual(prefix.actions, [entry]);
   }
+});
+
+test("broker ATR is used only after enough genuine causal bars", () => {
+  const unavailable = causalBrokerAtrScale([{
+    time: "0933", price: 10, volume: 1,
+    atrPct: 0.24, atrSamples: 3, atrReady: false,
+  }], 0);
+  assert.equal(unavailable.available, false);
+
+  const ready = causalBrokerAtrScale([{
+    time: "0934", price: 10, volume: 1,
+    atrPct: 0.24, atrSamples: 4, atrReady: true,
+  }], 0);
+  assert.equal(ready.available, true);
+  assert.equal(ready.source, "broker-l2-atr14");
+  assert.ok(Math.abs(ready.scale - 1.3) < 1e-12);
 });
 
 test("a ninety-minute decline cannot be hidden by an old opening spike", () => {
