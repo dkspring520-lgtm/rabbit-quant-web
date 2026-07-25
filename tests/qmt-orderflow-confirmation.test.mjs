@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateQmtOrderFlow } from "../lib/qmt-orderflow-confirmation.mjs";
+import { evaluateQmtOrderFlow, summarizeZijinOrderFlow } from "../lib/qmt-orderflow-confirmation.mjs";
 
 function rows(kind) {
   return [0, 1, 2].map((index) => ({
@@ -59,4 +59,29 @@ test("native nested L2 fields are normalized", () => {
   const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
   assert.equal(result.available, true);
   assert.equal(result.pass, true);
+});
+
+test("abnormal spread vetoes otherwise supportive flow", () => {
+  const points = rows("buy").map((point) => ({ ...point, spreadBps: 25, transactionCount60s: 20 }));
+  const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
+  assert.equal(result.pass, false);
+  assert.equal(result.marketQualityBlocked, true);
+});
+
+test("Zijin research summary consumes five L2 features without creating an order", () => {
+  const result = summarizeZijinOrderFlow({
+    l2: {
+      status: { authorized: true, stale: false },
+      flow: {
+        activeBuyNotional60s: 70, activeSellNotional60s: 30, activeBuyRatio60s: 0.7,
+        netActiveNotional60s: 100, bigOrderNetNotional60s: 50,
+      },
+      book: {
+        bid1Volume: 140, ask1Volume: 80, nearTouchImbalance: 0.2, micropriceEdgeBps: 1.2,
+      },
+    },
+  });
+  assert.equal(result.available, true);
+  assert.equal(result.stance, "buy");
+  assert.equal("executable" in result, false);
 });

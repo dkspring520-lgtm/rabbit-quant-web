@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Causal L2 collector for Smart-T V4. Never backfills unavailable order flow."""
+"""Causal L2 collector for Smart-T V4 and Zijin forward research.
+
+The live state is used only as a confirmation/veto.  One immutable feature
+snapshot is also recorded per exchange minute for 601899.  Targets are not
+created here: they may only be attached after the future minute has arrived.
+"""
 
 import asyncio
 import json
@@ -53,6 +58,12 @@ def atomic_json(path, payload):
 def decoded(value):
     return bytes(value).rstrip(b"\0").decode("ascii", "ignore")
 
+def exchange_minute(value):
+    if not value or "-" not in value:
+        return None
+    date, clock = value.split("-", 1)
+    return f"{date}-{clock[:4]}" if len(date) == 8 and len(clock) >= 4 else None
+
 class Collector:
     def __init__(self):
         self.symbol = os.getenv("L2_SYMBOL", "601899")
@@ -60,6 +71,9 @@ class Collector:
         self.user = os.environ["L2_NATS_USER"]
         self.password = os.environ["L2_NATS_PASSWORD"]
         self.state_path = os.getenv("L2_STATE_PATH", "/training-state/zijin-l2-orderflow.json")
+        self.forward_path = os.getenv("L2_FORWARD_PATH", "/training-state/zijin-l2-forward.jsonl")
+        self.forward_min_samples = int(os.getenv("L2_FORWARD_MIN_SAMPLES", "1200"))
+        self.forward_min_days = int(os.getenv("L2_FORWARD_MIN_DAYS", "10"))
         self.stale_seconds = float(os.getenv("L2_STALE_SECONDS", "8"))
         self.big_order = float(os.getenv("L2_BIG_ORDER_NOTIONAL", "200000"))
         self.transactions, self.orders = deque(), deque()
@@ -67,6 +81,26 @@ class Collector:
         self.connected = self.authorization_error = False
         self.parse_errors = self.reconnects = 0
         self.message_counts = {"snapshot": 0, "transaction": 0, "order": 0}
+        self.forward_minutes = set()
+        self.forward_days = set()
+        self.last_forward_minute = None
+        self.load_forward_index()
+
+    def load_forward_index(self):
+        try:
+            with Path(self.forward_path).open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    try:
+                        value = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    minute = value.get("exchangeMinute")
+                    if isinstance(minute, str):
+                        self.forward_minutes.add(minute)
+                        self.forward_days.add(minute[:8])
+                        self.last_forward_minute = minute
+        except FileNotFoundError:
+            pass
 
     def parse(self, payload, dtype):
         if not payload or len(payload) % dtype.itemsize:
@@ -115,8 +149,19 @@ class Collector:
         near_bid, near_ask = sum(bid_volumes[:5]), sum(ask_volumes[:5])
         age = None if self.last_message_at is None else max(0, now - self.last_message_at)
         total, depth_total = buy + sell, near_bid + near_ask
+        best_bid = bid_prices[0] if bid_prices else 0
+        best_ask = ask_prices[0] if ask_prices else 0
+        bid1_volume = bid_volumes[0] if bid_volumes else 0
+        ask1_volume = ask_volumes[0] if ask_volumes else 0
+        mid = (best_bid + best_ask) / 2 if best_bid > 0 and best_ask > 0 else 0
+        microprice = (
+            (best_ask * bid1_volume + best_bid * ask1_volume) / (bid1_volume + ask1_volume)
+            if mid > 0 and bid1_volume + ask1_volume > 0 else 0
+        )
+        last_price = round(float(self.snapshot["last"]) / 10000, 4) if self.snapshot is not None else None
+        ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
         return {
-            "schemaVersion": 1, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
+            "schemaVersion": 2, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
             "symbol": self.symbol, "updatedAt": utc_now(),
             "lastMessageAt": None if age is None else datetime.fromtimestamp(self.last_message_at, timezone.utc).isoformat().replace("+00:00", "Z"),
             "lastExchangeTime": self.last_exchange_time,
@@ -126,15 +171,62 @@ class Collector:
             "flow": {"activeBuyNotional60s": round(buy, 2), "activeSellNotional60s": round(sell, 2),
                      "activeBuyRatio60s": None if total <= 0 else round(buy / total, 6),
                      "netActiveNotional60s": round(buy - sell, 2),
-                     "bigOrderNetNotional60s": round(big_buy - big_sell, 2)},
+                     "bigOrderNetNotional60s": round(big_buy - big_sell, 2),
+                     "transactionCount60s": len(self.transactions), "orderCount60s": len(self.orders)},
             "book": {"bidPrices": bid_prices, "askPrices": ask_prices, "bidVolumes": bid_volumes, "askVolumes": ask_volumes,
-                     "bid1Volume": near_bid, "ask1Volume": near_ask,
-                     "nearTouchImbalance": None if depth_total <= 0 else round((near_bid - near_ask) / depth_total, 6)},
+                     "lastPrice": last_price, "bid1Volume": bid1_volume, "ask1Volume": ask1_volume,
+                     "nearBidVolume": near_bid, "nearAskVolume": near_ask,
+                     "nearTouchImbalance": None if depth_total <= 0 else round((near_bid - near_ask) / depth_total, 6),
+                     "spreadBps": None if mid <= 0 else round((best_ask - best_bid) / mid * 10000, 4),
+                     "microprice": None if microprice <= 0 else round(microprice, 4),
+                     "micropriceEdgeBps": None if mid <= 0 else round((microprice - mid) / mid * 10000, 4)},
             "messages": self.message_counts,
+            "forward": {
+                "path": self.forward_path, "samples": len(self.forward_minutes), "tradingDays": len(self.forward_days),
+                "lastExchangeMinute": self.last_forward_minute, "labeled": False, "trainingReady": ready,
+                "minimumSamples": self.forward_min_samples, "minimumTradingDays": self.forward_min_days,
+                "reason": "ready-for-delayed-labeling" if ready else "collecting-genuine-forward-l2",
+            },
         }
+
+    def append_forward_sample(self, state):
+        minute = exchange_minute(state.get("lastExchangeTime"))
+        status = state.get("status", {})
+        messages = state.get("messages", {})
+        eligible = (
+            self.symbol == "601899" and minute and minute not in self.forward_minutes
+            and status.get("connected") and status.get("authorized") and not status.get("stale")
+            and messages.get("snapshot", 0) > 0
+            and (messages.get("transaction", 0) > 0 or messages.get("order", 0) > 0)
+        )
+        if not eligible:
+            return
+        record = {
+            "schemaVersion": 1, "symbol": self.symbol, "source": state["source"], "node": state["node"],
+            "observedAt": state["updatedAt"], "exchangeMinute": minute,
+            "lastPrice": state["book"].get("lastPrice"), "flow": state["flow"], "book": {
+                key: state["book"].get(key) for key in (
+                    "bid1Volume", "ask1Volume", "nearBidVolume", "nearAskVolume",
+                    "nearTouchImbalance", "spreadBps", "microprice", "micropriceEdgeBps"
+                )
+            },
+            "messages": dict(messages), "target": None,
+        }
+        target = Path(self.forward_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        self.forward_minutes.add(minute)
+        self.forward_days.add(minute[:8])
+        self.last_forward_minute = minute
 
     async def publish_state(self):
         while True:
+            state = self.state()
+            self.append_forward_sample(state)
+            # Rebuild so the state immediately reflects a newly appended sample.
             atomic_json(self.state_path, self.state())
             await asyncio.sleep(1)
 
