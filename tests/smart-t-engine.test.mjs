@@ -704,12 +704,26 @@ test("every V4 profile owns the complete risk, exit and trend gate set", () => {
     "maxOpeningChasePct", "strongBuySessionMove", "strongBuyVwap30",
     "strongSellSessionMove", "strongSellVwap30", "counterTrendVwap30",
     "counterTrendSessionMove", "counterTrendMinVolumeRatio",
+    "minBuyExecutionConfirmationVotes", "minSellExecutionConfirmationVotes",
+    "enableSellExhaustionVolumeRegime", "maxSellExhaustionVolumeRatio",
+    "minSellExpansionVolumeRatio",
   ];
 
   Object.entries(PROFILES).forEach(([name, profile]) => {
     required.forEach((key) => {
       assert.ok(Number.isFinite(profile[key]), `${name} is missing ${key}`);
     });
+  });
+});
+
+test("production profiles keep the validated V5 confirmation and sell-volume regime", () => {
+  Object.values(PROFILES).forEach((profile) => {
+    assert.equal(profile.minBuyExecutionConfirmationVotes, 4);
+    assert.equal(profile.minSellExecutionConfirmationVotes, 2);
+    assert.equal(profile.enableMatureSellReversalRiskOverride, 0);
+    assert.equal(profile.enableSellExhaustionVolumeRegime, 1);
+    assert.equal(profile.maxSellExhaustionVolumeRatio, 0.40);
+    assert.equal(profile.minSellExpansionVolumeRatio, 1.00);
   });
 });
 

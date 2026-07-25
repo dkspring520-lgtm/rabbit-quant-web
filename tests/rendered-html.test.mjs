@@ -63,7 +63,7 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /左兔 · 买入\/买回提醒/);
   assert.match(source, /右兔 · 卖出提醒/);
-  assert.match(source, /均价线大偏离、正式候选、正式买卖点与新风险全股提醒/);
+  assert.match(source, /均价线大偏离、条件候补、正式买卖点与新风险全股提醒/);
   assert.match(source, /className="alert-channel-actions"/);
   assert.match(source, /function observationConfirmationLabel/);
   assert.match(source, /function observationDirectionNote/);
@@ -118,6 +118,13 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(styles, /candidate-signal-marker rect\{fill:rgba\(242,184,75,\.12\)/);
   assert.match(styles, /live-signal-marker\.sell rect\{fill:rgba\(255,100,100,\.18\)/);
   assert.match(styles, /live-signal-marker\.buy rect\{fill:rgba\(40,215,196,\.18\)/);
+});
+
+test("stock selector keeps horizontal scrolling without showing a full-width scrollbar", async () => {
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(styles, /\.ticker\{[^}]*overflow-x:auto[^}]*scrollbar-width:none[^}]*-ms-overflow-style:none/);
+  assert.match(styles, /\.ticker::-webkit-scrollbar\{display:none\}/);
+  assert.doesNotMatch(styles, /\.ticker\{[^}]*scrollbar-width:thin/);
 });
 
 test("Zijin factor research is visibly isolated from the execution strategy", async () => {
