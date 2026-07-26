@@ -131,10 +131,12 @@ function evaluateCausalMonitor(monitor, market, clock) {
   const result = runSmartTReplay(minutes, monitorOptions(monitor, market.quote));
   const action = result.actions?.at(-1);
   const observation = selectLatestAlertableObservation(result.observations || []);
+  const coverageObservation = [...(result.observations || [])].reverse().find((item) => item?.coverageOnly);
   const latestPoint = minutes.at(-1);
   const auditBase = { marketTime: latestPoint?.time || clock.hhmm, price: market?.quote?.price ?? latestPoint?.price ?? null, provider: market.provider ?? null };
   const formalIsNew = action && minuteDistance(action.time, clock.hhmm) <= 2;
   const candidateIsNew = observation && minuteDistance(observation.time, clock.hhmm) <= 2;
+  const coverageIsNew = coverageObservation && minuteDistance(coverageObservation.time, clock.hhmm) <= 2;
   if (formalIsNew) {
     const phase = action.meta?.phase === "exit" ? "闭环" : "执行";
     const alert = {
@@ -159,6 +161,15 @@ function evaluateCausalMonitor(monitor, market, clock) {
       payload: { observation, diagnostics: result.diagnostics, provider: market.provider, quality: market.quality ?? null },
     };
     return { alert, audit: { ...auditBase, marketTime: observation.time, result: observation.stage === "candidate" ? "candidate" : "watch", reason: observation.reason || "价格与 VWAP 出现显著偏离，等待确认", eventKey: alert.eventKey } };
+  }
+  if (coverageIsNew) {
+    return { alert: null, audit: {
+      ...auditBase,
+      marketTime: coverageObservation.time,
+      result: "coverage",
+      reason: "全覆盖研究候选，仅供监控参考；不发提醒、不进入胜率或收益。",
+      eventKey: `${clock.date}:${monitor.code}:coverage:${coverageObservation.direction}:${coverageObservation.time}`,
+    } };
   }
   return { alert: null, audit: { ...auditBase, result: "no_signal", reason: blockedReason(result), eventKey: null } };
 }

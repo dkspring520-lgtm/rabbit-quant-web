@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import "./position-setup.css";
-import { runSmartTReplay } from "@/lib/smart-t-engine.mjs";
+import { buildHistoricalSimilarityArchive, runSmartTReplay } from "@/lib/smart-t-engine.mjs";
 import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
 import { confirmStockPosition, loadStockPosition, migrateLegacyPosition, normalizeStockPosition, saveStockPosition } from "@/lib/stock-position.mjs";
 import type { StockPosition } from "@/lib/stock-position.mjs";
@@ -252,7 +252,7 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 }
 
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
-type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; edge:number; executable:boolean; stage?:"watch"|"candidate"; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; blockers:string[]; reason:string };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; blockers:string[]; reason:string };
 type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; favorable:boolean; status:string };
 type OpenCandidateObservation = { direction:"正T"|"反T"; time:string; price:number; label:string; status:"候补未闭环" };
 type DeskHistoryRow = { time:string; direction:string; price:string; quantity:string; spread:string; status:string; tone?:"buy"|"sell"|"candidate" };
@@ -783,7 +783,7 @@ export default function Home() {
   const [liveL2ByMinute,setLiveL2ByMinute]=useState<Record<string,ZijinL2State>>({});
   const [liveL2Status,setLiveL2Status]=useState<ZijinL2State|null>(null);
   useEffect(()=>{
-    if(stock?.code!=="601899"){setLiveL2ByMinute({});setLiveL2Status(null);return;}
+    if(stock?.code!=="601899")return;
     let active=true;
     let timer:number|undefined;
     const poll=async()=>{
@@ -799,11 +799,11 @@ export default function Home() {
           }
         }
       }catch{if(active)setLiveL2Status({error:"L2 status endpoint unavailable",status:{connected:false,stale:true}})}
-      if(active)timer=window.setTimeout(()=>void poll(),2000);
+      if(active)timer=window.setTimeout(()=>void poll(),marketSession.live?2000:60_000);
     };
     void poll();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
-  },[stock?.code]);
+  },[stock?.code,marketSession.live]);
   const liveL2Stale=Boolean(liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
   const l2ConsoleStatus=stock.code!=="601899"
     ? {tone:"inactive",label:"L2：未启用",detail:"仅紫金矿业接入"}
@@ -811,21 +811,27 @@ export default function Home() {
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
       : liveL2Status?.status?.connected&&!liveL2Stale
         ? {tone:"ok",label:"L2：接口 OK",detail:`${liveL2Status.node||"上海节点"} · 十档与逐笔在线`}
+        : liveL2Status?.status?.connected&&!marketSession.live
+          ? {tone:"paused",label:"L2：休市待命",detail:`${liveL2Status.node||"上海节点"} · ${marketSession.label}，开市后恢复实时校验`}
         : liveL2Status?.status?.connected
           ? {tone:"stale",label:"L2：数据延迟",detail:`${liveL2Status.node||"上海节点"} · 等待新数据`}
           : liveL2Status
             ? {tone:"off",label:"L2：接口 OFF",detail:liveL2Status.error||"连接未建立"}
             : {tone:"loading",label:"L2：连接中",detail:"正在核验上海节点"};
-  const rawMinutePoints = currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [];
+  const rawMinutePoints = useMemo(
+    () => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [],
+    [currentTrial?.minutes,currentMarket?.minutes],
+  );
+  const l2MinutePoints=useMemo(()=>stock?.code==="601899"?liveL2ByMinute:{},[stock?.code,liveL2ByMinute]);
   const minutePoints = useMemo(() => rawMinutePoints
     .filter(point=>isAShareRegularTradingMinute(point.time))
     .map(point=>{
-      const l2=liveL2ByMinute[point.time];
+      const l2=l2MinutePoints[point.time];
       if(!l2)return point;
       const l2Price=Number(l2.book?.lastPrice);
       const priceCompatible=Number.isFinite(l2Price)&&l2Price>0&&Math.abs(l2Price-point.price)/Math.max(point.price,.01)<=.05;
       return {...point,price:priceCompatible?l2Price:point.price,l2};
-    }), [rawMinutePoints,liveL2ByMinute]);
+    }), [rawMinutePoints,l2MinutePoints]);
   const afterHoursPoints = useMemo(() => rawMinutePoints.filter(point=>isAShareAfterHoursFixedPriceMinute(point.time)), [rawMinutePoints]);
   const afterHoursSummary = useMemo(() => {
     if (!afterHoursPoints.length) return null;
@@ -859,6 +865,10 @@ export default function Home() {
     previousClose:activeQuote?.previousClose??null,
   }),[stock?.code,minutePoints,activeQuote?.previousClose]);
   const visibleStockAgentEvaluation=zijinResearchEnabled&&isZijinStock?stockAgentEvaluation:null;
+  const similarityArchive=useMemo(
+    ()=>buildHistoricalSimilarityArchive(currentMarket?.intradaySessions ?? [],{asOfDate:currentMarket?.sampleDate ?? null}),
+    [currentMarket?.intradaySessions,currentMarket?.sampleDate],
+  );
   const liveEngine = useMemo(() => runSmartTReplay(minutePoints, {
     capital:200_000,
     baseShares:Math.max(0,effectiveLivePosition.openingShares),
@@ -871,10 +881,14 @@ export default function Home() {
     profile,
     volatilityMode:"causal-hybrid",
     previousClose:activeQuote?.previousClose ?? null,
+    similarityArchive,
     randomValue:0,
     ...smartTProfitModeOptions(stock?.code,preferences.profitMode),
-  }),[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose,stock?.code,preferences.profitMode]);
-  const currentObservations=(liveEngine.observations ?? []) as ReplayObservation[];
+  }),[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose,stock?.code,preferences.profitMode,similarityArchive]);
+  const currentObservations=useMemo(
+    ()=>(liveEngine.observations ?? []) as ReplayObservation[],
+    [liveEngine.observations],
+  );
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(()=>selectVisibleChartObservations(currentObservations),[currentObservations]);
@@ -1688,7 +1702,7 @@ export default function Home() {
         <aside className="decision-zone">
           {alertToast&&<div className={`trade-alert-toast ${alertToast.level} rabbit-${alertToast.rabbit}`} role="alert"><span className={`rabbit-speaker ${alertToast.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{alertToast.level==="candidate"?`${alertToast.rabbit==="buy"?"左兔":"右兔"} · 候选观察`:alertToast.rabbit==="buy"?"左兔 · 买入/买回提醒":alertToast.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{alertToast.title}</b><span>{alertToast.message}</span></div>{alertQueue.length>1&&<em className="alert-queue-count">+{alertQueue.length-1}</em>}<button onClick={()=>setAlertQueue(current=>current.slice(1))} aria-label="关闭提醒">×</button></div>}
           {isZijinStock&&<div className="stock-agent-switch" aria-label="紫金矿业信号引擎选择">
-            <div><span>正式信号引擎</span><b>Smart-T V4</b><small>紫金研究模型尚未达到毕业门槛，不能接管正式执行</small></div>
+            <div><span>正式信号引擎 · 三分离过滤</span><b>Smart-T V4.1</b><small>紫金外因与相对强弱仅进入因果研究层；未通过前瞻毕业门槛前不能接管正式执行</small></div>
             <div className="stock-agent-switch-actions"><button className={!zijinResearchEnabled?"active":""} onClick={()=>setZijinResearchEnabled(false)} aria-pressed={!zijinResearchEnabled}>V4 正式</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(true)} aria-pressed={zijinResearchEnabled}>紫金研究叠加</button></div>
           </div>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
@@ -2979,8 +2993,10 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           {visibleBacktestObservations.length>0?<div className="candidate-audit-list">{visibleBacktestObservations.map((observation,index)=>{
             const pivotState=observation.pivotAssessment==="strong"?"强确认":observation.pivotAssessment==="confirmed"?"已确认":"未确认";
             return <article key={`${observation.direction}-${observation.time}-${index}`} className={observation.executable?"passed":observation.stage==="candidate"?"candidate":"watch"}>
-              <header><span><i>{observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation)}</b></span><em>{observation.score}/{observation.threshold} 分 · 预估价差 {observation.edge.toFixed(2)}%</em></header>
+              <header><span><i>{observation.coverageOnly?"覆盖":observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation)}</b></span><em>{observation.coverageOnly?"研究候选 · 不计胜率":`${observation.score}/${observation.threshold} 分 · 预估价差 ${observation.edge.toFixed(2)}%`}</em></header>
               <p>{observationDirectionNote(observation)}；{observation.reason}</p>
+              {observation.scoreBreakdown&&<small>三分离证据：方向 {observation.scoreBreakdown.direction}/{observation.scoreBreakdown.thresholds.direction} · 位置 {observation.scoreBreakdown.location}/{observation.scoreBreakdown.thresholds.location} · 触发 {observation.scoreBreakdown.trigger}/{observation.scoreBreakdown.thresholds.trigger}</small>}
+              {observation.similarity&&<small>历史相似：{observation.similarity.ready?`${observation.similarity.samples} 个已完成样本 · 10分钟达标 ${(observation.similarity.hitRate??0).toFixed(0)}% · 平均有利 ${(observation.similarity.averageFavorablePct??0).toFixed(2)}%`:`样本 ${observation.similarity.samples} 个，未达最小样本量，仅作观察`}</small>}
               {observation.pivotTime&&<small>此前参考：{formatTime(observation.pivotTime)} ¥{observation.pivotPrice?.toFixed(2) ?? "—"} · {observation.pivotLabel ?? pivotState}；提示只在 {formatTime(observation.time)} 确认</small>}
               <div className="candidate-audit-blockers">{observation.executable?<span className="passed">已通过正式过滤</span>:observation.blockers.map((blocker,blockerIndex)=><span key={`${blocker}-${blockerIndex}`}>{blocker}</span>)}</div>
             </article>;
