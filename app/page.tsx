@@ -781,8 +781,9 @@ export default function Home() {
     }catch{}
   };
   const [liveL2ByMinute,setLiveL2ByMinute]=useState<Record<string,ZijinL2State>>({});
+  const [liveL2Status,setLiveL2Status]=useState<ZijinL2State|null>(null);
   useEffect(()=>{
-    if(stock?.code!=="601899"){setLiveL2ByMinute({});return;}
+    if(stock?.code!=="601899"){setLiveL2ByMinute({});setLiveL2Status(null);return;}
     let active=true;
     let timer:number|undefined;
     const poll=async()=>{
@@ -790,15 +791,31 @@ export default function Home() {
         const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"});
         const payload=await response.json() as ZijinL2State;
         const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
-        if(active&&minute&&payload.status?.connected&&!payload.status.stale){
-          setLiveL2ByMinute(current=>({...current,[minute]:payload}));
+        const stale=payload.status?.stale||payload.meta?.stale;
+        if(active){
+          setLiveL2Status(payload);
+          if(minute&&payload.status?.connected&&!stale){
+            setLiveL2ByMinute(current=>({...current,[minute]:payload}));
+          }
         }
-      }catch{}
+      }catch{if(active)setLiveL2Status({error:"L2 status endpoint unavailable",status:{connected:false,stale:true}})}
       if(active)timer=window.setTimeout(()=>void poll(),2000);
     };
     void poll();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
   },[stock?.code]);
+  const liveL2Stale=Boolean(liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
+  const l2ConsoleStatus=stock.code!=="601899"
+    ? {tone:"inactive",label:"L2：未启用",detail:"仅紫金矿业接入"}
+    : liveL2Status?.status?.authorized===false
+      ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
+      : liveL2Status?.status?.connected&&!liveL2Stale
+        ? {tone:"ok",label:"L2：接口 OK",detail:`${liveL2Status.node||"上海节点"} · 十档与逐笔在线`}
+        : liveL2Status?.status?.connected
+          ? {tone:"stale",label:"L2：数据延迟",detail:`${liveL2Status.node||"上海节点"} · 等待新数据`}
+          : liveL2Status
+            ? {tone:"off",label:"L2：接口 OFF",detail:liveL2Status.error||"连接未建立"}
+            : {tone:"loading",label:"L2：连接中",detail:"正在核验上海节点"};
   const rawMinutePoints = currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [];
   const minutePoints = useMemo(() => rawMinutePoints
     .filter(point=>isAShareRegularTradingMinute(point.time))
@@ -1625,6 +1642,9 @@ export default function Home() {
         <div className="quote-metrics">
           <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{currentTrial ? "1 秒试用" : currentMarket ? "公开延迟" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
         </div>
+        <div className={`l2-console-status ${l2ConsoleStatus.tone}`} role="status" title={l2ConsoleStatus.detail}>
+          <i/><span>{l2ConsoleStatus.label}</span><small>{l2ConsoleStatus.detail}</small>
+        </div>
         <div className="opening-assessment"><span>开盘状态</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {openingAssessment.confirmation}</small></div>
       </section>
 
@@ -2016,6 +2036,7 @@ type ZijinResearchBundle = typeof import("@/lib/zijin-research-bundle")["zijinRe
 type ZijinL2State = {
   node?:string; error?:string; lastExchangeTime?:string;
   status?:{connected?:boolean;authorized?:boolean;stale?:boolean};
+  meta?:{stale?:boolean;servedAt?:string};
   flow?:{activeBuyRatio60s?:number|null;netActiveNotional60s?:number;bigOrderNetNotional60s?:number};
   book?:{lastPrice?:number|null;nearTouchImbalance?:number|null;spreadBps?:number|null;micropriceEdgeBps?:number|null};
   volatility?:{source?:string;period?:number;samples?:number;ready?:boolean;atr14?:number|null;atrPct14?:number|null};
