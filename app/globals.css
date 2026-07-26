@@ -181,7 +181,7 @@
 /* 操盘台股票排序与独立全屏 */
 .ticker-item{position:relative;align-items:stretch;flex:1 0 250px;max-width:560px;min-width:0;transition:opacity .15s ease,background .15s ease}
 .ticker-item.selected{box-shadow:none}
-.ticker-item.selected:after{content:"";position:absolute;z-index:2;left:0;right:0;bottom:0;height:2px;background:var(--teal);pointer-events:none}
+.ticker-item.selected:after{display:none}
 .ticker-item.dragging{opacity:.42}
 .ticker-item.drag-over{background:rgba(40,215,196,.08);box-shadow:inset 3px 0 0 var(--teal)}
 .ticker .ticker-stock-button{flex:1;min-width:0;padding-left:9px;padding-right:9px}
