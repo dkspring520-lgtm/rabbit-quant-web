@@ -20,8 +20,8 @@ test("Zijin replay gives each causal reference a visible non-executable research
   ]));
 
   assert.ok(points.length >= 2);
-  assert.ok(points.some((point) => point.confirmationLabel === "研究候选·反弹观察"));
-  assert.ok(points.some((point) => point.confirmationLabel === "研究候选·回落观察"));
+  assert.ok(points.some((point) => point.confirmationLabel === "反弹观察"));
+  assert.ok(points.some((point) => point.confirmationLabel === "回落观察"));
   assert.ok(points.every((point) => point.executable === false));
   assert.ok(points.every((point) => point.coverageOnly === true));
   assert.ok(points.every((point) => point.stage === "watch"));
