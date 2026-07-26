@@ -13,6 +13,7 @@ import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { evaluateStockAgent, STOCK_AGENTS } from "@/lib/stock-agent-router.mjs";
 import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
+import { buildZijinReplayCandidates } from "@/lib/zijin-replay-candidates.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
 import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
@@ -269,6 +270,12 @@ function selectVisibleChartObservations(observations: ReplayObservation[]) {
   // Every live marker stays on the minute when the engine could first know it.
   // Never reselect an old pivot later or paint a confirmed turn back in time.
   return observations.filter(observation=>!observation.executable);
+}
+
+function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinute[], observations:ReplayObservation[]) {
+  return code === "601899"
+    ? buildZijinReplayCandidates(minutes, observations) as ReplayObservation[]
+    : buildCausalReferencePoints(minutes, observations) as ReplayObservation[];
 }
 
 function observationConfirmationLabel(observation: ReplayObservation) {
@@ -2653,7 +2660,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       setResult(calculated);
       setBatch(null);
       const candidateCount=calculated.diagnostics?.candidates ?? 0;
-      const observationCount=buildCausalReferencePoints(data.minutes ?? [],calculated.observations ?? []).length;
+      const observationCount=buildReplayChartObservations(data.quote.code,data.minutes ?? [],calculated.observations ?? []).length;
       setRunStatus(calculated.trades
         ? `全日回放完成：形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
         : `全日回放完成：展示 ${observationCount} 个候补观察点，出现 ${candidateCount} 次候选判定，0 个通过正式过滤`);
@@ -2856,7 +2863,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const formatTime=(value:string|undefined)=>value && value.length>=4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : "--:--";
   const formatDate=(value:string|undefined)=>value && value.length===8 ? `${value.slice(0,4)}-${value.slice(4,6)}-${value.slice(6,8)}` : value ?? "—";
   const visibleBacktestObservations=result
-    ? selectVisibleChartObservations(buildCausalReferencePoints(fullDayMinutes,result.observations ?? []) as ReplayObservation[])
+    ? selectVisibleChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? []))
     : [];
   const cycles = (() => {
     const paired: { first: ReplayAction; second: ReplayAction }[] = [];
@@ -2993,7 +3000,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           {visibleBacktestObservations.length>0?<div className="candidate-audit-list">{visibleBacktestObservations.map((observation,index)=>{
             const pivotState=observation.pivotAssessment==="strong"?"强确认":observation.pivotAssessment==="confirmed"?"已确认":"未确认";
             return <article key={`${observation.direction}-${observation.time}-${index}`} className={observation.executable?"passed":observation.stage==="candidate"?"candidate":"watch"}>
-              <header><span><i>{observation.coverageOnly?"覆盖":observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation)}</b></span><em>{observation.coverageOnly?"研究候选 · 不计胜率":`${observation.score}/${observation.threshold} 分 · 预估价差 ${observation.edge.toFixed(2)}%`}</em></header>
+              <header><span><i>{observation.coverageOnly&&source?.quote.code==="601899"?"紫金候选":observation.coverageOnly?"覆盖":observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation)}</b></span><em>{observation.coverageOnly?"研究候选 · 不计胜率":`${observation.score}/${observation.threshold} 分 · 预估价差 ${observation.edge.toFixed(2)}%`}</em></header>
               <p>{observationDirectionNote(observation)}；{observation.reason}</p>
               {observation.scoreBreakdown&&<small>三分离证据：方向 {observation.scoreBreakdown.direction}/{observation.scoreBreakdown.thresholds.direction} · 位置 {observation.scoreBreakdown.location}/{observation.scoreBreakdown.thresholds.location} · 触发 {observation.scoreBreakdown.trigger}/{observation.scoreBreakdown.thresholds.trigger}</small>}
               {observation.similarity&&<small>历史相似：{observation.similarity.ready?`${observation.similarity.samples} 个已完成样本 · 10分钟达标 ${(observation.similarity.hitRate??0).toFixed(0)}% · 平均有利 ${(observation.similarity.averageFavorablePct??0).toFixed(2)}%`:`样本 ${observation.similarity.samples} 个，未达最小样本量，仅作观察`}</small>}
