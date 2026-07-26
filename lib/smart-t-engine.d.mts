@@ -30,9 +30,25 @@ export type SmartTObservation = {
   direction: "正T" | "反T";
   score: number;
   threshold: number;
+  scoreBreakdown?: {
+    direction: number;
+    location: number;
+    trigger: number;
+    thresholds: { direction: number; location: number; trigger: number };
+    passed: { direction: boolean; location: boolean; trigger: boolean };
+    confirmed: boolean;
+  };
+  similarity?: {
+    samples: number;
+    ready: boolean;
+    hitRate: number | null;
+    averageFavorablePct: number | null;
+    averageAdversePct: number | null;
+  };
   edge: number;
   executable: boolean;
   stage: "watch" | "candidate";
+  coverageOnly?: boolean;
   pairGap: number | null;
   pivotTime: string;
   pivotPrice: number;
@@ -113,8 +129,45 @@ export type SmartTOptions = {
   strategyVersion?: string;
   gateAudit?: boolean;
   volatilityMode?: "fixed" | "causal-realized" | "causal-hybrid";
+  similarityArchive?: Array<{
+    date?: string;
+    direction: "BUY_FIRST" | "SELL_FIRST";
+    timeBucket: string;
+    deviation: number;
+    momentum3: number;
+    volumeRatio: number;
+    sessionMove: number;
+    favorablePct: number;
+    adversePct: number;
+    hitTarget: boolean;
+  }>;
 };
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
+export function evaluateTripleScoreEvidence(input: {
+  rawScore?: number;
+  rawThreshold?: number;
+  regimeConflict?: boolean;
+  vwapDirectionConflict?: boolean;
+  deviation?: number;
+  effectiveDeviation?: number;
+  pivotReversal?: number;
+  effectiveReversal?: number;
+  edge?: number;
+  requiredEdge?: number;
+  structuralConfirmation?: boolean;
+  executionMomentumConfirmed?: boolean;
+  crossedVwap?: boolean;
+  volumeRatio?: number;
+}): SmartTObservation["scoreBreakdown"];
+export function buildHistoricalSimilarityArchive(
+  sessions: Array<{ date?: string; minutes?: SmartTMinute[] }>,
+  options?: { asOfDate?: string | null; horizonMinutes?: number; stride?: number },
+): NonNullable<SmartTOptions["similarityArchive"]>;
+export function summarizeHistoricalSimilarity(
+  feature: Record<string, unknown>,
+  archive?: SmartTOptions["similarityArchive"],
+  options?: { minimumSamples?: number; maximumSamples?: number },
+): NonNullable<SmartTObservation["similarity"]>;
 export function causalVolatilityScale(
   points: SmartTMinute[],
   index: number,

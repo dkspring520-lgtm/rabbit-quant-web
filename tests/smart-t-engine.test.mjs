@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   PROFILES,
+  buildHistoricalSimilarityArchive,
   buildCandidateObservationCycles,
   causalCyclePreference,
   causalBrokerAtrScale,
@@ -17,11 +18,53 @@ import {
   detectRisingKnifeConflict,
   describeVwapConfirmation,
   evaluateStructuralStop,
+  evaluateTripleScoreEvidence,
   isWithinSellEntryTimeWindow,
   minutesFromOpen,
   qualifiesMatureSellReversalRiskOverride,
   runSmartTReplay,
+  summarizeHistoricalSimilarity,
 } from "../lib/smart-t-engine.mjs";
+
+test("three independent scores do not let a strong tape hide a weak location", () => {
+  const weakLocation = evaluateTripleScoreEvidence({
+    rawScore: 6,
+    rawThreshold: 6,
+    regimeConflict: false,
+    vwapDirectionConflict: false,
+    deviation: 0.04,
+    effectiveDeviation: 0.70,
+    pivotReversal: 0.02,
+    effectiveReversal: 0.35,
+    edge: 0.05,
+    requiredEdge: 0.45,
+    structuralConfirmation: true,
+    executionMomentumConfirmed: true,
+    crossedVwap: true,
+    volumeRatio: 1.2,
+  });
+  assert.equal(weakLocation.passed.direction, true);
+  assert.equal(weakLocation.passed.trigger, true);
+  assert.equal(weakLocation.passed.location, false);
+  assert.equal(weakLocation.confirmed, false);
+});
+
+test("historical similarity archive labels only fully completed earlier sessions", () => {
+  const minutes = Array.from({ length: 28 }, (_, index) => ({
+    time: `09${String(30 + index).padStart(2, "0")}`,
+    price: 10 + index * 0.02,
+    volume: 100 + index * 10,
+  }));
+  const archive = buildHistoricalSimilarityArchive([
+    { date: "20260720", minutes },
+    { date: "20260721", minutes: minutes.map((point) => ({ ...point, price: point.price + 1 })) },
+  ], { asOfDate: "2026-07-21", horizonMinutes: 4, stride: 4 });
+  assert.ok(archive.length > 0);
+  assert.ok(archive.every((item) => item.date === "20260720"));
+  const summary = summarizeHistoricalSimilarity(archive[0], archive, { minimumSamples: 1 });
+  assert.equal(summary.ready, true);
+  assert.ok(summary.samples >= 1);
+});
 
 test("trend risk voting collapses correlated detectors into independent groups", () => {
   const correlated = consolidateTrendRiskVotes({
@@ -583,6 +626,27 @@ test("partial intraday data is not treated as the closing bell", () => {
   assert.equal(result.trades, 0);
   assert.equal(result.actions.length, 1, "an open leg should remain open on a partial session");
   assert.ok(result.actions[0].time < partial.at(-1).time);
+});
+
+test("coverage research markers provide both directions without entering candidate cycles or performance", () => {
+  const rows = sessionTimes.slice(0, 45).map((time) => ({ time, price: 10, volume: 10_000 }));
+  const result = runSmartTReplay(rows, { ...options, baseShares: 0, sellable: 0 });
+  const coverage = result.observations.filter((observation) => observation.coverageOnly);
+
+  assert.deepEqual(coverage.map((observation) => observation.direction), ["正T", "反T"]);
+  assert.ok(coverage.every((observation) => observation.stage === "watch" && !observation.executable));
+  assert.equal(result.candidateCycles.length, 0);
+  assert.equal(result.trades, 0);
+
+  for (const observation of coverage) {
+    const prefixIndex = rows.findIndex((point) => point.time === observation.time);
+    const prefix = runSmartTReplay(rows.slice(0, prefixIndex + 1), { ...options, baseShares: 0, sellable: 0 });
+    assert.deepEqual(
+      prefix.observations.find((candidate) => candidate.coverageOnly && candidate.direction === observation.direction),
+      observation,
+      "a coverage marker must be identical when evaluated from the live prefix",
+    );
+  }
 });
 
 test("future prices cannot rewrite an already emitted signal", () => {
