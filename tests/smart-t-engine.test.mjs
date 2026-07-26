@@ -9,6 +9,7 @@ import {
   causalPersistentDirection,
   causalRangeEvidence,
   causalVolatilityScale,
+  confirmsRapidRiseSellReversal,
   consolidateTrendRiskVotes,
   confirmCandidateDirectionFlip,
   crossedVwapCausally,
@@ -16,6 +17,7 @@ import {
   detectRisingKnifeConflict,
   describeVwapConfirmation,
   evaluateStructuralStop,
+  isWithinSellEntryTimeWindow,
   minutesFromOpen,
   qualifiesMatureSellReversalRiskOverride,
   runSmartTReplay,
@@ -71,6 +73,32 @@ test("mature sell reversal override accepts only a non-accelerating peak", () =>
     ...base,
     orderFlow: { available: true, pass: true, score: 3 },
   }), true);
+});
+
+test("rapid-rise reverse T only hard-blocks a very fresh peak", () => {
+  const base = {
+    direction: "SELL_FIRST",
+    rapidRiseUnconfirmed: true,
+    pivotAge: 4,
+    structuralConfirmation: true,
+    executionMomentumConfirmed: true,
+    executionConfirmationVotes: 3,
+  };
+
+  assert.equal(confirmsRapidRiseSellReversal(base), true);
+  assert.equal(confirmsRapidRiseSellReversal({ ...base, pivotAge: 2 }), true);
+  assert.equal(confirmsRapidRiseSellReversal({ ...base, pivotAge: 2, executionMomentumConfirmed: false }), false);
+  assert.equal(confirmsRapidRiseSellReversal({ ...base, pivotAge: 3, executionMomentumConfirmed: false }), true);
+  assert.equal(confirmsRapidRiseSellReversal({ ...base, executionMomentumConfirmed: false }), true);
+  assert.equal(confirmsRapidRiseSellReversal({ ...base, executionConfirmationVotes: 2 }), true);
+  assert.equal(confirmsRapidRiseSellReversal({ ...base, rapidRiseUnconfirmed: false, pivotAge: 1 }), true);
+});
+
+test("optional reverse-T cutoff does not suppress buy-first entries", () => {
+  assert.equal(isWithinSellEntryTimeWindow({ direction: "SELL_FIRST", time: "1030", maxSellEntryTime: "1030" }), true);
+  assert.equal(isWithinSellEntryTimeWindow({ direction: "SELL_FIRST", time: "1031", maxSellEntryTime: "1030" }), false);
+  assert.equal(isWithinSellEntryTimeWindow({ direction: "BUY_FIRST", time: "1400", maxSellEntryTime: "1030" }), true);
+  assert.equal(isWithinSellEntryTimeWindow({ direction: "SELL_FIRST", time: "1400" }), true);
 });
 
 test("causal realised volatility widens high-volatility minutes without fake ATR", () => {
