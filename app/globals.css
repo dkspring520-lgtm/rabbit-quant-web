@@ -186,6 +186,7 @@
 .ticker-item.dragging{opacity:.42}
 .ticker-item.drag-over{background:rgba(40,215,196,.08);box-shadow:inset 3px 0 0 var(--teal)}
 .ticker .ticker-stock-button{flex:1;min-width:0;padding-left:9px;padding-right:9px}
+.ticker .ticker-stock-button:hover{background:transparent}
 .ticker .ticker-stock-button>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .ticker .ticker-event{flex:0 0 58px;text-align:center}
 .ticker-drag-handle{display:flex;align-items:center;padding:0 8px;color:#65736e;font-size:13px;cursor:grab;user-select:none;touch-action:none}
