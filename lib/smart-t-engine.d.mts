@@ -191,6 +191,21 @@ export function qualifiesMatureSellReversalRiskOverride(input: {
     score?: number;
   };
 }): boolean;
+export function confirmsRapidRiseSellReversal(input: {
+  direction: "BUY_FIRST" | "SELL_FIRST";
+  rapidRiseUnconfirmed?: boolean;
+  pivotAge?: number;
+  minPivotAge?: number;
+  maxUnconfirmedPivotAge?: number;
+  structuralConfirmation?: boolean;
+  executionMomentumConfirmed?: boolean;
+  executionConfirmationVotes?: number;
+}): boolean;
+export function isWithinSellEntryTimeWindow(input: {
+  direction: "BUY_FIRST" | "SELL_FIRST";
+  time?: string;
+  maxSellEntryTime?: string | null;
+}): boolean;
 export const PROFILES: Record<string, {
   score: number;
   cooldown: number;
