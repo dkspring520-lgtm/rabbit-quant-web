@@ -812,18 +812,22 @@ export default function Home() {
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
   },[stock?.code,marketSession.live]);
   const liveL2Stale=Boolean(liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
+  // Connection payloads may include an endpoint or a broker-provided error.  Keep
+  // those transport details out of the console UI; this card is a service-status
+  // indicator, not a connection diagnostic.
+  const l2ConsoleNode="上海节点";
   const l2ConsoleStatus=stock.code!=="601899"
     ? {tone:"inactive",label:"L2：未启用",detail:"仅紫金矿业接入"}
     : liveL2Status?.status?.authorized===false
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
       : liveL2Status?.status?.connected&&!liveL2Stale
-        ? {tone:"ok",label:"L2：接口 OK",detail:`${liveL2Status.node||"上海节点"} · 十档与逐笔在线`}
+        ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · 十档与逐笔在线`}
         : liveL2Status?.status?.connected&&!marketSession.live
-          ? {tone:"paused",label:"L2：休市待命",detail:`${liveL2Status.node||"上海节点"} · ${marketSession.label}，开市后恢复实时校验`}
+          ? {tone:"paused",label:"L2：休市待命",detail:`${l2ConsoleNode} · ${marketSession.label}，开市后恢复实时校验`}
         : liveL2Status?.status?.connected
-          ? {tone:"stale",label:"L2：数据延迟",detail:`${liveL2Status.node||"上海节点"} · 等待新数据`}
+          ? {tone:"stale",label:"L2：数据延迟",detail:`${l2ConsoleNode} · 等待新数据`}
           : liveL2Status
-            ? {tone:"off",label:"L2：接口 OFF",detail:liveL2Status.error||"连接未建立"}
+            ? {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`}
             : {tone:"loading",label:"L2：连接中",detail:"正在核验上海节点"};
   const rawMinutePoints = useMemo(
     () => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [],
