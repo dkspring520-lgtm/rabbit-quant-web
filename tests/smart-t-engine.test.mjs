@@ -56,6 +56,9 @@ test("mature sell reversal override accepts only a non-accelerating peak", () =>
       weakReversalQuality: true,
     },
     pivotAge: 4,
+    scoreConfirmed: true,
+    structuralConfirmation: true,
+    executionMomentumConfirmed: true,
     orderFlow: { available: false, pass: true, score: 0 },
   };
 
@@ -73,6 +76,10 @@ test("mature sell reversal override accepts only a non-accelerating peak", () =>
     ...base,
     orderFlow: { available: true, pass: true, score: 3 },
   }), true);
+  assert.equal(qualifiesMatureSellReversalRiskOverride({
+    ...base,
+    scoreConfirmed: false,
+  }), false);
 });
 
 test("rapid-rise reverse T only hard-blocks a very fresh peak", () => {
@@ -733,6 +740,7 @@ test("every V4 profile owns the complete risk, exit and trend gate set", () => {
     "strongSellSessionMove", "strongSellVwap30", "counterTrendVwap30",
     "counterTrendSessionMove", "counterTrendMinVolumeRatio",
     "minBuyExecutionConfirmationVotes", "minSellExecutionConfirmationVotes",
+    "minSellFormalPivotAge",
     "enableSellExhaustionVolumeRegime", "maxSellExhaustionVolumeRatio",
     "minSellExpansionVolumeRatio",
   ];
@@ -745,10 +753,10 @@ test("every V4 profile owns the complete risk, exit and trend gate set", () => {
 });
 
 test("production profiles keep the validated V5 confirmation and sell-volume regime", () => {
-  Object.values(PROFILES).forEach((profile) => {
+  Object.entries(PROFILES).forEach(([name, profile]) => {
     assert.equal(profile.minBuyExecutionConfirmationVotes, 4);
     assert.equal(profile.minSellExecutionConfirmationVotes, 2);
-    assert.equal(profile.enableMatureSellReversalRiskOverride, 0);
+    assert.equal(profile.enableMatureSellReversalRiskOverride, name === "平衡档" ? 1 : 0);
     assert.equal(profile.enableSellExhaustionVolumeRegime, 1);
   });
 
@@ -758,6 +766,8 @@ test("production profiles keep the validated V5 confirmation and sell-volume reg
   assert.equal(balanced.deviation, 0.65);
   assert.equal(balanced.cooldown, 5);
   assert.equal(balanced.maxCycles, 2);
+  assert.equal(balanced.matureSellReversalMinPivotAge, 2);
+  assert.equal(balanced.minSellFormalPivotAge, 2);
 
   Object.entries(PROFILES)
     .filter(([name]) => name !== "平衡档")
