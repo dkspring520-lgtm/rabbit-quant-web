@@ -536,6 +536,71 @@
   color:var(--text);
 }
 
+/* Daylight desk: compact the chrome so the chart remains the primary surface. */
+@media (min-width:761px) {
+  :root[data-theme="light"] .topbar {
+    height:58px;
+  }
+
+  :root[data-theme="light"] .topbar .brand-primary-logo {
+    width:188px;
+    height:52px;
+  }
+
+  :root[data-theme="light"] .topbar .brand-lockup {
+    min-width:194px;
+    padding-right:16px;
+  }
+
+  :root[data-theme="light"] .ticker,
+  :root[data-theme="light"] .ticker-item {
+    height:38px;
+  }
+
+  :root[data-theme="light"] .session-ribbon {
+    height:28px;
+    flex-basis:28px;
+    padding:0 20px;
+  }
+
+  :root[data-theme="light"] .stock-head {
+    height:94px;
+    min-height:94px;
+    padding:8px 24px;
+  }
+
+  :root[data-theme="light"] .quote strong {
+    font-size:31px;
+  }
+
+  :root[data-theme="light"] .chart-tools {
+    height:45px;
+    flex-basis:45px;
+    padding:0 18px;
+  }
+
+  :root[data-theme="light"] .chart-wrap {
+    padding-top:10px;
+  }
+}
+
+:root[data-theme="light"] .decision-zone {
+  background:#f5f8f8;
+}
+
+:root[data-theme="light"] .decision-zone :is(.signal-layer,.signal-funnel-note,.auto-direction,.alert-channel,.stock-agent-switch) {
+  background:rgba(255,255,255,.82);
+}
+
+:root[data-theme="light"] .decision-zone :is(.signal-layer,.signal-funnel-note,.auto-direction,.alert-channel,.stock-agent-switch) {
+  border-color:#cdd9dc;
+}
+
+:root[data-theme="light"] .future-session-shade {
+  fill:rgba(215,226,228,.46);
+  pointer-events:none;
+}
+
 @media (max-width:760px) {
   .top-actions .theme-toggle { display:grid !important; }
   .public-theme-toggle { margin-left:auto !important; }
