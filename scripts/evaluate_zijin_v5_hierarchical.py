@@ -114,6 +114,43 @@ def direction_score(rows: pd.DataFrame, weights: dict[str, float]) -> pd.Series:
     return score.astype(float)
 
 
+def opening_direction_permission(rows: pd.DataFrame, direction: str, policy: dict[str, Any]) -> pd.Series:
+    """Causal 09:35-10:00 gate for the historical bar-only V5 audit.
+
+    The live opening-state machine additionally consumes premarket, auction and
+    L2 data, but those values are only collected prospectively. This fallback
+    intentionally uses just information available at minute t.
+    """
+    fallback = policy["historicalBarFallback"]
+    first = minute_number(str(fallback["firstActionAt"]))
+    last = minute_number(str(fallback["lastOpeningCheckAt"]))
+    minute = pd.to_numeric(rows["minuteOfDay"], errors="coerce").fillna(0)
+    applies = (minute >= first) & (minute <= last)
+    volume_ok = pd.to_numeric(rows["volumeRatio"], errors="coerce").fillna(0) >= float(fallback["minimumVolumeRatio"])
+    if direction == "positive":
+        confirmations = (
+            (pd.to_numeric(rows["openDeviationPct"], errors="coerce").fillna(0) >= 0).astype(int)
+            + (pd.to_numeric(rows["vwapBiasPct"], errors="coerce").fillna(0) >= 0).astype(int)
+            + (pd.to_numeric(rows["vwapSlope5Pct"], errors="coerce").fillna(0) >= 0).astype(int)
+            + (pd.to_numeric(rows["return5Pct"], errors="coerce").fillna(0) >= 0).astype(int)
+            + (pd.to_numeric(rows["ma10SlopePct"], errors="coerce").fillna(0) >= 0).astype(int)
+            + volume_ok.astype(int)
+        )
+    else:
+        confirmations = (
+            (pd.to_numeric(rows["openDeviationPct"], errors="coerce").fillna(0) <= 0).astype(int)
+            + (pd.to_numeric(rows["vwapBiasPct"], errors="coerce").fillna(0) <= 0).astype(int)
+            + (pd.to_numeric(rows["vwapSlope5Pct"], errors="coerce").fillna(0) <= 0).astype(int)
+            + (pd.to_numeric(rows["return5Pct"], errors="coerce").fillna(0) <= 0).astype(int)
+            + (pd.to_numeric(rows["ma10SlopePct"], errors="coerce").fillna(0) <= 0).astype(int)
+            + volume_ok.astype(int)
+        )
+    first_confirmation = int(policy["stages"]["09:35-09:45"]["minimumConfirmations"])
+    continuation_confirmation = int(policy["stages"]["09:45-10:00"]["minimumConfirmations"])
+    required = np.where(minute < minute_number("09:45"), first_confirmation, continuation_confirmation)
+    return (~applies) | (confirmations >= required)
+
+
 def independent(rows: pd.DataFrame, maximum_per_day: int) -> pd.DataFrame:
     kept: list[pd.Series] = []
     for _, day in rows.sort_values(["date", "rowIndex", "score"], ascending=[True, True, False]).groupby("date", sort=True):
@@ -223,6 +260,7 @@ def main() -> None:
     max_daily = int(protocol["execution"]["maximumSignalsPerDay"])
     min_peer_rows = int(protocol["model"]["minimumPeerTrainingRows"])
     direction_policy = protocol["hierarchy"]["direction"]
+    opening_policy = protocol["openingDirection"]
     start_minute, end_minute = [minute_number(value) for value in protocol["execution"]["session"]]
 
     for fold_id, start, end, final_holdout in FOLDS:
@@ -248,8 +286,18 @@ def main() -> None:
                 permission = valid_dir["directionScore"] >= float(direction_policy["positivePermissionAtOrAbove"])
             else:
                 permission = valid_dir["directionScore"] <= float(direction_policy["reversePermissionAtOrBelow"])
+            opening_permission = opening_direction_permission(valid_dir, direction, opening_policy)
+            before_opening_guard = int((
+                permission
+                & (valid_dir["score"] >= cutoff)
+                & (valid_dir["peerCoverage"] >= 0.8)
+                & (valid_dir["volumeRatio"] >= 0.70)
+                & (valid_dir["minuteOfDay"] >= start_minute)
+                & (valid_dir["minuteOfDay"] <= end_minute)
+            ).sum())
             chosen = valid_dir[
                 permission
+                & opening_permission
                 & (valid_dir["score"] >= cutoff)
                 & (valid_dir["peerCoverage"] >= 0.8)
                 & (valid_dir["volumeRatio"] >= 0.70)
@@ -257,7 +305,7 @@ def main() -> None:
                 & (valid_dir["minuteOfDay"] <= end_minute)
             ].copy()
             fold_selected.append(chosen)
-            per_direction[direction] = {"status": "scored", "peerRows": int(len(train_dir)), "targetCalibrationRows": int(len(calibration_dir)), "cutoff": round(cutoff, 6), "candidates": int(len(chosen))}
+            per_direction[direction] = {"status": "scored", "peerRows": int(len(train_dir)), "targetCalibrationRows": int(len(calibration_dir)), "cutoff": round(cutoff, 6), "candidatesBeforeOpeningGuard": before_opening_guard, "candidates": int(len(chosen))}
         selected = independent(pd.concat(fold_selected, ignore_index=True) if fold_selected else validation.iloc[0:0], max_daily)
         selected["fold"] = fold_id
         selected["finalHoldout"] = final_holdout
@@ -283,6 +331,15 @@ def main() -> None:
             "futureBarsUsedOnlyForLabels": True,
             "usesHistoricalL2": False,
             "usesHistoricalAuctionBook": False,
+            "openingDirectionUsesForwardL2Only": True,
+            "openingBarFallbackUsesOnlyMinuteTOrEarlier": True,
+        },
+        "openingDirectionResearch": {
+            "status": opening_policy["status"],
+            "affectsFormalExecution": bool(opening_policy["affectsFormalExecution"]),
+            "auction": opening_policy["auction"],
+            "stages": opening_policy["stages"],
+            "historicalBarFallback": opening_policy["historicalBarFallback"],
         },
         "dataset": {**target_audit, "peerTrainingRows": int(len(peer_samples)), "peerTrainingCodes": peer_codes, "inputSha256": sha256(args.input), "protocolSha256": sha256(args.protocol)},
         "model": {"type": protocol["model"]["type"], "featureCount": len(features), "features": features, "fixedProbabilityQuantile": fixed_quantile, "peerTraining": "six peer stocks only", "zijinCalibration": "fixed score quantile only"},
