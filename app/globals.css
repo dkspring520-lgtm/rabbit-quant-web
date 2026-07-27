@@ -278,3 +278,9 @@
 .intraday-time-label{font-size:9px}
 .intraday-price-flag rect{fill:var(--coral)}
 .intraday-price-flag text{fill:#fff;font:700 11px var(--font-geist-mono);font-variant-numeric:tabular-nums}
+
+/* 个人训练：指标只计算和显示当前已揭示分钟。 */
+.personal-training-indicators{display:flex;flex-wrap:wrap;gap:7px 14px;margin:11px 0 -2px;font-size:10px;color:var(--muted)}
+.personal-training-indicators span{display:inline-flex;align-items:center;gap:5px}.personal-training-indicators i{width:15px;height:2px;background:var(--teal)}
+.personal-training-indicators i.ma5{background:#f2b84b}.personal-training-indicators i.ma10{background:#a78bfa}.personal-training-indicators i.ma20{background:#ff7a75}.personal-training-indicators i.volume{width:8px;height:8px;border-radius:1px;background:rgba(40,215,196,.55)}
+.personal-training-indicators i.trade{width:8px;height:8px;border-radius:50%;background:var(--coral)}.personal-training-chart polyline.price{stroke:var(--teal);stroke-width:2.8}.personal-training-chart polyline.ma5{stroke:#f2b84b;stroke-width:1.5}.personal-training-chart polyline.ma10{stroke:#a78bfa;stroke-width:1.35}.personal-training-chart polyline.ma20{stroke:#ff7a75;stroke-width:1.2}.personal-training-volume rect{fill:rgba(40,215,196,.48)}.personal-training-trade circle{stroke:#081110;stroke-width:2}.personal-training-trade text{font-size:9px;font-weight:800;paint-order:stroke;stroke:#081110;stroke-width:2px;stroke-linejoin:round}.personal-training-trade.buy circle{fill:var(--teal)}.personal-training-trade.buy text{fill:var(--teal)}.personal-training-trade.sell circle{fill:var(--coral)}.personal-training-trade.sell text{fill:var(--coral)}
