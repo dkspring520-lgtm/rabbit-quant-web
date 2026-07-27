@@ -476,6 +476,22 @@ export function createControlStore(databasePath, options = {}) {
       GROUP BY users.id ORDER BY users.created_at DESC`).all().map(row => ({ ...serializeUser(row), monitorCount: row.monitor_count, alertCount: row.alert_count }));
   }
 
+  function referralLeaderboard(limit = 5) {
+    const safeLimit = Math.min(20, Math.max(1, Math.floor(Number(limit) || 5)));
+    return db.prepare(`
+      SELECT users.display_name, COUNT(referrals.id) AS credits, MIN(referrals.created_at) AS first_credit_at
+      FROM referrals
+      JOIN users ON users.id = referrals.inviter_id
+      WHERE referrals.status = 'credited' AND users.status = 'active'
+      GROUP BY referrals.inviter_id
+      ORDER BY credits DESC, first_credit_at ASC
+      LIMIT ?
+    `).all(safeLimit).map((row, index) => {
+      const name = Array.from(String(row.display_name || '会员').trim() || '会员');
+      return { rank: index + 1, displayName: `${name[0] || '会'}**`, credits: Number(row.credits || 0) };
+    });
+  }
+
   function setMemberStatus(id, status) {
     if (!['active', 'paused'].includes(status)) throw Object.assign(new Error("状态参数不正确"), { status: 400 });
     db.prepare("UPDATE users SET status=? WHERE id=? AND role!='admin'").run(status, id);
@@ -517,6 +533,6 @@ export function createControlStore(databasePath, options = {}) {
   }
 
   return { db, register, login, authenticate, logout, getProfile, putProfile, getServiceSetting, putServiceSetting, savePushSubscription, listPushSubscriptions, removePushSubscription, recordPushDelivery, listMonitors, replaceMonitors,
-    listActiveMonitors, addAlert, listAlerts, acknowledgeAlert, markAlertDelivery, recordMonitorScan, listMonitorScans, listMembers, setMemberStatus,
+    listActiveMonitors, addAlert, listAlerts, acknowledgeAlert, markAlertDelivery, recordMonitorScan, listMonitorScans, listMembers, referralLeaderboard, setMemberStatus,
     grantMembership, requestReset, issueReset, resetPassword, close: () => db.close() };
 }

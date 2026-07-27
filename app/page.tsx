@@ -1752,7 +1752,7 @@ export default function Home() {
           <span className="brand-type brand-type-fallback"><strong aria-hidden="true"><span>双兔助手</span></strong><small>做<span className="brand-ascii-t">T</span>神器 · SMART-T</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
-          {['首页','操盘台','单股智研','多股监控','策略市场','持仓对账','模拟回测','智能训练'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
+          {['首页','操盘台','单股智研','多股监控','策略市场','持仓对账','模拟回测','智能训练','邀请中心'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
         </nav>
         <div className="top-actions">
           <span className={`market-open ${marketSession.tone}`} title={`${marketSession.label}：${marketSession.detail}；法定节假日以交易所公告为准`} aria-label={`${marketSession.label}：${marketSession.detail}`}><i /><span className="market-open-label">{marketSession.live?"监控中":marketSession.label}</span></span>
@@ -1767,7 +1767,7 @@ export default function Home() {
       </header>
       {demoMode&&<div className="demo-ribbon" role="status"><b>免注册演示</b><span>当前为本机临时体验，不代表正式账户；下单接口关闭，演示操作不会同步到其他设备。</span><button onClick={()=>{setDemoMode(false);setLocalAuth(false);setAuthScreen('account')}}>创建测试账户</button></div>}
 
-      {activeView === "首页" ? <HomeView onNavigate={setActiveView} onOpenZijin={openZijinExperiment} stockCount={stockList.length} /> : activeView === "操盘台" ? <>
+      {activeView === "首页" ? <HomeView onNavigate={setActiveView} onOpenZijin={openZijinExperiment} stockCount={stockList.length} canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} referralCredits={accountMembership?.referralCredits??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} /> : activeView === "邀请中心" ? <ReferralCenter canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} demoMode={demoMode} referralCode={accountMembership?.referralCode??null} referralCredits={accountMembership?.referralCredits??0} referralReviews={accountMembership?.referralReviews??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} onOpenAccount={()=>setAccountOpen(true)} /> : activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
         {stockList.map((item, index) => (
           <div
@@ -2093,7 +2093,7 @@ function MemberAdminView({onClose}:{onClose:()=>void}){
   return <div className="member-admin-overlay" role="dialog" aria-modal="true" aria-label="会员后台" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><section className="member-admin-panel"><header><div><span>MEMBER CONTROL</span><h2>会员与后台监控</h2><p>查看正式注册会员、跨设备监控数和后台告警；暂停会员后其所有登录会话立即失效。</p></div><button onClick={onClose} aria-label="关闭会员后台">×</button></header>{error&&<div className="member-admin-error">{error}</div>}{resetInfo&&<div className="member-reset-token"><span>{resetInfo.username} 的一次性重置码</span><code>{resetInfo.token}</code><small>{new Date(resetInfo.expiresAt).toLocaleString('zh-CN')} 前有效；发送给会员后请勿再次公开。</small><button onClick={()=>void navigator.clipboard?.writeText(resetInfo.token)}>复制重置码</button></div>}<div className="member-admin-summary"><span>正式会员 <b>{members.filter(item=>item.role==='member').length}</b></span><span>正在监控 <b>{members.reduce((sum,item)=>sum+Number(item.monitorCount||0),0)} 只</b></span><span>后台告警 <b>{members.reduce((sum,item)=>sum+Number(item.alertCount||0),0)} 条</b></span><button onClick={()=>void load()}>刷新</button></div><div className="member-table"><div className="member-row member-head"><span>会员</span><span>状态 / 权益</span><span>监控 / 告警</span><span>最近登录</span><span>操作</span></div>{members.map(member=><div className="member-row" key={member.id}><span><b>{member.displayName}</b><small>{member.username} · {member.role==='admin'?'管理员':'会员'}</small></span><span><em className={member.status}>{member.status==='active'?'正常':'已暂停'}</em><small>{member.role==='admin'?'长期有效':member.membership?.expiresAt?`至 ${new Date(member.membership.expiresAt).toLocaleDateString('zh-CN')}`:'未开通'}</small></span><span><b>{member.monitorCount} / {member.alertCount}</b></span><span><small>{member.lastLoginAt?new Date(member.lastLoginAt).toLocaleString('zh-CN'):'从未登录'}</small></span><span>{member.role==='admin'?<small>系统管理员</small>:<><button disabled={busyId===member.id} onClick={()=>void updateStatus(member)}>{member.status==='active'?'暂停':'恢复'}</button><button disabled={busyId===member.id} onClick={()=>void grantWeek(member)}>+7 天</button><button disabled={busyId===member.id} onClick={()=>void issueReset(member)}>重置码</button></>}</span></div>)}</div></section></div>;
 }
 
-function HomeView({onNavigate,onOpenZijin,stockCount}:{onNavigate:(view:string)=>void;onOpenZijin:()=>void;stockCount:number}) {
+function HomeView({onNavigate,onOpenZijin,stockCount,canInvite,referralCredits,onCopyInvite,inviteMessage}:{onNavigate:(view:string)=>void;onOpenZijin:()=>void;stockCount:number;canInvite:boolean;referralCredits:number;onCopyInvite:()=>void;inviteMessage:string}) {
   const timeParts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Shanghai',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
   const readPart=(type:string)=>timeParts.find(part=>part.type===type)?.value??'';
   const marketMinute=(Number(readPart('hour'))||0)*60+(Number(readPart('minute'))||0);
@@ -2109,6 +2109,11 @@ function HomeView({onNavigate,onOpenZijin,stockCount}:{onNavigate:(view:string)=
       <div><b>紫金矿业实验室</b><small>查看五年分钟样本训练、样本外验证与当前通过状态；独立研究，不自动写入 Smart-T V4。</small></div>
       <em>查看训练进度 →</em>
     </button>
+    <section className="home-referral-ad" aria-label="邀请得会员">
+      <div className="home-referral-mark">7<span>天</span></div>
+      <div><span>会员邀请奖励</span><h2>邀请好友注册，双方一起研究做T</h2><p>{canInvite?`每有效注册 1 人，会员权益自动增加 7 天。你已获得 ${referralCredits} 次奖励。`:'有效注册 1 人即可获得 7 天会员权益；登录会员账户后可生成专属邀请链接。'}</p></div>
+      <div className="home-referral-actions">{canInvite?<button onClick={onCopyInvite}>复制我的邀请链接</button>:<button onClick={()=>onNavigate('邀请中心')}>查看邀请规则</button>}<button className="home-referral-link" onClick={()=>onNavigate('邀请中心')}>进入邀请中心 →</button>{inviteMessage&&<em>{inviteMessage}</em>}</div>
+    </section>
     <div className="home-strip"><button className="home-widget" onClick={()=>onNavigate('持仓对账')}><span>今日闭环</span><b>查看账本</b><small>只统计已录入且完成配对的成交 →</small></button><button className="home-widget" onClick={()=>onNavigate('多股监控')}><span>监控股票</span><b>{stockCount} 只</b><small>盘中持续扫描 · 打开看板 →</small></button><button className="home-widget profit-widget" onClick={()=>onNavigate('持仓对账')}><span>已确认净收益</span><b>按流水计算</b><small>没有真实成交记录时不展示演示收益 →</small></button><button className="home-widget" onClick={()=>onNavigate('智能训练')}><span>四兔研究</span><b>查看证据</b><small>真实样本覆盖 · 不显示假训练进度 →</small></button></div>
     <div className="home-workflow"><div className="workflow-head"><div><span className="eyebrow">DAILY WORKFLOW</span><h2>每天只看四件事</h2></div><p>减少指标堆叠，把操作顺序固定下来。</p></div><div className="workflow-grid">{[{n:'01',title:'先看市场',copy:'集合竞价与市场雷达先决定今天能不能做、优先正T还是反T。',action:'多股监控',icon:'⌁'},{n:'02',title:'再等信号',copy:'价格、VWAP、量能和确认分同时满足，才显示可执行机会。',action:'操盘台',icon:'⌗'},{n:'03',title:'当天闭环',copy:'首笔成交后冻结同向信号，等量反向成交并恢复原底仓。',action:'持仓对账',icon:'⇄'},{n:'04',title:'收盘复盘',copy:'使用真实费用和可卖数量回放，训练参数只进入候选区。',action:'智能训练',icon:'◇'}].map(item=><button key={item.n} onClick={()=>onNavigate(item.action)}><span>{item.n}</span><i>{item.icon}</i><h3>{item.title}</h3><p>{item.copy}</p><em>{item.action} →</em></button>)}</div></div>
     <div className="home-risk"><span>重要提示</span><p>做T不保证盈利。所有信号仅用于策略研究和提醒；自动交易接口保持关闭，候选策略必须人工晋升。</p><button onClick={()=>onNavigate('模拟回测')}>查看可信回测</button></div>
@@ -2187,6 +2192,36 @@ function MultiWatchView({stocks,onOpen,onManage}:{stocks:typeof initialStocks;on
     <div className="watch-toolbar"><div><span>公开行情试用 · 数据时效不保证为交易级</span></div><button className="watch-add" onClick={onManage}>＋ 管理监控股票</button></div>
     <div className="watch-table"><div className="watch-row watch-title"><span>股票</span><span>最新价</span><span>涨跌幅</span><span>日内振幅</span><span>日内位置</span><span>状态</span><span/></div>{allRows.map(row=><div className="watch-row" key={row.code}><span className="watch-stock"><b>{row.name}</b><small>{row.code}</small></span><span className="watch-price"><b>{row.price}</b><small>公开行情</small></span><span><b className={row.changeValue!=null&&row.changeValue<0?'negative':row.changeValue!=null&&row.changeValue>0?'positive':'neutral'}>{row.change}</b><small>{row.change==='--'?'等待更新':'当日涨跌幅'}</small></span><span><b>{row.amplitude==null?'--':`${row.amplitude.toFixed(2)}%`}</b><small>高低波动</small></span><span className="day-position"><i><em style={{width:`${row.position??0}%`}}/></i><b>{row.position==null?'--':`${row.position.toFixed(0)}%`}</b></span><em className="watch-pill watch">仅监控</em><button onClick={()=>onOpen(stocks.findIndex(item=>item.code===row.code))}>进入操盘台 →</button></div>)}</div>
     <div className="watch-rule"><b>使用说明</b><span>多股页为 5 秒公开行情试用</span><span>操盘台为当前选股 1 秒轮询试用</span><span>页面隐藏时仅暂停前端报价刷新；服务器继续扫描并记录</span><span>报价不构成交易建议，也不触发自动下单</span></div>
+  </section>;
+}
+
+function ReferralCenter({canInvite,demoMode,referralCode,referralCredits,referralReviews,onCopyInvite,inviteMessage,onOpenAccount}:{canInvite:boolean;demoMode:boolean;referralCode:string|null;referralCredits:number;referralReviews:number;onCopyInvite:()=>void;inviteMessage:string;onOpenAccount:()=>void}){
+  const [leaders,setLeaders]=useState<{rank:number;displayName:string;credits:number}[]>([]);
+  const [leadersReady,setLeadersReady]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    fetch('/api/control/referrals/leaderboard?limit=5',{cache:'no-store'})
+      .then(response=>response.ok?response.json():Promise.reject(new Error('leaderboard unavailable')))
+      .then((payload:{leaderboard?:{rank:number;displayName:string;credits:number}[]})=>{
+        if(active)setLeaders(Array.isArray(payload.leaderboard)?payload.leaderboard:[]);
+      })
+      .catch(()=>{ if(active)setLeaders([]); })
+      .finally(()=>{ if(active)setLeadersReady(true); });
+    return()=>{active=false};
+  },[]);
+  return <section className="referral-center module-view">
+    <header className="referral-center-head"><span>MEMBERSHIP REWARDS</span><h1>邀请得会员</h1><p>邀请一位好友完成有效注册，你的会员权益自动增加 7 天。</p></header>
+    <div className="referral-hero-card">
+      <div className="referral-reward"><b>+7</b><span>天会员权益</span></div>
+      <div className="referral-hero-copy"><span>你的专属邀请</span><h2>{canInvite?'分享链接，好友注册后自动计入奖励':'登录会员账户后，生成专属邀请链接'}</h2><p>{canInvite?`邀请码：${referralCode} · 已成功奖励 ${referralCredits} 人${referralReviews?` · 待审核 ${referralReviews} 人`:''}`:demoMode?'演示模式不会生成邀请码。':'管理员账户不参与会员邀请奖励。'}</p></div>
+      {canInvite?<div className="referral-actions"><button onClick={onCopyInvite}>复制邀请链接</button><small>{inviteMessage||'链接可直接发送给好友'}</small></div>:<button className="referral-login" onClick={onOpenAccount}>{demoMode?'登录 / 注册会员':'查看账户中心'}</button>}
+    </div>
+    <div className="referral-steps"><article><b>01</b><h3>复制链接</h3><p>把专属邀请链接发送给好友。</p></article><article><b>02</b><h3>完成注册</h3><p>好友通过该链接注册正式账户。</p></article><article><b>03</b><h3>奖励到账</h3><p>有效注册后自动增加 7 天会员权益。</p></article></div>
+    <section className="referral-leaderboard" aria-label="邀请排行榜">
+      <header><div><span>INVITE LEADERBOARD</span><h2>邀请榜</h2></div><small>按已确认的有效邀请人数排序</small></header>
+      {!leadersReady?<p className="referral-leaderboard-empty">正在加载邀请榜…</p>:leaders.length?<ol>{leaders.map(item=><li key={`${item.rank}:${item.displayName}`} className={item.rank===1?'leader-first':''}><b>{item.rank===1?'冠军':`TOP ${item.rank}`}</b><span>{item.displayName}</span><em>{item.credits} 人</em></li>)}</ol>:<p className="referral-leaderboard-empty">邀请榜等待第一位会员上榜。</p>}
+    </section>
+    <div className="referral-note"><b>奖励说明</b><span>同一来源的重复注册不会重复计奖；邀请奖励仅增加会员权益，不兑换现金，也不改变策略、行情或交易权限。</span></div>
   </section>;
 }
 

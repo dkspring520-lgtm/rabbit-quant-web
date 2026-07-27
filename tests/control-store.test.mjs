@@ -109,6 +109,7 @@ test("referrals credit seven days once and hold duplicate sources for review", (
     assert.equal(afterFirst.membership.referralCredits, 1);
     assert.equal(afterFirst.membership.referralRewardDays, 7);
     assert.ok(Date.parse(afterFirst.membership.expiresAt) >= before + 7 * 24 * 60 * 60 * 1000 - 1000);
+    assert.deepEqual(store.referralLeaderboard(), [{ rank: 1, displayName: "邀**", credits: 1 }]);
 
     store.register({
       username: "review@example.com", password: "ReviewPass123!", displayName: "同源用户",
@@ -117,6 +118,7 @@ test("referrals credit seven days once and hold duplicate sources for review", (
     const afterReview = store.login({ username: inviter.username, password: "InvitePass123!" }).user;
     assert.equal(afterReview.membership.referralCredits, 1);
     assert.equal(afterReview.membership.referralReviews, 1);
+    assert.deepEqual(store.referralLeaderboard(), [{ rank: 1, displayName: "邀**", credits: 1 }]);
     const granted = store.grantMembership(inviter.id, 7, "admin_grant");
     assert.equal(granted.referralCredits, 1);
     assert.equal(granted.active, true);
