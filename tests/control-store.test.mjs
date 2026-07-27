@@ -27,6 +27,14 @@ test("server accounts, sessions and cross-device profile data", () => {
     assert.equal(monitors[0].code, "601899");
     assert.equal(store.listActiveMonitors().length, 1);
 
+    const endpoint = "https://push.example.test/subscription-1";
+    const subscription = { endpoint, keys: { p256dh: "A".repeat(87), auth: "B".repeat(22) } };
+    assert.equal(store.savePushSubscription(member.id, subscription).enabled, true);
+    assert.equal(store.listPushSubscriptions(member.id).length, 1);
+    store.recordPushDelivery(endpoint, { success: true });
+    assert.ok(store.listPushSubscriptions(member.id)[0].lastSuccessAt);
+    assert.equal(store.removePushSubscription(member.id, endpoint), true);
+
     const ordered = store.replaceMonitors(member.id, [
       { code: "600003", name: "第三只" },
       { code: "600001", name: "第一只" },

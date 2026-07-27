@@ -70,6 +70,12 @@ const cumulativeIntradayAverage = (points:Array<{price:number;volume?:number}>) 
   });
 };
 
+const base64UrlToUint8Array = (value:string) => {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = window.atob(padded);
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+};
+
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
@@ -81,7 +87,7 @@ type EventRadarItem = { id:string; code:string; title:string; summary:string; ur
 type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; counts:{ positive:number; negative:number; neutral:number }; gate:{ level:"normal"|"caution"|"restricted"|"locked"; hardLock:boolean; score:number; label:string; action:string; reason:string } };
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; errors:string[] };
-type AlertSettings = { sound:boolean; system:boolean };
+type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"|null; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
 type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
@@ -590,7 +596,8 @@ export default function Home() {
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
   const [alertLogOpen,setAlertLogOpen]=useState(false);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
-  const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,...JSON.parse(saved)}:{sound:false,system:false};}catch{return {sound:false,system:false};}});
+  const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,background:false,...JSON.parse(saved)}:{sound:false,system:false,background:false};}catch{return {sound:false,system:false,background:false};}});
+  const [backgroundPushState,setBackgroundPushState]=useState<"idle"|"ready"|"unsupported"|"error">("idle");
   const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
   const alertToast=alertQueue[0]??null;
   const alertedEventKeys = useRef<Set<string>>(new Set());
@@ -1209,29 +1216,105 @@ export default function Home() {
     try{
       const AudioContextClass=window.AudioContext||(window as typeof window & {webkitAudioContext:typeof AudioContext}).webkitAudioContext;
       const context=new AudioContextClass();
-      const oscillator=context.createOscillator();const gain=context.createGain();
-      oscillator.frequency.value=risk?660:880;gain.gain.value=.05;oscillator.connect(gain);gain.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+(risk?0.32:0.16));
-      oscillator.onended=()=>void context.close();
+      void context.resume?.();
+      const notes=risk?[392,330,262]:[523.25,659.25,783.99];
+      const duration=risk?.42:.34;
+      for(const [index,frequency] of notes.entries()){
+        const oscillator=context.createOscillator();const gain=context.createGain();const start=context.currentTime+index*.075;
+        oscillator.type="sine";oscillator.frequency.setValueAtTime(frequency,start);
+        gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(risk?.065:.045,start+.018);gain.gain.exponentialRampToValueAtTime(.0001,start+duration);
+        oscillator.connect(gain);gain.connect(context.destination);oscillator.start(start);oscillator.stop(start+duration+.02);
+      }
+      window.setTimeout(()=>void context.close(),(notes.length-1)*75+duration*1000+80);
     }catch{}
   };
   const speakAlert=(text:string,risk=false)=>{
     playAlertTone(risk);
     try{
       if(!("speechSynthesis" in window))return;
-      const speech=new SpeechSynthesisUtterance(text);
+      const stockName=String(text||"").split(/[，,·•｜|]/)[0]?.trim()||"双兔助手";
+      const spoken=/风险|锁定|止损/.test(text)?`${stockName}，风险提醒`
+        :/买回|买入|正T/.test(text)?`${stockName}，买点提醒`
+        :/卖出|反T/.test(text)?`${stockName}，卖点提醒`
+        :/高位|顶部|冲高/.test(text)?`${stockName}，高位提醒`
+        :/低位|底部|回踩/.test(text)?`${stockName}，低位提醒`
+        :`${stockName}，提醒`;
+      const speech=new SpeechSynthesisUtterance(spoken);
       speech.lang="zh-CN";speech.rate=1.02;speech.pitch=risk?0.82:1.08;speech.volume=.92;
+      const voices=window.speechSynthesis.getVoices();
+      speech.voice=voices.find(voice=>voice.lang.toLowerCase().startsWith("zh-cn")&&/xiaoxiao|tingting|xiaochen|xiaoyi|natural/i.test(voice.name))
+        ??voices.find(voice=>voice.lang.toLowerCase().startsWith("zh-cn"))
+        ??null;
       window.speechSynthesis.speak(speech);
     }catch{}
   };
   const queueAlert=(alert:TradeAlertToast)=>setAlertQueue(current=>[...current,alert].slice(-8));
+  const persistAlertSettings=(next:AlertSettings)=>{
+    setAlertSettings(next);
+    try{localStorage.setItem('rabbit-alert-settings',JSON.stringify(next));}catch{}
+  };
+  const enableBackgroundPush=async()=>{
+    if(!localAuth||demoMode){queueAlert({level:"candidate",rabbit:"both",title:"后台推送需要登录",message:"请先登录正式账号后再开启手机后台提醒。"});return;}
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)){setBackgroundPushState("unsupported");queueAlert({level:"candidate",rabbit:"both",title:"当前浏览器不支持后台推送",message:"请使用新版 Safari/Chrome，并将双兔助手添加到手机主屏幕后重试。"});return;}
+    try{
+      let permission=Notification.permission;
+      if(permission!=="granted")permission=await Notification.requestPermission();
+      if(permission!=="granted"){queueAlert({level:"candidate",rabbit:"both",title:"未获得通知权限",message:"请在手机系统设置中允许双兔助手发送通知。"});return;}
+      const registration=await navigator.serviceWorker.register("/notifications-sw.js",{scope:"/"});
+      await navigator.serviceWorker.ready;
+      let subscription=await registration.pushManager.getSubscription();
+      if(!subscription){
+        const response=await fetch("/api/control/push/public-key",{credentials:"include",cache:"no-store"});
+        if(!response.ok)throw new Error("无法获取推送密钥");
+        const payload=await response.json();
+        subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64UrlToUint8Array(payload.publicKey)});
+      }
+      const saved=await fetch("/api/control/push/subscriptions",{method:"POST",credentials:"include",headers:{"content-type":"application/json"},body:JSON.stringify({subscription:subscription.toJSON()})});
+      if(!saved.ok)throw new Error("服务器未保存推送订阅");
+      persistAlertSettings({...alertSettings,background:true});setBackgroundPushState("ready");
+      queueAlert({level:"signal",rabbit:"both",title:"后台推送已开启",message:"正式和候选提醒会推送到系统通知；iPhone 请将网站添加到主屏幕后使用。"});
+    }catch{
+      setBackgroundPushState("error");queueAlert({level:"risk",rabbit:"both",title:"后台推送连接失败",message:"订阅没有保存成功，请稍后重试；前台语音和弹窗不受影响。"});
+    }
+  };
+  const disableBackgroundPush=async()=>{
+    try{
+      const registration=await navigator.serviceWorker?.getRegistration("/");
+      const subscription=await registration?.pushManager.getSubscription();
+      if(subscription){await fetch("/api/control/push/subscriptions",{method:"DELETE",credentials:"include",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:subscription.endpoint})});await subscription.unsubscribe();}
+    }catch{}
+    persistAlertSettings({...alertSettings,background:false});setBackgroundPushState("idle");
+  };
+  const testBackgroundPush=async()=>{
+    try{
+      const response=await fetch("/api/control/push/test",{method:"POST",credentials:"include"});
+      if(!response.ok)throw new Error("test failed");
+      queueAlert({level:"signal",rabbit:"both",title:"测试已发出",message:"请将网页切到后台，稍候查看系统通知。"});
+    }catch{queueAlert({level:"risk",rabbit:"both",title:"测试发送失败",message:"当前设备尚未完成后台推送订阅。"});}
+  };
+  useEffect(()=>{
+    if(!localAuth||demoMode)return;
+    let cancelled=false;
+    void (async()=>{
+      if(!("serviceWorker" in navigator)||!("PushManager" in window)){if(!cancelled)setBackgroundPushState("unsupported");return;}
+      try{
+        const registration=await navigator.serviceWorker.register("/notifications-sw.js",{scope:"/"});
+        const subscription=await registration.pushManager.getSubscription();
+        if(cancelled)return;
+        setBackgroundPushState(subscription?"ready":"idle");
+        if(subscription&&!alertSettings.background)persistAlertSettings({...alertSettings,background:true});
+      }catch{if(!cancelled)setBackgroundPushState("error");}
+    })();
+    return()=>{cancelled=true;};
+  },[localAuth,demoMode]);
   const updateAlertSetting=async (kind:keyof AlertSettings)=>{
+    if(kind==="background"){if(alertSettings.background)await disableBackgroundPush();else await enableBackgroundPush();return;}
     let enabled=!alertSettings[kind];
     if(kind==="system"&&enabled){
       if(!("Notification" in window))enabled=false;
       else enabled=(await Notification.requestPermission())==="granted";
     }
-    const next={...alertSettings,[kind]:enabled};setAlertSettings(next);
-    try{localStorage.setItem('rabbit-alert-settings',JSON.stringify(next));}catch{}
+    const next={...alertSettings,[kind]:enabled};persistAlertSettings(next);
     if(kind==="sound"&&enabled)playAlertTone(false);
   };
   const previewRabbitAlert=()=>{
@@ -1784,7 +1867,7 @@ export default function Home() {
             <small>{visibleStockAgentEvaluation.phase==="opening"?"早盘专属层":"全天因子层"} · 振幅 {visibleStockAgentEvaluation.metrics.rangePct.toFixed(2)}% · 距VWAP {visibleStockAgentEvaluation.metrics.vwapBiasPct>=0?"+":""}{visibleStockAgentEvaluation.metrics.vwapBiasPct.toFixed(2)}% · 量比 {visibleStockAgentEvaluation.metrics.volumeRatio==null?"待数据":`${visibleStockAgentEvaluation.metrics.volumeRatio.toFixed(2)}×`}</small>
             <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
-          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、条件候补、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button onClick={()=>setAlertLogOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存后台扫描记录':'查看最近7天后台扫描与提醒原因'}>提醒记录</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button></div></div>
+          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、条件候补、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button onClick={()=>setAlertLogOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存后台扫描记录':'查看最近7天后台扫描与提醒原因'}>提醒记录</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button><button className={alertSettings.background?"active":""} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"手机后台系统通知"}>{backgroundPushState==="unsupported"?"后台不支持":`后台推送 ${alertSettings.background?"已开":"关闭"}`}</button>{alertSettings.background&&<button onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">测试推送</button>}</div></div>
           <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div><small>{decisionModel.reason}</small><em>{decisionModel.confirmed}/4</em></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <div className={`stock-state ${stockState.level}`}>
