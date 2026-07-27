@@ -2571,11 +2571,32 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
     const padding=Math.max(.01,(high-low)*.16);
     return {low:low-padding,high:high+padding};
   },[revealed]);
-  const chartPoints=revealed.length>1?revealed.map((item,index)=>{
-    const x=12+index/Math.max(1,revealed.length-1)*736;
-    const y=12+(chartRange.high-item.price)/Math.max(.01,chartRange.high-chartRange.low)*164;
-    return `${x},${y}`;
-  }).join(" "):"";
+  const chartSeries=useMemo(()=>{
+    const xFor=(index:number)=>12+index/Math.max(1,revealed.length-1)*736;
+    const priceY=(price:number)=>12+(chartRange.high-price)/Math.max(.01,chartRange.high-chartRange.low)*106;
+    const pointsFor=(period:number)=>revealed.map((item,index)=>{
+      const window=revealed.slice(Math.max(0,index-period+1),index+1);
+      const average=window.reduce((sum,point)=>sum+point.price,0)/window.length;
+      return `${xFor(index)},${priceY(average)}`;
+    }).join(" ");
+    const maxVolume=Math.max(1,...revealed.map(item=>Math.max(0,item.volume||0)));
+    const ma=(period:number)=>{
+      const window=revealed.slice(Math.max(0,revealed.length-period));
+      return window.length?window.reduce((sum,point)=>sum+point.price,0)/window.length:null;
+    };
+    const actionMarkers=actions.filter(action=>action.minuteIndex>=0&&action.minuteIndex<revealed.length).map(action=>({
+      ...action,x:xFor(action.minuteIndex),y:priceY(action.marketPrice)
+    }));
+    return {
+      price:revealed.length>1?revealed.map((item,index)=>`${xFor(index)},${priceY(item.price)}`).join(" "):"",
+      ma5:revealed.length>1?pointsFor(5):"",
+      ma10:revealed.length>1?pointsFor(10):"",
+      ma20:revealed.length>1?pointsFor(20):"",
+      volumes:revealed.map((item,index)=>({x:xFor(index),height:Math.max(1,Math.max(0,item.volume||0)/maxVolume*32),index})),
+      actionMarkers,
+      ma5Value:ma(5),ma10Value:ma(10),ma20Value:ma(20)
+    };
+  },[revealed,chartRange,actions]);
   const summary=current? summarizePersonalTraining({initialCash,initialShares,initialPrice:minutes[0]?.price,cash,shares,markPrice:current.price,actions:actions as unknown as []}):null;
 
   const loadSessions=async()=>{
@@ -2630,7 +2651,8 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
     {sessions.length>0&&<div className="personal-training-session"><label>训练日期<select value={selectedDate} onChange={event=>setSelectedDate(event.target.value)} disabled={revealIndex>=0&&!finished}>{sessions.map(item=><option key={item.date} value={item.date}>{item.date} · {item.minutes.length} 分钟</option>)}</select></label><button onClick={startTraining}>{session&&!finished?"重新开始本日":"开始逐分钟训练"}</button><small>开始后无法回退或查看未来分钟；结算后才会揭示收盘结果。</small></div>}
     {session&&current&&<div className="personal-training-stage">
       <div className="personal-training-status"><span>当前仅揭示至 <b>{formatTime(current.time)}</b></span><span>{revealIndex+1}/{minutes.length} 分钟</span><span>当前价 <b>¥{current.price.toFixed(2)}</b></span><span>模拟持仓 <b>{shares.toLocaleString()} 股</b></span><span>可用资金 <b>¥{cash.toFixed(2)}</b></span></div>
-      <svg className="personal-training-chart" viewBox="0 0 760 188" role="img" aria-label="仅显示已揭示的历史分时"><line x1="12" x2="748" y1="94" y2="94"/><polyline points={chartPoints}/>{revealed.length===1&&<circle cx="12" cy="94" r="3"/>}<text x="12" y="184">{formatTime(revealed[0]?.time)}</text><text x="748" y="184" textAnchor="end">{formatTime(current.time)}</text></svg>
+      <div className="personal-training-indicators" aria-label="当前已揭示指标"><span><i className="price"/>价格</span><span><i className="ma5"/>MA5 ¥{chartSeries.ma5Value?.toFixed(2)??"--"}</span><span><i className="ma10"/>MA10 ¥{chartSeries.ma10Value?.toFixed(2)??"--"}</span><span><i className="ma20"/>MA20 ¥{chartSeries.ma20Value?.toFixed(2)??"--"}</span><span><i className="volume"/>成交量（仅已揭示）</span><span><i className="trade"/>你的买卖</span></div>
+      <svg className="personal-training-chart" viewBox="0 0 760 188" role="img" aria-label="仅显示已揭示的历史分时、均线、成交量和个人买卖"><line x1="12" x2="748" y1="65" y2="65"/><line x1="12" x2="748" y1="130" y2="130"/><g className="personal-training-volume">{chartSeries.volumes.map(bar=><rect key={bar.index} x={bar.x-1.25} y={164-bar.height} width="2.5" height={bar.height}/>)}</g><polyline className="price" points={chartSeries.price}/><polyline className="ma5" points={chartSeries.ma5}/><polyline className="ma10" points={chartSeries.ma10}/><polyline className="ma20" points={chartSeries.ma20}/>{chartSeries.actionMarkers.map(action=><g className={`personal-training-trade ${action.side}`} key={action.id}><circle cx={action.x} cy={action.y} r="4"/><text x={action.x} y={Math.max(11,action.y-8)} textAnchor="middle">{action.side==="buy"?"买":"卖"}</text><text x={action.x} y={Math.min(120,action.y+16)} textAnchor="middle">¥{action.executionPrice.toFixed(2)}</text></g>)}{revealed.length===1&&<circle cx="12" cy="65" r="3"/>}<text x="12" y="128">价格</text><text x="12" y="178">成交量</text><text x="12" y="184">{formatTime(revealed[0]?.time)}</text><text x="748" y="184" textAnchor="end">{formatTime(current.time)}</text></svg>
       <div className="personal-training-actions"><div className="training-advance"><button onClick={()=>advance(1)} disabled={finished||revealIndex>=minutes.length-1}>下一分钟</button><button onClick={()=>advance(5)} disabled={finished||revealIndex>=minutes.length-1}>快进 5 分钟</button><button className="settle" onClick={settle} disabled={finished}>揭示收盘并结算</button></div><div className="training-order"><label>数量<input type="number" min="100" step="100" value={quantity} onChange={event=>setQuantity(Math.max(100,Math.floor((Number(event.target.value)||100)/100)*100))}/></label><button className="manual-buy" onClick={()=>trade("buy")} disabled={finished}>手动买入</button><button className="manual-sell" onClick={()=>trade("sell")} disabled={finished}>手动卖出</button></div></div>
       <p className="personal-training-message">{message}</p>
       <div className="personal-training-summary"><span>当前模拟权益 <b>¥{summary?.equity.toFixed(2)}</b></span><span>相对开局 <b className={(summary?.net??0)>=0?"positive":"negative"}>{(summary?.net??0)>=0?"+":""}¥{summary?.net.toFixed(2)}</b></span><span>已计费用 <b>¥{summary?.fees.toFixed(2)}</b></span><span>手动操作 <b>{actions.length} 笔</b></span></div>
