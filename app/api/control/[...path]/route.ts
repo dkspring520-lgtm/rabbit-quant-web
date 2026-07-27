@@ -7,7 +7,7 @@ async function proxy(request: Request) {
   const upstream = new URL(`${origin}${suffix}`);
   upstream.search = incoming.search;
   const headers = new Headers();
-  for (const name of ["cookie", "content-type", "accept", "user-agent"]) {
+  for (const name of ["cookie", "content-type", "accept", "user-agent", "x-forwarded-for", "x-real-ip"]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
