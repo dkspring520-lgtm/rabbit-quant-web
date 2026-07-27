@@ -28,6 +28,7 @@ import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
 import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
+import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining } from "@/lib/personal-replay-training.mjs";
 import PublicLanding from "./public-landing";
 
 const LIVE_CHART = Object.freeze({
@@ -262,6 +263,13 @@ type DeskHistoryRow = { time:string; direction:string; price:string; quantity:st
 type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; candidateCycles?:CandidateObservationCycle[]; openCandidate?:OpenCandidateObservation|null; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
 type ReplayMinute = { time:string; price:number; volume:number };
+type PersonalTrainingAction = { id:string; time:string; minuteIndex:number; side:"buy"|"sell"; quantity:number; marketPrice:number; executionPrice:number; gross:number; fee:number };
+type PersonalTrainingRecord = { id:string; completedAt:string; code:string; name:string; date:string; actions:PersonalTrainingAction[]; net:number; fees:number; accuracy:number|null };
+type PersonalTrainingExecution = { ok:true; cash:number; shares:number; action:Omit<PersonalTrainingAction,"id"|"time"|"minuteIndex"> } | { ok:false; error:string };
+
+function formatTime(value:string|undefined) {
+  return value && value.length>=4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : "--:--";
+}
 type StockUniverseItem = { code:string; name:string; industry:string; market:string };
 type StockUniverseResponse = { provider:string; total:number; fallback:boolean; warning?:string; stocks:StockUniverseItem[] };
 type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction; exit:ReplayAction; holdingMinutes:number; gross:number; fees:number; executionCost:number; net:number; outcome:"盈利"|"亏损"|"持平"; explanation:string };
@@ -1820,7 +1828,7 @@ export default function Home() {
           <div className="agent-grid">{liveAgents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
+      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -2519,7 +2527,120 @@ function StrategyMarketView({accountName}:{accountName:string}){
   </section>;
 }
 
-function TrainingView({evidence}:{evidence:{sessions:number;cycles:number;wins:number;net:number;maxDrawdown:number;confidence:string;winRate:number|null}}) {
+function personalTrainingStorageKey(accountName:string) {
+  return `rabbit-personal-training:${accountName.trim().toLowerCase() || "guest"}`;
+}
+
+function PersonalReplayTraining({accountName,stock,position}:{accountName:string;stock:{code:string;name:string};position:StockPosition}) {
+  const [sessions,setSessions]=useState<IntradaySession[]>([]);
+  const [selectedDate,setSelectedDate]=useState("");
+  const [session,setSession]=useState<IntradaySession|null>(null);
+  const [loading,setLoading]=useState(false);
+  const [message,setMessage]=useState("先加载一个完整历史交易日，再开始逐分钟训练。");
+  const [capital,setCapital]=useState(200000);
+  const [baseShares,setBaseShares]=useState(Math.max(100,Math.floor((position.plannedBase || 1000)/100)*100));
+  const [quantity,setQuantity]=useState(100);
+  const [revealIndex,setRevealIndex]=useState(-1);
+  const [cash,setCash]=useState(0);
+  const [shares,setShares]=useState(0);
+  const [initialCash,setInitialCash]=useState(0);
+  const [initialShares,setInitialShares]=useState(0);
+  const [actions,setActions]=useState<PersonalTrainingAction[]>([]);
+  const [finished,setFinished]=useState(false);
+  const [history,setHistory]=useState<PersonalTrainingRecord[]>([]);
+  const storageKey=personalTrainingStorageKey(accountName);
+
+  useEffect(()=>{
+    const timer=window.setTimeout(()=>{
+      try {
+        const saved=JSON.parse(localStorage.getItem(storageKey)||"[]");
+        setHistory(Array.isArray(saved)?saved.slice(0,20):[]);
+      } catch { setHistory([]); }
+    },0);
+    return ()=>window.clearTimeout(timer);
+  },[storageKey]);
+
+  const selectedSession=useMemo(()=>sessions.find(item=>item.date===selectedDate) ?? null,[sessions,selectedDate]);
+  const minutes=useMemo(()=>session?.minutes ?? [],[session]);
+  const current=minutes[revealIndex] ?? null;
+  const revealed=useMemo(()=>revealIndex>=0?minutes.slice(0,revealIndex+1):[],[minutes,revealIndex]);
+  const chartRange=useMemo(()=>{
+    const values=revealed.map(item=>item.price);
+    const low=values.length?Math.min(...values):0;
+    const high=values.length?Math.max(...values):1;
+    const padding=Math.max(.01,(high-low)*.16);
+    return {low:low-padding,high:high+padding};
+  },[revealed]);
+  const chartPoints=revealed.length>1?revealed.map((item,index)=>{
+    const x=12+index/Math.max(1,revealed.length-1)*736;
+    const y=12+(chartRange.high-item.price)/Math.max(.01,chartRange.high-chartRange.low)*164;
+    return `${x},${y}`;
+  }).join(" "):"";
+  const summary=current? summarizePersonalTraining({initialCash,initialShares,initialPrice:minutes[0]?.price,cash,shares,markPrice:current.price,actions:actions as unknown as []}):null;
+
+  const loadSessions=async()=>{
+    setLoading(true); setMessage(`正在加载 ${stock.code} 的历史分时…`);
+    try {
+      const response=await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`,{cache:"no-store"});
+      if(!response.ok) throw new Error("历史行情暂不可用");
+      const data=await response.json() as MarketData;
+      const next=[...(data.intradaySessions ?? [])].filter(item=>item.minutes.length>=100).sort((a,b)=>b.date.localeCompare(a.date));
+      if(!next.length) throw new Error("没有可用于逐分钟训练的完整交易日");
+      setSessions(next); setSelectedDate(next[0].date); setSession(null); setRevealIndex(-1); setActions([]); setFinished(false);
+      setMessage(`已找到 ${next.length} 个完整交易日，选择日期后即可开始训练。`);
+    }catch(error){setMessage(error instanceof Error?error.message:"历史行情加载失败");}
+    finally{setLoading(false);}
+  };
+  const startTraining=()=>{
+    if(!selectedSession){setMessage("请先加载并选择一个完整交易日。");return;}
+    const initial=Math.max(100,Math.floor(baseShares/100)*100);
+    const startCash=Math.max(0,capital);
+    setSession(selectedSession); setRevealIndex(Math.min(3,selectedSession.minutes.length-1)); setInitialCash(startCash); setInitialShares(initial); setCash(startCash); setShares(initial); setActions([]); setFinished(false);
+    setMessage("训练已开始：图表只揭示到当前分钟；下一段行情需要你主动推进。");
+  };
+  const advance=(step:number)=>{
+    if(!session||finished)return;
+    setRevealIndex(value=>Math.min(session.minutes.length-1,Math.max(0,value+step)));
+  };
+  const trade=(side:"buy"|"sell")=>{
+    if(!current||finished){setMessage("请先开始训练，且在揭示到收盘前操作。");return;}
+    const result=executePersonalTrainingOrder({side,quantity,marketPrice:current.price,cash,shares,feeRate:.025,slippage:.02,minCommission:true}) as PersonalTrainingExecution;
+    if(!result.ok){setMessage(result.error);return;}
+    const action:PersonalTrainingAction={id:globalThis.crypto?.randomUUID?.()??`${Date.now()}-${Math.random()}`,time:current.time,minuteIndex:revealIndex,...result.action};
+    setCash(result.cash); setShares(result.shares); setActions(items=>[...items,action]);
+    setMessage(`${side==="buy"?"买入":"卖出"}已记录：${action.quantity.toLocaleString()} 股，按当前揭示分钟成交；费用 ¥${action.fee.toFixed(2)}。`);
+  };
+  const settle=()=>{
+    if(!session||!minutes.length)return;
+    const finalPrice=minutes.at(-1)?.price ?? 0;
+    const finalSummary=summarizePersonalTraining({initialCash,initialShares,initialPrice:minutes[0]?.price,cash,shares,markPrice:finalPrice,actions:actions as unknown as []});
+    const scored=scorePersonalTrainingActions(actions as unknown as [],minutes,10) as Array<{evaluated:boolean;directionCorrect:boolean|null}>;
+    const evaluated=scored.filter(item=>item.evaluated);
+    const accuracy=evaluated.length?evaluated.filter(item=>item.directionCorrect).length/evaluated.length:null;
+    const record:PersonalTrainingRecord={id:globalThis.crypto?.randomUUID?.()??`${Date.now()}-${Math.random()}`,completedAt:new Date().toISOString(),code:stock.code,name:stock.name,date:session.date,actions,net:finalSummary.net,fees:finalSummary.fees,accuracy};
+    const next=[record,...history].slice(0,20);
+    setHistory(next); try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}
+    setRevealIndex(minutes.length-1); setFinished(true);
+    setMessage(`本次训练已结算：${evaluated.length?`10分钟方向正确率 ${(accuracy!*100).toFixed(0)}%`:'操作不足 10 分钟，暂无方向评分'}；结果已仅保存到当前账号的本机。`);
+  };
+
+  return <section className="personal-training" aria-label="个人手动回测训练">
+    <header className="personal-training-head"><div><span className="eyebrow">PERSONAL CAUSAL REPLAY</span><h2>个人手动回测训练</h2><p>自己决定买卖，逐分钟揭示历史行情；记录只用于个人复盘，不改变 V4、L2 或任何实盘信号。</p></div><b>本机私有 · 非实盘</b></header>
+    <div className="personal-training-setup"><div><label>训练标的</label><strong>{stock.code} {stock.name}</strong><small>从顶部切换股票后可训练其他自选股。</small></div><div><label>模拟资金</label><input type="number" min="1000" step="1000" value={capital} onChange={event=>setCapital(Math.max(1000,Number(event.target.value)||1000))}/></div><div><label>模拟底仓</label><input type="number" min="100" step="100" value={baseShares} onChange={event=>setBaseShares(Math.max(100,Math.floor((Number(event.target.value)||100)/100)*100))}/></div><div className="personal-training-load"><button onClick={()=>void loadSessions()} disabled={loading}>{loading?"加载中…":"加载历史交易日"}</button></div></div>
+    {sessions.length>0&&<div className="personal-training-session"><label>训练日期<select value={selectedDate} onChange={event=>setSelectedDate(event.target.value)} disabled={revealIndex>=0&&!finished}>{sessions.map(item=><option key={item.date} value={item.date}>{item.date} · {item.minutes.length} 分钟</option>)}</select></label><button onClick={startTraining}>{session&&!finished?"重新开始本日":"开始逐分钟训练"}</button><small>开始后无法回退或查看未来分钟；结算后才会揭示收盘结果。</small></div>}
+    {session&&current&&<div className="personal-training-stage">
+      <div className="personal-training-status"><span>当前仅揭示至 <b>{formatTime(current.time)}</b></span><span>{revealIndex+1}/{minutes.length} 分钟</span><span>当前价 <b>¥{current.price.toFixed(2)}</b></span><span>模拟持仓 <b>{shares.toLocaleString()} 股</b></span><span>可用资金 <b>¥{cash.toFixed(2)}</b></span></div>
+      <svg className="personal-training-chart" viewBox="0 0 760 188" role="img" aria-label="仅显示已揭示的历史分时"><line x1="12" x2="748" y1="94" y2="94"/><polyline points={chartPoints}/>{revealed.length===1&&<circle cx="12" cy="94" r="3"/>}<text x="12" y="184">{formatTime(revealed[0]?.time)}</text><text x="748" y="184" textAnchor="end">{formatTime(current.time)}</text></svg>
+      <div className="personal-training-actions"><div className="training-advance"><button onClick={()=>advance(1)} disabled={finished||revealIndex>=minutes.length-1}>下一分钟</button><button onClick={()=>advance(5)} disabled={finished||revealIndex>=minutes.length-1}>快进 5 分钟</button><button className="settle" onClick={settle} disabled={finished}>揭示收盘并结算</button></div><div className="training-order"><label>数量<input type="number" min="100" step="100" value={quantity} onChange={event=>setQuantity(Math.max(100,Math.floor((Number(event.target.value)||100)/100)*100))}/></label><button className="manual-buy" onClick={()=>trade("buy")} disabled={finished}>手动买入</button><button className="manual-sell" onClick={()=>trade("sell")} disabled={finished}>手动卖出</button></div></div>
+      <p className="personal-training-message">{message}</p>
+      <div className="personal-training-summary"><span>当前模拟权益 <b>¥{summary?.equity.toFixed(2)}</b></span><span>相对开局 <b className={(summary?.net??0)>=0?"positive":"negative"}>{(summary?.net??0)>=0?"+":""}¥{summary?.net.toFixed(2)}</b></span><span>已计费用 <b>¥{summary?.fees.toFixed(2)}</b></span><span>手动操作 <b>{actions.length} 笔</b></span></div>
+      <div className="personal-training-ledger"><b>本局操作</b>{actions.length?actions.map(action=><span key={action.id}><em className={action.side}>{action.side==="buy"?"买入":"卖出"}</em>{formatTime(action.time)} · ¥{action.executionPrice.toFixed(3)} · {action.quantity.toLocaleString()} 股 · 费 ¥{action.fee.toFixed(2)}</span>):<small>尚未操作。请基于当前已揭示价格自行判断。</small>}</div>
+    </div>}
+    {history.length>0&&<div className="personal-training-history"><div><b>最近个人训练</b><small>仅本机保存，最多保留 20 局。</small></div>{history.slice(0,5).map(record=><p key={record.id}><span>{record.date} · {record.code} {record.name}</span><span>{record.actions.length} 笔</span><span className={record.net>=0?"positive":"negative"}>{record.net>=0?"+":""}¥{record.net.toFixed(2)}</span><span>{record.accuracy===null?"方向评分待定":`10分正确 ${(record.accuracy*100).toFixed(0)}%`}</span></p>)}</div>}
+  </section>;
+}
+
+function TrainingView({evidence,accountName,stock,position}:{evidence:{sessions:number;cycles:number;wins:number;net:number;maxDrawdown:number;confidence:string;winRate:number|null};accountName:string;stock:{code:string;name:string};position:StockPosition}) {
   const sampleCoverage=Math.min(100,evidence.sessions/20*100);
   const validationCoverage=Math.min(100,evidence.cycles/20*100);
   const evidenceCoverage=Math.min(sampleCoverage,validationCoverage);
@@ -2529,6 +2650,7 @@ function TrainingView({evidence}:{evidence:{sessions:number;cycles:number;wins:n
     <div className="module-head"><div><span className="eyebrow">SMART-T FUSION V4 · RESEARCH PIPELINE</span><h1>通用 V4 四兔研究中心</h1><p>四兔的目标是形成可审计的 V4.x 候选版本；当前页面展示本股票的真实核对证据，不把“打开网页”伪装成云端持续训练。</p></div><button className="lab-run" onClick={primaryAction}>查看当前证据<span>→</span></button></div>
     <div className="training-scope-strip" aria-label="通用四兔研究范围"><p><span>训练范围</span><b>历史全市场样本</b><small>用于提出 V4.x 候选，不只学习操盘台里的几只股票。</small></p><p><span>当日监控股</span><b>影子逐笔核对</b><small>只验证理论提醒与实际模拟成交是否一致。</small></p><p><span>正式 V4</span><b>始终人工审批</b><small>四兔不能静默改参数，也不会自动下单。</small></p></div>
     <div className="training-purpose"><div><span>训练目标</span><h2>让 V4 在扣除费用后更稳，而不是把历史胜率刷高</h2><p>候选参数包括 VWAP 偏离、连续确认、最低净价差、单次仓位、连续失败熔断和尾盘恢复时间。任何候选都必须通过未见股票与日期、费用滑点和过拟合检查，再由人工决定是否进入影子观察。</p></div><div className="training-role-grid"><p><b>训练兔</b><span>历史全市场提出候选</span></p><p><b>挑战兔</b><span>未见股票与日期盲测</span></p><p><b>风控兔</b><span>成本、回撤、PBO/DSR 否决</span></p><p><b>正式兔</b><span>只管理影子观察资格</span></p></div></div>
+    <PersonalReplayTraining key={stock.code} accountName={accountName} stock={stock} position={position}/>
     <RabbitProgressMeter
       label="当前股票证据覆盖"
       detail={`最近 ${evidence.sessions} 个完整交易日 · ${evidence.cycles} 个扣费闭环 · Smart-T V4 ${evidence.confidence}`}
