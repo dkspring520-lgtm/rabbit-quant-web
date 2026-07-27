@@ -19,3 +19,10 @@ svg text{font-synthesis:none}
 .opening-assessment small{font-size:13px;font-weight:400;line-height:1.45;letter-spacing:.005em;white-space:nowrap}
 
 @media(max-width:1250px) and (min-width:761px){.opening-assessment{min-width:290px;column-gap:14px}.opening-assessment b{font-size:15px}.opening-assessment small{font-size:12px}}
+
+/* Daylight uses the platform's clearest CJK UI face and slightly firmer copy.
+   Keep the data face separate so prices remain stable while streaming. */
+:root[data-theme="light"]{--font-geist-sans:"Microsoft YaHei UI","PingFang SC","Segoe UI Variable","Segoe UI",sans-serif;--font-geist-mono:"Cascadia Mono","SFMono-Regular",Consolas,monospace}
+:root[data-theme="light"] body{font-weight:400;letter-spacing:.002em}
+:root[data-theme="light"] :is(.quote strong,.quote span,.signal-layer>b,.decision-stats b,.context-radar-head>b){font-weight:650}
+:root[data-theme="light"] :is(.stock-code,.quote-metrics,.opening-assessment span,.opening-assessment small,.signal-layer>span,.signal-layer>em,.decision-copy){letter-spacing:0}
