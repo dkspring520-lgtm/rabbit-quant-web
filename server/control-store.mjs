@@ -9,7 +9,7 @@ function nowIso() { return new Date().toISOString(); }
 function normalizeLogin(value) { return String(value ?? "").trim().toLowerCase(); }
 function tokenHash(value) { return createHash("sha256").update(value).digest("hex"); }
 function safeJson(value, fallback) { try { return JSON.parse(value); } catch { return fallback; } }
-function publicUser(row) {
+function publicUser(row, membership = null) {
   if (!row) return null;
   return {
     id: row.id,
@@ -19,6 +19,7 @@ function publicUser(row) {
     status: row.status,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
+    membership,
   };
 }
 
@@ -116,6 +117,34 @@ export function createControlStore(databasePath, options = {}) {
       expires_at TEXT,
       used_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS memberships (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      referral_code TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS membership_grants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      days INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      reference_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS membership_grants_user_idx ON membership_grants(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS referrals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      inviter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      invitee_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      referral_code TEXT NOT NULL,
+      source_hash TEXT,
+      status TEXT NOT NULL CHECK(status IN ('credited','review')),
+      reward_days INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      rewarded_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS referrals_inviter_idx ON referrals(inviter_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS referrals_source_idx ON referrals(source_hash, created_at DESC);
   `);
 
   const monitorColumns = db.prepare("PRAGMA table_info(monitors)").all();
@@ -138,7 +167,87 @@ export function createControlStore(databasePath, options = {}) {
   function getUserById(id) { return db.prepare("SELECT * FROM users WHERE id=?").get(id); }
   function getUserByLogin(username) { return db.prepare("SELECT * FROM users WHERE username=?").get(normalizeLogin(username)); }
 
-  function register({ username, password, displayName }) {
+  function referralCode() {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const code = `RQ${randomBytes(5).toString("hex").toUpperCase()}`;
+      if (!db.prepare("SELECT 1 FROM memberships WHERE referral_code=?").get(code)) return code;
+    }
+    throw new Error("邀请码生成失败，请稍后重试");
+  }
+
+  function membershipRow(userId) { return db.prepare("SELECT * FROM memberships WHERE user_id=?").get(userId); }
+  function membershipSummary(userId, role = "member") {
+    const row = membershipRow(userId);
+    const expiresAt = row?.expires_at || null;
+    const active = role === "admin" || Boolean(expiresAt && Date.parse(expiresAt) > Date.now());
+    const referral = db.prepare(`SELECT
+      SUM(CASE WHEN status='credited' THEN 1 ELSE 0 END) AS credited_count,
+      SUM(CASE WHEN status='review' THEN 1 ELSE 0 END) AS review_count,
+      SUM(CASE WHEN status='credited' THEN reward_days ELSE 0 END) AS reward_days
+      FROM referrals WHERE inviter_id=?`).get(userId) || {};
+    return {
+      active,
+      expiresAt,
+      referralCode: row?.referral_code || null,
+      referralCredits: Number(referral.credited_count || 0),
+      referralReviews: Number(referral.review_count || 0),
+      referralRewardDays: Number(referral.reward_days || 0),
+    };
+  }
+  function serializeUser(row) { return row ? publicUser(row, membershipSummary(row.id, row.role)) : null; }
+  function createMembership(userId, days, reason) {
+    const createdAt = nowIso();
+    const expiresAt = new Date(Date.now() + days * DAY).toISOString();
+    db.prepare("INSERT INTO memberships(user_id,referral_code,expires_at,updated_at) VALUES(?,?,?,?)")
+      .run(userId, referralCode(), expiresAt, createdAt);
+    db.prepare("INSERT INTO membership_grants(user_id,days,reason,created_at) VALUES(?,?,?,?)")
+      .run(userId, days, reason, createdAt);
+  }
+  function grantMembership(userId, days, reason, referenceUserId = null) {
+    const safeDays = Math.max(1, Math.min(3650, Math.floor(Number(days) || 0)));
+    const user = getUserById(userId);
+    if (!user) throw Object.assign(new Error("会员不存在"), { status: 404 });
+    const row = membershipRow(userId);
+    if (!row) createMembership(userId, safeDays, reason);
+    else {
+      const current = Date.parse(row.expires_at);
+      const base = Number.isFinite(current) && current > Date.now() ? current : Date.now();
+      const expiresAt = new Date(base + safeDays * DAY).toISOString();
+      db.prepare("UPDATE memberships SET expires_at=?,updated_at=? WHERE user_id=?").run(expiresAt, nowIso(), userId);
+      db.prepare("INSERT INTO membership_grants(user_id,days,reason,reference_user_id,created_at) VALUES(?,?,?,?,?)")
+        .run(userId, safeDays, reason, referenceUserId, nowIso());
+    }
+    return membershipSummary(userId, user.role);
+  }
+  function normalizeReferralCode(value) { return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16); }
+  function applyReferral(inviteeId, referralCodeValue, sourceHash) {
+    const code = normalizeReferralCode(referralCodeValue);
+    if (!code) return { status: "none" };
+    const inviter = db.prepare(`SELECT users.* FROM memberships JOIN users ON users.id=memberships.user_id
+      WHERE memberships.referral_code=?`).get(code);
+    if (!inviter || inviter.id === inviteeId || inviter.status !== "active") return { status: "invalid" };
+    const inviterMembership = membershipSummary(inviter.id, inviter.role);
+    if (!inviterMembership.active) return { status: "inactive" };
+    const cutoff = new Date(Date.now() - 30 * DAY).toISOString();
+    const count = Number(db.prepare("SELECT COUNT(*) AS count FROM referrals WHERE inviter_id=? AND status='credited' AND created_at>=?")
+      .get(inviter.id, cutoff)?.count || 0);
+    const sameSource = sourceHash && db.prepare("SELECT 1 FROM referrals WHERE source_hash=? AND created_at>=? LIMIT 1")
+      .get(sourceHash, cutoff);
+    const status = count >= 10 || sameSource ? "review" : "credited";
+    const createdAt = nowIso();
+    db.prepare("INSERT INTO referrals(inviter_id,invitee_id,referral_code,source_hash,status,reward_days,created_at,rewarded_at) VALUES(?,?,?,?,?,?,?,?)")
+      .run(inviter.id, inviteeId, code, sourceHash || null, status, status === "credited" ? 7 : 0, createdAt, status === "credited" ? createdAt : null);
+    if (status === "credited") grantMembership(inviter.id, 7, "referral", inviteeId);
+    return { status, inviterId: inviter.id };
+  }
+
+  // Existing registered users receive a one-time 30-day beta entitlement so the
+  // referral programme can start without silently excluding current accounts.
+  for (const row of db.prepare("SELECT id FROM users").all()) {
+    if (!membershipRow(row.id)) createMembership(row.id, 30, "beta_migration");
+  }
+
+  function register({ username, password, displayName, referralCode: referralCodeValue, referralSourceHash }) {
     const login = normalizeLogin(username);
     const secret = String(password ?? "");
     if (!/^[^\s]{3,80}$/.test(login)) throw Object.assign(new Error("账号需为 3–80 个非空字符"), { status: 400 });
@@ -148,9 +257,15 @@ export function createControlStore(databasePath, options = {}) {
     const id = randomBytes(16).toString("hex");
     const { salt, digest } = passwordDigest(secret);
     const role = login === configuredAdmin ? "admin" : "member";
-    db.prepare("INSERT INTO users(id,username,display_name,password_hash,password_salt,role,status,created_at) VALUES(?,?,?,?,?,?,?,?)")
-      .run(id, login, String(displayName ?? username).trim().slice(0, 40) || login, digest, salt, role, "active", createdAt);
-    return publicUser(getUserById(id));
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.prepare("INSERT INTO users(id,username,display_name,password_hash,password_salt,role,status,created_at) VALUES(?,?,?,?,?,?,?,?)")
+        .run(id, login, String(displayName ?? username).trim().slice(0, 40) || login, digest, salt, role, "active", createdAt);
+      createMembership(id, 7, "registration_trial");
+      applyReferral(id, referralCodeValue, String(referralSourceHash || "").slice(0, 128));
+      db.exec("COMMIT");
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    return serializeUser(getUserById(id));
   }
 
   function login({ username, password, remember = true }) {
@@ -166,14 +281,14 @@ export function createControlStore(databasePath, options = {}) {
     db.prepare("INSERT INTO sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)")
       .run(tokenHash(token), row.id, createdAt, expiresAt);
     db.prepare("UPDATE users SET last_login_at=? WHERE id=?").run(createdAt, row.id);
-    return { token, expiresAt, user: publicUser({ ...row, last_login_at: createdAt }) };
+    return { token, expiresAt, user: serializeUser({ ...row, last_login_at: createdAt }) };
   }
 
   function authenticate(token) {
     if (!token) return null;
     const row = db.prepare(`SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id
       WHERE sessions.token_hash=? AND sessions.expires_at>? AND users.status='active'`).get(tokenHash(token), nowIso());
-    return publicUser(row);
+    return serializeUser(row);
   }
 
   function logout(token) { if (token) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(tokenHash(token)); }
@@ -295,14 +410,14 @@ export function createControlStore(databasePath, options = {}) {
   function listMembers() {
     return db.prepare(`SELECT users.*,COUNT(DISTINCT monitors.code) AS monitor_count,COUNT(DISTINCT alerts.id) AS alert_count
       FROM users LEFT JOIN monitors ON monitors.user_id=users.id LEFT JOIN alerts ON alerts.user_id=users.id
-      GROUP BY users.id ORDER BY users.created_at DESC`).all().map(row => ({ ...publicUser(row), monitorCount: row.monitor_count, alertCount: row.alert_count }));
+      GROUP BY users.id ORDER BY users.created_at DESC`).all().map(row => ({ ...serializeUser(row), monitorCount: row.monitor_count, alertCount: row.alert_count }));
   }
 
   function setMemberStatus(id, status) {
     if (!['active', 'paused'].includes(status)) throw Object.assign(new Error("状态参数不正确"), { status: 400 });
     db.prepare("UPDATE users SET status=? WHERE id=? AND role!='admin'").run(status, id);
     if (status !== "active") db.prepare("DELETE FROM sessions WHERE user_id=?").run(id);
-    return publicUser(getUserById(id));
+    return serializeUser(getUserById(id));
   }
 
   function requestReset(username) {
@@ -340,5 +455,5 @@ export function createControlStore(databasePath, options = {}) {
 
   return { db, register, login, authenticate, logout, getProfile, putProfile, listMonitors, replaceMonitors,
     listActiveMonitors, addAlert, listAlerts, acknowledgeAlert, markAlertDelivery, recordMonitorScan, listMonitorScans, listMembers, setMemberStatus,
-    requestReset, issueReset, resetPassword, close: () => db.close() };
+    grantMembership, requestReset, issueReset, resetPassword, close: () => db.close() };
 }

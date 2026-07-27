@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 import { createControlStore } from "./control-store.mjs";
 import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
 import { selectLatestAlertableObservation } from "../lib/live-monitor-alerts.mjs";
@@ -39,6 +40,13 @@ function sessionCookie(token, expiresAt) {
 function clearCookie() {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
+}
+
+function referralSourceHash(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || req.headers["x-real-ip"] || req.socket.remoteAddress || "")
+    .split(",")[0].trim();
+  if (!forwarded) return "";
+  return createHash("sha256").update(`rabbit-referral-v1:${forwarded}`).digest("hex");
 }
 
 async function bodyJson(req) {
@@ -245,7 +253,7 @@ async function dispatch(req, res) {
     }
     if (req.method === "POST" && path === "/auth/register") {
       const body = await bodyJson(req);
-      store.register(body);
+      store.register({ ...body, referralSourceHash: referralSourceHash(req) });
       const auth = store.login(body);
       return json(res, 201, { user: auth.user }, { "set-cookie": sessionCookie(auth.token, auth.expiresAt) });
     }
@@ -292,6 +300,10 @@ async function dispatch(req, res) {
     }
     if (req.method === "POST" && /^\/admin\/members\/[^/]+\/reset$/.test(path)) {
       requireAdmin(req); const id = path.split("/")[3]; return json(res, 200, store.issueReset(id));
+    }
+    if (req.method === "POST" && /^\/admin\/members\/[^/]+\/membership$/.test(path)) {
+      requireAdmin(req); const id = path.split("/")[3]; const body = await bodyJson(req);
+      return json(res, 200, { membership: store.grantMembership(id, body.days, "admin_grant") });
     }
     return json(res, 404, { error: "接口不存在" });
   } catch (error) {

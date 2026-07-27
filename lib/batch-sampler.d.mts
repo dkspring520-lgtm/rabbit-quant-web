@@ -7,3 +7,10 @@ export function sampleWithSeed<T>(
   count: number,
   seed: BatchSeed,
 ): T[];
+
+export function randomizedUniqueQueue<T extends Record<string, unknown>>(
+  items: readonly T[],
+  seed: BatchSeed,
+  recentKeys?: readonly (string | number)[],
+  key?: string,
+): T[];

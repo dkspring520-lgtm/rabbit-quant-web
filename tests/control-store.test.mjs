@@ -86,3 +86,33 @@ test("member pause and password reset revoke existing sessions", () => {
     store.close();
   }
 });
+
+test("referrals credit seven days once and hold duplicate sources for review", () => {
+  const store = createControlStore(":memory:", { adminUsername: "owner@example.com" });
+  try {
+    const inviter = store.register({ username: "inviter@example.com", password: "InvitePass123!", displayName: "邀请人" });
+    const before = Date.parse(inviter.membership.expiresAt);
+    const invitee = store.register({
+      username: "invitee@example.com", password: "InviteePass123!", displayName: "新用户",
+      referralCode: inviter.membership.referralCode, referralSourceHash: "same-network",
+    });
+    assert.equal(invitee.membership.active, true);
+    const afterFirst = store.login({ username: inviter.username, password: "InvitePass123!" }).user;
+    assert.equal(afterFirst.membership.referralCredits, 1);
+    assert.equal(afterFirst.membership.referralRewardDays, 7);
+    assert.ok(Date.parse(afterFirst.membership.expiresAt) >= before + 7 * 24 * 60 * 60 * 1000 - 1000);
+
+    store.register({
+      username: "review@example.com", password: "ReviewPass123!", displayName: "同源用户",
+      referralCode: inviter.membership.referralCode, referralSourceHash: "same-network",
+    });
+    const afterReview = store.login({ username: inviter.username, password: "InvitePass123!" }).user;
+    assert.equal(afterReview.membership.referralCredits, 1);
+    assert.equal(afterReview.membership.referralReviews, 1);
+    const granted = store.grantMembership(inviter.id, 7, "admin_grant");
+    assert.equal(granted.referralCredits, 1);
+    assert.equal(granted.active, true);
+  } finally {
+    store.close();
+  }
+});
