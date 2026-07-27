@@ -179,7 +179,7 @@ test("mobile layout keeps core product flows usable on phones", async () => {
   assert.match(mobile, /\.backtest-grid/);
   assert.match(mobile, /\.research-grid/);
   assert.match(mobile, /\.zijin-external-sources/);
-  assert.match(source, /compactChartLabelKeys\(visibleChartObservations,3\)/);
+  assert.match(source, /const labelVisible=true/);
   assert.match(source, /marker\.labelVisible&&/);
 });
 

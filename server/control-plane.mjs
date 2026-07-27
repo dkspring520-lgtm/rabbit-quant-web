@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { createHash } from "node:crypto";
+import { createCipheriv, createHash, createPrivateKey, createPublicKey, createSign, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes } from "node:crypto";
 import { createControlStore } from "./control-store.mjs";
 import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
 import { selectLatestAlertableObservation } from "../lib/live-monitor-alerts.mjs";
@@ -16,6 +16,82 @@ const COOKIE = "rabbit_control_session";
 const scanState = { running: false, lastStartedAt: null, lastCompletedAt: null, monitored: 0, inserted: 0, logged: 0, marketErrors: 0, error: null };
 let watchdogFailures = 0;
 let shuttingDown = false;
+
+const PUSH_VAPID_SETTING = "web_push_vapid_v1";
+
+function base64Url(value) { return Buffer.from(value).toString("base64url"); }
+function fromBase64Url(value) { return Buffer.from(String(value || ""), "base64url"); }
+function publicKeyBytes(jwk) { return Buffer.concat([Buffer.from([4]), fromBase64Url(jwk.x), fromBase64Url(jwk.y)]); }
+
+function vapidKeys() {
+  const stored = store.getServiceSetting(PUSH_VAPID_SETTING);
+  if (stored?.publicJwk?.x && stored?.publicJwk?.y && stored?.privateJwk?.d) return stored;
+  const pair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const value = { publicJwk: pair.publicKey.export({ format: "jwk" }), privateJwk: pair.privateKey.export({ format: "jwk" }) };
+  return store.putServiceSetting(PUSH_VAPID_SETTING, value);
+}
+
+function pushPublicKey() { return base64Url(publicKeyBytes(vapidKeys().publicJwk)); }
+
+function hkdf(ikm, salt, info, length) { return Buffer.from(hkdfSync("sha256", ikm, salt, info, length)); }
+
+function encryptPushPayload(subscription, payload) {
+  const clientPublic = fromBase64Url(subscription.p256dh);
+  if (clientPublic.length !== 65 || clientPublic[0] !== 4) throw new Error("推送公钥无效");
+  const clientPublicJwk = { kty: "EC", crv: "P-256", x: base64Url(clientPublic.subarray(1, 33)), y: base64Url(clientPublic.subarray(33, 65)) };
+  const clientPublicKey = createPublicKey({ key: clientPublicJwk, format: "jwk" });
+  const serverPair = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const serverPublic = publicKeyBytes(serverPair.publicKey.export({ format: "jwk" }));
+  const sharedSecret = diffieHellman({ privateKey: serverPair.privateKey, publicKey: clientPublicKey });
+  const authSecret = fromBase64Url(subscription.auth);
+  const prk = hkdf(sharedSecret, authSecret, Buffer.concat([Buffer.from("WebPush: info\0"), clientPublic, serverPublic]), 32);
+  const salt = randomBytes(16);
+  const contentKey = hkdf(prk, salt, Buffer.from("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = hkdf(prk, salt, Buffer.from("Content-Encoding: nonce\0"), 12);
+  const cipher = createCipheriv("aes-128-gcm", contentKey, nonce);
+  const plaintext = Buffer.concat([Buffer.from(JSON.stringify(payload), "utf8"), Buffer.from([2])]);
+  const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final(), cipher.getAuthTag()]);
+  const header = Buffer.concat([salt, Buffer.from([0, 0, 16, 0, serverPublic.length]), serverPublic]);
+  return Buffer.concat([header, encrypted]);
+}
+
+function vapidAuthorization(endpoint) {
+  const keys = vapidKeys();
+  const header = base64Url(JSON.stringify({ typ: "JWT", alg: "ES256" }));
+  const payload = base64Url(JSON.stringify({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, sub: "mailto:notify@zhuandianmi.com" }));
+  const signer = createSign("SHA256"); signer.update(`${header}.${payload}`); signer.end();
+  const signature = signer.sign({ key: createPrivateKey({ key: keys.privateJwk, format: "jwk" }), dsaEncoding: "ieee-p1363" });
+  return `vapid t=${header}.${payload}.${base64Url(signature)}, k=${pushPublicKey()}`;
+}
+
+async function deliverPushToUser(userId, alert) {
+  const subscriptions = store.listPushSubscriptions(userId);
+  if (!subscriptions.length) return { delivered: 0, failed: 0 };
+  const payload = {
+    title: `双兔助手 · ${String(alert.title || "新提醒").slice(0, 60)}`,
+    body: String(alert.message || "有新的做T提醒，请打开操盘台查看。").slice(0, 180),
+    tag: `rabbit-${String(alert.eventKey || Date.now()).slice(-120)}`,
+    url: "/?view=desk",
+    level: alert.level || "candidate",
+  };
+  const results = await Promise.all(subscriptions.map(async subscription => {
+    try {
+      const response = await fetch(subscription.endpoint, {
+        method: "POST", body: encryptPushPayload(subscription, payload), signal: AbortSignal.timeout(10_000),
+        headers: { "TTL": alert.level === "formal" ? "900" : "300", "Urgency": alert.level === "formal" ? "high" : "normal", "Content-Type": "application/octet-stream", "Content-Encoding": "aes128gcm", "Authorization": vapidAuthorization(subscription.endpoint) },
+      });
+      if (!response.ok) throw Object.assign(new Error(`推送服务返回 ${response.status}`), { status: response.status });
+      store.recordPushDelivery(subscription.endpoint, { success: true });
+      return true;
+    } catch (error) {
+      const status = Number(error?.status) || 0;
+      if (status === 404 || status === 410) store.removePushSubscription(userId, subscription.endpoint);
+      else store.recordPushDelivery(subscription.endpoint, { error: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+  }));
+  return { delivered: results.filter(Boolean).length, failed: results.filter(value => !value).length };
+}
 
 function json(res, status, value, headers = {}) {
   const body = JSON.stringify(value);
@@ -224,7 +300,10 @@ async function scanMonitors({ force = false } = {}) {
       }
       const evaluation = evaluateCausalMonitor(monitor, market, clock);
       const alert = evaluation.alert;
-      if (alert && store.addAlert(monitor.userId, alert)) scanState.inserted += 1;
+      if (alert && store.addAlert(monitor.userId, alert)) {
+        scanState.inserted += 1;
+        void deliverPushToUser(monitor.userId, alert).catch(error => console.error("[control] push delivery", error));
+      }
       store.recordMonitorScan(monitor.userId, { code: monitor.code, name: monitor.name, marketDate: clock.date, ...evaluation.audit });
       scanState.logged += 1;
     }
@@ -285,6 +364,23 @@ async function dispatch(req, res) {
       return json(res, 200, { monitors: store.replaceMonitors(user.id, (await bodyJson(req)).monitors, { maxMonitors: limit }), limit });
     }
     if (req.method === "GET" && path === "/alerts") return json(res, 200, { alerts: store.listAlerts(requireUser(req).id, { afterId: url.searchParams.get("afterId"), limit: url.searchParams.get("limit") }) });
+    if (req.method === "GET" && path === "/push/public-key") {
+      const user = requireUser(req);
+      return json(res, 200, { publicKey: pushPublicKey(), enabled: store.listPushSubscriptions(user.id).length > 0 });
+    }
+    if (req.method === "POST" && path === "/push/subscriptions") {
+      const user = requireUser(req);
+      return json(res, 201, store.savePushSubscription(user.id, (await bodyJson(req)).subscription));
+    }
+    if (req.method === "DELETE" && path === "/push/subscriptions") {
+      const user = requireUser(req);
+      return json(res, 200, { removed: store.removePushSubscription(user.id, (await bodyJson(req)).endpoint) });
+    }
+    if (req.method === "POST" && path === "/push/test") {
+      const user = requireUser(req);
+      const result = await deliverPushToUser(user.id, { title: "后台推送测试", message: "后台系统通知已连通；正式信号出现时会在这里提醒。", eventKey: `test:${Date.now()}`, level: "formal" });
+      return json(res, 200, { ok: result.delivered > 0, ...result });
+    }
     if (req.method === "GET" && path === "/alert-log") return json(res, 200, { logs: store.listMonitorScans(requireUser(req).id, { code: url.searchParams.get("code"), limit: url.searchParams.get("limit") }) });
     if (req.method === "POST" && /^\/alerts\/\d+\/delivery$/.test(path)) {
       const user = requireUser(req); const id = Number(path.split("/")[2]);

@@ -92,6 +92,23 @@ export function createControlStore(databasePath, options = {}) {
       UNIQUE(user_id, event_key)
     );
     CREATE INDEX IF NOT EXISTS alerts_user_created_idx ON alerts(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS service_settings (
+      setting_key TEXT PRIMARY KEY,
+      setting_value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_success_at TEXT,
+      last_error TEXT
+    );
+    CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id, updated_at DESC);
     CREATE TABLE IF NOT EXISTS monitor_scan_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -306,6 +323,52 @@ export function createControlStore(databasePath, options = {}) {
     return { data: data ?? {}, updatedAt };
   }
 
+  function getServiceSetting(key) {
+    const row = db.prepare("SELECT setting_value FROM service_settings WHERE setting_key=?").get(String(key));
+    return row ? safeJson(row.setting_value, null) : null;
+  }
+
+  function putServiceSetting(key, value) {
+    const updatedAt = nowIso();
+    db.prepare(`INSERT INTO service_settings(setting_key,setting_value,updated_at) VALUES(?,?,?)
+      ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at`)
+      .run(String(key), JSON.stringify(value), updatedAt);
+    return value;
+  }
+
+  function savePushSubscription(userId, subscription) {
+    const endpoint = String(subscription?.endpoint ?? "").trim();
+    const p256dh = String(subscription?.keys?.p256dh ?? "").trim();
+    const auth = String(subscription?.keys?.auth ?? "").trim();
+    if (!/^https:\/\//.test(endpoint) || p256dh.length < 20 || auth.length < 12) {
+      throw Object.assign(new Error("推送订阅参数无效"), { status: 400 });
+    }
+    const updatedAt = nowIso();
+    db.prepare(`INSERT INTO push_subscriptions(user_id,endpoint,p256dh,auth,created_at,updated_at)
+      VALUES(?,?,?,?,?,?)
+      ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id,p256dh=excluded.p256dh,auth=excluded.auth,updated_at=excluded.updated_at,last_error=NULL`)
+      .run(userId, endpoint.slice(0, 2000), p256dh.slice(0, 200), auth.slice(0, 200), updatedAt, updatedAt);
+    return { enabled: true, count: listPushSubscriptions(userId).length };
+  }
+
+  function listPushSubscriptions(userId) {
+    return db.prepare("SELECT id,endpoint,p256dh,auth,created_at,updated_at,last_success_at,last_error FROM push_subscriptions WHERE user_id=? ORDER BY updated_at DESC")
+      .all(userId).map(row => ({ id: row.id, endpoint: row.endpoint, p256dh: row.p256dh, auth: row.auth, createdAt: row.created_at, updatedAt: row.updated_at, lastSuccessAt: row.last_success_at, lastError: row.last_error }));
+  }
+
+  function removePushSubscription(userId, endpoint) {
+    return db.prepare("DELETE FROM push_subscriptions WHERE user_id=? AND endpoint=?").run(userId, String(endpoint ?? "")).changes > 0;
+  }
+
+  function recordPushDelivery(endpoint, { success = false, error = "" } = {}) {
+    const normalizedEndpoint = String(endpoint ?? "");
+    if (success) {
+      db.prepare("UPDATE push_subscriptions SET last_success_at=?,last_error=NULL WHERE endpoint=?").run(nowIso(), normalizedEndpoint);
+      return;
+    }
+    db.prepare("UPDATE push_subscriptions SET last_error=? WHERE endpoint=?").run(String(error).slice(0, 240) || "推送失败", normalizedEndpoint);
+  }
+
   function listMonitors(userId) {
     return db.prepare("SELECT * FROM monitors WHERE user_id=? ORDER BY sort_order ASC, updated_at DESC").all(userId).map(row => ({
       code: row.code, name: row.name, enabled: Boolean(row.enabled), profile: row.profile,
@@ -453,7 +516,7 @@ export function createControlStore(databasePath, options = {}) {
     } catch (error) { db.exec("ROLLBACK"); throw error; }
   }
 
-  return { db, register, login, authenticate, logout, getProfile, putProfile, listMonitors, replaceMonitors,
+  return { db, register, login, authenticate, logout, getProfile, putProfile, getServiceSetting, putServiceSetting, savePushSubscription, listPushSubscriptions, removePushSubscription, recordPushDelivery, listMonitors, replaceMonitors,
     listActiveMonitors, addAlert, listAlerts, acknowledgeAlert, markAlertDelivery, recordMonitorScan, listMonitorScans, listMembers, setMemberStatus,
     grantMembership, requestReset, issueReset, resetPassword, close: () => db.close() };
 }
