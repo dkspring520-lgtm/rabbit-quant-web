@@ -648,6 +648,150 @@
   margin-bottom:8px;
 }
 
+/* Paper daylight desk: a calmer, warmer treatment for long daytime sessions.
+   Kept as light-theme overrides so night trading remains unchanged. */
+:root[data-theme="light"] {
+  --bg:#f5f6f1;
+  --surface:#fbfcf8;
+  --surface-2:#edf1ec;
+  --panel:#f7f9f5;
+  --panel-strong:#fffefa;
+  --field:#fffefa;
+  --line:#d9e1da;
+  --line-soft:#e7ece6;
+  --text:#243239;
+  --text-soft:#46575e;
+  --muted:#718087;
+  --dim:#98a4a5;
+  --teal:#197d74;
+  --teal-2:#2d9a8f;
+  --coral:#c96062;
+  --amber:#a5742c;
+  --green:#438461;
+  --red:#c96062;
+  --grid:#dde6df;
+  --shadow:rgba(45,63,55,.08);
+}
+
+:root[data-theme="light"] .app-shell {
+  background:linear-gradient(135deg,#f8f8f4 0%,#f2f5f1 100%);
+}
+
+:root[data-theme="light"] .topbar {
+  background:rgba(255,254,250,.96);
+  border-bottom-color:#dbe3dc;
+  box-shadow:none;
+}
+
+:root[data-theme="light"] .ticker {
+  background:#fbfcf9;
+  border-bottom-color:#e1e7e1;
+  box-shadow:none;
+}
+
+:root[data-theme="light"] .ticker-item {
+  background:transparent;
+  border-color:#e4e9e4;
+}
+
+:root[data-theme="light"] .ticker-item.active,
+:root[data-theme="light"] .ticker-item:hover {
+  background:#f0f6f1;
+  box-shadow:inset 0 -2px #4e9b83;
+}
+
+:root[data-theme="light"] .session-ribbon {
+  background:#f1f7f2;
+  border-color:#cce0d2;
+  color:#456259;
+}
+
+:root[data-theme="light"] .stock-head {
+  background:#fffefa;
+  border-bottom-color:#dce4dd;
+}
+
+:root[data-theme="light"] .quote {
+  border-left-color:#e0e6df;
+}
+
+:root[data-theme="light"] .quote-metrics {
+  gap:16px;
+}
+
+:root[data-theme="light"] .l2-console-status {
+  background:#f3faf5;
+  border-color:#c7e0d3;
+  box-shadow:none;
+}
+
+:root[data-theme="light"] .opening-assessment {
+  border-left-color:#d68282;
+}
+
+:root[data-theme="light"] .workspace {
+  background:#fffefa;
+  border-color:#dce4dd;
+}
+
+:root[data-theme="light"] .chart-zone,
+:root[data-theme="light"] .chart-tools,
+:root[data-theme="light"] .chart-wrap {
+  background:#fffefa;
+}
+
+:root[data-theme="light"] .chart-wrap {
+  background:linear-gradient(180deg,#fffefa 0%,#fafbf7 100%);
+}
+
+:root[data-theme="light"] .grid-line {
+  stroke:#dfe8e1;
+}
+
+:root[data-theme="light"] .future-session-boundary {
+  stroke:#c3d1c8;
+  opacity:.48;
+}
+
+:root[data-theme="light"] .decision-zone {
+  background:#f7f9f5;
+  border-left-color:#dce4dd;
+  padding:14px;
+}
+
+:root[data-theme="light"] .decision-zone :is(.signal-layer,.signal-funnel-note,.auto-direction,.alert-channel,.stock-agent-switch,.closure-guard,.decision-stats,.risk-box,.context-radar,.opening-causal) {
+  background:#fffefa;
+  border-color:#dce5de;
+  box-shadow:none;
+  border-radius:9px;
+}
+
+:root[data-theme="light"] .decision-zone .signal-funnel {
+  gap:5px;
+}
+
+:root[data-theme="light"] .decision-zone .signal-layer {
+  min-height:auto;
+}
+
+:root[data-theme="light"] .primary-action:disabled {
+  min-height:52px;
+  background:#f1f4ef;
+  color:#758286;
+  border-color:#dce5de;
+  border-radius:9px;
+}
+
+:root[data-theme="light"] .primary-action:disabled span {
+  font-size:15px;
+}
+
+@media (min-width:1200px) {
+  :root[data-theme="light"] .workspace {
+    grid-template-columns:minmax(0,3.45fr) minmax(360px,.85fr);
+  }
+}
+
 @media (max-width:760px) {
   .top-actions .theme-toggle { display:grid !important; }
   .public-theme-toggle { margin-left:auto !important; }
