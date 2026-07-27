@@ -55,6 +55,7 @@ const liveChartPriceY = (price:number, min:number, max:number) => {
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
+type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
 type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[]; intradaySessions?:IntradaySession[] };
 type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string; details:string[] };
 type MarketContextItem = { id:string; label:string; group:"market"|"sector"|"related"|"cross"|"currency"; price:number|null; changePercent:number|null; sourceTimestamp:string|null; provider:string; inverse?:boolean };
@@ -2534,6 +2535,7 @@ function personalTrainingStorageKey(accountName:string) {
 function PersonalReplayTraining({accountName,stock,position}:{accountName:string;stock:{code:string;name:string};position:StockPosition}) {
   const [sessions,setSessions]=useState<IntradaySession[]>([]);
   const [selectedDate,setSelectedDate]=useState("");
+  const [archiveCoverage,setArchiveCoverage]=useState<PersonalReplayArchive["coverage"]|null>(null);
   const [session,setSession]=useState<IntradaySession|null>(null);
   const [loading,setLoading]=useState(false);
   const [message,setMessage]=useState("先加载一个完整历史交易日，再开始逐分钟训练。");
@@ -2599,17 +2601,47 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
   },[revealed,chartRange,actions]);
   const summary=current? summarizePersonalTraining({initialCash,initialShares,initialPrice:minutes[0]?.price,cash,shares,markPrice:current.price,actions:actions as unknown as []}):null;
 
+  const resetTraining=()=>{
+    setSession(null); setRevealIndex(-1); setActions([]); setFinished(false);
+  };
+  const loadZijinRandomSession=async(exclude?:string)=>{
+    const suffix=exclude?`&exclude=${encodeURIComponent(exclude)}`:"";
+    const response=await fetch(`/api/personal-replay-sessions?code=601899${suffix}`,{cache:"no-store"});
+    if(!response.ok){
+      const body=await response.json().catch(()=>null) as {error?:string}|null;
+      throw new Error(body?.error||"紫金近五年历史库暂不可用");
+    }
+    const data=await response.json() as PersonalReplayArchive;
+    if(!data.session?.minutes?.length) throw new Error("紫金近五年历史库没有可训练交易日");
+    setSessions([data.session]); setSelectedDate(data.session.date); setArchiveCoverage(data.coverage); resetTraining();
+    return data;
+  };
   const loadSessions=async()=>{
     setLoading(true); setMessage(`正在加载 ${stock.code} 的历史分时…`);
     try {
+      if(stock.code==="601899"){
+        const data=await loadZijinRandomSession();
+        setMessage(`已从近五年 ${data.coverage.sessions.toLocaleString()} 个紫金完整交易日中随机抽取 ${data.session.date}；开始后仍只逐分钟揭示。`);
+        return;
+      }
       const response=await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`,{cache:"no-store"});
       if(!response.ok) throw new Error("历史行情暂不可用");
       const data=await response.json() as MarketData;
       const next=[...(data.intradaySessions ?? [])].filter(item=>item.minutes.length>=100).sort((a,b)=>b.date.localeCompare(a.date));
       if(!next.length) throw new Error("没有可用于逐分钟训练的完整交易日");
-      setSessions(next); setSelectedDate(next[0].date); setSession(null); setRevealIndex(-1); setActions([]); setFinished(false);
+      setSessions(next); setSelectedDate(next[0].date); setArchiveCoverage(null); resetTraining();
       setMessage(`已找到 ${next.length} 个完整交易日，选择日期后即可开始训练。`);
     }catch(error){setMessage(error instanceof Error?error.message:"历史行情加载失败");}
+    finally{setLoading(false);}
+  };
+  const randomizeZijinSession=async()=>{
+    if(stock.code!=="601899") return;
+    if(revealIndex>=0&&!finished){setMessage("请先结算本局后再随机换日，避免中途跳转破坏训练记录。");return;}
+    setLoading(true); setMessage("正在从紫金近五年完整交易日中随机抽取…");
+    try{
+      const data=await loadZijinRandomSession(selectedDate);
+      setMessage(`已随机换为 ${data.session.date}；样本来自近五年 ${data.coverage.sessions.toLocaleString()} 个完整交易日。`);
+    }catch(error){setMessage(error instanceof Error?error.message:"随机训练日加载失败");}
     finally{setLoading(false);}
   };
   const startTraining=()=>{
@@ -2647,8 +2679,8 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
 
   return <section className="personal-training" aria-label="个人手动回测训练">
     <header className="personal-training-head"><div><span className="eyebrow">PERSONAL CAUSAL REPLAY</span><h2>个人手动回测训练</h2><p>自己决定买卖，逐分钟揭示历史行情；记录只用于个人复盘，不改变 V4、L2 或任何实盘信号。</p></div><b>本机私有 · 非实盘</b></header>
-    <div className="personal-training-setup"><div><label>训练标的</label><strong>{stock.code} {stock.name}</strong><small>从顶部切换股票后可训练其他自选股。</small></div><div><label>模拟资金</label><input type="number" min="1000" step="1000" value={capital} onChange={event=>setCapital(Math.max(1000,Number(event.target.value)||1000))}/></div><div><label>模拟底仓</label><input type="number" min="100" step="100" value={baseShares} onChange={event=>setBaseShares(Math.max(100,Math.floor((Number(event.target.value)||100)/100)*100))}/></div><div className="personal-training-load"><button onClick={()=>void loadSessions()} disabled={loading}>{loading?"加载中…":"加载历史交易日"}</button></div></div>
-    {sessions.length>0&&<div className="personal-training-session"><label>训练日期<select value={selectedDate} onChange={event=>setSelectedDate(event.target.value)} disabled={revealIndex>=0&&!finished}>{sessions.map(item=><option key={item.date} value={item.date}>{item.date} · {item.minutes.length} 分钟</option>)}</select></label><button onClick={startTraining}>{session&&!finished?"重新开始本日":"开始逐分钟训练"}</button><small>开始后无法回退或查看未来分钟；结算后才会揭示收盘结果。</small></div>}
+    <div className="personal-training-setup"><div><label>训练标的</label><strong>{stock.code} {stock.name}</strong><small>从顶部切换股票后可训练其他自选股。</small></div><div><label>模拟资金</label><input type="number" min="1000" step="1000" value={capital} onChange={event=>setCapital(Math.max(1000,Number(event.target.value)||1000))}/></div><div><label>模拟底仓</label><input type="number" min="100" step="100" value={baseShares} onChange={event=>setBaseShares(Math.max(100,Math.floor((Number(event.target.value)||100)/100)*100))}/></div><div className="personal-training-load"><button onClick={()=>void loadSessions()} disabled={loading||(revealIndex>=0&&!finished)}>{loading?"加载中…":stock.code==="601899"?"随机抽取近五年":"加载历史交易日"}</button></div></div>
+    {sessions.length>0&&<div className="personal-training-session">{stock.code==="601899"?<><span className="personal-training-random-date">随机训练日 <b>{`${selectedDate.slice(0,4)}-${selectedDate.slice(4,6)}-${selectedDate.slice(6,8)}`}</b> · {selectedSession?.minutes.length??0} 分钟</span><button onClick={()=>void randomizeZijinSession()} disabled={loading||(revealIndex>=0&&!finished)}>近五年换一日</button><small>近五年 {archiveCoverage?.sessions.toLocaleString()??"--"} 个完整交易日；每次随机抽取，开始后只逐分钟揭示。</small></>:<><label>训练日期<select value={selectedDate} onChange={event=>setSelectedDate(event.target.value)} disabled={revealIndex>=0&&!finished}>{sessions.map(item=><option key={item.date} value={item.date}>{item.date} · {item.minutes.length} 分钟</option>)}</select></label><small>开始后无法回退或查看未来分钟；结算后才会揭示收盘结果。</small></>}<button onClick={startTraining}>{session&&!finished?"重新开始本日":"开始逐分钟训练"}</button></div>}
     {session&&current&&<div className="personal-training-stage">
       <div className="personal-training-status"><span>当前仅揭示至 <b>{formatTime(current.time)}</b></span><span>{revealIndex+1}/{minutes.length} 分钟</span><span>当前价 <b>¥{current.price.toFixed(2)}</b></span><span>模拟持仓 <b>{shares.toLocaleString()} 股</b></span><span>可用资金 <b>¥{cash.toFixed(2)}</b></span></div>
       <div className="personal-training-indicators" aria-label="当前已揭示指标"><span><i className="price"/>价格</span><span><i className="ma5"/>MA5 ¥{chartSeries.ma5Value?.toFixed(2)??"--"}</span><span><i className="ma10"/>MA10 ¥{chartSeries.ma10Value?.toFixed(2)??"--"}</span><span><i className="ma20"/>MA20 ¥{chartSeries.ma20Value?.toFixed(2)??"--"}</span><span><i className="volume"/>成交量（仅已揭示）</span><span><i className="trade"/>你的买卖</span></div>
