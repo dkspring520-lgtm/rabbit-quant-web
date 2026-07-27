@@ -27,3 +27,13 @@ test("L2 console shows the collector-reported data latency in milliseconds", asy
   assert.match(source, /数据延迟 \$\{liveL2LatencyMs\} ms/);
   assert.match(source, /ageSeconds\?:number/);
 });
+
+test("valid L2 trades are the real-time price source for the active Zijin quote", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /const liveL2PriceUsable=stock\?\.code==="601899"/);
+  assert.match(source, /&&liveL2HasTicks/);
+  assert.match(source, /const activeQuote=useMemo\(\(\)=>\{/);
+  assert.match(source, /price:liveL2LastPrice/);
+  assert.match(source, /item\.code===stock\?\.code\?\(activeQuote\?\?marketQuotes\[item\.code\]\)/);
+});
