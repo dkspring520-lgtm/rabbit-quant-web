@@ -585,7 +585,8 @@
 }
 
 :root[data-theme="light"] .decision-zone {
-  background:#f5f8f8;
+  background:#fbfcfc;
+  padding:16px;
 }
 
 :root[data-theme="light"] .decision-zone :is(.signal-layer,.signal-funnel-note,.auto-direction,.alert-channel,.stock-agent-switch) {
@@ -596,9 +597,55 @@
   border-color:#cdd9dc;
 }
 
-:root[data-theme="light"] .future-session-shade {
-  fill:rgba(215,226,228,.46);
+:root[data-theme="light"] .chart-zone {
+  background:#f8fafb;
+}
+
+:root[data-theme="light"] .chart-tools {
+  background:#fff;
+}
+
+:root[data-theme="light"] .chart-wrap {
+  background:#fbfcfd;
+}
+
+:root[data-theme="light"] .future-session-boundary {
+  stroke:#b9c9cc;
+  stroke-width:1;
+  stroke-dasharray:3 5;
+  opacity:.75;
   pointer-events:none;
+}
+
+/* Keep the inactive state informative but visually quiet. */
+:root[data-theme="light"] .primary-action:disabled {
+  min-height:60px;
+  background:#f7f9f8;
+  color:#788588;
+  border:1px solid #d7e0e0;
+  box-shadow:none;
+}
+
+:root[data-theme="light"] .primary-action:disabled span {
+  font-size:16px;
+  letter-spacing:-.02em;
+}
+
+:root[data-theme="light"] .primary-action:disabled small {
+  color:#a0abad;
+}
+
+:root[data-theme="light"] .decision-zone .closure-guard,
+:root[data-theme="light"] .decision-zone .decision-stats,
+:root[data-theme="light"] .decision-zone .risk-box {
+  border-color:#d4dfe0;
+}
+
+:root[data-theme="light"] .decision-zone .stock-agent-switch,
+:root[data-theme="light"] .decision-zone .signal-funnel,
+:root[data-theme="light"] .decision-zone .signal-funnel-note,
+:root[data-theme="light"] .decision-zone .alert-channel {
+  margin-bottom:8px;
 }
 
 @media (max-width:760px) {
