@@ -24,6 +24,36 @@
     "embargoTradingDays": 1,
     "finalHoldout": { "start": "20250701", "end": "20251231", "mayNotTuneParameters": true }
   },
+  "openingDirection": {
+    "status": "forward-shadow-only",
+    "affectsFormalExecution": false,
+    "purpose": "Use premarket expectation, the non-cancelable auction interval, and live opening confirmation to permit or veto a V5 candidate direction. It must never alter Smart-T V4.1.",
+    "auction": {
+      "trialWindow": ["09:15", "09:20"],
+      "confirmedWindow": ["09:20", "09:25"],
+      "requiresForwardL2": true,
+      "usesHistoricalAuctionBook": false,
+      "cancelableOrdersAreEvidenceOnly": true
+    },
+    "stages": {
+      "09:30-09:35": { "mode": "observe-only", "allowsCandidate": false },
+      "09:35-09:45": { "mode": "direction-confirm", "minimumConfirmations": 3 },
+      "09:45-10:00": { "mode": "continuation-confirm", "minimumConfirmations": 4 }
+    },
+    "timeWeights": [
+      { "from": "09:25", "until": "09:35", "premarket": 0.2, "auction": 0.4, "open": 0.4 },
+      { "from": "09:35", "until": "10:00", "premarket": 0.15, "auction": 0.3, "open": 0.55 }
+    ],
+    "historicalBarFallback": {
+      "enabled": true,
+      "firstActionAt": "09:35",
+      "lastOpeningCheckAt": "10:00",
+      "minimumVolumeRatio": 0.7,
+      "features": ["openDeviationPct", "vwapBiasPct", "vwapSlope5Pct", "return5Pct", "ma10SlopePct", "volumeRatio"],
+      "doesNotUseAuctionOrL2": true,
+      "purpose": "Price-volume-only causal backtest guard; it is not a reconstruction of pre-open auction or L2 order flow."
+    }
+  },
   "hierarchy": {
     "direction": {
       "weights": { "prior20DayTrend": 15, "prior5DayTrend": 45, "intradayMa10Slope": 30, "intradayReturn5": 10 },
@@ -43,7 +73,7 @@
     "minimumPeerTrainingRows": 500
   },
   "execution": {
-    "session": ["09:33", "14:25"],
+    "session": ["09:35", "14:25"],
     "maximumSignalsPerDay": 2,
     "baseRoundTripCostPct": 0.12,
     "stressRoundTripCostPct": 0.18,
