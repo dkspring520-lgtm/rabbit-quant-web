@@ -17,6 +17,7 @@ from pathlib import Path
 
 import nats
 import numpy as np
+from zijin_l2_forward_labels import refresh_labels_and_state
 
 SNAPSHOT = np.dtype([
     ("symbol", "S32"), ("market", "u1"), ("date", "<i4"), ("time", "<i4"),
@@ -122,8 +123,12 @@ class Collector:
         self.password = os.environ["L2_NATS_PASSWORD"]
         self.state_path = os.getenv("L2_STATE_PATH", "/training-state/zijin-l2-orderflow.json")
         self.forward_path = os.getenv("L2_FORWARD_PATH", "/training-state/zijin-l2-forward.jsonl")
+        self.forward_label_path = os.getenv("L2_FORWARD_LABEL_PATH", "/training-state/zijin-l2-forward-labels.jsonl")
+        self.forward_research_state_path = os.getenv("L2_FORWARD_RESEARCH_STATE_PATH", "/training-state/zijin-opening-l2-shadow.json")
         self.forward_min_samples = int(os.getenv("L2_FORWARD_MIN_SAMPLES", "1200"))
         self.forward_min_days = int(os.getenv("L2_FORWARD_MIN_DAYS", "10"))
+        self.forward_min_opening_labels = int(os.getenv("L2_FORWARD_MIN_OPENING_LABELS", "200"))
+        self.forward_cost_pct = float(os.getenv("L2_FORWARD_COST_PCT", "0.46"))
         self.stale_seconds = float(os.getenv("L2_STALE_SECONDS", "8"))
         self.big_order = float(os.getenv("L2_BIG_ORDER_NOTIONAL", "200000"))
         # The UI reads the atomically-published state file.  Keep this short enough
@@ -139,7 +144,10 @@ class Collector:
         self.last_forward_minute = None
         self.minute_bars = deque(maxlen=60)
         self.current_minute_bar = None
+        self.forward_label_count = 0
+        self.forward_research_status = "collecting-forward-evidence"
         self.load_forward_index()
+        self.refresh_forward_research()
 
     def load_forward_index(self):
         try:
@@ -156,6 +164,20 @@ class Collector:
                         self.last_forward_minute = minute
         except FileNotFoundError:
             pass
+
+    def refresh_forward_research(self):
+        """Write delayed outcomes separately; this is never part of V4 execution."""
+        try:
+            study = refresh_labels_and_state(
+                self.forward_path, self.forward_label_path, self.forward_research_state_path,
+                self.forward_cost_pct, self.forward_min_samples, self.forward_min_days,
+                self.forward_min_opening_labels,
+            )
+            self.forward_label_count = study.get("coverage", {}).get("labeledObservations", 0)
+            self.forward_research_status = study.get("status", "collecting-forward-evidence")
+        except Exception:
+            # A research-ledger failure must never interrupt live L2 monitoring.
+            self.forward_research_status = "labeling-retry-pending"
 
     def parse(self, payload, dtype):
         if not payload or len(payload) % dtype.itemsize:
@@ -294,7 +316,8 @@ class Collector:
             "messages": self.message_counts,
             "forward": {
                 "path": self.forward_path, "samples": len(self.forward_minutes), "tradingDays": len(self.forward_days),
-                "lastExchangeMinute": self.last_forward_minute, "labeled": False, "trainingReady": ready,
+                "lastExchangeMinute": self.last_forward_minute, "labeled": self.forward_label_count > 0,
+                "labeledSamples": self.forward_label_count, "researchStatus": self.forward_research_status, "trainingReady": ready,
                 "minimumSamples": self.forward_min_samples, "minimumTradingDays": self.forward_min_days,
                 "reason": "ready-for-delayed-labeling" if ready else "collecting-genuine-forward-l2",
             },
@@ -333,6 +356,7 @@ class Collector:
         self.forward_minutes.add(minute)
         self.forward_days.add(minute[:8])
         self.last_forward_minute = minute
+        self.refresh_forward_research()
 
     async def publish_state(self):
         while True:
