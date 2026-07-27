@@ -53,6 +53,24 @@ const liveChartPriceY = (price:number, min:number, max:number) => {
   return LIVE_CHART.priceTop+(max-price)/range*(LIVE_CHART.priceBottom-LIVE_CHART.priceTop);
 };
 
+// The desk and personal replay must render the exact same intraday reference:
+// cumulative traded value divided by cumulative volume.  A minute without
+// reported volume does not invent a trade; it falls back to the visible simple
+// average only until actual volume is available.
+const cumulativeIntradayAverage = (points:Array<{price:number;volume?:number}>) => {
+  let tradedValue=0;
+  let totalVolume=0;
+  let priceTotal=0;
+  return points.map((point,index)=>{
+    const price=Number(point.price);
+    const volume=Math.max(0,Number(point.volume)||0);
+    tradedValue+=price*volume;
+    totalVolume+=volume;
+    priceTotal+=price;
+    return totalVolume>0 ? tradedValue/totalVolume : priceTotal/(index+1);
+  });
+};
+
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
@@ -895,9 +913,10 @@ export default function Home() {
     const prices=minutePoints.map(point=>point.price); const min=Math.min(...prices); const max=Math.max(...prices); const range=max-min||Math.max(max*.002,0.01);
     const pointAt=(point:{price:number},index:number)=>`${liveChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
-    let weighted=0, totalVolume=0; const vwap=minutePoints.map((point,index)=>{weighted+=point.price*Math.max(point.volume,1);totalVolume+=Math.max(point.volume,1);return pointAt({price:weighted/totalVolume},index)});
+    const averageSeries=cumulativeIntradayAverage(minutePoints);
+    const vwap=averageSeries.map((price,index)=>pointAt({price},index));
     const maxVolume=Math.max(...minutePoints.map(point=>point.volume),1);
-    const lastVwap=weighted/Math.max(totalVolume,1);
+    const lastVwap=averageSeries.at(-1) ?? minutePoints.at(-1)!.price;
     const firstX=liveChartX(minutePoints[0].time); const lastX=liveChartX(minutePoints.at(-1)!.time);
     const tickValues=[max,max-range*.25,max-range*.5,max-range*.75,min];
     return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,lastY:liveChartPriceY(minutePoints.at(-1)!.price,min,max),volumes:minutePoints.map((point,index)=>({x:liveChartX(point.time),height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:tickValues.map(value=>({value,y:liveChartPriceY(value,min,max)}))};
@@ -2577,13 +2596,9 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
     const xFor=(index:number)=>liveChartX(revealed[index]?.time);
     const priceY=(price:number)=>liveChartPriceY(price,chartRange.low,chartRange.high);
     const maxVolume=Math.max(1,...revealed.map(item=>Math.max(0,item.volume||0)));
-    let weightedPrice=0,totalVolume=0;
-    const vwap=revealed.map((item,index)=>{
-      const volume=Math.max(1,item.volume||0);
-      weightedPrice+=item.price*volume; totalVolume+=volume;
-      return `${xFor(index)},${priceY(weightedPrice/totalVolume)}`;
-    }).join(" ");
-    const vwapValue=totalVolume?weightedPrice/totalVolume:null;
+    const averageSeries=cumulativeIntradayAverage(revealed);
+    const vwap=averageSeries.map((price,index)=>`${xFor(index)},${priceY(price)}`).join(" ");
+    const vwapValue=averageSeries.at(-1) ?? null;
     const actionMarkers=actions.filter(action=>action.minuteIndex>=0&&action.minuteIndex<revealed.length).map(action=>({
       ...action,x:liveChartX(action.time),y:priceY(action.marketPrice)
     }));
