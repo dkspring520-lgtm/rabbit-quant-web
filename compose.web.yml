@@ -18,6 +18,7 @@ x-web-common: &web-common
     ZIJIN_L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
   volumes:
     - /opt/rabbit-quant-state:/training-state
+    - /opt/rabbit-quant-research:/training-data:ro
   depends_on:
     control:
       condition: service_healthy
