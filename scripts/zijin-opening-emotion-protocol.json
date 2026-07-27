@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-opening-emotion-state-machine-v1",
+  "status": "data-collection",
+  "stock": { "code": "601899", "name": "紫金矿业" },
+  "purpose": "在不使用未来数据的前提下，评估隔夜预期、集合竞价和开盘后真成交对未来 5/15/30 分钟可做T空间与失效风险的解释力。",
+  "safety": {
+    "standaloneResearchLayer": true,
+    "changesV4Automatically": false,
+    "forbidsRandomSplit": true,
+    "requiresForwardEvidenceBeforePromotion": true
+  },
+  "state": {
+    "range": [-100, 100],
+    "bands": [[60, 100, "强多"], [25, 59, "偏多"], [-24, 24, "分歧"], [-59, -25, "偏空"], [-100, -60, "强空"]],
+    "stages": ["premarket", "auction-probe", "auction-locked", "open-discovery", "open-confirmation", "open-persistence"]
+  },
+  "weightsByTime": {
+    "09:10": { "P": 1.0, "A": 0.0, "O": 0.0 },
+    "09:25": { "P": 0.4, "A": 0.6, "O": 0.0 },
+    "09:35": { "P": 0.2, "A": 0.4, "O": 0.4 },
+    "10:00": { "P": 0.15, "A": 0.3, "O": 0.55 }
+  },
+  "features": {
+    "P": ["沪铜与黄金隔夜异常强度", "紫金港股与有色相对预期", "大盘预期", "可审计公司消息情绪"],
+    "A": ["虚拟开盘价趋势", "竞价成交量比", "未匹配买卖失衡", "大单撤销率", "最后一分钟稳定性", "相对板块强度"],
+    "O": ["开盘价与VWAP得失", "主动成交强度", "高低点结构", "成交量持续性", "十档盘口真实性", "商品和板块联动"]
+  },
+  "collection": {
+    "window": "09:15-10:00 Asia/Shanghai",
+    "snapshotRule": "仅工作日 A 股竞价与连续竞价的因果L2快照；周末、盘后与回放包仅作连接诊断，不进入样本。",
+    "requiredFields": ["exchangeMinute", "marketPhase", "L2十档盘口", "逐笔成交", "逐笔委托", "一分钟价格成交量"]
+  },
+  "labels": ["未来5/15/30分钟最大上涨空间", "未来5/15/30分钟最大下跌风险", "扣除佣金印花税滑点和未成交惩罚后的做T价差概率", "信号失效概率"],
+  "validation": {
+    "peerPretrain": "流动性合格的A股铜、金、有色股票共同训练",
+    "zijinCalibration": "仅使用紫金矿业训练窗进行校准",
+    "split": "按时间滚动训练、向前验证；最近3-6个月封存为最终测试，不参与调参",
+    "firstModel": "人工可解释微观因子 + LightGBM + 行情状态过滤"
+  }
+}

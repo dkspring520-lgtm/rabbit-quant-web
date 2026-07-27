@@ -73,6 +73,12 @@ async function latestTrainerAlert() {
   }
 }
 
+function trainerAlertIsHistorical(alert: any, automation: any) {
+  const alertAt = parseProgressTime(alert?.at);
+  const heartbeatAt = parseProgressTime(automation?.scheduler?.heartbeatAt);
+  return Number.isFinite(alertAt) && Number.isFinite(heartbeatAt) && alertAt < heartbeatAt;
+}
+
 async function latestL2Forward() {
   try {
     const payload = JSON.parse(await readFile(runtimeL2State, "utf8"));
@@ -153,6 +159,7 @@ export async function GET() {
           automationStale: automation?.health.status === "offline",
           automationHealth: automation?.health ?? null,
           trainerAlert,
+          trainerAlertHistorical: trainerAlertIsHistorical(trainerAlert, automation?.payload),
         },
       }, {
         headers: {
