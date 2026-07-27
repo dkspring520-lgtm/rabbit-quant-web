@@ -798,3 +798,172 @@
   .public-nav .public-theme-toggle + button { flex:0 0 auto; margin-left:0; }
   .auth-entry-floating .theme-toggle { flex:0 0 36px; }
 }
+
+/* Daylight desk v2: a cool paper surface with strong type hierarchy.
+   This is intentionally a final light-only layer: the dark terminal and
+   trading logic are untouched. */
+:root[data-theme="light"]{
+  --bg:#edf2f4;
+  --surface:#f8fafb;
+  --surface-2:#e8eff1;
+  --panel:#f6f9fa;
+  --panel-strong:#ffffff;
+  --field:#ffffff;
+  --line:#d5dfe3;
+  --line-soft:#e6edef;
+  --text:#172830;
+  --text-soft:#3d515b;
+  --muted:#647680;
+  --dim:#8798a0;
+  --teal:#087b73;
+  --teal-2:#15968b;
+  --coral:#cf575c;
+  --amber:#9b6c20;
+  --green:#287a59;
+  --red:#cf575c;
+  --grid:#dbe5e8;
+  --shadow:rgba(24,47,57,.08);
+}
+
+:root[data-theme="light"] .app-shell{
+  background:radial-gradient(circle at 84% -8%,rgba(21,150,139,.08),transparent 29%),linear-gradient(135deg,#f7fafb 0%,#edf2f4 60%,#e9f0f2 100%);
+}
+
+:root[data-theme="light"] .topbar{
+  background:rgba(255,255,255,.94);
+  border-bottom-color:#d7e1e5;
+  box-shadow:0 1px 0 rgba(23,40,48,.03);
+  backdrop-filter:blur(14px);
+}
+
+:root[data-theme="light"] .topbar .brand{border-right-color:#e2e9eb}
+:root[data-theme="light"] .topbar .main-nav button{color:#60727c;font-weight:500}
+:root[data-theme="light"] .topbar .main-nav button:hover{color:#172830;background:#f3f7f7}
+:root[data-theme="light"] .topbar .main-nav button.active{color:#087b73;font-weight:650}
+:root[data-theme="light"] .topbar .main-nav button.active:after{height:3px;border-radius:3px 3px 0 0;background:#0e8d82}
+
+:root[data-theme="light"] .ticker{
+  background:rgba(250,252,252,.96);
+  border-bottom:1px solid #dce5e8;
+}
+
+:root[data-theme="light"] .ticker-item{border-right-color:#e2eaed}
+:root[data-theme="light"] .ticker-item.active,
+:root[data-theme="light"] .ticker-item:hover,
+:root[data-theme="light"] .ticker-item.selected{
+  background:#eef7f6;
+  box-shadow:inset 0 -2px #0d887e!important;
+}
+
+:root[data-theme="light"] .ticker .ticker-stock-button:hover{background:transparent}
+:root[data-theme="light"] .ticker-drag-handle{color:#788a92}
+:root[data-theme="light"] .ticker .ticker-order-button:hover{background:transparent;color:#087b73}
+
+:root[data-theme="light"] .session-ribbon{
+  background:linear-gradient(90deg,#e4f4f1 0%,#f2f8f7 52%,#f8fbfb 100%);
+  border-bottom-color:#c9dfdc;
+  color:#276b65;
+}
+
+:root[data-theme="light"] .session-ribbon strong{color:#173840}
+:root[data-theme="light"] .stock-head{
+  background:rgba(255,255,255,.94);
+  border-bottom-color:#d7e1e5;
+}
+
+:root[data-theme="light"] .stock-identity h1{font-weight:700;color:#172830}
+:root[data-theme="light"] .stock-code{color:#667983}
+:root[data-theme="light"] .quote{border-left-color:#dce5e8}
+:root[data-theme="light"] .quote strong{font-size:33px;color:#c95056}
+:root[data-theme="light"] .quote span{color:#c95056;font-weight:650}
+:root[data-theme="light"] .quote.down strong,
+:root[data-theme="light"] .quote.down span{color:#0a8a7e}
+:root[data-theme="light"] .quote-metrics{gap:18px;color:#758791}
+:root[data-theme="light"] .quote-metrics b{color:#31444e;font-weight:600}
+:root[data-theme="light"] .quote-metrics .teal{color:#087b73}
+
+:root[data-theme="light"] .l2-console-status{
+  min-width:196px;
+  padding:9px 12px;
+  border-radius:10px;
+  background:#eff9f7;
+  border-color:#bcded7;
+}
+
+:root[data-theme="light"] .l2-console-status.ok{background:#eff9f7;border-color:#a7d8ce}
+:root[data-theme="light"] .l2-console-status span{font-size:11px;color:#276962}
+:root[data-theme="light"] .l2-console-status small{font-size:9px;color:#67807f}
+:root[data-theme="light"] .opening-assessment{border-left-color:#d76d70}
+:root[data-theme="light"] .opening-assessment span{color:#71828a}
+:root[data-theme="light"] .opening-assessment b{color:#c54e54;font-weight:700}
+:root[data-theme="light"] .opening-assessment small{color:#536872}
+
+:root[data-theme="light"] .workspace{background:#fff;border-color:#d7e1e5}
+:root[data-theme="light"] .chart-zone{background:#fff;border-right-color:#d7e1e5}
+:root[data-theme="light"] .chart-tools{background:#fbfcfc;border-bottom-color:#e1e9eb}
+:root[data-theme="light"] .chart-wrap{background:linear-gradient(180deg,#ffffff 0%,#f8fbfc 100%)}
+:root[data-theme="light"] .grid-line{stroke:#dce6e9}
+:root[data-theme="light"] .future-session-boundary{stroke:#b7cbd0;opacity:.44}
+:root[data-theme="light"] .chart-tools :is(.legend,.live-scan,.intraday-only){color:#637681}
+:root[data-theme="light"] .chart-tools .legend b{color:#20333d;font-weight:650}
+:root[data-theme="light"] :is(.tool-button,.icon-button){background:#fff;border-color:#cbd8dc;color:#526670}
+:root[data-theme="light"] :is(.tool-button,.icon-button):hover{background:#edf5f4;border-color:#97c7bf;color:#087b73}
+
+:root[data-theme="light"] .decision-zone{
+  background:linear-gradient(180deg,#f4f8f9 0%,#edf3f5 100%);
+  padding:14px;
+}
+
+:root[data-theme="light"] .decision-zone :is(.signal-layer,.signal-funnel-note,.auto-direction,.alert-channel,.stock-agent-switch,.closure-guard,.decision-stats,.risk-box,.context-radar,.opening-causal){
+  background:rgba(255,255,255,.91);
+  border-color:#d7e2e5;
+  box-shadow:0 1px 1px rgba(23,40,48,.02);
+}
+
+:root[data-theme="light"] .signal-funnel{gap:6px;margin-bottom:9px}
+:root[data-theme="light"] .signal-layer{padding:10px 11px}
+:root[data-theme="light"] .signal-layer>span{font-size:9px;color:#71838c}
+:root[data-theme="light"] .signal-layer>em{font-size:8.5px;color:#647780}
+:root[data-theme="light"] .signal-layer>b{font-size:19px}
+:root[data-theme="light"] .signal-funnel-note{padding:8px 10px;background:#f8fbfb}
+:root[data-theme="light"] .signal-funnel-note span{font-size:10px;color:#31454f}
+
+:root[data-theme="light"] .auto-direction{padding:10px 12px;border-radius:10px}
+:root[data-theme="light"] .auto-direction span{color:#73858e;font-size:9px}
+:root[data-theme="light"] .auto-direction b{font-size:15px;color:#20343e;font-weight:700}
+:root[data-theme="light"] .auto-direction small{color:#60747e;font-size:9.5px;line-height:1.55}
+:root[data-theme="light"] .auto-direction em{font-weight:700}
+
+:root[data-theme="light"] .decision-label{margin-top:12px}
+:root[data-theme="light"] .decision-zone h2{font-size:25px;line-height:1.2;margin:9px 0 3px;color:#1d3039}
+:root[data-theme="light"] .decision-copy{font-size:11px;line-height:1.62;color:#60737d;margin-bottom:12px}
+:root[data-theme="light"] .primary-action:disabled{
+  min-height:54px;
+  padding:0 13px;
+  background:#eef2f3;
+  border-color:#d7e0e3;
+  color:#5d707a;
+}
+
+:root[data-theme="light"] .primary-action:disabled span{font-size:15px;font-weight:650}
+:root[data-theme="light"] .primary-action:disabled small{color:#829199}
+:root[data-theme="light"] .closure-guard{padding:10px 11px;margin-top:10px}
+:root[data-theme="light"] .decision-stats{margin-top:10px}
+:root[data-theme="light"] .decision-stats div{padding:10px 8px}
+:root[data-theme="light"] .decision-stats span{font-size:8.5px;color:#758791}
+:root[data-theme="light"] .decision-stats b{font-size:17px;color:#223741}
+:root[data-theme="light"] .risk-box{margin-top:10px;padding:10px 0}
+:root[data-theme="light"] .risk-box p{color:#687b84}
+:root[data-theme="light"] .alert-channel{margin:9px 0;padding:9px 10px}
+:root[data-theme="light"] .alert-channel button{background:#fff;border-color:#d0dde0;color:#5a6e78}
+
+@media (min-width:1200px){
+  :root[data-theme="light"] .workspace{grid-template-columns:minmax(0,3.15fr) minmax(370px,1fr)}
+  :root[data-theme="light"] .stock-head{height:100px;min-height:100px;padding:10px 26px}
+}
+
+@media (max-width:760px){
+  :root[data-theme="light"] .stock-head{background:#fff}
+  :root[data-theme="light"] .l2-console-status{background:#eff9f7}
+  :root[data-theme="light"] .decision-zone{background:#f2f7f8}
+}
