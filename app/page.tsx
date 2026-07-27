@@ -728,7 +728,7 @@ export default function Home() {
   const currentContext = marketContext?.code === stock?.code ? marketContext : null;
   const currentEvents = eventRadar?.stocks.find(item => item.code === stock?.code) ?? null;
   const eventsByCode = useMemo(() => Object.fromEntries((eventRadar?.stocks ?? []).map(item => [item.code, item])), [eventRadar]);
-  const activeQuote = currentTrial?.quote ?? currentMarket?.quote;
+  const baseActiveQuote = currentTrial?.quote ?? currentMarket?.quote;
   const marketSession = useMemo(() => aShareSession(clockNow), [clockNow]);
   const removeStock=(index:number)=>{
     if(stockList.length<=1)return;
@@ -806,7 +806,7 @@ export default function Home() {
           }
         }
       }catch{if(active)setLiveL2Status({error:"L2 status endpoint unavailable",status:{connected:false,stale:true}})}
-      if(active)timer=window.setTimeout(()=>void poll(),marketSession.live?2000:60_000);
+      if(active)timer=window.setTimeout(()=>void poll(),marketSession.live?1000:60_000);
     };
     void poll();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
@@ -817,6 +817,26 @@ export default function Home() {
     ? Math.max(0,Math.round((liveL2Status?.status?.ageSeconds??0)*1000))
     : null;
   const liveL2LatencyText=liveL2LatencyMs===null?"延迟待测":`数据延迟 ${liveL2LatencyMs} ms`;
+  const liveL2LastPrice=Number(liveL2Status?.book?.lastPrice);
+  const liveL2PriceUsable=stock?.code==="601899"
+    &&liveL2Status?.status?.connected===true
+    &&!liveL2Stale
+    &&liveL2HasTicks
+    &&Number.isFinite(liveL2LastPrice)
+    &&liveL2LastPrice>0
+    &&(!baseActiveQuote?.price||Math.abs(liveL2LastPrice-baseActiveQuote.price)/Math.max(baseActiveQuote.price,.01)<=.05);
+  const activeQuote=useMemo(()=>{
+    if(!liveL2PriceUsable)return baseActiveQuote;
+    const previousClose=baseActiveQuote?.previousClose;
+    const change=previousClose&&previousClose>0?liveL2LastPrice-previousClose:baseActiveQuote?.change??null;
+    const changePercent=previousClose&&previousClose>0?change!/previousClose*100:baseActiveQuote?.changePercent??null;
+    return {
+      ...(baseActiveQuote??{code:"601899",name:stock?.name??"紫金矿业",open:null,high:null,low:null,change:null,changePercent:null}),
+      price:liveL2LastPrice,
+      change,
+      changePercent,
+    };
+  },[baseActiveQuote,liveL2PriceUsable,liveL2LastPrice,stock?.name]);
   // Connection payloads may include an endpoint or a broker-provided error.  Keep
   // those transport details out of the console UI; this card is a service-status
   // indicator, not a connection diagnostic.
@@ -1644,7 +1664,7 @@ export default function Home() {
             onDragOver={(event)=>{event.preventDefault();event.dataTransfer.dropEffect='move'}}
             onDrop={(event)=>dropStock(event,item.code)}
           >{(()=>{
-            const quote=marketQuotes[item.code];
+            const quote=item.code===stock?.code?(activeQuote??marketQuotes[item.code]):marketQuotes[item.code];
             const radar=eventsByCode[item.code];
             const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;
             const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>
