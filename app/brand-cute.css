@@ -1,0 +1,299 @@
+/*
+ * One rabbit identity across both themes.
+ * The same lop-eared pair is used everywhere; only the frame and type colors
+ * change between daylight and black-gold modes.
+ */
+:is(
+  .topbar .brand-primary-logo,
+  .public-brand .brand-primary-logo,
+  .auth-brand .brand-primary-logo
+) {
+  content: url("/rabbit-daylight-pair.webp");
+  display: block;
+  object-fit: cover !important;
+  object-position: 50% 61% !important;
+  transform: none !important;
+}
+
+.topbar .brand-lockup {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.topbar .brand-primary-logo {
+  width: 66px !important;
+  height: 52px !important;
+  flex: 0 0 66px;
+  border-radius: 16px;
+}
+
+.topbar .brand-type-fallback,
+.public-brand > span,
+.auth-brand > span {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  clip: auto !important;
+  clip-path: none !important;
+  opacity: 1 !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.topbar .brand-type-fallback {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+
+.topbar .brand-type-fallback strong,
+.topbar .brand-type-fallback small,
+.public-brand > span b,
+.public-brand > span small,
+.auth-brand > span b,
+.auth-brand > span small {
+  font-size: 0 !important;
+}
+
+.topbar .brand-type-fallback strong::before,
+.public-brand > span b::before,
+.auth-brand > span b::before {
+  content: "做T神器";
+  font-family: ui-rounded, "SF Pro Rounded", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -.055em;
+}
+
+.topbar .brand-type-fallback strong::before {
+  font-size: 22px;
+}
+
+.public-brand > span b::before,
+.auth-brand > span b::before {
+  font-size: 21px;
+}
+
+.topbar .brand-type-fallback small::before,
+.public-brand > span small::before,
+.auth-brand > span small::before {
+  content: "RABBIT QUANT · 双兔助手";
+  font-family: var(--font-data);
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: .12em;
+}
+
+.public-brand {
+  min-width: 218px;
+  gap: 11px;
+}
+
+.public-brand .brand-primary-logo {
+  width: 58px !important;
+  height: 48px !important;
+  flex: 0 0 58px;
+  border-radius: 15px !important;
+}
+
+.auth-brand .brand-primary-logo {
+  width: 68px !important;
+  height: 56px !important;
+  flex: 0 0 68px;
+  border-radius: 17px !important;
+}
+
+:root[data-theme="dark"] :is(
+  .topbar .brand-primary-logo,
+  .public-brand .brand-primary-logo,
+  .auth-brand .brand-primary-logo
+) {
+  border: 1px solid rgba(225, 177, 76, .52);
+  background: #fff8ec;
+  filter: saturate(.92) contrast(1.02) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 218, 126, .07),
+    0 7px 21px rgba(0, 0, 0, .34),
+    0 0 18px rgba(211, 161, 55, .10);
+}
+
+:root[data-theme="dark"] .topbar .brand-lockup {
+  min-width: 266px !important;
+  height: 64px;
+  padding: 5px 20px 5px 10px;
+  border-right: 1px solid rgba(225, 177, 76, .18);
+  background:
+    linear-gradient(90deg, rgba(225, 177, 76, .055), transparent 88%),
+    #080a09;
+}
+
+:root[data-theme="dark"] :is(
+  .topbar .brand-type-fallback strong::before,
+  .public-brand > span b::before,
+  .auth-brand > span b::before
+) {
+  color: #fff7e8;
+  text-shadow: 0 2px 14px rgba(221, 171, 70, .12);
+}
+
+:root[data-theme="dark"] :is(
+  .topbar .brand-type-fallback small::before,
+  .public-brand > span small::before,
+  .auth-brand > span small::before
+) {
+  color: #b99a62;
+}
+
+:root[data-theme="light"] :is(
+  .topbar .brand-primary-logo,
+  .public-brand .brand-primary-logo,
+  .auth-brand .brand-primary-logo
+) {
+  border: 1px solid #f0dce6;
+  background: #fff9fb;
+  filter: none !important;
+  box-shadow: 0 7px 18px rgba(123, 83, 105, .11);
+}
+
+:root[data-theme="light"] :is(
+  .topbar .brand-type-fallback strong::before,
+  .public-brand > span b::before,
+  .auth-brand > span b::before
+) {
+  color: #332f42;
+}
+
+:root[data-theme="light"] :is(
+  .topbar .brand-type-fallback small::before,
+  .public-brand > span small::before,
+  .auth-brand > span small::before
+) {
+  color: #9a8793;
+}
+
+@media (max-width: 1320px) and (min-width: 761px) {
+  :root[data-theme] .topbar .brand-lockup {
+    min-width: 216px !important;
+    padding-right: 12px;
+  }
+
+  .topbar .brand-primary-logo {
+    width: 54px !important;
+    height: 44px !important;
+    flex-basis: 54px;
+    border-radius: 14px;
+  }
+
+  .topbar .brand-type-fallback strong::before {
+    font-size: 20px;
+  }
+
+  .topbar .brand-type-fallback small {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    padding-bottom: 0;
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 56px 50px;
+    align-items: center;
+    height: 106px;
+    min-height: 106px;
+    padding: 0 9px;
+    gap: 0 6px;
+  }
+
+  :root[data-theme] .topbar .brand-lockup {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 174px !important;
+    padding: 5px 8px;
+    gap: 8px;
+  }
+
+  .topbar .top-actions {
+    position: relative;
+    z-index: 3;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .topbar .main-nav {
+    position: static;
+    z-index: 1;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: calc(100% + 18px);
+    height: 50px;
+    margin-left: -9px;
+    padding: 0 4px;
+    border-top: 1px solid var(--line);
+    box-shadow: none;
+  }
+
+  .topbar .main-nav button {
+    flex-basis: 70px;
+    height: 50px;
+  }
+
+  .topbar .main-nav button.active::after {
+    top: auto;
+    bottom: 0;
+  }
+
+  .topbar .brand-primary-logo {
+    width: 48px !important;
+    height: 42px !important;
+    flex-basis: 48px;
+    border-radius: 13px;
+  }
+
+  .topbar .brand-type-fallback strong::before {
+    font-size: 18px;
+  }
+
+  .topbar .brand-type-fallback small {
+    display: none !important;
+  }
+
+  .public-brand {
+    min-width: 0;
+  }
+
+  .public-brand .brand-primary-logo {
+    width: 48px !important;
+    height: 42px !important;
+    flex-basis: 48px;
+    border-radius: 13px !important;
+  }
+
+  .public-brand > span b::before {
+    font-size: 18px;
+  }
+
+  .public-brand > span small {
+    display: none !important;
+  }
+}
+
+/* Keep replay labels crisp after legacy light-theme text-outline rules. */
+:root[data-theme] .backtest-candidate-marker text,
+:root[data-theme] .backtest-action-marker text {
+  paint-order: normal !important;
+  stroke: none !important;
+  stroke-width: 0 !important;
+}

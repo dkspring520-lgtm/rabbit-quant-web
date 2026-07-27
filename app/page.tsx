@@ -3316,12 +3316,19 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
                 const price=observation.price ?? fullDayMinutes[minuteIndex].price;
                 const point=chartPoint(price,minuteIndex);
                 const isSell=observation.direction==="反T";
-                const fill="#d6a63f";
                 const label=observationConfirmationLabel(observation);
-                return <g className="backtest-candidate-marker" key={`${observation.direction}-${observation.time}-${index}`}>
+                const labelWidth=Math.max(52,label.length*10+18);
+                const placeAbove=isSell||point.y>166;
+                const labelY=placeAbove?Math.max(17,point.y-19-(index%2)*8):Math.min(191,point.y+25+(index%2)*8);
+                const labelX=Math.max(65+labelWidth/2,Math.min(820-labelWidth/2,point.x+((index%3)-1)*4));
+                const labelTop=labelY-13;
+                return <g className={`backtest-candidate-marker ${isSell?"is-high":"is-low"}`} key={`${observation.direction}-${observation.time}-${index}`}>
                   <title>{`${label}；${observationDirectionNote(observation)}；${observation.reason}${observation.blockers.length?`；未通过：${observation.blockers.join("；")}`:""}`}</title>
-                  <circle cx={point.x} cy={point.y} r="4" fill="#071312" stroke={fill} strokeWidth="1.7"/>
-                  <text x={point.x} y={isSell?point.y-9:point.y+15} textAnchor="middle" fill={fill}>{label}</text>
+                  <line className="candidate-leader" x1={point.x} y1={point.y} x2={labelX} y2={placeAbove?labelTop+22:labelTop}/>
+                  <rect className="candidate-label-bg" x={labelX-labelWidth/2} y={labelTop} width={labelWidth} height="22" rx="11"/>
+                  <circle className="candidate-anchor" cx={point.x} cy={point.y} r="5.5"/>
+                  <circle className="candidate-anchor-core" cx={point.x} cy={point.y} r="2"/>
+                  <text x={labelX} y={labelY+1.75} textAnchor="middle">{label}</text>
                 </g>;
               })}
               {result?.actions.map((action,index)=>{
@@ -3329,9 +3336,20 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
                 if(minuteIndex<0)return null;
                 const point=chartPoint(fullDayMinutes[minuteIndex].price,minuteIndex);
                 const isSell=action.side==="卖出";
-                const fill=isSell?"#ff6464":"#28d7c4";
                 const label=action.direction==="反T"?(isSell?"反T先卖":"反T买回"):(action.side==="买入"?"正T买入":"正T卖出");
-                return <g key={`${action.side}-${action.time}-${index}`}><title>{action.reason ?? label}</title><circle cx={point.x} cy={point.y} r="5" fill={fill} stroke="#071312" strokeWidth="2"/><text x={point.x} y={isSell?point.y-10:point.y+17} textAnchor="middle" fill={fill} fontSize="10" fontWeight="700">{label}</text></g>;
+                const labelWidth=Math.max(54,label.length*10+18);
+                const placeAbove=isSell||point.y>166;
+                const labelY=placeAbove?Math.max(17,point.y-21-(index%2)*8):Math.min(191,point.y+27+(index%2)*8);
+                const labelX=Math.max(65+labelWidth/2,Math.min(820-labelWidth/2,point.x+((index%3)-1)*4));
+                const labelTop=labelY-13;
+                return <g className={`backtest-action-marker ${isSell?"is-sell":"is-buy"}`} key={`${action.side}-${action.time}-${index}`}>
+                  <title>{action.reason ?? label}</title>
+                  <line className="action-leader" x1={point.x} y1={point.y} x2={labelX} y2={placeAbove?labelTop+22:labelTop}/>
+                  <rect className="action-label-bg" x={labelX-labelWidth/2} y={labelTop} width={labelWidth} height="22" rx="11"/>
+                  <circle className="action-anchor" cx={point.x} cy={point.y} r="5.5"/>
+                  <circle className="action-anchor-core" cx={point.x} cy={point.y} r="2"/>
+                  <text x={labelX} y={labelY+1.75} textAnchor="middle">{label}</text>
+                </g>;
               })}
               <text x="65" y="222" className="equity-time-label">{formatTime(fullDayMinutes[0]?.time)}</text>
               <text x="442" y="222" textAnchor="middle" className="equity-time-label">{formatTime(fullDayMinutes[Math.floor(fullDayMinutes.length/2)]?.time)}</text>
