@@ -1,0 +1,883 @@
+/*
+ * Rabbit daylight theme
+ * ---------------------
+ * A warm, soft trading surface for daytime use. All rules are scoped to the
+ * light theme so the established dark workspace and trading logic stay intact.
+ */
+:root[data-theme="light"] {
+  --bg: #fff8fb;
+  --surface: #ffffff;
+  --surface-2: #fff1f6;
+  --panel: #fffafd;
+  --panel-strong: #ffffff;
+  --field: #fffefe;
+  --line: #eee3e9;
+  --line-soft: #f5edf1;
+  --text: #353348;
+  --text-soft: #555269;
+  --muted: #79768b;
+  --dim: #aaa4b3;
+  --teal: #21bda8;
+  --teal-2: #15a995;
+  --coral: #ff5e8d;
+  --amber: #efa849;
+  --green: #1db58d;
+  --red: #ff557f;
+  --grid: #f0e7ec;
+  --shadow: rgba(123, 87, 108, .09);
+  --radius: 14px;
+  color-scheme: light;
+}
+
+:root[data-theme="light"] body {
+  background:
+    radial-gradient(circle at 9% 3%, rgba(255, 195, 215, .22), transparent 24rem),
+    radial-gradient(circle at 92% 12%, rgba(173, 238, 226, .18), transparent 30rem),
+    var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="light"] ::selection {
+  background: rgba(255, 94, 141, .18);
+  color: #2f2b40;
+}
+
+:root[data-theme="light"] .app-shell {
+  background:
+    radial-gradient(circle at 8% 3%, rgba(255, 206, 221, .18), transparent 27rem),
+    radial-gradient(circle at 94% 9%, rgba(188, 239, 229, .15), transparent 26rem),
+    #fffafd;
+}
+
+/* Navigation */
+:root[data-theme="light"] .topbar {
+  background: rgba(255, 253, 254, .94);
+  border-bottom: 1px solid #f0e7ec;
+  box-shadow: 0 5px 24px rgba(103, 75, 94, .07);
+  backdrop-filter: blur(18px);
+}
+
+:root[data-theme="light"] .topbar .brand {
+  background: transparent;
+  border-right-color: #f0e7ec;
+}
+
+:root[data-theme="light"] .main-nav {
+  gap: 7px;
+}
+
+:root[data-theme="light"] .topbar .main-nav button {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 14px;
+  color: #6f6b7f;
+  font-weight: 600;
+  transition: color .18s ease, background .18s ease, transform .18s ease;
+}
+
+:root[data-theme="light"] .topbar .main-nav button:hover {
+  background: #fff1f6;
+  color: #ef4f80;
+}
+
+:root[data-theme="light"] .topbar .main-nav button.active {
+  background: linear-gradient(135deg, #fff0f5, #fff8fb);
+  color: #f04f80;
+}
+
+:root[data-theme="light"] .topbar .main-nav button.active::after {
+  left: 17px;
+  right: 17px;
+  height: 2px;
+  border-radius: 2px;
+  background: #ff6f9b;
+}
+
+:root[data-theme="light"] .topbar :is(
+  .profile-cycle,
+  .strategy-help,
+  .account-button,
+  .icon-button,
+  select
+) {
+  background: #fff;
+  border-color: #eadfe6;
+  border-radius: 12px;
+  box-shadow: 0 3px 12px rgba(103, 75, 94, .045);
+}
+
+:root[data-theme="light"] .topbar :is(
+  .profile-cycle,
+  .strategy-help,
+  .account-button,
+  .icon-button,
+  select
+):hover {
+  background: #fff3f7;
+  border-color: #f3c7d6;
+}
+
+:root[data-theme="light"] .topbar .account-button > span {
+  background: linear-gradient(145deg, #e1f6f1, #fff1f5);
+  color: #1ba38f;
+}
+
+/* Stock tabs: no full-width hover underline. */
+:root[data-theme="light"] .ticker {
+  background: rgba(255, 255, 255, .9);
+  border-bottom-color: #f0e7ec;
+  box-shadow: 0 4px 18px rgba(103, 75, 94, .045);
+}
+
+:root[data-theme="light"] .ticker button {
+  border-right-color: #f4edf1;
+  transition: background .18s ease, color .18s ease;
+}
+
+:root[data-theme="light"] .ticker button:hover {
+  background: #fff8fb;
+}
+
+:root[data-theme="light"] .ticker button.selected,
+:root[data-theme="light"] .ticker-item.selected {
+  background: linear-gradient(180deg, #fff4f8, #fff);
+  color: var(--text);
+  box-shadow: inset 0 -2px #ff7ca4;
+}
+
+:root[data-theme="light"] .session-ribbon {
+  color: #db6b8d;
+  border-bottom-color: #f3dce5;
+  background: linear-gradient(90deg, #fff0f5, #fff8fb 54%, #f3fbf9);
+}
+
+:root[data-theme="light"] .session-ribbon span i {
+  background: #ff6d99;
+  box-shadow: 0 0 0 4px rgba(255, 109, 153, .11);
+}
+
+/* Primary trading desk */
+:root[data-theme="light"] .stock-head {
+  background:
+    radial-gradient(circle at 75% 20%, rgba(187, 240, 230, .13), transparent 18rem),
+    linear-gradient(135deg, #fff, #fffbfd);
+  border: 1px solid #efe4ea;
+  box-shadow: 0 9px 28px rgba(111, 79, 99, .065);
+}
+
+:root[data-theme="light"] .stock-identity h1 {
+  color: #302e42;
+  font-weight: 800;
+}
+
+:root[data-theme="light"] .quote {
+  border-left-color: #eee2e8;
+}
+
+:root[data-theme="light"] .quote strong,
+:root[data-theme="light"] .quote span {
+  color: var(--red);
+}
+
+:root[data-theme="light"] .quote.down strong,
+:root[data-theme="light"] .quote.down span {
+  color: var(--green);
+}
+
+:root[data-theme="light"] .l2-console-status {
+  border-color: #c8ece4;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #effbf8, #fff);
+  box-shadow: 0 5px 18px rgba(40, 161, 143, .07);
+}
+
+:root[data-theme="light"] .l2-console-status.ok {
+  border-color: #aee3d9;
+  background: linear-gradient(135deg, #eaf9f5, #fafffd);
+}
+
+:root[data-theme="light"] .opening-assessment {
+  border-left-color: #ff7b9f;
+}
+
+:root[data-theme="light"] .opening-assessment b {
+  color: #f15b83;
+}
+
+:root[data-theme="light"] .workspace {
+  background: #fff;
+  border: 1px solid #eee3e9;
+  box-shadow: 0 12px 34px rgba(111, 79, 99, .075);
+}
+
+:root[data-theme="light"] .chart-zone,
+:root[data-theme="light"] .chart-tools,
+:root[data-theme="light"] .chart-wrap {
+  background: #fff;
+}
+
+:root[data-theme="light"] .chart-zone {
+  border-right-color: #f0e7ec;
+}
+
+:root[data-theme="light"] .chart-tools {
+  border-bottom-color: #f3ebef;
+}
+
+:root[data-theme="light"] .chart-tools :is(.tool-button, .icon-button) {
+  background: #fffafd;
+  border-color: #eadfe6;
+  border-radius: 11px;
+}
+
+:root[data-theme="light"] .grid-line {
+  stroke: #efe7ec;
+}
+
+:root[data-theme="light"] .volume-divider,
+:root[data-theme="light"] .future-session-boundary {
+  stroke: #eadfe6;
+}
+
+:root[data-theme="light"] .price-path,
+:root[data-theme="light"] .last-line {
+  stroke: #ff668f;
+}
+
+:root[data-theme="light"] .vwap-path {
+  stroke: #e8a43c;
+}
+
+:root[data-theme="light"] .coral-line {
+  background: #ff668f;
+}
+
+:root[data-theme="light"] .teal-line {
+  background: #e8a43c;
+}
+
+:root[data-theme="light"] .decision-zone {
+  background: linear-gradient(180deg, #fffbfd, #fff8fb);
+  padding: 16px;
+}
+
+:root[data-theme="light"] .decision-zone :is(
+  .signal-layer,
+  .signal-funnel-note,
+  .auto-direction,
+  .alert-channel,
+  .stock-agent-switch,
+  .closure-guard,
+  .decision-stats,
+  .risk-box,
+  .stock-state
+) {
+  background: rgba(255, 255, 255, .92);
+  border-color: #eee2e8;
+  border-radius: 12px;
+  box-shadow: 0 5px 16px rgba(111, 79, 99, .045);
+}
+
+:root[data-theme="light"] .signal-layer.candidate {
+  border-left-color: #f1ab49;
+  background: linear-gradient(135deg, #fff9ed, #fff);
+}
+
+:root[data-theme="light"] .signal-layer.formal {
+  border-left-color: #27b9a5;
+  background: linear-gradient(135deg, #edf9f6, #fff);
+}
+
+:root[data-theme="light"] .primary-action {
+  border-radius: 14px;
+}
+
+:root[data-theme="light"] .primary-action:disabled {
+  background: linear-gradient(135deg, #f5f1f3, #fff);
+  border-color: #ebe1e6;
+  color: #8f8997;
+}
+
+:root[data-theme="light"] .candidate-signal-marker text,
+:root[data-theme="light"] .live-signal-marker text,
+:root[data-theme="light"] .backtest-candidate-marker text {
+  stroke: #fff;
+  stroke-width: 3px;
+}
+
+:root[data-theme="light"] .chart-badge rect {
+  fill: rgba(255, 255, 255, .97) !important;
+  stroke: #eadfe6 !important;
+  filter: drop-shadow(0 4px 8px rgba(92, 66, 82, .13)) !important;
+}
+
+:root[data-theme="light"] .chart-badge text {
+  fill: #504b60 !important;
+}
+
+:root[data-theme="light"] .chart-badge .mini-rabbit {
+  fill: #fff5f8;
+}
+
+/* Homepage */
+:root[data-theme="light"] :is(
+  .product-home,
+  .module-view,
+  .holdings-view,
+  .backtest-view
+) {
+  background:
+    radial-gradient(circle at 7% 0, rgba(255, 204, 221, .19), transparent 28rem),
+    radial-gradient(circle at 94% 8%, rgba(184, 240, 229, .16), transparent 25rem),
+    #fffafd;
+}
+
+/* Public landing page: the rabbit artwork is decorative, never a replacement logo. */
+:root[data-theme="light"] .public-site {
+  background:
+    radial-gradient(circle at 8% 5%, rgba(255, 202, 220, .22), transparent 30rem),
+    radial-gradient(circle at 92% 10%, rgba(184, 240, 229, .18), transparent 28rem),
+    #fffafd;
+  color: var(--text);
+}
+
+:root[data-theme="light"] .public-nav {
+  background: rgba(255, 253, 254, .94);
+  border-bottom-color: #f0e7ec;
+  box-shadow: 0 5px 24px rgba(103, 75, 94, .07);
+}
+
+:root[data-theme="light"] .public-nav nav a {
+  color: #706b7e;
+  font-weight: 600;
+}
+
+:root[data-theme="light"] .public-nav nav a:hover {
+  color: #ef5682;
+}
+
+:root[data-theme="light"] .public-nav > button {
+  border-color: #f2c9d7;
+  border-radius: 12px;
+  background: #fff3f7;
+  color: #ea527f;
+}
+
+:root[data-theme="light"] .public-hero {
+  gap: clamp(38px, 6vw, 90px);
+}
+
+:root[data-theme="light"] .public-kicker {
+  color: #e95a83;
+}
+
+:root[data-theme="light"] .public-kicker i {
+  background: #ff6d99;
+  box-shadow: 0 0 0 5px rgba(255, 109, 153, .1);
+}
+
+:root[data-theme="light"] .public-hero-copy h1 {
+  color: #302e42;
+}
+
+:root[data-theme="light"] .public-hero-copy h1 strong {
+  color: #f05282;
+}
+
+:root[data-theme="light"] .public-cta button {
+  border-color: #eadfe6;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .9);
+  color: var(--text);
+}
+
+:root[data-theme="light"] .public-cta button:first-child {
+  background: linear-gradient(135deg, #ff6d98, #ed507f);
+  color: #fff;
+  box-shadow: 0 11px 25px rgba(238, 80, 127, .2);
+}
+
+:root[data-theme="light"] .public-terminal {
+  position: relative;
+  overflow: hidden;
+  min-height: 450px;
+  border-color: #eadfe6;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 88% 16%, rgba(183, 239, 228, .22), transparent 16rem),
+    rgba(255, 255, 255, .94);
+  box-shadow: 0 26px 70px rgba(109, 75, 96, .13);
+}
+
+:root[data-theme="light"] .public-terminal::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  bottom: 38px;
+  width: 205px;
+  height: 205px;
+  background: url("/rabbit-daylight-pair.webp") center / contain no-repeat;
+  pointer-events: none;
+}
+
+:root[data-theme="light"] .public-terminal > * {
+  position: relative;
+  z-index: 1;
+}
+
+:root[data-theme="light"] .public-terminal svg {
+  width: calc(100% - 154px);
+}
+
+:root[data-theme="light"] .public-price {
+  stroke: #ff6b95;
+}
+
+:root[data-theme="light"] .public-vwap {
+  stroke: #e6a33d;
+}
+
+:root[data-theme="light"] .public-signal {
+  width: calc(100% - 174px);
+  border-color: #eee2e8;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .82);
+}
+
+:root[data-theme="light"] .public-proof {
+  overflow: hidden;
+  border-color: #eee2e8;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .84);
+  box-shadow: 0 8px 26px rgba(111, 79, 99, .055);
+}
+
+:root[data-theme="light"] .public-proof > div {
+  border-color: #f1e7ec;
+}
+
+:root[data-theme="light"] .public-feature-grid {
+  gap: 14px;
+}
+
+:root[data-theme="light"] .public-feature-grid article {
+  border-color: #eee2e8;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 9px 27px rgba(111, 79, 99, .06);
+}
+
+:root[data-theme="light"] .public-feature-grid article:nth-child(1) {
+  background: linear-gradient(145deg, #fff1f6, #fff 64%);
+}
+
+:root[data-theme="light"] .public-feature-grid article:nth-child(2) {
+  background: linear-gradient(145deg, #effaf7, #fff 64%);
+}
+
+:root[data-theme="light"] .public-feature-grid article:nth-child(3) {
+  background: linear-gradient(145deg, #fff8e9, #fff 64%);
+}
+
+:root[data-theme="light"] .public-feature-grid article:nth-child(4) {
+  background: linear-gradient(145deg, #f3f4ff, #fff 64%);
+}
+
+:root[data-theme="light"] .public-workflow {
+  border-color: #eee2e8;
+}
+
+:root[data-theme="light"] .public-workflow li {
+  border-color: #eee2e8;
+  background: rgba(255, 255, 255, .78);
+}
+
+:root[data-theme="light"] .public-safety {
+  border-color: #f0d9b3;
+  border-radius: 18px;
+  background: linear-gradient(120deg, #fff8e9, rgba(255, 255, 255, .9) 55%);
+}
+
+:root[data-theme="light"] .public-safety p {
+  border-color: #f1e6d5;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .78);
+}
+
+:root[data-theme="light"] .public-footer {
+  border-top-color: #eee2e8;
+}
+
+:root[data-theme="light"] .minimal-ui .home-hero {
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, .92fr);
+  max-width: 1420px;
+  min-height: 400px;
+  gap: 42px;
+}
+
+:root[data-theme="light"] .minimal-ui .home-terminal {
+  display: block !important;
+}
+
+:root[data-theme="light"] .home-copy h1 {
+  color: #302e42;
+  font-weight: 850;
+}
+
+:root[data-theme="light"] .home-copy h1 em {
+  color: #f05b86;
+}
+
+:root[data-theme="light"] .home-actions button {
+  border-radius: 13px;
+}
+
+:root[data-theme="light"] .home-actions button:first-child {
+  background: linear-gradient(135deg, #ff6a95, #f05282);
+  box-shadow: 0 10px 24px rgba(240, 82, 130, .19);
+}
+
+:root[data-theme="light"] .home-terminal {
+  position: relative;
+  min-height: 330px;
+  overflow: hidden;
+  border: 1px solid #efe2e8;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% 18%, rgba(196, 241, 232, .22), transparent 15rem),
+    #fffbfd;
+  box-shadow: 0 22px 58px rgba(112, 76, 98, .11);
+}
+
+:root[data-theme="light"] .home-terminal::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  bottom: -32px;
+  z-index: 0;
+  width: 245px;
+  height: 245px;
+  background: url("/rabbit-daylight-pair.webp") center / contain no-repeat;
+  pointer-events: none;
+}
+
+:root[data-theme="light"] .home-terminal > * {
+  position: relative;
+  z-index: 1;
+}
+
+:root[data-theme="light"] .home-terminal svg {
+  width: calc(100% - 150px);
+}
+
+:root[data-theme="light"] .home-line {
+  stroke: #ff719a;
+}
+
+:root[data-theme="light"] .terminal-signal {
+  width: calc(100% - 178px);
+  border-color: #eadfe6;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .76);
+}
+
+:root[data-theme="light"] .rabbit-dot-home {
+  background: #e9f8f4;
+  color: #1eaa96;
+}
+
+:root[data-theme="light"] .home-zijin-entry,
+:root[data-theme="light"] .home-referral-ad,
+:root[data-theme="light"] .home-strip,
+:root[data-theme="light"] .home-risk {
+  border-color: #eee2e8;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 8px 26px rgba(111, 79, 99, .06);
+  overflow: hidden;
+}
+
+:root[data-theme="light"] .home-zijin-entry {
+  background: linear-gradient(100deg, #fff7e9, #fff 50%, #effaf7);
+}
+
+:root[data-theme="light"] .home-referral-ad {
+  background: linear-gradient(105deg, #fff0f5, #fff 60%, #f0faf7);
+}
+
+:root[data-theme="light"] .home-widget:hover {
+  background: #fff4f8;
+}
+
+:root[data-theme="light"] .workflow-grid {
+  gap: 13px;
+}
+
+:root[data-theme="light"] .workflow-grid button {
+  border-color: #eee3e9;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(111, 79, 99, .06);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+:root[data-theme="light"] .workflow-grid button:nth-child(1) {
+  background: linear-gradient(145deg, #fff1f6, #fff);
+}
+
+:root[data-theme="light"] .workflow-grid button:nth-child(2) {
+  background: linear-gradient(145deg, #effaf7, #fff);
+}
+
+:root[data-theme="light"] .workflow-grid button:nth-child(3) {
+  background: linear-gradient(145deg, #fff8e9, #fff);
+}
+
+:root[data-theme="light"] .workflow-grid button:nth-child(4) {
+  background: linear-gradient(145deg, #f2f5ff, #fff);
+}
+
+:root[data-theme="light"] .workflow-grid button:hover {
+  transform: translateY(-2px);
+  border-color: #f1c6d5;
+  box-shadow: 0 13px 30px rgba(111, 79, 99, .09);
+}
+
+:root[data-theme="light"] .workflow-grid em {
+  color: #e75a83;
+  border-color: #f4ceda;
+  background: rgba(255, 255, 255, .58);
+}
+
+/* Shared cards and data modules */
+:root[data-theme="light"] :is(
+  .watch-summary,
+  .watch-table,
+  .research-card,
+  .training-purpose,
+  .training-scope-strip p,
+  .lab-results,
+  .lab-agent,
+  .personal-training,
+  .position-overview,
+  .position-card,
+  .recovery-panel,
+  .backtest-grid,
+  .market-list,
+  .promotion-card,
+  .referral-card,
+  .ranking-card,
+  .strategy-card,
+  .publish-card,
+  .member-admin-panel
+) {
+  border-color: #eee2e8;
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 9px 28px rgba(111, 79, 99, .065);
+}
+
+:root[data-theme="light"] :is(
+  .module-head,
+  .holdings-head,
+  .backtest-head,
+  .workflow-head,
+  .referral-center-head
+) h1,
+:root[data-theme="light"] :is(
+  .module-head,
+  .holdings-head,
+  .backtest-head,
+  .workflow-head,
+  .referral-center-head
+) h2 {
+  color: #302e42;
+  font-weight: 800;
+}
+
+:root[data-theme="light"] .eyebrow {
+  color: #ea5b84;
+}
+
+:root[data-theme="light"] :is(
+  input,
+  textarea,
+  select,
+  .field.static-field,
+  .number-stepper,
+  .profile-picker
+) {
+  background: #fff;
+  border-color: #eadfe6;
+  color: var(--text);
+}
+
+:root[data-theme="light"] :is(
+  input,
+  textarea,
+  select
+):focus {
+  border-color: #f08aaa;
+  box-shadow: 0 0 0 3px rgba(240, 90, 132, .09);
+  outline: none;
+}
+
+:root[data-theme="light"] :is(
+  .watch-row,
+  .market-row,
+  .ledger-row,
+  .member-row,
+  .stock-feedback td,
+  .stock-feedback th
+) {
+  border-color: #f2e9ee;
+}
+
+:root[data-theme="light"] :is(
+  .watch-row:not(.watch-title),
+  .market-row,
+  .member-row:not(.member-head)
+):hover {
+  background: #fff7fa;
+}
+
+:root[data-theme="light"] :is(
+  .onboarding-overlay,
+  .market-overlay,
+  .member-admin-overlay,
+  .account-overlay,
+  .strategy-overlay
+) {
+  background: rgba(68, 52, 64, .32);
+  backdrop-filter: blur(8px);
+}
+
+:root[data-theme="light"] :is(
+  .onboarding-card,
+  .account-dialog,
+  .strategy-dialog,
+  .alert-log-dialog
+) {
+  border-color: #eadfe6;
+  background: #fffafd;
+  box-shadow: 0 24px 70px rgba(83, 57, 74, .18);
+}
+
+:root[data-theme="light"] .trade-alert-toast {
+  border-color: #f0d9e2;
+  border-radius: 16px;
+  background: linear-gradient(110deg, #fff0f5, rgba(255, 255, 255, .98) 66%);
+}
+
+/* Desktop cards float with breathing room, matching the supplied reference. */
+@media (min-width: 761px) {
+  :root[data-theme="light"] .topbar {
+    height: 64px;
+  }
+
+  :root[data-theme="light"] .stock-head {
+    width: calc(100% - 36px);
+    height: 100px;
+    min-height: 100px;
+    margin: 12px 18px 0;
+    border-radius: 18px;
+  }
+
+  :root[data-theme="light"] .workspace {
+    width: calc(100% - 36px);
+    margin: 12px 18px 18px;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+}
+
+/* Phone retains the same palette without spending scarce chart space. */
+@media (max-width: 760px) {
+  :root[data-theme="light"] .topbar {
+    background: rgba(255, 253, 254, .97);
+    box-shadow: 0 5px 18px rgba(103, 75, 94, .08);
+  }
+
+  :root[data-theme="light"] .main-nav {
+    background: rgba(255, 253, 254, .98);
+    border-top-color: #eee3e9;
+    box-shadow: 0 -8px 25px rgba(103, 75, 94, .09);
+  }
+
+  :root[data-theme="light"] .main-nav button {
+    color: #858093;
+    border-radius: 0;
+  }
+
+  :root[data-theme="light"] .main-nav button.active {
+    color: #ef5682;
+    background: #fff3f7;
+  }
+
+  :root[data-theme="light"] .stock-head,
+  :root[data-theme="light"] .workspace {
+    width: 100%;
+    margin: 0;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  :root[data-theme="light"] .minimal-ui .home-hero {
+    display: block;
+    min-height: 0;
+  }
+
+  :root[data-theme="light"] .minimal-ui .home-terminal {
+    display: none !important;
+  }
+
+  :root[data-theme="light"] .public-terminal {
+    min-height: 0;
+  }
+
+  :root[data-theme="light"] .public-terminal::after {
+    right: 2px;
+    bottom: 47px;
+    width: 106px;
+    height: 106px;
+    opacity: .92;
+  }
+
+  :root[data-theme="light"] .public-terminal svg {
+    width: calc(100% - 70px);
+  }
+
+  :root[data-theme="light"] .public-signal {
+    width: calc(100% - 78px);
+  }
+
+  :root[data-theme="light"] .workflow-grid {
+    gap: 8px;
+  }
+
+  :root[data-theme="light"] .workflow-grid button,
+  :root[data-theme="light"] .home-zijin-entry,
+  :root[data-theme="light"] .home-referral-ad,
+  :root[data-theme="light"] .home-strip,
+  :root[data-theme="light"] .home-risk {
+    border-radius: 13px;
+  }
+
+  :root[data-theme="light"] .decision-zone {
+    background: #fffafd;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="light"] *,
+  :root[data-theme="light"] *::before,
+  :root[data-theme="light"] *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
