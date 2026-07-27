@@ -390,6 +390,10 @@ async function dispatch(req, res) {
       store.acknowledgeAlert(requireUser(req).id, Number(path.split("/")[2])); return json(res, 200, { ok: true });
     }
     if (req.method === "POST" && path === "/scanner/run") { requireAdmin(req); return json(res, 200, await scanMonitors({ force: true })); }
+    if (req.method === "GET" && path === "/referrals/leaderboard") {
+      requireUser(req);
+      return json(res, 200, { leaderboard: store.referralLeaderboard(url.searchParams.get("limit")) });
+    }
     if (req.method === "GET" && path === "/admin/members") { requireAdmin(req); return json(res, 200, { members: store.listMembers() }); }
     if (req.method === "PATCH" && /^\/admin\/members\/[^/]+$/.test(path)) {
       requireAdmin(req); const id = path.split("/")[3]; return json(res, 200, { user: store.setMemberStatus(id, (await bodyJson(req)).status) });
