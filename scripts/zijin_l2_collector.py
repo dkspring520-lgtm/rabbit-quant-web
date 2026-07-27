@@ -87,6 +87,9 @@ class Collector:
         self.forward_min_days = int(os.getenv("L2_FORWARD_MIN_DAYS", "10"))
         self.stale_seconds = float(os.getenv("L2_STALE_SECONDS", "8"))
         self.big_order = float(os.getenv("L2_BIG_ORDER_NOTIONAL", "200000"))
+        # The UI reads the atomically-published state file.  Keep this short enough
+        # for an intraday monitor, without attempting per-packet filesystem writes.
+        self.publish_interval = float(os.getenv("L2_PUBLISH_INTERVAL_SECONDS", "0.25"))
         self.transactions, self.orders = deque(), deque()
         self.snapshot = self.last_message_at = self.last_exchange_time = None
         self.connected = self.authorization_error = False
@@ -297,7 +300,7 @@ class Collector:
             self.append_forward_sample(state)
             # Rebuild so the state immediately reflects a newly appended sample.
             atomic_json(self.state_path, self.state())
-            await asyncio.sleep(1)
+            await asyncio.sleep(self.publish_interval)
 
     async def run(self):
         async def error_callback(error):

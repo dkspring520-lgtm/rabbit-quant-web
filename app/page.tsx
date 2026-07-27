@@ -806,7 +806,7 @@ export default function Home() {
           }
         }
       }catch{if(active)setLiveL2Status({error:"L2 status endpoint unavailable",status:{connected:false,stale:true}})}
-      if(active)timer=window.setTimeout(()=>void poll(),marketSession.live?1000:60_000);
+      if(active)timer=window.setTimeout(()=>void poll(),marketSession.live?300:60_000);
     };
     void poll();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
