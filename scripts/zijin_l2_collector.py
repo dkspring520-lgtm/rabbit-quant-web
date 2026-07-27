@@ -64,6 +64,45 @@ def exchange_minute(value):
     date, clock = value.split("-", 1)
     return f"{date}-{clock[:4]}" if len(date) == 8 and len(clock) >= 4 else None
 
+def is_a_share_cash_session(minute):
+    """Accept only regular A-share auction and continuous-trading minutes.
+
+    The vendor can replay packets during weekends and after hours.  They are
+    useful for connection diagnostics, but must never become forward-training
+    observations.
+    """
+    if not isinstance(minute, str):
+        return False
+    try:
+        observed = datetime.strptime(minute, "%Y%m%d-%H%M")
+    except ValueError:
+        return False
+    if observed.weekday() >= 5:
+        return False
+    clock = observed.strftime("%H%M")
+    return (
+        "0915" <= clock <= "0925"
+        or "0930" <= clock <= "1129"
+        or "1300" <= clock <= "1459"
+    )
+
+def market_phase(minute):
+    """Classify causal Zijin observations for the early-morning study."""
+    if not is_a_share_cash_session(minute):
+        return None
+    clock = minute[-4:]
+    if clock < "0920":
+        return "auction-probe"
+    if clock <= "0925":
+        return "auction-locked"
+    if clock <= "0934":
+        return "open-discovery"
+    if clock <= "0944":
+        return "open-confirmation"
+    if clock <= "1000":
+        return "open-persistence"
+    return "continuous"
+
 def trailing_big_sweep_streak(transactions, side, threshold):
     """Count the latest same-side large prints, ignoring small-print noise."""
     streak = 0
@@ -111,7 +150,7 @@ class Collector:
                     except json.JSONDecodeError:
                         continue
                     minute = value.get("exchangeMinute")
-                    if isinstance(minute, str):
+                    if isinstance(minute, str) and is_a_share_cash_session(minute):
                         self.forward_minutes.add(minute)
                         self.forward_days.add(minute[:8])
                         self.last_forward_minute = minute
@@ -263,10 +302,11 @@ class Collector:
 
     def append_forward_sample(self, state):
         minute = exchange_minute(state.get("lastExchangeTime"))
+        phase = market_phase(minute)
         status = state.get("status", {})
         messages = state.get("messages", {})
         eligible = (
-            self.symbol == "601899" and minute and minute not in self.forward_minutes
+            self.symbol == "601899" and minute and phase and minute not in self.forward_minutes
             and status.get("connected") and status.get("authorized") and not status.get("stale")
             and messages.get("snapshot", 0) > 0
             and (messages.get("transaction", 0) > 0 or messages.get("order", 0) > 0)
@@ -275,7 +315,7 @@ class Collector:
             return
         record = {
             "schemaVersion": 2, "symbol": self.symbol, "source": state["source"], "node": state["node"],
-            "observedAt": state["updatedAt"], "exchangeMinute": minute,
+            "observedAt": state["updatedAt"], "exchangeMinute": minute, "marketPhase": phase,
             "lastPrice": state["book"].get("lastPrice"), "flow": state["flow"], "volatility": state["volatility"], "book": {
                 key: state["book"].get(key) for key in (
                     "bid1Volume", "ask1Volume", "nearBidVolume", "nearAskVolume",
