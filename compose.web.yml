@@ -48,8 +48,12 @@ services:
       L2_SYMBOL: "601899"
       L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
       L2_FORWARD_PATH: /training-state/zijin-l2-forward.jsonl
+      L2_FORWARD_LABEL_PATH: /training-state/zijin-l2-forward-labels.jsonl
+      L2_FORWARD_RESEARCH_STATE_PATH: /training-state/zijin-opening-l2-shadow.json
       L2_FORWARD_MIN_SAMPLES: "1200"
       L2_FORWARD_MIN_DAYS: "10"
+      L2_FORWARD_MIN_OPENING_LABELS: "200"
+      L2_FORWARD_COST_PCT: "0.46"
     volumes:
       - /opt/rabbit-quant-state:/training-state
     healthcheck:
