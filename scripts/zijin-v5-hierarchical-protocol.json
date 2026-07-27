@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-v5-hierarchical-peer-transfer",
+  "registeredAt": "2026-07-27",
+  "status": "preregistered-research-only",
+  "stock": { "code": "601899", "name": "紫金矿业" },
+  "scope": "用有色同类股训练可迁移的日内机会概率，再仅在紫金矿业上做固定分位校准与严格时间顺序回测。",
+  "researchDisclosure": {
+    "affectsSmartTV4": false,
+    "automaticPromotion": false,
+    "sendsTradeAlerts": false,
+    "usesHistoricalL2": false,
+    "usesHistoricalAuctionBook": false,
+    "usesFutureBarsForFeatures": false,
+    "usesFutureBarsOnlyForOutcomeLabels": true,
+    "opens2026": false,
+    "historicalReuseWarning": "2022-2025 曾用于其他研究；本次只能作为新的机制评估，不能宣称为全新的独立样本外证据。"
+  },
+  "dataPolicy": {
+    "maximumLoadedDate": "20251231",
+    "peerTrainingCodes": ["603993", "600362", "000630", "600547", "600489", "601600"],
+    "targetCalibrationCode": "601899",
+    "entry": "decision at minute t close; earliest fill at minute t+1 open",
+    "embargoTradingDays": 1,
+    "finalHoldout": { "start": "20250701", "end": "20251231", "mayNotTuneParameters": true }
+  },
+  "hierarchy": {
+    "direction": {
+      "weights": { "prior20DayTrend": 15, "prior5DayTrend": 45, "intradayMa10Slope": 30, "intradayReturn5": 10 },
+      "positivePermissionAtOrAbove": 20,
+      "reversePermissionAtOrBelow": -20,
+      "note": "日线部分只使用前一完整交易日；分钟部分只使用当前及过去分钟。历史分钟库不能精确还原周线、60分钟和15分钟所有语义，故以可审计代理变量替代。"
+    },
+    "location": "沿用因果 VWAP 偏离、日内已出现的高低位置与回撤/反弹；不使用收盘后全日高低点。",
+    "trigger": "沿用三分钟动量或 MA5 斜率转折、量比、同业覆盖与模型概率确认。",
+    "l2AndOpeningEmotion": "单列为 2026-07-24 后的前瞻影子研究，历史回测不得使用或补填。"
+  },
+  "model": {
+    "type": "HistGradientBoostingClassifier",
+    "training": "每个验证季度只使用更早日期的六只同类股；紫金矿业仅用于固定 94% 预测分位的校准，不用其未来结果调阈值。",
+    "features": "17 个通用因果价量/VWAP 特征；紫金候选再加同业覆盖和方向权限硬过滤。",
+    "probabilityQuantile": 0.94,
+    "minimumPeerTrainingRows": 500
+  },
+  "execution": {
+    "session": ["09:33", "14:25"],
+    "maximumSignalsPerDay": 2,
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18,
+    "costDisclosure": "0.12% 是当前系统统一的双边成本假设；历史 1 分钟库无法可信拆分每个账户的佣金、印花税、盘口滑点和无法成交，报告必须单独披露此限制。"
+  },
+  "outputs": {
+    "labelHorizonsMinutes": [5, 15, 30],
+    "labels": ["maxFavorableExcursion", "maxAdverseExcursion", "costedTradeOutcome"],
+    "promotionGate": {
+      "minimumAfterCostWinRate": 0.58,
+      "minimumPayoffRatio": 1.2,
+      "minimumFinalHoldoutTrades": 50,
+      "requiresForwardL2Evidence": true,
+      "manualReviewRequired": true
+    }
+  }
+}
