@@ -812,6 +812,11 @@ export default function Home() {
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
   },[stock?.code,marketSession.live]);
   const liveL2Stale=Boolean(liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
+  const liveL2HasTicks=Boolean((liveL2Status?.messages?.transaction??0)>0||(liveL2Status?.messages?.order??0)>0);
+  const liveL2LatencyMs=Number.isFinite(liveL2Status?.status?.ageSeconds)
+    ? Math.max(0,Math.round((liveL2Status?.status?.ageSeconds??0)*1000))
+    : null;
+  const liveL2LatencyText=liveL2LatencyMs===null?"延迟待测":`数据延迟 ${liveL2LatencyMs} ms`;
   // Connection payloads may include an endpoint or a broker-provided error.  Keep
   // those transport details out of the console UI; this card is a service-status
   // indicator, not a connection diagnostic.
@@ -821,7 +826,7 @@ export default function Home() {
     : liveL2Status?.status?.authorized===false
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
       : liveL2Status?.status?.connected&&!liveL2Stale
-        ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · 十档与逐笔在线`}
+        ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2LatencyText}`}
         : liveL2Status?.status?.connected&&!marketSession.live
           ? {tone:"paused",label:"L2：休市待命",detail:`${l2ConsoleNode} · ${marketSession.label}，开市后恢复实时校验`}
         : liveL2Status?.status?.connected
@@ -2060,10 +2065,11 @@ type AutoResearchSample = { date:string; cycles:number; wins:number; net:number;
 type ZijinResearchBundle = typeof import("@/lib/zijin-research-bundle")["zijinResearchBundle"];
 type ZijinL2State = {
   node?:string; error?:string; lastExchangeTime?:string;
-  status?:{connected?:boolean;authorized?:boolean;stale?:boolean};
+  status?:{connected?:boolean;authorized?:boolean;stale?:boolean;ageSeconds?:number};
   meta?:{stale?:boolean;servedAt?:string};
   flow?:{activeBuyRatio60s?:number|null;netActiveNotional60s?:number;bigOrderNetNotional60s?:number};
-  book?:{lastPrice?:number|null;nearTouchImbalance?:number|null;spreadBps?:number|null;micropriceEdgeBps?:number|null};
+  book?:{lastPrice?:number|null;nearTouchImbalance?:number|null;spreadBps?:number|null;microprice?:number|null;micropriceEdgeBps?:number|null};
+  messages?:{snapshot?:number;transaction?:number;order?:number};
   volatility?:{source?:string;period?:number;samples?:number;ready?:boolean;atr14?:number|null;atrPct14?:number|null};
   forward?:{samples?:number;tradingDays?:number;trainingReady?:boolean;reason?:string};
 };
@@ -2117,6 +2123,14 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
     document.addEventListener('visibilitychange',onVisibility);
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer);document.removeEventListener('visibilitychange',onVisibility)};
   },[stock.code]);
+  const zijinL2HasTicks=Boolean((zijinL2?.messages?.transaction??0)>0||(zijinL2?.messages?.order??0)>0);
+  const zijinL2LastPrice=Number(zijinL2?.book?.lastPrice);
+  const zijinL2Microprice=Number(zijinL2?.book?.microprice);
+  const zijinL2PriceText=Number.isFinite(zijinL2LastPrice)&&zijinL2LastPrice>0
+    ? `最新价 ${zijinL2LastPrice.toFixed(2)}`
+    : Number.isFinite(zijinL2Microprice)&&zijinL2Microprice>0
+      ? `盘口中间价 ${zijinL2Microprice.toFixed(2)}`
+      : "等待有效价格";
   useEffect(()=>{
     if(stock.code!=="601899"){
       const resetTimer=window.setTimeout(()=>{setZijinShadow(null);setZijinShadowConnection("loading");},0);
@@ -2290,7 +2304,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
     <div className="research-status"><div className="research-asset"><span><small>{stock.code}</small><strong>{stock.name}</strong></span><b>{quote?.price?.toFixed(2)??'--'}</b><em className={quoteDirection}>{quote?.changePercent==null?'行情等待中':`${quote.changePercent>=0?'+':''}${quote.changePercent.toFixed(2)}%`}</em></div><div className="research-maturity"><p><i/>档案成熟度：<strong>{maturity}</strong></p><span>研究样本 {samples} / 30 条</span><b className="maturity-progress"><em style={{width:`${Math.min(100,samples/30*100)}%`}}/></b><small>自动分时 {autoSampleDayCount} 日 · 人工复盘 {notes.length} 条 · 本机成交 {manualCount} 笔</small></div></div>
     <div className="research-overview-actions"><div><b>核心内容已展开</b><span>{researchExpanded?'正在显示训练证据、人工复盘和全部研究数据。':'训练证据、人工复盘和专业数据已收起。'}</span></div><button type="button" aria-expanded={researchExpanded} onClick={()=>setResearchExpanded(value=>!value)}>{researchExpanded?'收起研究详情':'展开研究详情'}</button></div>
     {stock.code==="601899"&&<article className={`research-compact-training ${trainingStale||schedulerOffline||zijinTrainingConnection==='error'?'stale':zijinTrainingProgress?.status??'loading'}`}><div><span>紫金研究模型</span><b>{zijinTrainingConnection==='error'?'训练状态接口暂时无法连接':!zijinTrainingProgress?'正在读取训练记录':trainingStale?'训练任务心跳超时':schedulerOffline?'最近一轮已结束 · 自动调度器离线':zijinTrainingProgress.status==='running'?activeResearchStageLabel:currentQualified?'发现候选，等待人工评审':'本轮未通过 · 在线等待新实验'}</b><small>{zijinTrainingFetchedAt?`页面最近核对：${new Date(zijinTrainingFetchedAt).toLocaleString('zh-CN',{hour12:false})}`:'只展示真实训练结果，不会自动修改 V4。'}</small></div><strong>{zijinTrainingProgress?`${zijinTrainingProgress.progress}%`:'--'}</strong></article>}
-    {stock.code==="601899"&&<article className={`research-compact-training ${zijinL2?.status?.connected&&!zijinL2.status.stale?"completed":"stale"}`}><div><span>L2 实时监控主源 · 上海节点</span><b>{zijinL2?.status?.authorized===false?"账号暂无 601899 主题权限":zijinL2?.status?.connected?(zijinL2.status.stale?"已连接，等待新盘口":`十档与逐笔正常 · 最新价 ${zijinL2.book?.lastPrice?.toFixed(2)??"--"}`):"正在连接 L2 数据服务"}</b><small>主动买占比 {zijinL2?.flow?.activeBuyRatio60s==null?"--":`${(zijinL2.flow.activeBuyRatio60s*100).toFixed(1)}%`} · 五档失衡 {zijinL2?.book?.nearTouchImbalance==null?"--":zijinL2.book.nearTouchImbalance.toFixed(3)} · 实时 ATR14 {zijinL2?.volatility?.ready&&zijinL2.volatility.atr14!=null?zijinL2.volatility.atr14.toFixed(3):"预热中"} · 腾讯分钟线自动兜底 · 前瞻样本 {zijinL2?.forward?.samples??0}</small></div><strong>{zijinL2?.status?.stale?"等待":"L2"}</strong></article>}
+    {stock.code==="601899"&&<article className={`research-compact-training ${zijinL2?.status?.connected&&!zijinL2.status.stale?"completed":"stale"}`}><div><span>L2 实时监控主源 · 上海节点</span><b>{zijinL2?.status?.authorized===false?"账号暂无 601899 主题权限":zijinL2?.status?.connected?(zijinL2.status.stale?"已连接，等待新盘口":`${zijinL2HasTicks?"十档与逐笔正常":"十档正常，逐笔待数据"} · ${zijinL2PriceText}`):"正在连接 L2 数据服务"}</b><small>主动买占比 {zijinL2?.flow?.activeBuyRatio60s==null?"--":`${(zijinL2.flow.activeBuyRatio60s*100).toFixed(1)}%`} · 五档失衡 {zijinL2?.book?.nearTouchImbalance==null?"--":zijinL2.book.nearTouchImbalance.toFixed(3)} · 实时 ATR14 {zijinL2?.volatility?.ready&&zijinL2.volatility.atr14!=null?zijinL2.volatility.atr14.toFixed(3):"预热中"} · 腾讯分钟线自动兜底 · 前瞻样本 {zijinL2?.forward?.samples??0}</small></div><strong>{zijinL2?.status?.stale?"等待":"L2"}</strong></article>}
     {stock.code==="601899"&&researchExpanded&&<div id="zijin-experiment-progress" className={`zijin-training-live zijin-training-prominent ${trainingStale?'stale':zijinTrainingProgress?.status??'loading'}`}>
       <RabbitProgressMeter
         label="紫金矿业 · 四兔真实训练"
