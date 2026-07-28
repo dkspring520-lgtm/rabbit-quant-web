@@ -18,6 +18,41 @@ const pollMs = Math.max(10_000, Number(process.env.ZIJIN_L2_AUDIT_POLL_MS) || 15
 const idlePollMs = Math.max(30_000, Number(process.env.ZIJIN_L2_AUDIT_IDLE_POLL_MS) || 60_000);
 const costPct = Math.max(0, Number(process.env.ZIJIN_L2_AUDIT_COST_PCT) || 0.46);
 
+function shanghaiClockParts(at = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(at));
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return {
+    date: `${values.year}${values.month}${values.day}`,
+    minute: Number(values.hour) * 60 + Number(values.minute),
+  };
+}
+
+export function isAshareContinuousSessionAt(at = new Date()) {
+  const { minute } = shanghaiClockParts(at);
+  return (minute >= 9 * 60 + 30 && minute <= 11 * 60 + 30)
+    || (minute >= 13 * 60 && minute <= 15 * 60);
+}
+
+export function isFreshLiveExchangeMinute(exchangeMinute, observedAt = new Date(), maximumLagMinutes = 3) {
+  const match = String(exchangeMinute ?? "").match(/^(\d{8})-?(\d{2})(\d{2})$/);
+  if (!match) return false;
+  const [, date, hours, minutes] = match;
+  const exchangeClock = Number(hours) * 60 + Number(minutes);
+  const now = shanghaiClockParts(observedAt);
+  const inContinuousSession = (exchangeClock >= 9 * 60 + 30 && exchangeClock <= 11 * 60 + 30)
+    || (exchangeClock >= 13 * 60 && exchangeClock <= 15 * 60);
+  const lag = now.minute - exchangeClock;
+  return date === now.date && inContinuousSession && lag >= 0 && lag <= maximumLagMinutes;
+}
+
 async function readJsonLines(path) {
   try {
     return (await readFile(path, "utf8")).split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
@@ -65,22 +100,33 @@ export async function runOnce() {
     readPreviousState(),
   ]);
   const minutes = Array.isArray(payload?.recentMinutes) ? payload.recentMinutes : [];
-  const stale = Boolean(payload?.meta?.stale ?? payload?.status?.stale);
-  if (!payload?.status?.connected || !payload?.status?.authorized || stale || !minutes.length) {
+  const stale = Boolean(payload?.meta?.stale || payload?.status?.stale);
+  const exchangeMinute = payload.lastExchangeTime ?? minutes.at(-1)?.exchangeMinute;
+  const freshLiveMinute = isFreshLiveExchangeMinute(exchangeMinute, now);
+  if (!payload?.status?.connected || !payload?.status?.authorized || stale || !minutes.length || !freshLiveMinute) {
     const audit = summarizeZijinL2Audit({
       observations,
       labels: existingLabels,
       suppressedRepeats: previous.suppressedRepeats ?? 0,
       updatedAt: now,
     });
-    const state = {...audit, sourceStatus: "waiting-live-l2", sourceUpdatedAt: payload?.updatedAt ?? null};
+    const sourceStatus = !isAshareContinuousSessionAt(now)
+      ? "market-closed"
+      : stale || !freshLiveMinute
+        ? "data-delayed"
+        : "waiting-live-l2";
+    const state = {
+      ...audit,
+      sourceStatus,
+      sourceUpdatedAt: payload?.updatedAt ?? null,
+      lastExchangeTime: exchangeMinute ?? null,
+    };
     await writeJsonAtomic(statePath, state);
     return { state, marketOpen: false };
   }
 
   const structure = evaluateZijinStructure({ minutes });
   const evaluation = evaluateZijinLargeOrder({ minutes, structure });
-  const exchangeMinute = payload.lastExchangeTime ?? minutes.at(-1)?.exchangeMinute;
   const candidate = buildZijinL2Observation({ evaluation, structure, exchangeMinute, observedAt: now });
   const decision = decideZijinL2Append(observations, candidate);
   if (decision.append) {
