@@ -1,0 +1,65 @@
+{
+  "protocolVersion": 1,
+  "experiment": "紫金矿业第16轮真实外因分组共识正T前瞻训练",
+  "registeredAt": "2026-07-24",
+  "status": "prospective-shadow-only",
+  "researchDisclosure": {
+    "newEconomicHypothesis": true,
+    "usesTodayToTuneThresholds": false,
+    "usesHistoricalExternalFactors": false,
+    "open2026History": false,
+    "backfillAfterRegistration": false,
+    "affectsV4": false,
+    "sendsAlerts": false,
+    "automaticPromotion": false
+  },
+  "newRealFactors": [
+    "international-gold",
+    "international-copper",
+    "shanghai-gold",
+    "shanghai-copper",
+    "a-share-market",
+    "hk-zijin",
+    "nonferrous-metals-etf",
+    "gold-etf",
+    "usd-cny",
+    "timestamped-official-events"
+  ],
+  "frozenRule": {
+    "direction": "positive",
+    "session": ["09:33", "10:45"],
+    "maximumSignalsPerDay": 1,
+    "entry": "minute-t decision, minute-t+1 public price shadow buy",
+    "conditions": {
+      "turnAndLocation": "positive 3-minute return or MA5-slope cross, while VWAP bias <= -0.15% or intraday position <= 40%",
+      "volumeRatioMinimum": 0.65,
+      "peerCoverageMinimum": 0.80,
+      "externalCoverageMinimum": 6,
+      "externalConsensus": "at least two causal sources in each of commodity and equity-transmission groups; both groups need majority support",
+      "eventHardLock": "only high-severity negative events published no later than minute-t"
+    },
+    "exit": {
+      "minimumNetTargetPct": 0.64,
+      "maximumNetTargetPct": 1.0,
+      "trailingGivebackPct": 0.15,
+      "stopNetPct": -0.45,
+      "maximumHoldMinutes": 60,
+      "forcedCloseTime": "14:50"
+    }
+  },
+  "prospectiveSamplePolicy": {
+    "startsAfterRegistration": true,
+    "appendOnlyLedger": true,
+    "sourceTimestampMustNotExceedDecisionMinute": true,
+    "historicalBackfillForbidden": true,
+    "oldRoundsRemainFrozen": [11, 15]
+  },
+  "prospectiveGate": {
+    "minimumResolvedTrades": 50,
+    "minimumResearchCandidateWinRate": 0.65,
+    "minimumWinRate": 0.70,
+    "minimumAverageNetPct": 0,
+    "minimumStressAverageNetPct": 0,
+    "manualReviewRequired": true
+  }
+}

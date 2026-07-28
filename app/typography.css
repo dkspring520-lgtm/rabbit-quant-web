@@ -1,6 +1,28 @@
-body{font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
-.brand-lockup .brand-type strong{font-weight:700;letter-spacing:-.04em}
-.chart-badge{font-family:system-ui,"Microsoft YaHei UI","Microsoft YaHei","PingFang SC",Arial,sans-serif}
+:root{--font-geist-sans:"Segoe UI Variable","PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC",sans-serif;--font-geist-mono:"Cascadia Mono","SFMono-Regular",Consolas,monospace;--font-ui:var(--font-geist-sans);--font-data:var(--font-geist-mono)}
+body{font-family:var(--font-ui);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit}
+.brand-lockup .brand-type strong{font-weight:700;letter-spacing:0!important}
+.brand-ascii-t{display:inline-block;margin:0 .05em;color:var(--teal);font-family:Arial,"Segoe UI",sans-serif;font-style:normal;font-weight:800;letter-spacing:0!important;transform:none}
+.auth-brand b{letter-spacing:0;white-space:nowrap}
+.chart-badge{font-family:var(--font-ui)}
 .chart-badge text{letter-spacing:0!important}
 .chart-badge .badge-copy{font-weight:600}
 svg text{font-synthesis:none}
+
+/* 操盘台使用更清晰的中文层级；行情数字固定等宽，切换报价时不跳动。 */
+.ticker,.stock-head,.workspace{font-family:var(--font-ui)}
+.stock-code,.quote strong,.quote span,.quote-metrics b,.opening-assessment small{font-variant-numeric:tabular-nums}
+.stock-identity h1{font-weight:600;letter-spacing:-.02em}
+.opening-assessment{min-width:320px;padding:9px 0 9px 17px;grid-template-columns:minmax(142px,auto) 1fr;column-gap:20px;row-gap:5px}
+.opening-assessment span{font-size:10px;font-weight:500;line-height:1.2;letter-spacing:.08em;text-transform:none}
+.opening-assessment b{font-size:16px;font-weight:600;line-height:1.35;letter-spacing:0}
+.opening-assessment small{font-size:13px;font-weight:400;line-height:1.45;letter-spacing:.005em;white-space:nowrap}
+
+@media(max-width:1250px) and (min-width:761px){.opening-assessment{min-width:290px;column-gap:14px}.opening-assessment b{font-size:15px}.opening-assessment small{font-size:12px}}
+
+/* Daylight uses the platform's clearest CJK UI face and slightly firmer copy.
+   Keep the data face separate so prices remain stable while streaming. */
+:root[data-theme="light"]{--font-geist-sans:"Microsoft YaHei UI","PingFang SC","Segoe UI Variable","Segoe UI",sans-serif;--font-geist-mono:"Cascadia Mono","SFMono-Regular",Consolas,monospace}
+:root[data-theme="light"] body{font-weight:400;letter-spacing:.002em}
+:root[data-theme="light"] :is(.quote strong,.quote span,.signal-layer>b,.decision-stats b,.context-radar-head>b){font-weight:650}
+:root[data-theme="light"] :is(.stock-code,.quote-metrics,.opening-assessment span,.opening-assessment small,.signal-layer>span,.signal-layer>em,.decision-copy){letter-spacing:0}

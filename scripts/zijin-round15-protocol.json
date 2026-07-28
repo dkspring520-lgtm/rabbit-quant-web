@@ -1,0 +1,50 @@
+{
+  "protocolVersion": 1,
+  "experiment": "紫金矿业第15轮早盘外部共振正T前瞻影子",
+  "registeredAt": "2026-07-22",
+  "status": "prospective-shadow-only",
+  "researchDisclosure": {
+    "newEconomicHypothesis": true,
+    "usesTodayToTuneThresholds": false,
+    "usesHistoricalExternalFactors": false,
+    "open2026History": false,
+    "backfillAfterRegistration": false,
+    "affectsV4": false,
+    "sendsAlerts": false,
+    "automaticPromotion": false
+  },
+  "frozenRule": {
+    "direction": "positive",
+    "session": ["09:33", "10:30"],
+    "maximumSignalsPerDay": 1,
+    "entry": "minute-t decision, minute-t+1 public price shadow buy",
+    "conditions": {
+      "causalTurn": "return3 or exact MA5 slope crosses from non-positive to positive",
+      "vwapBiasPctMaximum": -0.25,
+      "intradayPositionMaximum": 0.35,
+      "volumeRatioMinimum": 0.70,
+      "peerCoverageMinimum": 0.80,
+      "externalCoverageMinimum": 4,
+      "externalSupportVotesMinimum": 3,
+      "externalFactors": ["international-gold", "international-copper", "a-share-market", "hk-zijin"],
+      "eventHardLock": "only high-severity negative events published no later than minute-t"
+    },
+    "exit": {
+      "minimumNetTargetPct": 0.64,
+      "maximumNetTargetPct": 1.0,
+      "trailingGivebackPct": 0.15,
+      "stopNetPct": -0.45,
+      "maximumHoldMinutes": 60,
+      "forcedCloseTime": "14:50"
+    }
+  },
+  "prospectiveGate": {
+    "minimumResolvedTrades": 50,
+    "minimumResearchCandidateWinRate": 0.65,
+    "minimumWinRate": 0.70,
+    "minimumAverageNetPct": 0,
+    "minimumStressAverageNetPct": 0,
+    "manualReviewRequired": true,
+    "notes": "只累计登记并部署后的新分钟；所有外部因子时间戳必须不晚于信号分钟。65%至70%仅保留研究，达到70%后才可申请人工评审。"
+  }
+}

@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round9-opening-gap-postmortem",
+  "mode": "read-only-postmortem",
+  "sourceExperimentId": "zijin-round9-fixed-pattern-confirmation",
+  "sourceRunId": "r9-20260720T105939-652747",
+  "selectionUse": "prohibited",
+  "promotionUse": "prohibited",
+  "v4Modified": false,
+  "dataIsolation": {
+    "selectionEnd": "2025-12-31",
+    "latestLoadedDate": "20251230",
+    "loaded2026Rows": 0,
+    "futureMinuteFeaturesUsed": false,
+    "futureBarsUsedOnlyForOutcomeLabels": true,
+    "entryRule": "signal minute t, next-minute open"
+  },
+  "profitProtocol": {
+    "minimumNetTargetPct": 0.64,
+    "maximumNetTargetPct": 1.0,
+    "roundTripCostPct": 0.12,
+    "grossTargetThresholdPct": 0.76,
+    "maximumHoldMinutes": 60
+  },
+  "overall": {
+    "trades": 136,
+    "wins": 57,
+    "winRate": 0.4191,
+    "averageNetPct": -0.025,
+    "targetTouchRate": 0.3971,
+    "averageHoldMinutes": 15.9338,
+    "medianMfePct": 0.5057,
+    "medianMaePct": -0.4567,
+    "exitReasons": {
+      "max-target": 22,
+      "stop": 73,
+      "time": 9,
+      "trailing": 32
+    },
+    "quarterEqualWeightAverageNetPct": 0.0165,
+    "aggregationNote": "Trade-equal weighting is the actual average across 136 trades; quarter-equal weighting is only a rolling-stability gate and cannot replace per-trade return."
+  },
+  "byDirection": [
+    {
+      "id": "positive",
+      "trades": 47,
+      "wins": 18,
+      "winRate": 0.383,
+      "averageNetPct": -0.0642,
+      "targetTouchRate": 0.3617,
+      "averageHoldMinutes": 18.766,
+      "medianMfePct": 0.4193,
+      "medianMaePct": -0.456,
+      "exitReasons": {
+        "max-target": 6,
+        "stop": 25,
+        "time": 5,
+        "trailing": 11
+      }
+    },
+    {
+      "id": "reverse",
+      "trades": 89,
+      "wins": 39,
+      "winRate": 0.4382,
+      "averageNetPct": -0.0042,
+      "targetTouchRate": 0.4157,
+      "averageHoldMinutes": 14.4382,
+      "medianMfePct": 0.5639,
+      "medianMaePct": -0.4598,
+      "exitReasons": {
+        "max-target": 16,
+        "stop": 48,
+        "time": 4,
+        "trailing": 21
+      }
+    }
+  ],
+  "bySignalTime": [
+    {
+      "id": "09:33-09:44",
+      "trades": 46,
+      "wins": 23,
+      "winRate": 0.5,
+      "averageNetPct": 0.0917,
+      "targetTouchRate": 0.5217,
+      "averageHoldMinutes": 8.8043,
+      "medianMfePct": 0.8124,
+      "medianMaePct": -0.4234,
+      "exitReasons": {
+        "max-target": 10,
+        "stop": 22,
+        "trailing": 14
+      }
+    },
+    {
+      "id": "09:45-09:59",
+      "trades": 35,
+      "wins": 14,
+      "winRate": 0.4,
+      "averageNetPct": -0.047,
+      "targetTouchRate": 0.3714,
+      "averageHoldMinutes": 16.2,
+      "medianMfePct": 0.6087,
+      "medianMaePct": -0.4618,
+      "exitReasons": {
+        "max-target": 6,
+        "stop": 20,
+        "time": 2,
+        "trailing": 7
+      }
+    },
+    {
+      "id": "10:00-10:30",
+      "trades": 55,
+      "wins": 20,
+      "winRate": 0.3636,
+      "averageNetPct": -0.1085,
+      "targetTouchRate": 0.3091,
+      "averageHoldMinutes": 21.7273,
+      "medianMfePct": 0.3224,
+      "medianMaePct": -0.4564,
+      "exitReasons": {
+        "max-target": 6,
+        "stop": 31,
+        "time": 7,
+        "trailing": 11
+      }
+    }
+  ],
+  "byQuarter": [
+    {
+      "id": "2024Q1",
+      "trades": 6,
+      "wins": 5,
+      "winRate": 0.8333,
+      "averageNetPct": 0.4914,
+      "targetTouchRate": 0.6667,
+      "averageHoldMinutes": 35.0,
+      "medianMfePct": 0.9268,
+      "medianMaePct": -0.2263,
+      "exitReasons": {
+        "max-target": 1,
+        "time": 2,
+        "trailing": 3
+      }
+    },
+    {
+      "id": "2024Q2",
+      "trades": 31,
+      "wins": 10,
+      "winRate": 0.3226,
+      "averageNetPct": -0.1726,
+      "targetTouchRate": 0.2903,
+      "averageHoldMinutes": 14.6129,
+      "medianMfePct": 0.4437,
+      "medianMaePct": -0.4689,
+      "exitReasons": {
+        "max-target": 4,
+        "stop": 20,
+        "time": 2,
+        "trailing": 5
+      }
+    },
+    {
+      "id": "2024Q3",
+      "trades": 16,
+      "wins": 9,
+      "winRate": 0.5625,
+      "averageNetPct": 0.2111,
+      "targetTouchRate": 0.5625,
+      "averageHoldMinutes": 15.0625,
+      "medianMfePct": 0.8765,
+      "medianMaePct": -0.283,
+      "exitReasons": {
+        "max-target": 5,
+        "stop": 7,
+        "trailing": 4
+      }
+    },
+    {
+      "id": "2024Q4",
+      "trades": 12,
+      "wins": 4,
+      "winRate": 0.3333,
+      "averageNetPct": -0.0207,
+      "targetTouchRate": 0.3333,
+      "averageHoldMinutes": 20.6667,
+      "medianMfePct": 0.363,
+      "medianMaePct": -0.4444,
+      "exitReasons": {
+        "max-target": 3,
+        "stop": 6,
+        "time": 2,
+        "trailing": 1
+      }
+    },
+    {
+      "id": "2025Q1",
+      "trades": 10,
+      "wins": 4,
+      "winRate": 0.4,
+      "averageNetPct": -0.1271,
+      "targetTouchRate": 0.4,
+      "averageHoldMinutes": 14.7,
+      "medianMfePct": 0.5556,
+      "medianMaePct": -0.4952,
+      "exitReasons": {
+        "stop": 6,
+        "trailing": 4
+      }
+    },
+    {
+      "id": "2025Q2",
+      "trades": 10,
+      "wins": 2,
+      "winRate": 0.2,
+      "averageNetPct": -0.3828,
+      "targetTouchRate": 0.1,
+      "averageHoldMinutes": 17.9,
+      "medianMfePct": 0.3019,
+      "medianMaePct": -0.5015,
+      "exitReasons": {
+        "stop": 8,
+        "time": 1,
+        "trailing": 1
+      }
+    },
+    {
+      "id": "2025Q3",
+      "trades": 18,
+      "wins": 11,
+      "winRate": 0.6111,
+      "averageNetPct": 0.2262,
+      "targetTouchRate": 0.5556,
+      "averageHoldMinutes": 13.8889,
+      "medianMfePct": 0.776,
+      "medianMaePct": -0.3445,
+      "exitReasons": {
+        "max-target": 6,
+        "stop": 7,
+        "time": 1,
+        "trailing": 4
+      }
+    },
+    {
+      "id": "2025Q4",
+      "trades": 33,
+      "wins": 12,
+      "winRate": 0.3636,
+      "averageNetPct": -0.0938,
+      "targetTouchRate": 0.3939,
+      "averageHoldMinutes": 13.303,
+      "medianMfePct": 0.4744,
+      "medianMaePct": -0.4569,
+      "exitReasons": {
+        "max-target": 3,
+        "stop": 19,
+        "time": 1,
+        "trailing": 10
+      }
+    }
+  ],
+  "failurePath": {
+    "missedTargetTrades": 82,
+    "nearTargetWithin020Pct": 10,
+    "insufficientFavorableExcursion": 72,
+    "stoppedTrades": 73,
+    "timeExpiredTrades": 9
+  },
+  "conclusion": {
+    "dominantFailure": "Most signals did not develop enough favorable excursion to cover the 0.64% net target and costs.",
+    "directionSeparationRequired": true,
+    "sameOosMayBeReusedForPromotion": false,
+    "round10MustRecordAdditionalTrials": true,
+    "final2026StillSealed": true
+  },
+  "generatedAt": "2026-07-20T11:59:20.892208+00:00"
+}

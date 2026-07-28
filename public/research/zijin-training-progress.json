@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "runId": "zijin-20260718-021322",
+  "status": "completed",
+  "stage": "completed",
+  "progress": 100,
+  "processedCandidates": 12834,
+  "totalCandidates": 12834,
+  "message": "本轮因果训练、样本外验证与盲测已完成",
+  "latest": {
+    "trainingTrades": 107,
+    "trainingWinRate": 0.4579,
+    "trainingAverageNetPct": -0.054,
+    "validationTrades": 25,
+    "validationWinRate": 0.32,
+    "validationAverageNetPct": -0.2276,
+    "blindTrades": 8,
+    "blindWinRate": 0.5,
+    "blindAverageNetPct": -0.0715,
+    "passedTrainingGate": false,
+    "passedValidationGate": false,
+    "elapsedSeconds": 503.14,
+    "qualifiedCandidates": 0,
+    "validationRan": true,
+    "blindRan": true,
+    "nextAction": "补充真实外部因子后开启新一轮训练；不重复使用2026盲测调参"
+  },
+  "updatedAt": "2026-07-18T02:21:45+0800"
+}

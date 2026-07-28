@@ -1,0 +1,1776 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round9-fixed-pattern-confirmation",
+  "runId": "r9-20260722T104611-708800",
+  "sourceCommit": "e8f2532a0a3a97fd4689b322830048b44da7c672",
+  "protocolHash": "a25250b5d079c183bbdd535dd753aa0a5d8e073ebabd8e244e43abd97a92e8a7",
+  "status": "research-rejected",
+  "researchStage": "selection",
+  "promotionEligible": true,
+  "affectsV4": false,
+  "reads2026": false,
+  "dataset": {
+    "fingerprint": {
+      "input": "D:\\BaiduNetdiskDownload\\zijin-601899\\zijin-peer-panel-2022-2026.parquet",
+      "size": 26692028,
+      "mtimeNs": 1784319648062326600,
+      "selectionEnd": "20251231",
+      "sampleBuilderVersion": 1
+    },
+    "firstDate": "20220104",
+    "lastDate": "20251231",
+    "minuteRows": 1634703,
+    "tradingDays": 969,
+    "causalCandidates": 29335,
+    "stockCount": 7,
+    "loaded2026Rows": 0,
+    "completeTargetDays": 969,
+    "meanPeerCoverage": 1.0,
+    "minimumPeerCoverage": 1.0
+  },
+  "methodology": {
+    "hypothesesIndependent": true,
+    "selection": "anchored quarterly walk-forward; each quarter selects only from earlier dates",
+    "decisionData": "minute t and earlier only",
+    "fill": "minute t+1 open",
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18,
+    "outerFolds": [
+      "2024Q1",
+      "2024Q2",
+      "2024Q3",
+      "2024Q4",
+      "2025Q1",
+      "2025Q2",
+      "2025Q3",
+      "2025Q4"
+    ]
+  },
+  "baselinesByQuarter": {
+    "2024Q1": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.2042,
+        "trades": 110,
+        "winRate": 0.3273
+      },
+      "smart-t-v4": {
+        "netPct": -0.4132737058357522,
+        "trades": 14,
+        "winRate": 0.21428571428571427
+      }
+    },
+    "2024Q2": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.0749,
+        "trades": 118,
+        "winRate": 0.3983
+      },
+      "smart-t-v4": {
+        "netPct": -0.23749349736935332,
+        "trades": 29,
+        "winRate": 0.3793103448275862
+      }
+    },
+    "2024Q3": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1475,
+        "trades": 126,
+        "winRate": 0.3333
+      },
+      "smart-t-v4": {
+        "netPct": -0.1914640254922806,
+        "trades": 17,
+        "winRate": 0.23529411764705882
+      }
+    },
+    "2024Q4": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.0538,
+        "trades": 121,
+        "winRate": 0.4793
+      },
+      "smart-t-v4": {
+        "netPct": -0.35671801793866587,
+        "trades": 13,
+        "winRate": 0.15384615384615385
+      }
+    },
+    "2025Q1": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.2024,
+        "trades": 113,
+        "winRate": 0.3451
+      },
+      "smart-t-v4": {
+        "netPct": -0.22265422929866463,
+        "trades": 17,
+        "winRate": 0.29411764705882354
+      }
+    },
+    "2025Q2": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1232,
+        "trades": 116,
+        "winRate": 0.3448
+      },
+      "smart-t-v4": {
+        "netPct": -0.17495328324395795,
+        "trades": 13,
+        "winRate": 0.23076923076923078
+      }
+    },
+    "2025Q3": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1062,
+        "trades": 126,
+        "winRate": 0.3651
+      },
+      "smart-t-v4": {
+        "netPct": -0.10581127041688099,
+        "trades": 15,
+        "winRate": 0.4666666666666667
+      }
+    },
+    "2025Q4": {
+      "no-trade": {
+        "netPct": 0.0,
+        "trades": 0,
+        "winRate": null
+      },
+      "simple-vwap": {
+        "netPct": -0.1789,
+        "trades": 120,
+        "winRate": 0.325
+      },
+      "smart-t-v4": {
+        "netPct": -0.053626803768246765,
+        "trades": 26,
+        "winRate": 0.46153846153846156
+      }
+    }
+  },
+  "sampleFormationDiagnostic": {
+    "schemaVersion": 1,
+    "diagnosticOnly": true,
+    "canSelectParameters": false,
+    "population": {
+      "start": "2024-01-01",
+      "end": "2025-12-31",
+      "causalAnchors": 15029
+    },
+    "outcomeLabel": {
+      "entry": "next-minute-open",
+      "netTargetPct": [
+        0.64,
+        1.0
+      ],
+      "roundTripCostPct": 0.12,
+      "maximumHoldMinutes": 60,
+      "futureBarsUsedForSelection": false
+    },
+    "hypotheses": [
+      {
+        "hypothesisId": "opening-gap-repair-confirmed",
+        "name": "开盘缺口修复",
+        "session": "09:33-10:30",
+        "diagnosticOnly": true,
+        "referenceParameters": {
+          "gapAbsPct": 0.3,
+          "repairPct": 0.08,
+          "confirmationVotesRequired": 1
+        },
+        "stages": [
+          {
+            "id": "causal-anchor",
+            "count": 15029
+          },
+          {
+            "id": "session",
+            "count": 3647
+          },
+          {
+            "id": "fixed-pattern-confirmation",
+            "count": 356
+          },
+          {
+            "id": "independent-limit",
+            "count": 202
+          }
+        ],
+        "primaryBottleneck": {
+          "stage": "fixed-pattern-confirmation",
+          "removed": 3291
+        },
+        "targetTouched": 83,
+        "targetTouchRate": 0.4109,
+        "medianHoldMinutes": 11.0,
+        "exitReasons": {
+          "max-target": 31,
+          "stop": 100,
+          "time": 20,
+          "trailing": 51
+        }
+      },
+      {
+        "hypothesisId": "vwap-reversion-confirmed",
+        "name": "VWAP偏离回归",
+        "session": "09:35-14:30",
+        "diagnosticOnly": true,
+        "referenceParameters": {
+          "vwapBiasAbsPct": 0.18,
+          "zscoreAbs": 0.8,
+          "confirmationVotesRequired": 1
+        },
+        "stages": [
+          {
+            "id": "causal-anchor",
+            "count": 15029
+          },
+          {
+            "id": "session",
+            "count": 14898
+          },
+          {
+            "id": "fixed-pattern-confirmation",
+            "count": 2510
+          },
+          {
+            "id": "independent-limit",
+            "count": 950
+          }
+        ],
+        "primaryBottleneck": {
+          "stage": "fixed-pattern-confirmation",
+          "removed": 12388
+        },
+        "targetTouched": 248,
+        "targetTouchRate": 0.2611,
+        "medianHoldMinutes": 20.0,
+        "exitReasons": {
+          "max-target": 70,
+          "stop": 500,
+          "time": 216,
+          "trailing": 164
+        }
+      },
+      {
+        "hypothesisId": "upside-exhaustion-confirmed",
+        "name": "冲高衰竭",
+        "session": "09:35-14:30",
+        "diagnosticOnly": true,
+        "referenceParameters": {
+          "vwapBiasPct": 0.18,
+          "minimumIntradayPosition": 0.65,
+          "confirmationVotesRequired": 1
+        },
+        "stages": [
+          {
+            "id": "causal-anchor",
+            "count": 15029
+          },
+          {
+            "id": "session",
+            "count": 14898
+          },
+          {
+            "id": "fixed-pattern-confirmation",
+            "count": 3387
+          },
+          {
+            "id": "independent-limit",
+            "count": 657
+          }
+        ],
+        "primaryBottleneck": {
+          "stage": "fixed-pattern-confirmation",
+          "removed": 11511
+        },
+        "targetTouched": 159,
+        "targetTouchRate": 0.242,
+        "medianHoldMinutes": 17.0,
+        "exitReasons": {
+          "max-target": 43,
+          "stop": 374,
+          "time": 132,
+          "trailing": 108
+        }
+      },
+      {
+        "hypothesisId": "peer-divergence-repair",
+        "name": "个股与板块背离修复",
+        "session": "09:35-14:30",
+        "diagnosticOnly": true,
+        "referenceParameters": {
+          "alphaAbsPct": 0.08,
+          "peerBreadthBoundary": 0.33,
+          "confirmationVotesRequired": 1
+        },
+        "stages": [
+          {
+            "id": "causal-anchor",
+            "count": 15029
+          },
+          {
+            "id": "session",
+            "count": 14898
+          },
+          {
+            "id": "fixed-pattern-confirmation",
+            "count": 1292
+          },
+          {
+            "id": "independent-limit",
+            "count": 717
+          }
+        ],
+        "primaryBottleneck": {
+          "stage": "fixed-pattern-confirmation",
+          "removed": 13606
+        },
+        "targetTouched": 206,
+        "targetTouchRate": 0.2873,
+        "medianHoldMinutes": 18.0,
+        "exitReasons": {
+          "max-target": 60,
+          "stop": 371,
+          "time": 145,
+          "trailing": 141
+        }
+      }
+    ]
+  },
+  "hypotheses": [
+    {
+      "hypothesisId": "opening-gap-repair-confirmed",
+      "periodsPerYear": 4,
+      "outerQuarters": [
+        {
+          "id": "2024Q1",
+          "validationStart": "20240101",
+          "validationEnd": "20240331",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "gapAbsPct": 0.6,
+            "repairPct": 0.16,
+            "confirmationVotesRequired": 1
+          },
+          "trades": 6,
+          "wins": 5,
+          "winRate": 0.8333,
+          "netPct": 0.4914,
+          "stressNetPct": 0.4314
+        },
+        {
+          "id": "2024Q2",
+          "validationStart": "20240401",
+          "validationEnd": "20240630",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "gapAbsPct": 0.6,
+            "repairPct": 0.16,
+            "confirmationVotesRequired": 1
+          },
+          "trades": 31,
+          "wins": 10,
+          "winRate": 0.3226,
+          "netPct": -0.1726,
+          "stressNetPct": -0.2326
+        },
+        {
+          "id": "2024Q3",
+          "validationStart": "20240701",
+          "validationEnd": "20240930",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "gapAbsPct": 0.6,
+            "repairPct": 0.16,
+            "confirmationVotesRequired": 1
+          },
+          "trades": 16,
+          "wins": 9,
+          "winRate": 0.5625,
+          "netPct": 0.2111,
+          "stressNetPct": 0.1511
+        },
+        {
+          "id": "2024Q4",
+          "validationStart": "20241001",
+          "validationEnd": "20241231",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "gapAbsPct": 0.6,
+            "repairPct": 0.16,
+            "confirmationVotesRequired": 1
+          },
+          "trades": 12,
+          "wins": 4,
+          "winRate": 0.3333,
+          "netPct": -0.0207,
+          "stressNetPct": -0.0807
+        },
+        {
+          "id": "2025Q1",
+          "validationStart": "20250101",
+          "validationEnd": "20250331",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "gapAbsPct": 0.6,
+            "repairPct": 0.16,
+            "confirmationVotesRequired": 1
+          },
+          "trades": 10,
+          "wins": 4,
+          "winRate": 0.4,
+          "netPct": -0.1271,
+          "stressNetPct": -0.1871
+        },
+        {
+          "id": "2025Q2",
+          "validationStart": "20250401",
+          "validationEnd": "20250630",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "gapAbsPct": 0.6,
+            "repairPct": 0.16,
+            "confirmationVotesRequired": 1
+          },
+          "trades": 10,
+          "wins": 2,
+          "winRate": 0.2,
+          "netPct": -0.3828,
+          "stressNetPct": -0.4428
+        },
+        {
+          "id": "2025Q3",
+          "validationStart": "20250701",
+          "validationEnd": "20250930",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "gapAbsPct": 0.6,
+            "repairPct": 0.16,
+            "confirmationVotesRequired": 1
+          },
+          "trades": 18,
+          "wins": 11,
+          "winRate": 0.6111,
+          "netPct": 0.2262,
+          "stressNetPct": 0.1662
+        },
+        {
+          "id": "2025Q4",
+          "validationStart": "20251001",
+          "validationEnd": "20251231",
+          "selectedConfigIndex": 6,
+          "parameters": {
+            "gapAbsPct": 0.6,
+            "repairPct": 0.16,
+            "confirmationVotesRequired": 1
+          },
+          "trades": 33,
+          "wins": 12,
+          "winRate": 0.3636,
+          "netPct": -0.0938,
+          "stressNetPct": -0.1538
+        }
+      ],
+      "outOfSampleWinRate": 0.41911764705882354,
+      "baselines": [
+        {
+          "id": "no-trade",
+          "netPct": 0.0
+        },
+        {
+          "id": "simple-vwap",
+          "netPct": -0.1363875
+        },
+        {
+          "id": "smart-t-v4",
+          "netPct": -0.21949935417047528
+        }
+      ],
+      "trialPeriodReturns": [
+        [
+          0.2785,
+          -0.1815,
+          0.2634,
+          -0.0123,
+          -0.2361,
+          -0.1161,
+          0.1096,
+          -0.1001
+        ],
+        [
+          0.4651,
+          -0.2674,
+          0.1937,
+          -0.0991,
+          -0.1161,
+          -0.1019,
+          0.1653,
+          -0.1385
+        ],
+        [
+          0.2518,
+          -0.1815,
+          0.22,
+          0.0187,
+          -0.2361,
+          -0.1051,
+          0.1746,
+          -0.1066
+        ],
+        [
+          0.4651,
+          -0.2674,
+          0.1681,
+          -0.0991,
+          -0.1161,
+          -0.0884,
+          0.1902,
+          -0.1406
+        ],
+        [
+          0.5893,
+          -0.1726,
+          0.2747,
+          -0.0629,
+          -0.1271,
+          -0.4004,
+          0.1626,
+          -0.1038
+        ],
+        [
+          0.5615,
+          -0.2787,
+          0.2523,
+          -0.1135,
+          0.1682,
+          -0.358,
+          0.3346,
+          -0.1393
+        ],
+        [
+          0.4914,
+          -0.1726,
+          0.2111,
+          -0.0207,
+          -0.1271,
+          -0.3828,
+          0.2262,
+          -0.0938
+        ],
+        [
+          0.5615,
+          -0.2787,
+          0.2096,
+          -0.1135,
+          0.1682,
+          -0.3359,
+          0.3497,
+          -0.1416
+        ],
+        [
+          0.4914,
+          -0.1726,
+          0.2111,
+          -0.0207,
+          -0.1271,
+          -0.3828,
+          0.2262,
+          -0.0938
+        ]
+      ],
+      "selectedTrialIndex": 8,
+      "name": "开盘缺口修复",
+      "features": [
+        "minuteOfDay",
+        "gapPct",
+        "openDeviationPct",
+        "vwapBiasPct",
+        "return3Pct",
+        "ma5SlopePct",
+        "volumeRatio",
+        "peerBreadth3"
+      ],
+      "candidateConfigurations": [
+        {
+          "gapAbsPct": 0.3,
+          "repairPct": 0.08,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "gapAbsPct": 0.3,
+          "repairPct": 0.08,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "gapAbsPct": 0.3,
+          "repairPct": 0.16,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "gapAbsPct": 0.3,
+          "repairPct": 0.16,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "gapAbsPct": 0.6,
+          "repairPct": 0.08,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "gapAbsPct": 0.6,
+          "repairPct": 0.08,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "gapAbsPct": 0.6,
+          "repairPct": 0.16,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "gapAbsPct": 0.6,
+          "repairPct": 0.16,
+          "confirmationVotesRequired": 2
+        }
+      ],
+      "feasibility": {
+        "passed": true,
+        "outOfSampleTrades": 136,
+        "minimumOutOfSampleTrades": 40,
+        "coveredOuterQuarters": 8,
+        "minimumCoveredOuterQuarters": 6,
+        "doesNotGrantPromotion": true
+      },
+      "evaluation": {
+        "passedRollingOutOfSample": false,
+        "nextStage": "research-rejected",
+        "checks": {
+          "enoughOuterQuarters": true,
+          "afterCostPositive": true,
+          "stressCostNonNegative": false,
+          "winRate": false,
+          "quarterStability": false,
+          "pbo": false,
+          "deflatedSharpe": false,
+          "allBaselinesPresent": true,
+          "beatsAllBaselines": true
+        },
+        "metrics": {
+          "meanNetPct": 0.01646250000000001,
+          "meanStressNetPct": -0.0435375,
+          "positiveQuarterRatio": 0.375,
+          "pbo": 0.7714285714285715,
+          "deflatedSharpeProbability": 0.45192770621452716,
+          "recordedTrials": 9
+        },
+        "multipleTesting": {
+          "pbo": {
+            "method": "CSCV",
+            "partitions": 8,
+            "combinations": 70,
+            "pbo": 0.7714285714285715,
+            "medianLogit": -0.9555114450274363
+          },
+          "deflatedSharpe": {
+            "observedSharpe": 0.1271122496544347,
+            "expectedMaximumSharpe": 0.17185271974231606,
+            "probability": 0.45192770621452716
+          },
+          "recordedTrials": 9,
+          "selectedTrialIndex": 8
+        },
+        "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。",
+        "metricsPassedRollingOutOfSample": false,
+        "promotionEligible": true
+      }
+    },
+    {
+      "hypothesisId": "vwap-reversion-confirmed",
+      "periodsPerYear": 4,
+      "outerQuarters": [
+        {
+          "id": "2024Q1",
+          "validationStart": "20240101",
+          "validationEnd": "20240331",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.18,
+            "zscoreAbs": 0.8,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 112,
+          "wins": 34,
+          "winRate": 0.3036,
+          "netPct": -0.2059,
+          "stressNetPct": -0.2659
+        },
+        {
+          "id": "2024Q2",
+          "validationStart": "20240401",
+          "validationEnd": "20240630",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.18,
+            "zscoreAbs": 0.8,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 115,
+          "wins": 43,
+          "winRate": 0.3739,
+          "netPct": -0.1065,
+          "stressNetPct": -0.1665
+        },
+        {
+          "id": "2024Q3",
+          "validationStart": "20240701",
+          "validationEnd": "20240930",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.18,
+            "zscoreAbs": 0.8,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 126,
+          "wins": 44,
+          "winRate": 0.3492,
+          "netPct": -0.12,
+          "stressNetPct": -0.18
+        },
+        {
+          "id": "2024Q4",
+          "validationStart": "20241001",
+          "validationEnd": "20241231",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.18,
+            "zscoreAbs": 0.8,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 118,
+          "wins": 59,
+          "winRate": 0.5,
+          "netPct": 0.0068,
+          "stressNetPct": -0.0532
+        },
+        {
+          "id": "2025Q1",
+          "validationStart": "20250101",
+          "validationEnd": "20250331",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.18,
+            "zscoreAbs": 0.8,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 111,
+          "wins": 40,
+          "winRate": 0.3604,
+          "netPct": -0.1665,
+          "stressNetPct": -0.2265
+        },
+        {
+          "id": "2025Q2",
+          "validationStart": "20250401",
+          "validationEnd": "20250630",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.18,
+            "zscoreAbs": 0.8,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 115,
+          "wins": 38,
+          "winRate": 0.3304,
+          "netPct": -0.1344,
+          "stressNetPct": -0.1944
+        },
+        {
+          "id": "2025Q3",
+          "validationStart": "20250701",
+          "validationEnd": "20250930",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.18,
+            "zscoreAbs": 0.8,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 126,
+          "wins": 47,
+          "winRate": 0.373,
+          "netPct": -0.1314,
+          "stressNetPct": -0.1914
+        },
+        {
+          "id": "2025Q4",
+          "validationStart": "20251001",
+          "validationEnd": "20251231",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasAbsPct": 0.18,
+            "zscoreAbs": 0.8,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 120,
+          "wins": 49,
+          "winRate": 0.4083,
+          "netPct": -0.0875,
+          "stressNetPct": -0.1475
+        }
+      ],
+      "outOfSampleWinRate": 0.3753976670201485,
+      "baselines": [
+        {
+          "id": "no-trade",
+          "netPct": 0.0
+        },
+        {
+          "id": "simple-vwap",
+          "netPct": -0.1363875
+        },
+        {
+          "id": "smart-t-v4",
+          "netPct": -0.21949935417047528
+        }
+      ],
+      "trialPeriodReturns": [
+        [
+          -0.2015,
+          -0.1134,
+          -0.145,
+          0.0046,
+          -0.164,
+          -0.1352,
+          -0.1219,
+          -0.1084
+        ],
+        [
+          -0.2059,
+          -0.1065,
+          -0.12,
+          0.0068,
+          -0.1665,
+          -0.1344,
+          -0.1314,
+          -0.0875
+        ],
+        [
+          -0.1932,
+          -0.0459,
+          -0.2407,
+          -0.0281,
+          -0.1713,
+          -0.036,
+          -0.1379,
+          -0.1009
+        ],
+        [
+          -0.2004,
+          -0.0476,
+          -0.2286,
+          -0.0198,
+          -0.184,
+          -0.0453,
+          -0.1606,
+          -0.0759
+        ],
+        [
+          -0.2255,
+          -0.0895,
+          -0.1095,
+          -0.0118,
+          -0.2202,
+          -0.1257,
+          -0.1385,
+          -0.1108
+        ],
+        [
+          -0.2252,
+          -0.0895,
+          -0.1022,
+          -0.0118,
+          -0.2233,
+          -0.1257,
+          -0.147,
+          -0.0978
+        ],
+        [
+          -0.2073,
+          -0.0239,
+          -0.2107,
+          -0.0097,
+          -0.2026,
+          -0.0494,
+          -0.157,
+          -0.071
+        ],
+        [
+          -0.2073,
+          -0.0239,
+          -0.2107,
+          -0.0099,
+          -0.2026,
+          -0.06,
+          -0.1717,
+          -0.0608
+        ],
+        [
+          -0.2059,
+          -0.1065,
+          -0.12,
+          0.0068,
+          -0.1665,
+          -0.1344,
+          -0.1314,
+          -0.0875
+        ]
+      ],
+      "selectedTrialIndex": 8,
+      "name": "VWAP偏离回归",
+      "features": [
+        "minuteOfDay",
+        "vwapBiasPct",
+        "priceZscore",
+        "return3Pct",
+        "ma5SlopePct",
+        "intradayPosition",
+        "volumeRatio",
+        "atrPct"
+      ],
+      "candidateConfigurations": [
+        {
+          "vwapBiasAbsPct": 0.18,
+          "zscoreAbs": 0.8,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "vwapBiasAbsPct": 0.18,
+          "zscoreAbs": 0.8,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "vwapBiasAbsPct": 0.18,
+          "zscoreAbs": 1.2,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "vwapBiasAbsPct": 0.18,
+          "zscoreAbs": 1.2,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "vwapBiasAbsPct": 0.3,
+          "zscoreAbs": 0.8,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "vwapBiasAbsPct": 0.3,
+          "zscoreAbs": 0.8,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "vwapBiasAbsPct": 0.3,
+          "zscoreAbs": 1.2,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "vwapBiasAbsPct": 0.3,
+          "zscoreAbs": 1.2,
+          "confirmationVotesRequired": 2
+        }
+      ],
+      "feasibility": {
+        "passed": true,
+        "outOfSampleTrades": 943,
+        "minimumOutOfSampleTrades": 40,
+        "coveredOuterQuarters": 8,
+        "minimumCoveredOuterQuarters": 6,
+        "doesNotGrantPromotion": true
+      },
+      "evaluation": {
+        "passedRollingOutOfSample": false,
+        "nextStage": "research-rejected",
+        "checks": {
+          "enoughOuterQuarters": true,
+          "afterCostPositive": false,
+          "stressCostNonNegative": false,
+          "winRate": false,
+          "quarterStability": false,
+          "pbo": false,
+          "deflatedSharpe": false,
+          "allBaselinesPresent": true,
+          "beatsAllBaselines": false
+        },
+        "metrics": {
+          "meanNetPct": -0.118175,
+          "meanStressNetPct": -0.178175,
+          "positiveQuarterRatio": 0.125,
+          "pbo": 0.9571428571428572,
+          "deflatedSharpeProbability": 0.0002458116888880979,
+          "recordedTrials": 9
+        },
+        "multipleTesting": {
+          "pbo": {
+            "method": "CSCV",
+            "partitions": 8,
+            "combinations": 70,
+            "pbo": 0.9571428571428572,
+            "medianLogit": -0.9555114450274363
+          },
+          "deflatedSharpe": {
+            "observedSharpe": -4.055720045920575,
+            "expectedMaximumSharpe": 0.8255292831217199,
+            "probability": 0.0002458116888880979
+          },
+          "recordedTrials": 9,
+          "selectedTrialIndex": 8
+        },
+        "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。",
+        "metricsPassedRollingOutOfSample": false,
+        "promotionEligible": true
+      }
+    },
+    {
+      "hypothesisId": "upside-exhaustion-confirmed",
+      "periodsPerYear": 4,
+      "outerQuarters": [
+        {
+          "id": "2024Q1",
+          "validationStart": "20240101",
+          "validationEnd": "20240331",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasPct": 0.18,
+            "minimumIntradayPosition": 0.65,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 49,
+          "wins": 16,
+          "winRate": 0.3265,
+          "netPct": -0.1721,
+          "stressNetPct": -0.2321
+        },
+        {
+          "id": "2024Q2",
+          "validationStart": "20240401",
+          "validationEnd": "20240630",
+          "selectedConfigIndex": 5,
+          "parameters": {
+            "vwapBiasPct": 0.3,
+            "minimumIntradayPosition": 0.65,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 50,
+          "wins": 18,
+          "winRate": 0.36,
+          "netPct": -0.1497,
+          "stressNetPct": -0.2097
+        },
+        {
+          "id": "2024Q3",
+          "validationStart": "20240701",
+          "validationEnd": "20240930",
+          "selectedConfigIndex": 5,
+          "parameters": {
+            "vwapBiasPct": 0.3,
+            "minimumIntradayPosition": 0.65,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 41,
+          "wins": 13,
+          "winRate": 0.3171,
+          "netPct": -0.1467,
+          "stressNetPct": -0.2067
+        },
+        {
+          "id": "2024Q4",
+          "validationStart": "20241001",
+          "validationEnd": "20241231",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasPct": 0.18,
+            "minimumIntradayPosition": 0.65,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 34,
+          "wins": 19,
+          "winRate": 0.5588,
+          "netPct": -0.0291,
+          "stressNetPct": -0.0891
+        },
+        {
+          "id": "2025Q1",
+          "validationStart": "20250101",
+          "validationEnd": "20250331",
+          "selectedConfigIndex": 1,
+          "parameters": {
+            "vwapBiasPct": 0.18,
+            "minimumIntradayPosition": 0.65,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 44,
+          "wins": 18,
+          "winRate": 0.4091,
+          "netPct": -0.1458,
+          "stressNetPct": -0.2058
+        },
+        {
+          "id": "2025Q2",
+          "validationStart": "20250401",
+          "validationEnd": "20250630",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "vwapBiasPct": 0.3,
+            "minimumIntradayPosition": 0.78,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 27,
+          "wins": 9,
+          "winRate": 0.3333,
+          "netPct": -0.1949,
+          "stressNetPct": -0.2549
+        },
+        {
+          "id": "2025Q3",
+          "validationStart": "20250701",
+          "validationEnd": "20250930",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "vwapBiasPct": 0.3,
+            "minimumIntradayPosition": 0.78,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 30,
+          "wins": 11,
+          "winRate": 0.3667,
+          "netPct": -0.1154,
+          "stressNetPct": -0.1754
+        },
+        {
+          "id": "2025Q4",
+          "validationStart": "20251001",
+          "validationEnd": "20251231",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "vwapBiasPct": 0.3,
+            "minimumIntradayPosition": 0.78,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 41,
+          "wins": 19,
+          "winRate": 0.4634,
+          "netPct": 0.0064,
+          "stressNetPct": -0.0536
+        }
+      ],
+      "outOfSampleWinRate": 0.38924050632911394,
+      "baselines": [
+        {
+          "id": "no-trade",
+          "netPct": 0.0
+        },
+        {
+          "id": "simple-vwap",
+          "netPct": -0.1363875
+        },
+        {
+          "id": "smart-t-v4",
+          "netPct": -0.21949935417047528
+        }
+      ],
+      "trialPeriodReturns": [
+        [
+          -0.1713,
+          -0.099,
+          -0.1245,
+          -0.011,
+          -0.2238,
+          -0.1125,
+          -0.2595,
+          -0.1901
+        ],
+        [
+          -0.1721,
+          -0.1488,
+          -0.1157,
+          -0.0291,
+          -0.1458,
+          -0.161,
+          -0.0957,
+          -0.059
+        ],
+        [
+          -0.1902,
+          -0.0748,
+          -0.1188,
+          -0.1404,
+          -0.2045,
+          -0.0477,
+          -0.2312,
+          -0.1617
+        ],
+        [
+          -0.0979,
+          -0.157,
+          -0.121,
+          -0.0078,
+          0.0086,
+          -0.1949,
+          -0.1037,
+          0.0064
+        ],
+        [
+          -0.1314,
+          -0.0902,
+          -0.0922,
+          -0.0393,
+          -0.2726,
+          -0.0985,
+          -0.1987,
+          -0.1693
+        ],
+        [
+          -0.1491,
+          -0.1497,
+          -0.1467,
+          -0.0592,
+          -0.1378,
+          -0.1904,
+          -0.1122,
+          -0.0446
+        ],
+        [
+          -0.1721,
+          -0.0676,
+          -0.1022,
+          -0.11,
+          -0.2381,
+          -0.0617,
+          -0.2081,
+          -0.1172
+        ],
+        [
+          -0.0765,
+          -0.157,
+          -0.1034,
+          -0.024,
+          0.024,
+          -0.1949,
+          -0.1154,
+          0.0064
+        ],
+        [
+          -0.1721,
+          -0.1497,
+          -0.1467,
+          -0.0291,
+          -0.1458,
+          -0.1949,
+          -0.1154,
+          0.0064
+        ]
+      ],
+      "selectedTrialIndex": 8,
+      "name": "冲高衰竭",
+      "features": [
+        "minuteOfDay",
+        "vwapBiasPct",
+        "intradayPosition",
+        "return3Pct",
+        "ma5SlopePct",
+        "drawdownFromHighPct",
+        "volumeRatio",
+        "peerBreadth3"
+      ],
+      "candidateConfigurations": [
+        {
+          "vwapBiasPct": 0.18,
+          "minimumIntradayPosition": 0.65,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "vwapBiasPct": 0.18,
+          "minimumIntradayPosition": 0.65,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "vwapBiasPct": 0.18,
+          "minimumIntradayPosition": 0.78,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "vwapBiasPct": 0.18,
+          "minimumIntradayPosition": 0.78,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "vwapBiasPct": 0.3,
+          "minimumIntradayPosition": 0.65,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "vwapBiasPct": 0.3,
+          "minimumIntradayPosition": 0.65,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "vwapBiasPct": 0.3,
+          "minimumIntradayPosition": 0.78,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "vwapBiasPct": 0.3,
+          "minimumIntradayPosition": 0.78,
+          "confirmationVotesRequired": 2
+        }
+      ],
+      "feasibility": {
+        "passed": true,
+        "outOfSampleTrades": 316,
+        "minimumOutOfSampleTrades": 40,
+        "coveredOuterQuarters": 8,
+        "minimumCoveredOuterQuarters": 6,
+        "doesNotGrantPromotion": true
+      },
+      "evaluation": {
+        "passedRollingOutOfSample": false,
+        "nextStage": "research-rejected",
+        "checks": {
+          "enoughOuterQuarters": true,
+          "afterCostPositive": false,
+          "stressCostNonNegative": false,
+          "winRate": false,
+          "quarterStability": false,
+          "pbo": false,
+          "deflatedSharpe": false,
+          "allBaselinesPresent": true,
+          "beatsAllBaselines": false
+        },
+        "metrics": {
+          "meanNetPct": -0.1184125,
+          "meanStressNetPct": -0.1784125,
+          "positiveQuarterRatio": 0.125,
+          "pbo": 0.22857142857142856,
+          "deflatedSharpeProbability": 1.0166414125545309e-06,
+          "recordedTrials": 9
+        },
+        "multipleTesting": {
+          "pbo": {
+            "method": "CSCV",
+            "partitions": 8,
+            "combinations": 70,
+            "pbo": 0.22857142857142856,
+            "medianLogit": 1.6094379124341007
+          },
+          "deflatedSharpe": {
+            "observedSharpe": -3.589400625164866,
+            "expectedMaximumSharpe": 1.592507916074368,
+            "probability": 1.0166414125545309e-06
+          },
+          "recordedTrials": 9,
+          "selectedTrialIndex": 8
+        },
+        "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。",
+        "metricsPassedRollingOutOfSample": false,
+        "promotionEligible": true
+      }
+    },
+    {
+      "hypothesisId": "peer-divergence-repair",
+      "periodsPerYear": 4,
+      "outerQuarters": [
+        {
+          "id": "2024Q1",
+          "validationStart": "20240101",
+          "validationEnd": "20240331",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "alphaAbsPct": 0.16,
+            "peerBreadthBoundary": 0.5,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 44,
+          "wins": 19,
+          "winRate": 0.4318,
+          "netPct": -0.0303,
+          "stressNetPct": -0.0903
+        },
+        {
+          "id": "2024Q2",
+          "validationStart": "20240401",
+          "validationEnd": "20240630",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "alphaAbsPct": 0.16,
+            "peerBreadthBoundary": 0.5,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 41,
+          "wins": 15,
+          "winRate": 0.3659,
+          "netPct": -0.1044,
+          "stressNetPct": -0.1644
+        },
+        {
+          "id": "2024Q3",
+          "validationStart": "20240701",
+          "validationEnd": "20240930",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "alphaAbsPct": 0.16,
+            "peerBreadthBoundary": 0.5,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 38,
+          "wins": 14,
+          "winRate": 0.3684,
+          "netPct": -0.0922,
+          "stressNetPct": -0.1522
+        },
+        {
+          "id": "2024Q4",
+          "validationStart": "20241001",
+          "validationEnd": "20241231",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "alphaAbsPct": 0.16,
+            "peerBreadthBoundary": 0.5,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 38,
+          "wins": 18,
+          "winRate": 0.4737,
+          "netPct": -0.0084,
+          "stressNetPct": -0.0684
+        },
+        {
+          "id": "2025Q1",
+          "validationStart": "20250101",
+          "validationEnd": "20250331",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "alphaAbsPct": 0.16,
+            "peerBreadthBoundary": 0.5,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 20,
+          "wins": 4,
+          "winRate": 0.2,
+          "netPct": -0.3445,
+          "stressNetPct": -0.4045
+        },
+        {
+          "id": "2025Q2",
+          "validationStart": "20250401",
+          "validationEnd": "20250630",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "alphaAbsPct": 0.16,
+            "peerBreadthBoundary": 0.5,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 23,
+          "wins": 10,
+          "winRate": 0.4348,
+          "netPct": -0.0603,
+          "stressNetPct": -0.1203
+        },
+        {
+          "id": "2025Q3",
+          "validationStart": "20250701",
+          "validationEnd": "20250930",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "alphaAbsPct": 0.16,
+            "peerBreadthBoundary": 0.5,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 40,
+          "wins": 17,
+          "winRate": 0.425,
+          "netPct": -0.0627,
+          "stressNetPct": -0.1227
+        },
+        {
+          "id": "2025Q4",
+          "validationStart": "20251001",
+          "validationEnd": "20251231",
+          "selectedConfigIndex": 7,
+          "parameters": {
+            "alphaAbsPct": 0.16,
+            "peerBreadthBoundary": 0.5,
+            "confirmationVotesRequired": 2
+          },
+          "trades": 59,
+          "wins": 22,
+          "winRate": 0.3729,
+          "netPct": -0.1156,
+          "stressNetPct": -0.1756
+        }
+      ],
+      "outOfSampleWinRate": 0.3927392739273927,
+      "baselines": [
+        {
+          "id": "no-trade",
+          "netPct": 0.0
+        },
+        {
+          "id": "simple-vwap",
+          "netPct": -0.1363875
+        },
+        {
+          "id": "smart-t-v4",
+          "netPct": -0.21949935417047528
+        }
+      ],
+      "trialPeriodReturns": [
+        [
+          -0.1463,
+          -0.0427,
+          -0.1405,
+          0.0258,
+          -0.1908,
+          -0.1285,
+          -0.0728,
+          -0.1745
+        ],
+        [
+          -0.1431,
+          -0.0789,
+          -0.1121,
+          0.0916,
+          -0.2047,
+          -0.1214,
+          -0.106,
+          -0.1425
+        ],
+        [
+          -0.1628,
+          -0.0427,
+          -0.1336,
+          0.0258,
+          -0.1908,
+          -0.1285,
+          -0.0801,
+          -0.1745
+        ],
+        [
+          -0.1607,
+          -0.0789,
+          -0.1043,
+          0.0916,
+          -0.2047,
+          -0.1214,
+          -0.1141,
+          -0.1382
+        ],
+        [
+          -0.0507,
+          -0.0877,
+          -0.1444,
+          0.0004,
+          -0.365,
+          -0.1338,
+          0.0098,
+          -0.1171
+        ],
+        [
+          -0.0303,
+          -0.1044,
+          -0.0922,
+          -0.0084,
+          -0.3445,
+          -0.0603,
+          -0.0491,
+          -0.1156
+        ],
+        [
+          -0.0507,
+          -0.0877,
+          -0.1444,
+          0.0004,
+          -0.365,
+          -0.1338,
+          -0.0005,
+          -0.1171
+        ],
+        [
+          -0.0303,
+          -0.1044,
+          -0.0922,
+          -0.0084,
+          -0.3445,
+          -0.0603,
+          -0.0627,
+          -0.1156
+        ],
+        [
+          -0.0303,
+          -0.1044,
+          -0.0922,
+          -0.0084,
+          -0.3445,
+          -0.0603,
+          -0.0627,
+          -0.1156
+        ]
+      ],
+      "selectedTrialIndex": 8,
+      "name": "个股与板块背离修复",
+      "features": [
+        "minuteOfDay",
+        "zijinAlpha3Pct",
+        "peerBreadth3",
+        "peerCoverage",
+        "return3Pct",
+        "ma5SlopePct",
+        "vwapBiasPct",
+        "volumeRatio"
+      ],
+      "candidateConfigurations": [
+        {
+          "alphaAbsPct": 0.08,
+          "peerBreadthBoundary": 0.33,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "alphaAbsPct": 0.08,
+          "peerBreadthBoundary": 0.33,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "alphaAbsPct": 0.08,
+          "peerBreadthBoundary": 0.5,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "alphaAbsPct": 0.08,
+          "peerBreadthBoundary": 0.5,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "alphaAbsPct": 0.16,
+          "peerBreadthBoundary": 0.33,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "alphaAbsPct": 0.16,
+          "peerBreadthBoundary": 0.33,
+          "confirmationVotesRequired": 2
+        },
+        {
+          "alphaAbsPct": 0.16,
+          "peerBreadthBoundary": 0.5,
+          "confirmationVotesRequired": 1
+        },
+        {
+          "alphaAbsPct": 0.16,
+          "peerBreadthBoundary": 0.5,
+          "confirmationVotesRequired": 2
+        }
+      ],
+      "feasibility": {
+        "passed": true,
+        "outOfSampleTrades": 303,
+        "minimumOutOfSampleTrades": 40,
+        "coveredOuterQuarters": 8,
+        "minimumCoveredOuterQuarters": 6,
+        "doesNotGrantPromotion": true
+      },
+      "evaluation": {
+        "passedRollingOutOfSample": false,
+        "nextStage": "research-rejected",
+        "checks": {
+          "enoughOuterQuarters": true,
+          "afterCostPositive": false,
+          "stressCostNonNegative": false,
+          "winRate": false,
+          "quarterStability": false,
+          "pbo": false,
+          "deflatedSharpe": false,
+          "allBaselinesPresent": true,
+          "beatsAllBaselines": false
+        },
+        "metrics": {
+          "meanNetPct": -0.1023,
+          "meanStressNetPct": -0.1623,
+          "positiveQuarterRatio": 0.0,
+          "pbo": 0.9714285714285714,
+          "deflatedSharpeProbability": 4.347080750921606e-09,
+          "recordedTrials": 9
+        },
+        "multipleTesting": {
+          "pbo": {
+            "method": "CSCV",
+            "partitions": 8,
+            "combinations": 70,
+            "pbo": 0.9714285714285714,
+            "medianLogit": -1.6094379124341005
+          },
+          "deflatedSharpe": {
+            "observedSharpe": -2.095329563741075,
+            "expectedMaximumSharpe": 0.6907766713836319,
+            "probability": 4.347080750921606e-09
+          },
+          "recordedTrials": 9,
+          "selectedTrialIndex": 8
+        },
+        "notice": "门槛未通过时不得读取2026数据，也不得修改本协议后重跑同一盲测。",
+        "metricsPassedRollingOutOfSample": false,
+        "promotionEligible": true
+      }
+    }
+  ],
+  "qualifiedHypothesisIds": [],
+  "finalBlind": {
+    "sealed": true,
+    "allowed": false,
+    "oneShotCommandRequired": true,
+    "opened": false,
+    "blockedByReplicationPolicy": false
+  },
+  "ledger": {
+    "path": ".round9-runtime-v1/zijin-round9-trials.jsonl",
+    "records": 256,
+    "runRecords": 256,
+    "chainTip": "99ac03e405450ebb88db4b76c99e9590600da1fd5387eacffb79ff81f0d190a5",
+    "verified": true
+  },
+  "elapsedSeconds": 123.23,
+  "generatedAt": "2026-07-22T10:48:14.390279+00:00"
+}

@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+COPY requirements.l2.txt ./
+RUN pip install --no-cache-dir -r requirements.l2.txt
+COPY scripts/zijin_l2_collector.py scripts/zijin_l2_forward_labels.py ./scripts/
+
+ENTRYPOINT ["python", "scripts/zijin_l2_collector.py"]

@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-07-22T00:00:00+08:00",
+  "status": "experimental-observation-only",
+  "decision": "not-promoted-to-v4",
+  "reason": "2026 final blind win rate was 40%; positive net profit depended on one large reverse-T winner.",
+  "protocol": {
+    "causal": true,
+    "futureMinutesUsed": false,
+    "selectionData": "2022-2024",
+    "outOfSampleData": "2025",
+    "finalBlindData": "2026 through 2026-07-22",
+    "entryExecution": "next minute",
+    "minimumVolumeRatio": 2,
+    "maximumVolumeRatio": 3,
+    "minimumVwapDeviationPct": 0.35,
+    "minimumRegimeSlopePct": 0.02,
+    "failureReviewMinutes": 7,
+    "minimumProtectedNetPct": 0.2,
+    "maximumProtectedNetPct": 0.3,
+    "maximumHoldMinutes": 15,
+    "minimumProspectiveWinRatePct": 60,
+    "preferredProspectiveWinRatePct": 70,
+    "minimumProspectiveTrades": 30
+  },
+  "selection2022To2024": {
+    "trades": 16,
+    "wins": 12,
+    "winRatePct": 75,
+    "netCny": 2164.16,
+    "profitFactor": 2.71,
+    "averageHoldMinutes": 6.63
+  },
+  "outOfSample2025": {
+    "trades": 6,
+    "wins": 5,
+    "winRatePct": 83.33,
+    "netCny": 2192.8,
+    "profitFactor": 67.93,
+    "averageHoldMinutes": 7.33
+  },
+  "finalBlind2026": {
+    "trades": 5,
+    "wins": 2,
+    "winRatePct": 40,
+    "netCny": 1038.8,
+    "profitFactor": 2.29,
+    "openedOnce": true,
+    "frozenAfterOpen": true
+  },
+  "directionAudit": {
+    "selectionPositiveT": { "trades": 5, "winRatePct": 60, "netCny": 84.41 },
+    "selectionReverseT": { "trades": 11, "winRatePct": 81.82, "netCny": 2079.75 },
+    "outOfSamplePositiveT": { "trades": 1, "winRatePct": 100, "netCny": 504.21 },
+    "outOfSampleReverseT": { "trades": 5, "winRatePct": 80, "netCny": 1688.59 }
+  }
+}

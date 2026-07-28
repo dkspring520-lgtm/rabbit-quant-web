@@ -1,0 +1,88 @@
+export type StockAgent = Readonly<{
+  id:"smart-t-v4"|"zijin-agent";
+  code:string;
+  name:string;
+  shortName:string;
+  mode:"formal"|"research-only";
+  badge:string;
+  canExecute:boolean;
+  affectsV4:boolean;
+}>;
+export type StockAgentEvaluation = {
+  agent:StockAgent;
+  phase:"waiting"|"opening"|"intraday";
+  status:"waiting"|"watch"|"candidate"|"blocked";
+  direction:"正T"|"反T"|null;
+  score:number;
+  asOfTime:string|null;
+  title:string;
+  reasons:string[];
+  metrics:{
+    rangePct:number;
+    vwapBiasPct:number;
+    momentumPct:number;
+    volumeRatio:number|null;
+    trendContinuationRisk?:unknown;
+    orderFlow?:unknown;
+    structure?:{
+      direction:string;
+      directionScore:number;
+      chan:{location:string};
+      wyckoff:{phase:string};
+      volumeProfile:{poc:number;valueAreaLow:number;valueAreaHigh:number};
+      permissions:{positiveT:boolean;reverseT:boolean};
+      [key:string]:unknown;
+    };
+    largeOrder?:{
+      ready:boolean;
+      score:number;
+      label:string;
+      confirmed:boolean;
+      absorption:boolean;
+      directionConflict?:boolean;
+      stateMachine?:{
+        state:string;
+        label:string;
+        costPrice:number|null;
+        expiresAt:string|null;
+        [key:string]:unknown;
+      };
+      [key:string]:unknown;
+    };
+    repair?:{
+      ready:boolean;
+      phase:"repair";
+      status:"waiting"|"watch"|"candidate";
+      direction:"正T";
+      score:number;
+      asOfTime:string|null;
+      title:string;
+      candidateKey:string|null;
+      checks:Record<string,boolean>;
+      hardConditions:Record<string,boolean>;
+      metrics:{
+        price:number;
+        rangePct:number;
+        vwap:number;
+        vwapBiasPct:number;
+        deepestBiasPct:number;
+        momentum3Pct:number;
+        pullbackVolumeRatio:number|null;
+        activeBuyRatio:number|null;
+        [key:string]:unknown;
+      };
+      [key:string]:unknown;
+    };
+  };
+  executable:false;
+  affectsV4:false;
+};
+export const STOCK_AGENTS:Readonly<{smartT:StockAgent;zijin:StockAgent}>;
+export function resolveStockAgent(code?:string|null):StockAgent;
+export function evaluateStockAgent(options?:{
+  code?:string|null;
+  minutes?:{time:string;price:number;volume:number;l2?:unknown}[];
+  previousClose?:number|null;
+  historicalBars?:{date:string;open:number;high:number;low:number;close:number;volume?:number;amount?:number}[];
+  sameTimeMedianNotional?:number|null;
+}):StockAgentEvaluation|null;

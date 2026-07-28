@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round9-fixed-pattern-confirmation",
+  "round": 9,
+  "status": "preregistered",
+  "independentHypothesisCount": 4,
+  "stock": {"code": "601899", "name": "紫金矿业"},
+  "purpose": "冻结四个可解释的紫金矿业日内模式；每个模式只保留一个核心形态与少量实时确认票，避免第八轮多道硬门槛令样本塌缩。协议登记后不得边测边改。",
+  "diagnosticBasis": {
+    "sourceExperiment": "zijin-round8-observable-regime-session",
+    "finding": "多重硬门槛令有效样本在趋势、转折与成交量阶段连续塌缩",
+    "response": "拆成四个互相独立的固定形态；量能作为评估特征而非单独一票否决",
+    "doesNotChangePromotionGates": true
+  },
+  "affectsV4": false,
+  "automaticPromotion": false,
+  "dataPolicy": {
+    "selectionEnd": "2025-12-31",
+    "sealedFinalBlindPeriod": {
+      "start": "2026-01-01",
+      "end": "2026-12-31",
+      "allowedUse": "仅在全部滚动样本外门槛通过后执行一次最终盲测",
+      "allowParameterSelection": false,
+      "allowFeatureSelection": false,
+      "allowRepeatedInspection": false
+    },
+    "decisionTimestamp": "minute_t_close",
+    "fillTimestamp": "minute_t_plus_1_open",
+    "futureMinutesAllowedOnlyForOutcomeLabels": true,
+    "embargoTradingDays": 1,
+    "fullDayRegimeClassificationForbidden": true
+  },
+  "hypotheses": [
+    {
+      "id": "opening-gap-repair-confirmed",
+      "name": "开盘缺口修复",
+      "session": "09:33-10:30",
+      "features": ["minuteOfDay", "gapPct", "openDeviationPct", "vwapBiasPct", "return3Pct", "ma5SlopePct", "volumeRatio", "peerBreadth3"],
+      "fixedRules": {"corePattern": "缺口方向与开盘价修复一致", "volumeIsHardGate": false},
+      "parameterGrid": {
+        "gapAbsPct": [0.3, 0.6],
+        "repairPct": [0.08, 0.16],
+        "confirmationVotesRequired": [1, 2]
+      }
+    },
+    {
+      "id": "vwap-reversion-confirmed",
+      "name": "VWAP偏离回归",
+      "session": "09:35-14:30",
+      "features": ["minuteOfDay", "vwapBiasPct", "priceZscore", "return3Pct", "ma5SlopePct", "intradayPosition", "volumeRatio", "atrPct"],
+      "fixedRules": {"corePattern": "价格显著偏离VWAP且方向一致", "volumeIsHardGate": false},
+      "parameterGrid": {
+        "vwapBiasAbsPct": [0.18, 0.3],
+        "zscoreAbs": [0.8, 1.2],
+        "confirmationVotesRequired": [1, 2]
+      }
+    },
+    {
+      "id": "upside-exhaustion-confirmed",
+      "name": "冲高衰竭",
+      "session": "09:35-14:30",
+      "features": ["minuteOfDay", "vwapBiasPct", "intradayPosition", "return3Pct", "ma5SlopePct", "drawdownFromHighPct", "volumeRatio", "peerBreadth3"],
+      "fixedRules": {"direction": "reverse", "corePattern": "高位偏离后出现可见转弱", "volumeIsHardGate": false},
+      "parameterGrid": {
+        "vwapBiasPct": [0.18, 0.3],
+        "minimumIntradayPosition": [0.65, 0.78],
+        "confirmationVotesRequired": [1, 2]
+      }
+    },
+    {
+      "id": "peer-divergence-repair",
+      "name": "个股与板块背离修复",
+      "session": "09:35-14:30",
+      "features": ["minuteOfDay", "zijinAlpha3Pct", "peerBreadth3", "peerCoverage", "return3Pct", "ma5SlopePct", "vwapBiasPct", "volumeRatio"],
+      "fixedRules": {"minimumPeerCoverage": 0.8, "corePattern": "个股相对同板块显著背离", "volumeIsHardGate": false},
+      "parameterGrid": {
+        "alphaAbsPct": [0.08, 0.16],
+        "peerBreadthBoundary": [0.33, 0.5],
+        "confirmationVotesRequired": [1, 2]
+      }
+    }
+  ],
+  "validation": {
+    "method": "anchored-walk-forward-quarterly",
+    "minimumTrainingTradingDays": 252,
+    "validationWindow": "calendar-quarter",
+    "innerSelection": "chronological-only",
+    "outerEvaluation": "quarterly-out-of-sample-only",
+    "minimumOuterQuarters": 8,
+    "minimumPositiveOuterQuarters": 6,
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18
+  },
+  "outcomePolicy": {
+    "minimumNetTargetPct": 0.64,
+    "maximumNetTargetPct": 1.0,
+    "maximumHoldMinutes": 60,
+    "entry": "next-minute-open",
+    "selectionUsesFutureOutcome": false
+  },
+  "baselines": [
+    {"id": "no-trade", "name": "不交易", "purpose": "确认承担风险后确实增加净收益"},
+    {"id": "simple-vwap", "name": "简单VWAP规则", "purpose": "确认新模式优于可解释基础规则"},
+    {"id": "smart-t-v4", "name": "当前Smart-T V4", "purpose": "确认专属模型相对线上基准具有稳定增益"}
+  ],
+  "multipleTesting": {
+    "trialLedgerRequired": true,
+    "includePriorRoundsInTrialCount": true,
+    "probabilityOfBacktestOverfitting": {"method": "CSCV", "maximum": 0.2},
+    "deflatedSharpe": {"minimumProbability": 0.95, "usesAllRecordedTrials": true}
+  },
+  "promotionGates": {
+    "afterCostMeanNetPctGreaterThan": 0,
+    "stressCostMeanNetPctAtLeast": 0,
+    "minimumOutOfSampleWinRate": 0.65,
+    "minimumPositiveQuarterRatio": 0.75,
+    "mustBeatAllBaselines": true,
+    "finalBlindTestRequired": true,
+    "manualReviewRequired": true,
+    "nextStage": "shadow-observation-only"
+  },
+  "trialLedger": {
+    "format": "jsonl-append-only",
+    "integrity": "sha256-hash-chain",
+    "requiredFields": ["trialId", "hypothesisId", "configHash", "sourceCommit", "createdAt", "trainingRange", "validationRange", "featureNames", "parameters", "baseCostMetrics", "stressCostMetrics", "baselineMetrics", "selectionDecision"]
+  },
+  "feasibilityGate": {
+    "mode": "frozen-small-grid",
+    "configurationsPerHypothesis": 8,
+    "minimumOutOfSampleTrades": 40,
+    "minimumCoveredOuterQuarters": 6,
+    "doesNotGrantPromotion": true
+  },
+  "shadowReconciliation": {"continuousSimulationRequired": true, "reconcileEverySignal": true, "unmatchedSignalsCountAsFailures": true},
+  "stageOrder": ["preregistered", "feasibility-check", "rolling-out-of-sample", "final-2026-blind", "manual-review", "shadow-observation"]
+}

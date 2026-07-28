@@ -1,0 +1,14 @@
+[Unit]
+Description=Rabbit Quant verified production backup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/rabbit-quant-ops
+ExecStart=/usr/local/sbin/rabbit-quant-backup
+TimeoutStartSec=30min
+Nice=15
+
+[Install]
+WantedBy=multi-user.target

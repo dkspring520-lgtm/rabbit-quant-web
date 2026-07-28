@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-round7-vwap-reversion-quality",
+  "round": 7,
+  "status": "preregistered",
+  "independentHypothesisCount": 2,
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "purpose": "分别验证价格明显低于VWAP后的向上回归质量，以及明显高于VWAP后的向下回归质量；只在可实时观察的转折确认后决策，不预测事后最高点或最低点",
+  "affectsV4": false,
+  "automaticPromotion": false,
+  "dataPolicy": {
+    "selectionEnd": "2025-12-31",
+    "sealedFinalBlindPeriod": {
+      "start": "2026-01-01",
+      "end": "2026-12-31",
+      "allowedUse": "仅在滚动样本外门槛全部通过后执行一次最终盲测",
+      "allowParameterSelection": false,
+      "allowFeatureSelection": false,
+      "allowRepeatedInspection": false
+    },
+    "decisionTimestamp": "minute_t_close",
+    "fillTimestamp": "minute_t_plus_1_open",
+    "futureMinutesAllowedOnlyForOutcomeLabels": true,
+    "embargoTradingDays": 1
+  },
+  "hypotheses": [
+    {
+      "id": "vwap-downside-reclaim-quality",
+      "name": "VWAP下方回归确认",
+      "session": "09:33-14:30",
+      "features": [
+        "minuteOfDay",
+        "vwapBiasPct",
+        "vwapSlope5Pct",
+        "ma5SlopePct",
+        "return3Pct",
+        "volumeRatio",
+        "atrPct",
+        "intradayPosition",
+        "peerBreadth3",
+        "peerCoverage"
+      ],
+      "fixedRules": {
+        "direction": "positive",
+        "maximumIntradayPosition": 0.45,
+        "minimumVolumeRatio": 0.7,
+        "minimumPeerCoverage": 0.8,
+        "requiresObservableUpturn": true
+      },
+      "parameterGrid": {
+        "vwapBiasAbsPct": [0.2, 0.35],
+        "maximumNegativeVwapSlopePct": [0.03, 0.06],
+        "minimumPeerBreadth": [0.33, 0.5]
+      }
+    },
+    {
+      "id": "vwap-upside-rejection-quality",
+      "name": "VWAP上方回落确认",
+      "session": "09:33-14:30",
+      "features": [
+        "minuteOfDay",
+        "vwapBiasPct",
+        "vwapSlope5Pct",
+        "ma5SlopePct",
+        "return3Pct",
+        "volumeRatio",
+        "atrPct",
+        "intradayPosition",
+        "peerBreadth3",
+        "peerCoverage"
+      ],
+      "fixedRules": {
+        "direction": "reverse",
+        "minimumIntradayPosition": 0.55,
+        "minimumVolumeRatio": 0.7,
+        "minimumPeerCoverage": 0.8,
+        "requiresObservableDownturn": true
+      },
+      "parameterGrid": {
+        "vwapBiasAbsPct": [0.2, 0.35],
+        "maximumPositiveVwapSlopePct": [0.03, 0.06],
+        "maximumPeerBreadth": [0.5, 0.67]
+      }
+    }
+  ],
+  "validation": {
+    "method": "anchored-walk-forward-quarterly",
+    "minimumTrainingTradingDays": 252,
+    "validationWindow": "calendar-quarter",
+    "innerSelection": "chronological-only",
+    "outerEvaluation": "quarterly-out-of-sample-only",
+    "minimumOuterQuarters": 8,
+    "minimumPositiveOuterQuarters": 6,
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18
+  },
+  "baselines": [
+    {
+      "id": "no-trade",
+      "name": "不交易",
+      "purpose": "确认承担风险后确实增加净收益"
+    },
+    {
+      "id": "simple-vwap",
+      "name": "简单VWAP规则",
+      "purpose": "确认新增过滤优于可解释的基础规则"
+    },
+    {
+      "id": "smart-t-v4",
+      "name": "当前Smart-T V4",
+      "purpose": "确认专属模型相对线上基准具有稳定增益"
+    }
+  ],
+  "multipleTesting": {
+    "trialLedgerRequired": true,
+    "probabilityOfBacktestOverfitting": {
+      "method": "CSCV",
+      "maximum": 0.2
+    },
+    "deflatedSharpe": {
+      "minimumProbability": 0.95,
+      "usesAllRecordedTrials": true
+    }
+  },
+  "promotionGates": {
+    "afterCostMeanNetPctGreaterThan": 0,
+    "stressCostMeanNetPctAtLeast": 0,
+    "minimumOutOfSampleWinRate": 0.65,
+    "minimumPositiveQuarterRatio": 0.75,
+    "mustBeatAllBaselines": true,
+    "finalBlindTestRequired": true,
+    "manualReviewRequired": true,
+    "nextStage": "shadow-observation-only"
+  },
+  "trialLedger": {
+    "format": "jsonl-append-only",
+    "integrity": "sha256-hash-chain",
+    "requiredFields": [
+      "trialId",
+      "hypothesisId",
+      "configHash",
+      "sourceCommit",
+      "createdAt",
+      "trainingRange",
+      "validationRange",
+      "featureNames",
+      "parameters",
+      "baseCostMetrics",
+      "stressCostMetrics",
+      "baselineMetrics",
+      "selectionDecision"
+    ]
+  },
+  "feasibilityGate": {
+    "mode": "frozen-small-grid",
+    "configurationsPerHypothesis": 8,
+    "minimumOutOfSampleTrades": 40,
+    "minimumCoveredOuterQuarters": 6,
+    "doesNotGrantPromotion": true
+  },
+  "shadowReconciliation": {
+    "continuousSimulationRequired": true,
+    "reconcileEverySignal": true,
+    "unmatchedSignalsCountAsFailures": true
+  },
+  "stageOrder": [
+    "preregistered",
+    "feasibility-check",
+    "rolling-out-of-sample",
+    "final-2026-blind",
+    "manual-review",
+    "shadow-observation"
+  ]
+}

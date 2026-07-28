@@ -1,0 +1,251 @@
+import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
+import { evaluateZijinLargeOrder } from "../lib/zijin-large-order-confirmation.mjs";
+import { evaluateZijinRepairCandidate } from "../lib/zijin-repair-candidate.mjs";
+import {
+  buildMatureZijinL2Labels,
+  buildZijinL2Observation,
+  buildZijinRepairObservation,
+  decideZijinL2Append,
+  summarizeZijinL2Audit,
+} from "../lib/zijin-l2-event-ledger.mjs";
+import { evaluateZijinStructure } from "../lib/zijin-structure-engine.mjs";
+
+const origin = process.env.ZIJIN_L2_AUDIT_ORIGIN || "http://web-blue:3000";
+const statePath = process.env.ZIJIN_L2_AUDIT_STATE_PATH || "/training-state/zijin-l2-state-audit.json";
+const ledgerPath = process.env.ZIJIN_L2_AUDIT_LEDGER_PATH || "/training-state/zijin-l2-state-events.jsonl";
+const labelPath = process.env.ZIJIN_L2_AUDIT_LABEL_PATH || "/training-state/zijin-l2-state-event-labels.jsonl";
+const replayArchiveDir = process.env.ZIJIN_L2_REPLAY_ARCHIVE_DIR || "/training-state/zijin-l2-replay";
+const pollMs = Math.max(10_000, Number(process.env.ZIJIN_L2_AUDIT_POLL_MS) || 15_000);
+const idlePollMs = Math.max(30_000, Number(process.env.ZIJIN_L2_AUDIT_IDLE_POLL_MS) || 60_000);
+const costPct = Math.max(0, Number(process.env.ZIJIN_L2_AUDIT_COST_PCT) || 0.46);
+
+function shanghaiClockParts(at = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(at));
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return {
+    date: `${values.year}${values.month}${values.day}`,
+    minute: Number(values.hour) * 60 + Number(values.minute),
+  };
+}
+
+export function isAshareContinuousSessionAt(at = new Date()) {
+  const { minute } = shanghaiClockParts(at);
+  return (minute >= 9 * 60 + 30 && minute <= 11 * 60 + 30)
+    || (minute >= 13 * 60 && minute <= 15 * 60);
+}
+
+export function isFreshLiveExchangeMinute(exchangeMinute, observedAt = new Date(), maximumLagMinutes = 3) {
+  const match = String(exchangeMinute ?? "").match(/^(\d{8})-?(\d{2})(\d{2})$/);
+  if (!match) return false;
+  const [, date, hours, minutes] = match;
+  const exchangeClock = Number(hours) * 60 + Number(minutes);
+  const now = shanghaiClockParts(observedAt);
+  const inContinuousSession = (exchangeClock >= 9 * 60 + 30 && exchangeClock <= 11 * 60 + 30)
+    || (exchangeClock >= 13 * 60 && exchangeClock <= 15 * 60);
+  const lag = now.minute - exchangeClock;
+  return date === now.date && inContinuousSession && lag >= 0 && lag <= maximumLagMinutes;
+}
+
+async function readJsonLines(path) {
+  try {
+    return (await readFile(path, "utf8")).split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
+  } catch {
+    return [];
+  }
+}
+
+async function appendJsonLines(path, rows) {
+  if (!rows.length) return;
+  await mkdir(dirname(path), { recursive: true });
+  await appendFile(path, `${rows.map(row => JSON.stringify(row)).join("\n")}\n`, "utf8");
+}
+
+async function writeJsonAtomic(path, value) {
+  await mkdir(dirname(path), { recursive: true });
+  const temporary = `${path}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await rename(temporary, path);
+}
+
+async function archiveReplayMinutes(exchangeMinute, minutes) {
+  const date = String(exchangeMinute ?? "").replace(/\D/g, "").slice(0, 8);
+  if (!/^\d{8}$/.test(date) || !Array.isArray(minutes) || !minutes.length) return;
+  await writeJsonAtomic(`${replayArchiveDir}/${date}.json`, {
+    schemaVersion: 1,
+    symbol: "601899",
+    date,
+    updatedAt: new Date().toISOString(),
+    causal: true,
+    minutes,
+  });
+}
+
+async function readPreviousState() {
+  try {
+    return JSON.parse(await readFile(statePath, "utf8"));
+  } catch {
+    return { suppressedRepeats: 0 };
+  }
+}
+
+async function fetchL2State() {
+  const response = await fetch(`${origin}/api/research/zijin-l2-orderflow`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) throw new Error(`L2 HTTP ${response.status}`);
+  return response.json();
+}
+
+async function fetchMarketReplay() {
+  const response = await fetch(`${origin}/api/market-data?code=601899&mode=replay`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) throw new Error(`market replay HTTP ${response.status}`);
+  return response.json();
+}
+
+function mergeMarketAndL2Minutes(l2Minutes, marketPayload, exchangeMinute) {
+  const date = String(exchangeMinute ?? "").replace(/\D/g, "").slice(0, 8);
+  const session = (Array.isArray(marketPayload?.intradaySessions) ? marketPayload.intradaySessions : [])
+    .find(item => String(item?.date ?? "").replace(/\D/g, "").slice(0, 8) === date);
+  if (!session?.minutes?.length) return l2Minutes;
+  const l2ByTime = new Map(l2Minutes.map(row => [String(row?.time ?? "").replace(/\D/g, "").slice(-4), row]));
+  return session.minutes.map(row => {
+    const time = String(row?.time ?? "").replace(/\D/g, "").slice(-4);
+    const l2 = l2ByTime.get(time);
+    return {
+      ...row,
+      ...l2,
+      time,
+      exchangeMinute: l2?.exchangeMinute ?? `${date}-${time}`,
+      price: Number(l2?.price) > 0 ? Number(l2.price) : Number(row?.price),
+      volume: Number(row?.volume) || 0,
+      amount: Number(row?.amount) || 0,
+      averagePrice: Number(row?.averagePrice) || null,
+    };
+  });
+}
+
+export async function runOnce() {
+  const now = new Date().toISOString();
+  const [payload, marketPayload, observations, existingLabels, previous] = await Promise.all([
+    fetchL2State(),
+    fetchMarketReplay().catch(() => null),
+    readJsonLines(ledgerPath),
+    readJsonLines(labelPath),
+    readPreviousState(),
+  ]);
+  const rawMinutes = Array.isArray(payload?.recentMinutes) ? payload.recentMinutes : [];
+  const stale = Boolean(payload?.meta?.stale || payload?.status?.stale);
+  const exchangeMinute = payload.lastExchangeTime ?? rawMinutes.at(-1)?.exchangeMinute;
+  const minutes = mergeMarketAndL2Minutes(rawMinutes, marketPayload, exchangeMinute);
+  await archiveReplayMinutes(exchangeMinute, minutes);
+  const freshLiveMinute = isFreshLiveExchangeMinute(exchangeMinute, now);
+  if (!payload?.status?.connected || !payload?.status?.authorized || stale || !rawMinutes.length || !freshLiveMinute) {
+    const audit = summarizeZijinL2Audit({
+      observations,
+      labels: existingLabels,
+      suppressedRepeats: previous.suppressedRepeats ?? 0,
+      updatedAt: now,
+    });
+    const sourceStatus = !isAshareContinuousSessionAt(now)
+      ? "market-closed"
+      : stale || !freshLiveMinute
+        ? "data-delayed"
+        : "waiting-live-l2";
+    const state = {
+      ...audit,
+      sourceStatus,
+      sourceUpdatedAt: payload?.updatedAt ?? null,
+      lastExchangeTime: exchangeMinute ?? null,
+    };
+    await writeJsonAtomic(statePath, state);
+    return { state, marketOpen: false };
+  }
+
+  const structure = evaluateZijinStructure({ minutes });
+  const evaluation = evaluateZijinLargeOrder({ minutes, structure });
+  const repair = evaluateZijinRepairCandidate(minutes);
+  const candidates = [
+    buildZijinL2Observation({ evaluation, structure, exchangeMinute, observedAt: now }),
+    buildZijinRepairObservation({ repair, exchangeMinute, observedAt: now }),
+  ].filter(Boolean);
+  const decisions = candidates.map(candidate => ({
+    candidate,
+    decision: decideZijinL2Append(observations, candidate),
+  }));
+  const appended = decisions.filter(item => item.decision.append).map(item => item.candidate);
+  if (appended.length) {
+    await appendJsonLines(ledgerPath, appended);
+    observations.push(...appended);
+  }
+  const suppressedRepeats = (previous.suppressedRepeats ?? 0)
+    + decisions.filter(item => !item.decision.append && item.decision.reason !== "idle").length;
+  const newLabels = buildMatureZijinL2Labels({
+    observations,
+    existingLabels,
+    minutes,
+    costPct,
+    labeledAt: now,
+  });
+  await appendJsonLines(labelPath, newLabels);
+  existingLabels.push(...newLabels);
+  const audit = summarizeZijinL2Audit({
+    observations,
+    labels: existingLabels,
+    suppressedRepeats,
+    updatedAt: now,
+  });
+  const state = {
+    ...audit,
+    sourceStatus: "live",
+    sourceUpdatedAt: payload.updatedAt ?? null,
+    lastExchangeTime: payload.lastExchangeTime ?? null,
+    current: decisions.map(({ candidate, decision }) => ({
+      eventId: candidate.eventId,
+      state: candidate.state,
+      side: candidate.side,
+      score: candidate.featureSnapshot.score,
+      appendDecision: decision.reason,
+    })),
+  };
+  await writeJsonAtomic(statePath, state);
+  return { state, marketOpen: true };
+}
+
+async function main() {
+  for (;;) {
+    let marketOpen = false;
+    try {
+      ({ marketOpen } = await runOnce());
+    } catch (error) {
+      const previous = await readPreviousState();
+      await writeJsonAtomic(statePath, {
+        ...previous,
+        updatedAt: new Date().toISOString(),
+        sourceStatus: "observer-error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    await new Promise(resolve => setTimeout(resolve, marketOpen ? pollMs : idlePollMs));
+  }
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  main().catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

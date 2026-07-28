@@ -1,15 +1,202 @@
+x-web-common: &web-common
+  image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+  build:
+    context: .
+    dockerfile: Dockerfile.server
+  restart: unless-stopped
+  command:
+    - sh
+    - -lc
+    - node scripts/sync-zijin-training-state.mjs public/research/zijin-training-progress.json /training-state/zijin-training-progress.json && node scripts/sync-zijin-automation-state.mjs public/research/zijin-automation-status.json /training-state/zijin-automation-status.json && exec npm start -- -p 3000 -H 0.0.0.0
+  environment:
+    CONTROL_PLANE_ORIGIN: http://control:3010
+    ZIJIN_TRAINING_STATE_PATH: /training-state/zijin-training-progress.json
+    ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
+    ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round11-report.json
+    ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
+    ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
+    ZIJIN_L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
+    ZIJIN_L2_AUDIT_STATE_PATH: /training-state/zijin-l2-state-audit.json
+  volumes:
+    - /opt/rabbit-quant-state:/training-state
+    - /opt/rabbit-quant-research:/training-data:ro
+  depends_on:
+    control:
+      condition: service_healthy
+  healthcheck:
+    test:
+      - CMD
+      - node
+      - -e
+      - fetch('http://127.0.0.1:3000/api/control/version').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+    interval: 10s
+    timeout: 5s
+    retries: 6
+    start_period: 60s
+
 services:
-  web:
+  l2:
+    image: ${RABBIT_QUANT_L2_IMAGE:-rabbit-quant-web-l2}
     build:
       context: .
-      dockerfile: Dockerfile.server
-    container_name: rabbit-quant-modern-web
+      dockerfile: Dockerfile.l2
+    container_name: rabbit-quant-zijin-l2
     restart: unless-stopped
+    env_file:
+      - /opt/rabbit-quant-secrets/l2.env
+    environment:
+      L2_NATS_URL: nats://quote5.base32.cn:4222
+      L2_SYMBOL: "601899"
+      L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
+      L2_FORWARD_PATH: /training-state/zijin-l2-forward.jsonl
+      L2_FORWARD_LABEL_PATH: /training-state/zijin-l2-forward-labels.jsonl
+      L2_FORWARD_RESEARCH_STATE_PATH: /training-state/zijin-opening-l2-shadow.json
+      L2_FORWARD_MIN_SAMPLES: "1200"
+      L2_FORWARD_MIN_DAYS: "10"
+      L2_FORWARD_MIN_OPENING_LABELS: "200"
+      L2_FORWARD_COST_PCT: "0.46"
+    volumes:
+      - /opt/rabbit-quant-state:/training-state
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,time,datetime;p=json.load(open('/training-state/zijin-l2-orderflow.json'));assert time.time()-datetime.datetime.fromisoformat(p['updatedAt'].replace('Z','+00:00')).timestamp()<15"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  web-blue:
+    <<: *web-common
+    image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+    container_name: rabbit-quant-modern-web
     ports:
       - "127.0.0.1:3000:3000"
+  web-green:
+    <<: *web-common
+    image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+    container_name: rabbit-quant-modern-web-green
+    ports:
+      - "127.0.0.1:3001:3000"
+  trainer:
+    image: ${RABBIT_QUANT_TRAINER_IMAGE:-rabbit-quant-web-trainer}
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    container_name: rabbit-quant-zijin-trainer
+    restart: unless-stopped
+    environment:
+      ZIJIN_TRAINING_INPUT: /training-data/zijin-peer-panel-2022-2026.parquet
+      ZIJIN_AUTOMATION_STATE_PATH: /training-state/zijin-automation-status.json
+      ZIJIN_TRAINING_REPORT_PATH: /training-state/zijin-round11-report.json
+      ZIJIN_TRAINING_PROTOCOL: /app/scripts/zijin-round11-protocol.json
+      ZIJIN_TRAINING_RUNNER: /app/scripts/run_zijin_round4_experiments.py
+      ZIJIN_TRAINING_RUNTIME: /training-runtime
+      ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
+      ZIJIN_CHECK_INTERVAL_MINUTES: "30"
+      ZIJIN_HEARTBEAT_SECONDS: "5"
+      ZIJIN_IDLE_HEARTBEAT_SECONDS: "30"
+      ZIJIN_SUPERVISOR_INTERVAL_SECONDS: "10"
+      ZIJIN_STARTUP_GRACE_SECONDS: "90"
+      ZIJIN_IDLE_GRACE_SECONDS: "180"
+    volumes:
+      - /opt/rabbit-quant-research:/training-data:ro
+      - /opt/rabbit-quant-state:/training-state
+      - /opt/rabbit-quant-training-runtime:/training-runtime
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "python", "scripts/zijin-trainer-healthcheck.py", "--state", "/training-state/zijin-automation-status.json", "--grace-seconds", "180"]
       interval: 30s
       timeout: 8s
       retries: 3
-      start_period: 60s
+      start_period: 120s
+    stop_grace_period: 20s
+  shadow:
+    image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: rabbit-quant-zijin-shadow
+    command: ["node", "scripts/zijin-shadow-ab-observer.mjs"]
+    restart: unless-stopped
+    environment:
+      ZIJIN_SHADOW_MARKET_ORIGIN: ${RABBIT_QUANT_ACTIVE_WEB_ORIGIN:-http://web-blue:3000}
+      ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
+      ZIJIN_SHADOW_LEDGER_PATH: /training-runtime/shadow/zijin-shadow-ab-events.jsonl
+      ZIJIN_SHADOW_MINUTES_DIR: /training-runtime/shadow/minutes/601899
+      ZIJIN_SHADOW_POLL_MS: "15000"
+      ZIJIN_SHADOW_IDLE_POLL_MS: "60000"
+      ZIJIN_SHADOW_PEERS: "600489,600547,603993,601168,600362,000630"
+    volumes:
+      - /opt/rabbit-quant-state:/training-state
+      - /opt/rabbit-quant-training-runtime:/training-runtime
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const fs=require('fs');const p='/training-state/zijin-shadow-ab.json';const s=JSON.parse(fs.readFileSync(p,'utf8'));if(Date.now()-Date.parse(s.updatedAt)>300000)process.exit(1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+  l2-audit:
+    image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: rabbit-quant-zijin-l2-audit
+    command: ["node", "scripts/zijin-l2-state-observer.mjs"]
+    restart: unless-stopped
+    environment:
+      ZIJIN_L2_AUDIT_ORIGIN: ${RABBIT_QUANT_ACTIVE_WEB_ORIGIN:-http://web-blue:3000}
+      ZIJIN_L2_AUDIT_STATE_PATH: /training-state/zijin-l2-state-audit.json
+      ZIJIN_L2_AUDIT_LEDGER_PATH: /training-state/zijin-l2-state-events.jsonl
+      ZIJIN_L2_AUDIT_LABEL_PATH: /training-state/zijin-l2-state-event-labels.jsonl
+      ZIJIN_L2_REPLAY_ARCHIVE_DIR: /training-state/zijin-l2-replay
+      ZIJIN_L2_AUDIT_POLL_MS: "15000"
+      ZIJIN_L2_AUDIT_IDLE_POLL_MS: "60000"
+      ZIJIN_L2_AUDIT_COST_PCT: "0.46"
+    volumes:
+      - /opt/rabbit-quant-state:/training-state
+    depends_on:
+      l2:
+        condition: service_healthy
+      web-blue:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const fs=require('fs');const p='/training-state/zijin-l2-state-audit.json';const s=JSON.parse(fs.readFileSync(p,'utf8'));if(Date.now()-Date.parse(s.updatedAt)>300000)process.exit(1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+  control:
+    image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: rabbit-quant-control
+    command: ["node", "server/control-plane.mjs"]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      CONTROL_PORT: "3010"
+      CONTROL_DB_PATH: /data/rabbit-control.sqlite
+      MARKET_DATA_ORIGIN: ${RABBIT_QUANT_ACTIVE_WEB_ORIGIN:-http://web-blue:3000}
+      MONITOR_INTERVAL_MS: "15000"
+      RABBIT_ADMIN_USER: ${RABBIT_ADMIN_USER:-dkspring520@outlook.com}
+    volumes:
+      - rabbit-quant-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3010/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  rabbit-quant-data:
