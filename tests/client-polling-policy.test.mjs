@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } from "../lib/client-polling-policy.mjs";
+import { clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling } from "../lib/client-polling-policy.mjs";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
@@ -10,7 +10,18 @@ test("visible trading desk keeps a one-second lightweight quote and five-second 
   assert.equal(clientPollingInterval("activeChart", true), 5_000);
   assert.equal(clientPollingInterval("watchlist", true), 5_000);
   assert.match(page, /mode=trial-quote/);
-  assert.match(page, /clientPollingInterval\("activeChart",marketSession\.live\)/);
+  assert.match(page, /clientPollingInterval\("activeChart",marketDataActive\)/);
+});
+
+test("call auction refreshes market data quickly without enabling execution", () => {
+  assert.equal(isFastMarketDataPhase({ phase:"preauction", live:false }), false);
+  assert.equal(isFastMarketDataPhase({ phase:"auction", live:false }), true);
+  assert.equal(isFastMarketDataPhase({ phase:"auction-result", live:false }), true);
+  assert.equal(isFastMarketDataPhase({ phase:"morning", live:true }), true);
+  assert.equal(isFastMarketDataPhase({ phase:"lunch", live:false }), false);
+  assert.match(page, /marketDataActive\?300:60_000/);
+  assert.match(page, /clientPollingInterval\("activeQuote",marketDataActive\)/);
+  assert.match(page, /clientPollingInterval\("watchlist",marketDataActive\)/);
 });
 
 test("closed market data refreshes slowly without pretending to be realtime", () => {
@@ -24,8 +35,8 @@ test("closed market data refreshes slowly without pretending to be realtime", ()
 test("historical reference payload is not downloaded at the live quote frequency", () => {
   assert.equal(clientPollingInterval("referenceData", true), 300_000);
   assert.equal(clientPollingInterval("deskSnapshot", true), 60_000);
-  assert.match(page, /clientPollingInterval\("referenceData", marketSession\.live\)/);
-  assert.match(page, /clientPollingInterval\("deskSnapshot",marketSession\.live\)/);
+  assert.match(page, /clientPollingInterval\("referenceData", marketDataActive\)/);
+  assert.match(page, /clientPollingInterval\("deskSnapshot",marketDataActive\)/);
   assert.doesNotMatch(page, /fetch\(`\/api\/market-context/);
   assert.doesNotMatch(page, /fetch\(`\/api\/event-radar/);
 });

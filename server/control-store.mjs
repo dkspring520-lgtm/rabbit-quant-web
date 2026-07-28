@@ -429,6 +429,17 @@ export function createControlStore(databasePath, options = {}) {
       }));
   }
 
+  function latestAlertForCode(userId, code) {
+    const row = db.prepare("SELECT * FROM alerts WHERE user_id=? AND code=? ORDER BY id DESC LIMIT 1")
+      .get(userId, String(code).replace(/\D/g, "").slice(0, 6));
+    if (!row) return null;
+    return {
+      id: row.id, code: row.code, level: row.level, title: row.title, message: row.message,
+      eventKey: row.event_key, marketTime: row.market_time, payload: safeJson(row.payload, {}),
+      createdAt: row.created_at,
+    };
+  }
+
   function markAlertDelivery(userId, id, { status = "displayed", channel = "in-app", error = "" } = {}) {
     const normalizedStatus = ["stored", "displayed", "notified", "failed"].includes(status) ? status : "displayed";
     const deliveredAt = normalizedStatus === "failed" ? null : nowIso();
@@ -533,6 +544,6 @@ export function createControlStore(databasePath, options = {}) {
   }
 
   return { db, register, login, authenticate, logout, getProfile, putProfile, getServiceSetting, putServiceSetting, savePushSubscription, listPushSubscriptions, removePushSubscription, recordPushDelivery, listMonitors, replaceMonitors,
-    listActiveMonitors, addAlert, listAlerts, acknowledgeAlert, markAlertDelivery, recordMonitorScan, listMonitorScans, listMembers, referralLeaderboard, setMemberStatus,
+    listActiveMonitors, addAlert, listAlerts, latestAlertForCode, acknowledgeAlert, markAlertDelivery, recordMonitorScan, listMonitorScans, listMembers, referralLeaderboard, setMemberStatus,
     grantMembership, requestReset, issueReset, resetPassword, close: () => db.close() };
 }

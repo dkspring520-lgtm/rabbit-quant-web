@@ -20,9 +20,11 @@ import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObs
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
-import { clientPollingInterval, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
+import { clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-reminder.mjs";
+import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-policy.mjs";
+import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intraday-chart-model.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
@@ -34,7 +36,8 @@ const LIVE_CHART = Object.freeze({
   width: 920,
   height: 320,
   plotLeft: 62,
-  plotRight: 910,
+  // Reserve the right gutter for the symmetric percentage axis.
+  plotRight: 858,
   priceTop: 20,
   priceBottom: 230,
   volumeTop: 252,
@@ -52,24 +55,6 @@ const liveChartPriceY = (price:number, min:number, max:number) => {
   return LIVE_CHART.priceTop+(max-price)/range*(LIVE_CHART.priceBottom-LIVE_CHART.priceTop);
 };
 
-// The desk and personal replay must render the exact same intraday reference:
-// cumulative traded value divided by cumulative volume.  A minute without
-// reported volume does not invent a trade; it falls back to the visible simple
-// average only until actual volume is available.
-const cumulativeIntradayAverage = (points:Array<{price:number;volume?:number}>) => {
-  let tradedValue=0;
-  let totalVolume=0;
-  let priceTotal=0;
-  return points.map((point,index)=>{
-    const price=Number(point.price);
-    const volume=Math.max(0,Number(point.volume)||0);
-    tradedValue+=price*volume;
-    totalVolume+=volume;
-    priceTotal+=price;
-    return totalVolume>0 ? tradedValue/totalVolume : priceTotal/(index+1);
-  });
-};
-
 const base64UrlToUint8Array = (value:string) => {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const binary = window.atob(padded);
@@ -77,9 +62,9 @@ const base64UrlToUint8Array = (value:string) => {
 };
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
-type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number}[] };
+type IntradaySession = { date:string; previousClose:number|null; minutes:{time:string;price:number;volume:number;averagePrice?:number|null}[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
-type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number}[]; intradaySessions?:IntradaySession[] };
+type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:{time:string;price:number;volume:number;averagePrice?:number|null}[]; intradaySessions?:IntradaySession[] };
 type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string; details:string[] };
 type MarketContextItem = { id:string; label:string; group:"market"|"sector"|"related"|"cross"|"currency"; price:number|null; changePercent:number|null; sourceTimestamp:string|null; provider:string; inverse?:boolean };
 type MarketContext = { code:string; profile:string; fetchedAt:string; items:MarketContextItem[]; gate:{ score:number; level:"normal"|"caution"|"restricted"|"locked"|"degraded"; label:string; action:string; positionFraction:number; hardLock:boolean; reasons:string[] }; availableSources:string[]; errors:string[]; events:{ status:string; label:string; participatesInGate:boolean } };
@@ -88,7 +73,7 @@ type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; count
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
-type TradeAlertToast = { level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
+type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"|null; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
 type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
 type Membership = { active:boolean; expiresAt:string|null; referralCode:string|null; referralCredits:number; referralReviews:number; referralRewardDays:number };
@@ -600,6 +585,10 @@ export default function Home() {
   const [backgroundPushState,setBackgroundPushState]=useState<"idle"|"ready"|"unsupported"|"error">("idle");
   const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
   const alertToast=alertQueue[0]??null;
+  const alertSequence=useRef(0);
+  const deliveredAlertByCode=useRef<Record<string,TradeAlertToast>>({});
+  const speechQueue=useRef<{spoken:string;risk:boolean}[]>([]);
+  const speechBusy=useRef(false);
   const alertedEventKeys = useRef<Set<string>>(new Set());
   const serverAlertCursor = useRef(0);
   const serverAlertsInitialized = useRef(false);
@@ -759,6 +748,7 @@ export default function Home() {
   const eventsByCode = useMemo(() => Object.fromEntries((eventRadar?.stocks ?? []).map(item => [item.code, item])), [eventRadar]);
   const baseActiveQuote = currentTrial?.quote ?? currentMarket?.quote;
   const marketSession = useMemo(() => aShareSession(clockNow), [clockNow]);
+  const marketDataActive = useMemo(() => isFastMarketDataPhase(marketSession), [marketSession]);
   const removeStock=(index:number)=>{
     if(stockList.length<=1)return;
     const next=stockList.filter((_,i)=>i!==index);
@@ -830,16 +820,32 @@ export default function Home() {
         const stale=payload.status?.stale||payload.meta?.stale;
         if(active){
           setLiveL2Status(payload);
-          if(minute&&payload.status?.connected&&!stale){
-            setLiveL2ByMinute(current=>({...current,[minute]:payload}));
+          if(payload.status?.connected&&!stale){
+            setLiveL2ByMinute(current=>{
+              const next={...current};
+              for(const bar of payload.recentMinutes??[]){
+                if(!/^\d{4}$/.test(bar.time))continue;
+                const isCurrent=bar.time===minute;
+                next[bar.time]=isCurrent
+                  ? {...payload,l2Bar:bar}
+                  : {
+                    status:{...payload.status,stale:false},
+                    meta:{...payload.meta,stale:false},
+                    book:{lastPrice:bar.price},
+                    l2Bar:bar,
+                  };
+              }
+              if(minute&&!next[minute])next[minute]=payload;
+              return next;
+            });
           }
         }
       }catch{if(active)setLiveL2Status({error:"L2 status endpoint unavailable",status:{connected:false,stale:true}})}
-      if(active)timer=window.setTimeout(()=>void poll(),marketSession.live?300:60_000);
+      if(active)timer=window.setTimeout(()=>void poll(),marketDataActive?300:60_000);
     };
     void poll();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
-  },[stock?.code,marketSession.live]);
+  },[stock?.code,marketDataActive]);
   const liveL2Stale=Boolean(liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
   const liveL2HasTicks=Boolean((liveL2Status?.messages?.transaction??0)>0||(liveL2Status?.messages?.order??0)>0);
   const liveL2LatencyMs=Number.isFinite(liveL2Status?.status?.ageSeconds)
@@ -856,16 +862,22 @@ export default function Home() {
     &&(!baseActiveQuote?.price||Math.abs(liveL2LastPrice-baseActiveQuote.price)/Math.max(baseActiveQuote.price,.01)<=.05);
   const activeQuote=useMemo(()=>{
     if(!liveL2PriceUsable)return baseActiveQuote;
-    const previousClose=baseActiveQuote?.previousClose;
+    const previousClose=liveL2Status?.session?.previousClose??baseActiveQuote?.previousClose;
     const change=previousClose&&previousClose>0?liveL2LastPrice-previousClose:baseActiveQuote?.change??null;
     const changePercent=previousClose&&previousClose>0?change!/previousClose*100:baseActiveQuote?.changePercent??null;
     return {
       ...(baseActiveQuote??{code:"601899",name:stock?.name??"紫金矿业",open:null,high:null,low:null,change:null,changePercent:null}),
       price:liveL2LastPrice,
+      previousClose,
+      open:liveL2Status?.session?.open??baseActiveQuote?.open??null,
+      high:liveL2Status?.session?.high??baseActiveQuote?.high??null,
+      low:liveL2Status?.session?.low??baseActiveQuote?.low??null,
+      volume:liveL2Status?.session?.volume??baseActiveQuote?.volume??null,
+      amount:liveL2Status?.session?.amount??baseActiveQuote?.amount??null,
       change,
       changePercent,
     };
-  },[baseActiveQuote,liveL2PriceUsable,liveL2LastPrice,stock?.name]);
+  },[baseActiveQuote,liveL2PriceUsable,liveL2LastPrice,liveL2Status?.session,stock?.name]);
   // Connection payloads may include an endpoint or a broker-provided error.  Keep
   // those transport details out of the console UI; this card is a service-status
   // indicator, not a connection diagnostic.
@@ -888,15 +900,38 @@ export default function Home() {
     [currentTrial?.minutes,currentMarket?.minutes],
   );
   const l2MinutePoints=useMemo(()=>stock?.code==="601899"?liveL2ByMinute:{},[stock?.code,liveL2ByMinute]);
-  const minutePoints = useMemo(() => rawMinutePoints
-    .filter(point=>isAShareRegularTradingMinute(point.time))
-    .map(point=>{
-      const l2=l2MinutePoints[point.time];
-      if(!l2)return point;
-      const l2Price=Number(l2.book?.lastPrice);
-      const priceCompatible=Number.isFinite(l2Price)&&l2Price>0&&Math.abs(l2Price-point.price)/Math.max(point.price,.01)<=.05;
-      return {...point,price:priceCompatible?l2Price:point.price,l2};
-    }), [rawMinutePoints,l2MinutePoints]);
+  const minutePoints = useMemo(() => {
+    type LiveMinutePoint = {
+      time:string; price:number; volume:number; averagePrice?:number|null;
+      dataSource:"public-fallback"|"l2-primary"; l2?:ZijinL2State;
+    };
+    const merged=new Map<string,LiveMinutePoint>(rawMinutePoints
+      .filter(point=>isAShareRegularTradingMinute(point.time))
+      .map(point=>[point.time,{...point,dataSource:"public-fallback" as const}]));
+    for(const [time,l2] of Object.entries(l2MinutePoints)){
+      if(!isAShareRegularTradingMinute(time))continue;
+      if(l2.status?.connected!==true||l2.status?.authorized===false||l2.status?.stale===true||l2.meta?.stale===true)continue;
+      const base=merged.get(time);
+      const l2Price=Number(l2.l2Bar?.price??l2.book?.lastPrice);
+      const priceCompatible=Number.isFinite(l2Price)&&l2Price>0
+        &&(!base||Math.abs(l2Price-base.price)/Math.max(base.price,.01)<=.05);
+      if(!priceCompatible)continue;
+      const l2Volume=Number(l2.l2Bar?.volume??l2.flow?.tradeVolume60s);
+      merged.set(time,{
+        ...(base??{time,price:l2Price,volume:0}),
+        price:l2Price,
+        volume:Number.isFinite(l2Volume)&&l2Volume>0?l2Volume:base?.volume??0,
+        averagePrice:l2.l2Bar?.averagePrice??base?.averagePrice??null,
+        dataSource:"l2-primary",
+        l2,
+      });
+    }
+    return [...merged.values()].sort((a,b)=>a.time.localeCompare(b.time));
+  }, [rawMinutePoints,l2MinutePoints]);
+  const l2CalculationCoverage=useMemo(
+    ()=>stock?.code==="601899"?minutePoints.filter(point=>point.dataSource==="l2-primary").length:0,
+    [stock?.code,minutePoints],
+  );
   const afterHoursPoints = useMemo(() => rawMinutePoints.filter(point=>isAShareAfterHoursFixedPriceMinute(point.time)), [rawMinutePoints]);
   const afterHoursSummary = useMemo(() => {
     if (!afterHoursPoints.length) return null;
@@ -908,17 +943,28 @@ export default function Home() {
   },[afterHoursPoints]);
   const chartModel = useMemo(() => {
     if (minutePoints.length < 2) return null;
-    const prices=minutePoints.map(point=>point.price); const min=Math.min(...prices); const max=Math.max(...prices); const range=max-min||Math.max(max*.002,0.01);
+    const prices=minutePoints.map(point=>point.price);
+    const averageSeries=cumulativeIntradayAverage(minutePoints);
+    const scale=symmetricIntradayScale(
+      [...prices,...averageSeries],
+      activeQuote?.previousClose,
+      {tickCount:9,minimumPercent:.005,paddingFactor:1.08},
+    );
+    if(!scale)return null;
+    const {min,max}=scale;
     const pointAt=(point:{price:number},index:number)=>`${liveChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
-    const averageSeries=cumulativeIntradayAverage(minutePoints);
     const vwap=averageSeries.map((price,index)=>pointAt({price},index));
     const maxVolume=Math.max(...minutePoints.map(point=>point.volume),1);
     const lastVwap=averageSeries.at(-1) ?? minutePoints.at(-1)!.price;
     const firstX=liveChartX(minutePoints[0].time); const lastX=liveChartX(minutePoints.at(-1)!.time);
-    const tickValues=[max,max-range*.25,max-range*.5,max-range*.75,min];
-    return {path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,lastY:liveChartPriceY(minutePoints.at(-1)!.price,min,max),volumes:minutePoints.map((point,index)=>({x:liveChartX(point.time),height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),ticks:tickValues.map(value=>({value,y:liveChartPriceY(value,min,max)}))};
-  },[minutePoints]);
+    return {
+      path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,
+      lastY:liveChartPriceY(minutePoints.at(-1)!.price,min,max),
+      volumes:minutePoints.map((point,index)=>({x:liveChartX(point.time),height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),
+      ticks:scale.ticks.map(tick=>({...tick,y:liveChartPriceY(tick.value,min,max)})),
+    };
+  },[minutePoints,activeQuote?.previousClose]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
   const isZijinStock=stock?.code===STOCK_AGENTS.zijin.code;
   // The validated V4 engine always remains the formal execution path. The
@@ -1228,27 +1274,41 @@ export default function Home() {
       window.setTimeout(()=>void context.close(),(notes.length-1)*75+duration*1000+80);
     }catch{}
   };
-  const speakAlert=(text:string,risk=false)=>{
-    playAlertTone(risk);
+  const drainAlertSpeech=()=>{
+    if(speechBusy.current||speechQueue.current.length===0)return;
+    const next=speechQueue.current.shift()!;
+    speechBusy.current=true;
+    playAlertTone(next.risk);
     try{
-      if(!("speechSynthesis" in window))return;
-      const stockName=String(text||"").split(/[，,·•｜|]/)[0]?.trim()||"双兔助手";
-      const spoken=/风险|锁定|止损/.test(text)?`${stockName}，风险提醒`
-        :/买回|买入|正T/.test(text)?`${stockName}，买点提醒`
-        :/卖出|反T/.test(text)?`${stockName}，卖点提醒`
-        :/高位|顶部|冲高/.test(text)?`${stockName}，高位提醒`
-        :/低位|底部|回踩/.test(text)?`${stockName}，低位提醒`
-        :`${stockName}，提醒`;
-      const speech=new SpeechSynthesisUtterance(spoken);
-      speech.lang="zh-CN";speech.rate=1.02;speech.pitch=risk?0.82:1.08;speech.volume=.92;
+      if(!("speechSynthesis" in window)){speechBusy.current=false;return;}
+      const speech=new SpeechSynthesisUtterance(next.spoken);
+      speech.lang="zh-CN";speech.rate=1.02;speech.pitch=next.risk?0.82:1.08;speech.volume=.92;
       const voices=window.speechSynthesis.getVoices();
       speech.voice=voices.find(voice=>voice.lang.toLowerCase().startsWith("zh-cn")&&/xiaoxiao|tingting|xiaochen|xiaoyi|natural/i.test(voice.name))
         ??voices.find(voice=>voice.lang.toLowerCase().startsWith("zh-cn"))
         ??null;
+      const completed=()=>{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);};
+      speech.onend=completed;speech.onerror=completed;
       window.speechSynthesis.speak(speech);
-    }catch{}
+    }catch{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);}
   };
-  const queueAlert=(alert:TradeAlertToast)=>setAlertQueue(current=>[...current,alert].slice(-8));
+  const speakAlert=(text:string,risk=false,level:TradeAlertToast["level"]="signal",direction:"buy"|"sell"|null=null)=>{
+    speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk});
+    drainAlertSpeech();
+  };
+  const queueAlert=(incoming:TradeAlertToast)=>{
+    const now=Date.now();
+    let alert:TradeAlertToast={...incoming,id:incoming.id??`alert-${now}-${++alertSequence.current}`,createdAt:incoming.createdAt??new Date(now).toISOString()};
+    if(alert.code&&alert.rabbit!=="both"){
+      const alertCode=alert.code;
+      const delivery=resolveAlertDelivery({previous:deliveredAlertByCode.current[alertCode]??null,next:alert,nowMs:now});
+      if(!delivery.deliver)return false;
+      alert={...delivery.alert,id:alert.id,createdAt:alert.createdAt} as TradeAlertToast;
+      deliveredAlertByCode.current[alertCode]=alert;
+    }
+    setAlertQueue(current=>current.some(item=>alert.eventKey&&item.eventKey===alert.eventKey)?current:[...current,alert].slice(-12));
+    return true;
+  };
   const persistAlertSettings=(next:AlertSettings)=>{
     setAlertSettings(next);
     try{localStorage.setItem('rabbit-alert-settings',JSON.stringify(next));}catch{}
@@ -1325,8 +1385,8 @@ export default function Home() {
     const message=isBuy
       ?"价格、VWAP、趋势、量价与风控过滤通过；左兔提醒关注买入/买回。"
       :"价格、VWAP、趋势、量价与风控过滤通过；右兔提醒关注卖出。";
-    queueAlert({level:"signal",rabbit,title,message});
-    if(alertSettings.sound)speakAlert(`${stock.name}，${isBuy?"买入或买回":"卖出"}提醒`);
+    queueAlert({code:stock.code,eventKey:`preview:${stock.code}:${rabbit}:${Date.now()}`,source:"preview",level:"signal",rabbit,title,message});
+    if(alertSettings.sound)speakAlert(`${stock.name}，${isBuy?"买入或买回":"卖出"}提醒`,false,"signal",rabbit);
   };
   useEffect(()=>{
     if(!alertToast)return;
@@ -1409,7 +1469,7 @@ export default function Home() {
             : agentEvaluation
               ? `${agentEvaluation.reasons[0]}；紫金研究模型观察，不是买卖指令。`
               : `${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
-      queueAlert({level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
+      const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
       const candidateSpeech=experimentalFresh
         ? experimentalReminder!.stage==="experimental-exit"
           ? `${item.name}，${experimentalReminder!.direction}实验观察结束，${experimentalReminder!.reason}，不是买卖指令`
@@ -1419,8 +1479,8 @@ export default function Home() {
         : isVwapDisplacementObservation(latestObservation)
         ? `${item.name}，${latestObservation!.reason.split("；")[0]}，请观察确认，不是买卖指令`
         : `${item.name}，${latestObservation?.direction??"做T"}候选观察，不是买卖指令`;
-      if(alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latest!.direction}${latest!.side}提醒`:candidateSpeech,isRisk);
-      if(alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
+      if(queued&&alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latest!.direction}${latest!.side}提醒`:candidateSpeech,isRisk,isRisk?"risk":formalFresh?"signal":"candidate",rabbit==="both"?null:rabbit);
+      if(queued&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
     }
   },[autoDecision.status,autoDecision.reason,liveEngine,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName,zijinResearchEnabled]);
   useEffect(()=>{
@@ -1442,11 +1502,12 @@ export default function Home() {
           const action=item.payload?.action;const observation=item.payload?.observation;
           const sell=String(action?.side??observation?.direction??item.title).includes('卖')||String(observation?.direction??'').includes('反T');
           const level=item.level==='formal'?'signal':'candidate';
-          queueAlert({level,rabbit:sell?'sell':'buy',title:item.title,message:item.message});
+          const rabbit=sell?'sell':'buy';
+          const queued=queueAlert({code:item.code,eventKey:item.eventKey??`server:${item.id}`,source:"server",createdAt:item.createdAt,level,rabbit,title:item.title,message:item.message});
           const shouldDeliver=serverAlertsInitialized.current&&item.level!=='watch';
           const deliveryChannels:string[]=[];
-          if(shouldDeliver&&alertSettings.sound){speakAlert(`${item.title}，${item.level==='formal'?'正式信号':'候选观察'}`);deliveryChannels.push('speech')}
-          if(shouldDeliver&&alertSettings.system&&'Notification' in window&&Notification.permission==='granted'){new Notification(`双兔助手 · ${item.title}`,{body:item.message,tag:`server-${item.id}`});deliveryChannels.push('system')}
+          if(queued&&shouldDeliver&&alertSettings.sound){speakAlert(`${item.title}，${item.level==='formal'?'正式信号':'候选观察'}`,false,level,rabbit);deliveryChannels.push('speech')}
+          if(queued&&shouldDeliver&&alertSettings.system&&'Notification' in window&&Notification.permission==='granted'){new Notification(`双兔助手 · ${item.title}`,{body:item.message,tag:`server-${item.id}`});deliveryChannels.push('system')}
           if(shouldDeliver)void fetch(`/api/control/alerts/${item.id}/delivery`,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({status:deliveryChannels.length?'notified':'displayed',channel:deliveryChannels.length?deliveryChannels.join('+'):'in-app'})}).catch(()=>{});
           void fetch(`/api/control/alerts/${item.id}/ack`,{method:'POST',credentials:'include'}).catch(()=>{});
         }
@@ -1570,11 +1631,11 @@ export default function Home() {
       }
     };
     void load();
-    const timer = window.setInterval(load, clientPollingInterval("referenceData", marketSession.live));
+    const timer = window.setInterval(load, clientPollingInterval("referenceData", marketDataActive));
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stock?.code, marketSession.live]);
+  }, [localAuth, stock?.code, marketDataActive]);
   useEffect(() => {
     if (!localAuth || !stockList.length) return;
     let cancelled = false;
@@ -1600,11 +1661,11 @@ export default function Home() {
     void load();
     // The control-plane keeps monitoring when the page is hidden or closed.
     // The browser only refreshes visible UI, avoiding redundant background work.
-    const timer=window.setInterval(()=>void load(),clientPollingInterval("watchlist",marketSession.live));
+    const timer=window.setInterval(()=>void load(),clientPollingInterval("watchlist",marketDataActive));
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stockList, stock?.code, marketSession.live]);
+  }, [localAuth, stockList, stock?.code, marketDataActive]);
   useEffect(() => {
     if (!localAuth || !stock?.code || !stockList.length) return;
     let cancelled = false;
@@ -1642,9 +1703,9 @@ export default function Home() {
       } finally { inFlight = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), clientPollingInterval("deskSnapshot",marketSession.live));
+    const timer = window.setInterval(() => void load(), clientPollingInterval("deskSnapshot",marketDataActive));
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [localAuth, stock?.code, stockList, marketSession.live]);
+  }, [localAuth, stock?.code, stockList, marketDataActive]);
   useEffect(() => {
     if (!localAuth || !stock?.code) return;
     let cancelled = false;
@@ -1667,11 +1728,11 @@ export default function Home() {
       } finally { inFlight = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), clientPollingInterval("activeChart",marketSession.live));
+    const timer = window.setInterval(() => void load(), clientPollingInterval("activeChart",marketDataActive));
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stock?.code, marketSession.live]);
+  }, [localAuth, stock?.code, marketDataActive]);
   useEffect(() => {
     if (!localAuth || !stock?.code) return;
     let cancelled = false;
@@ -1694,11 +1755,11 @@ export default function Home() {
         if (!cancelled) setTrialError("1 秒报价暂时更新失败，已保留最后一次有效价格。");
       } finally { inFlight = false; }
     };
-    const timer = window.setInterval(() => void load(), clientPollingInterval("activeQuote",marketSession.live));
+    const timer = window.setInterval(() => void load(), clientPollingInterval("activeQuote",marketDataActive));
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stock?.code, marketSession.live]);
+  }, [localAuth, stock?.code, marketDataActive]);
   const starKey = localAuth && stock?.code ? `rabbit-star:${accountName.toLowerCase()}:${stock.code}` : "";
   const starred = useMemo(() => {
     void starredRevision;
@@ -1804,7 +1865,7 @@ export default function Home() {
         </div>
         <div className={`quote ${activeQuote?.changePercent != null && activeQuote.changePercent < 0 ? "down" : activeQuote?.changePercent === 0 ? "flat" : ""}`}><strong>{activeQuote?.price?.toFixed(2) ?? "--"}</strong><span>{activeQuote?.changePercent == null ? "--" : `${activeQuote.changePercent >= 0 ? "+" : ""}${activeQuote.changePercent.toFixed(2)}%`}</span></div>
         <div className="quote-metrics">
-          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{currentTrial ? "1 秒试用" : currentMarket ? "公开延迟" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
+          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{isZijinStock&&liveL2PriceUsable ? "L2 主源" : currentTrial ? "1 秒试用" : currentMarket ? "公开兜底" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? isZijinStock ? `${minutePoints.length} 点 · L2 ${l2CalculationCoverage}` : `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
         </div>
         <div className={`l2-console-status ${l2ConsoleStatus.tone}`} role="status" title={l2ConsoleStatus.detail}>
           <i/><span>{l2ConsoleStatus.label}</span><small>{l2ConsoleStatus.detail}</small>
@@ -1815,7 +1876,7 @@ export default function Home() {
       <section className={`workspace ${workspaceFullscreen?'workspace-fullscreen':''}`} ref={workspaceRef}>
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="teal-line"/>均线参考</span>}<span className="causal-marker-legend"><i/>提醒按确认分钟实时落点 · 不回填峰谷</span></div>
+            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}<span className="causal-marker-legend"><i/>提醒按确认分钟实时落点 · 不回填峰谷</span></div>
             <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? "1 秒轮询试用 · 实时行情源" : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):marketSession.detail}</span>
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
@@ -1829,7 +1890,7 @@ export default function Home() {
             </div>}
             <svg viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图`}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
-              {(chartModel?.ticks??[20,72.5,125,177.5,230].map(y=>({value:null,y}))).map((tick,index)=><g key={tick.value??index}><line x1={LIVE_CHART.plotLeft} y1={tick.y} x2={LIVE_CHART.plotRight} y2={tick.y} className="grid-line"/>{tick.value!=null&&<text x="5" y={tick.y+3.5} className="intraday-axis-label">{tick.value.toFixed(2)}</text>}</g>)}
+              {(chartModel?.ticks??[20,72.5,125,177.5,230].map(y=>({value:null,percent:null,y}))).map((tick,index)=>{const centre=tick.percent!=null&&Math.abs(tick.percent)<1e-8;return <g key={tick.value??index}><line x1={LIVE_CHART.plotLeft} y1={tick.y} x2={LIVE_CHART.plotRight} y2={tick.y} className={`grid-line ${centre?"previous-close-line":""}`}/>{tick.value!=null&&<text x="5" y={tick.y+3.5} className="intraday-axis-label">{tick.value.toFixed(2)}</text>}{tick.percent!=null&&<text x="914" y={tick.y+3.5} textAnchor="end" className={`intraday-percent-label ${tick.percent>0?"up":tick.percent<0?"down":"flat"}`}>{tick.percent>0?"+":""}{tick.percent.toFixed(2)}%</text>}</g>})}
               {A_SHARE_INTRADAY_AXIS.map(tick => {const x=liveChartSlotX(tick.slot);return <g key={tick.label}><line x1={x} y1={LIVE_CHART.priceTop} x2={x} y2={LIVE_CHART.volumeBottom} className="grid-line vertical"/><text x={x} y="317" textAnchor={tick.slot===0?"start":tick.slot===240?"end":"middle"} className="intraday-axis-label intraday-time-label">{tick.label}</text></g>})}
               {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
@@ -1859,7 +1920,7 @@ export default function Home() {
             <div><b>双兔决策屋</b><small>低吸兔找机会 · 止盈兔守风险</small></div>
             <em>陪你盯盘</em>
           </div>}
-          {alertToast&&<div className={`trade-alert-toast ${alertToast.level} rabbit-${alertToast.rabbit}`} role="alert"><span className={`rabbit-speaker ${alertToast.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{alertToast.level==="candidate"?`${alertToast.rabbit==="buy"?"左兔":"右兔"} · 候选观察`:alertToast.rabbit==="buy"?"左兔 · 买入/买回提醒":alertToast.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{alertToast.title}</b><span>{alertToast.message}</span></div>{alertQueue.length>1&&<em className="alert-queue-count">+{alertQueue.length-1}</em>}<button onClick={()=>setAlertQueue(current=>current.slice(1))} aria-label="关闭提醒">×</button></div>}
+          {alertQueue.length>0&&<div className="trade-alert-stack" aria-label="股票提醒列表">{alertQueue.slice(0,4).map((item,index)=><div key={item.id??`${item.title}-${index}`} className={`trade-alert-toast ${item.level} rabbit-${item.rabbit}`} role="alert"><span className={`rabbit-speaker ${item.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{item.level==="candidate"?`${item.rabbit==="sell"?"右兔 · 高位观察":item.rabbit==="buy"?"左兔 · 低位观察":"双兔 · 候选观察"}`:item.rabbit==="buy"?"左兔 · 买入/买回提醒":item.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{item.title}</b><span>{item.message}</span></div>{index===3&&alertQueue.length>4&&<em className="alert-queue-count">+{alertQueue.length-4}</em>}<button onClick={()=>setAlertQueue(current=>current.filter(alert=>alert.id!==item.id))} aria-label={`关闭${item.title}提醒`}>×</button></div>)}</div>}
           {isZijinStock&&<div className="stock-agent-switch" aria-label="紫金矿业信号引擎选择">
             <div><span>正式信号引擎 · 三分离过滤</span><b>Smart-T V4.1</b><small>紫金外因与相对强弱仅进入因果研究层；未通过前瞻毕业门槛前不能接管正式执行</small></div>
             <div className="stock-agent-switch-actions"><button className={!zijinResearchEnabled?"active":""} onClick={()=>setZijinResearchEnabled(false)} aria-pressed={!zijinResearchEnabled}>V4 正式</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(true)} aria-pressed={zijinResearchEnabled}>紫金研究叠加</button></div>
@@ -2248,8 +2309,11 @@ type ZijinL2State = {
   node?:string; error?:string; lastExchangeTime?:string;
   status?:{connected?:boolean;authorized?:boolean;stale?:boolean;ageSeconds?:number};
   meta?:{stale?:boolean;servedAt?:string};
-  flow?:{activeBuyRatio60s?:number|null;netActiveNotional60s?:number;bigOrderNetNotional60s?:number};
+  flow?:{activeBuyRatio60s?:number|null;netActiveNotional60s?:number;bigOrderNetNotional60s?:number;activeBuyVolume60s?:number;activeSellVolume60s?:number;tradeVolume60s?:number};
   book?:{lastPrice?:number|null;nearTouchImbalance?:number|null;spreadBps?:number|null;microprice?:number|null;micropriceEdgeBps?:number|null};
+  session?:{previousClose?:number|null;open?:number|null;high?:number|null;low?:number|null;volume?:number|null;amount?:number|null;trades?:number|null};
+  recentMinutes?:{time:string;exchangeMinute?:string;price:number;open?:number;high?:number;low?:number;volume?:number;amount?:number;averagePrice?:number|null}[];
+  l2Bar?:{time:string;exchangeMinute?:string;price:number;open?:number;high?:number;low?:number;volume?:number;amount?:number;averagePrice?:number|null};
   messages?:{snapshot?:number;transaction?:number;order?:number};
   volatility?:{source?:string;period?:number;samples?:number;ready?:boolean;atr14?:number|null;atrPct14?:number|null};
   forward?:{samples?:number;tradingDays?:number;trainingReady?:boolean;reason?:string};

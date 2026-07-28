@@ -38,8 +38,9 @@ test("valid L2 trades are the real-time price source for the active Zijin quote"
   assert.match(source, /item\.code===stock\?\.code\?\(activeQuote\?\?marketQuotes\[item\.code\]\)/);
 });
 
-test("active Zijin monitoring refreshes L2 quickly during market hours", async () => {
+test("active Zijin monitoring refreshes L2 quickly during auction and market hours", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /marketSession\.live\?300:60_000/);
+  assert.match(source, /marketDataActive\?300:60_000/);
+  assert.match(source, /isFastMarketDataPhase\(marketSession\)/);
 });

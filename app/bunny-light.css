@@ -258,6 +258,10 @@
   background: #e8a43c;
 }
 
+:root[data-theme="light"] .average-line {
+  background: #e8a43c;
+}
+
 :root[data-theme="light"] .decision-zone {
   background: linear-gradient(180deg, #fffbfd, #fff8fb);
   padding: 16px;
