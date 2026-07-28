@@ -326,3 +326,50 @@
 @media(max-width:760px){.intraday-hud{right:12px;top:12px;min-width:170px;max-width:220px;padding:7px 9px}.intraday-hud>small{white-space:normal}.main-force-repair-state{height:auto;min-height:34px;padding:6px 12px;flex-wrap:wrap}.main-force-repair-state>small{width:100%;margin-left:0}.decision-zone-tabs{top:0;margin:-20px -20px 10px}.decision-zone.focus-mode .context-radar-grid{grid-template-columns:repeat(2,1fr)}}
 @media(prefers-reduced-motion:no-preference){.vwap-cross-marker circle{animation:vwap-cross-once .9s ease-out 1}@keyframes vwap-cross-once{0%{r:3;opacity:.3}55%{r:7;opacity:1}100%{r:5;opacity:1}}}
 .main-force-track-legend .cumulative i{width:14px;height:2px;border-radius:0;background:#f0bd4f}.main-force-cumulative{fill:none;stroke:#f0bd4f;stroke-width:1.45;stroke-linecap:round;stroke-linejoin:round;opacity:.9;vector-effect:non-scaling-stroke;pointer-events:none}.main-force-cumulative-dot{fill:#f0bd4f;stroke:var(--surface);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* Trading-desk density pass: price is primary, order-flow is a compact aligned secondary chart. */
+.workspace.with-main-force{height:760px}
+.main-force-track{height:130px;flex:0 0 130px;padding:4px 12px 3px;overflow:hidden}
+.main-force-track-head{height:23px;gap:11px}
+.main-force-track-head>div:first-child{min-width:max-content;writing-mode:horizontal-tb}
+.main-force-track-head strong,.main-force-track-head>div:first-child span{white-space:nowrap}
+.main-force-track-legend{gap:8px}
+.main-force-authenticity{padding:2px 5px}
+.main-force-authenticity span{max-width:96px}
+.main-force-repair-state{height:20px;min-height:20px;padding:0 12px;gap:7px;border-top:0}
+.main-force-repair-state>span,.main-force-repair-state>b{white-space:nowrap}
+.main-force-repair-state>small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.main-force-track svg{height:61px}
+.main-force-track-foot{height:19px;gap:13px}
+.main-force-bar-axis,.main-force-cumulative-axis{font:600 6.2px var(--font-geist-mono);paint-order:stroke;stroke:var(--surface);stroke-width:1.8px;stroke-linejoin:round}
+.main-force-bar-axis{fill:var(--dim)}
+.main-force-cumulative-axis{fill:var(--amber)}
+.lower-panel{min-height:0}
+.history-empty{min-height:52px;padding:7px 0}
+.agents:not(.open) .agents-title{border-bottom:0}
+.alert-channel{display:flex;flex-direction:row;align-items:center;margin:7px 0;padding:7px 8px;gap:8px}
+.alert-channel>div:first-child{flex:0 0 auto}
+.alert-channel>div:first-child small{display:none}
+.alert-channel-actions{display:flex!important;flex:1;justify-content:flex-end;gap:5px;width:auto}
+.alert-channel button{width:auto;min-width:34px;padding:6px 7px}
+.decision-zone.focus-mode .context-radar{padding:9px;margin:8px 0}
+.decision-zone.focus-mode .context-radar-grid{display:flex;gap:5px;overflow-x:auto;background:transparent;margin-top:7px;scrollbar-width:thin}
+.decision-zone.focus-mode .context-radar-grid>span{min-width:70px;display:flex;align-items:center;justify-content:space-between;gap:5px;padding:5px 6px;border:1px solid var(--line-soft)}
+.decision-zone.focus-mode .context-radar-foot{display:none}
+.decision-zone.focus-mode .context-radar>p{margin:5px 0 2px}
+
+@media(max-width:1100px){
+  .main-force-track-head>div:first-child span,.main-force-authenticity span{display:none}
+  .main-force-track-legend{margin-left:auto}
+  .main-force-track-summary{margin-left:0}
+}
+@media(max-width:760px){
+  .workspace.with-main-force{height:auto}
+  .workspace.with-main-force .chart-zone{height:590px}
+  .main-force-track{height:126px;flex-basis:126px;padding:4px 9px 3px}
+  .main-force-track svg{height:60px}
+  .main-force-repair-state{height:22px;min-height:22px;padding:0 8px;flex-wrap:nowrap}
+  .main-force-repair-state>small{width:auto;margin-left:auto}
+  .alert-channel{align-items:flex-start;flex-direction:column}
+  .alert-channel-actions{justify-content:flex-start;flex-wrap:wrap}
+}

@@ -47,6 +47,11 @@ test("main-force chart is tracking evidence only and collector persists minute f
   assert.match(page, /main-force-repair-state/);
   assert.match(page, /zijinRepair\.checks\?\.l2BuyRecovery/);
   assert.match(page, /zijinRepairMarker/);
+  assert.match(page, /buildZijinL2CausalReplayObservations\(minutePoints\)/);
+  assert.match(page, /const merged=\[\.\.\.\(\(liveEngine\.observations \?\? \[\]\) as ReplayObservation\[\]\),\.\.\.zijinRepairHistory\]/);
+  assert.match(page, /main-force-cumulative-axis/);
+  assert.match(page, /signalMode==="正T"\?"下轨":"上轨"/);
+  assert.match(page, /agentOpen&&<div className="agent-grid"/);
   assert.match(collector, /def update_minute_flow\(/);
   assert.match(collector, /"schemaVersion": 4/);
   assert.match(collector, /load_intraday_flow_state/);
