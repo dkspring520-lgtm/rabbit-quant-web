@@ -2066,6 +2066,30 @@
   stroke: #eee4e9;
 }
 
+:root[data-theme="light"] .intraday-crosshair-line,
+:root[data-theme="light"] .main-force-crosshair {
+  stroke: rgba(112, 93, 104, .58);
+}
+
+:root[data-theme="light"] .intraday-crosshair-dot {
+  fill: #fff;
+  stroke: #f05482;
+}
+
+:root[data-theme="light"] .intraday-crosshair-card rect {
+  fill: rgba(255, 255, 255, .97);
+  stroke: #e5d6de;
+  filter: drop-shadow(0 8px 18px rgba(102, 76, 89, .12));
+}
+
+:root[data-theme="light"] .intraday-crosshair-card text {
+  fill: #827784;
+}
+
+:root[data-theme="light"] .intraday-crosshair-card text.value {
+  fill: #342b38;
+}
+
 @media (max-width: 1320px) and (min-width: 1101px) {
   :root[data-theme="light"] .topbar .brand-lockup {
     min-width: 216px !important;
