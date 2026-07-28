@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const source=fs.readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
+const styles=fs.readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
 
 test("intraday crosshair locks to an already observed minute",()=>{
   assert.match(source,/points:minutePoints\.map/);
@@ -26,4 +27,10 @@ test("Zijin crosshair synchronizes price, volume and main-force evidence by minu
   assert.match(source,/formatIntradayVolume\(intradayCursor\.volume\)/);
   assert.match(source,/formatMainForceAmount\(intradayCursor\.mainForce\.netNotional\)/);
   assert.match(source,/className="main-force-crosshair"/);
+});
+
+test("price and main-force SVGs share the same horizontal gutter",()=>{
+  assert.match(styles,/\.chart-wrap\{padding:8px 12px 6px\}/);
+  assert.match(styles,/\.main-force-track\{[^}]*padding:5px 12px 4px/);
+  assert.match(styles,/\.main-force-track\{height:135px;flex-basis:135px;padding:7px 12px\}/);
 });
