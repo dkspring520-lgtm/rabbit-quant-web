@@ -29,7 +29,7 @@ function repairSequence({withL2 = true, lowerSecondLow = false} = {}) {
     ["1025",31.20],["1026",31.25],["1027",31.30],
   ];
   return prices.map(([time, price], index) => {
-    const ratio = withL2 && index >= prices.length - 2 ? 0.58 : withL2 ? 0.43 : null;
+    const ratio = withL2 && index >= prices.length - 3 ? 0.58 : withL2 ? 0.43 : null;
     const net = ratio === null ? null : ratio >= 0.52 ? 180_000 : -120_000;
     return minute(time, price, index >= 8 && index <= 9 ? 65 : 100, ratio, net, net);
   });
@@ -76,4 +76,27 @@ test("future minutes cannot change a previously evaluated prefix", () => {
   evaluateZijinRepairCandidate(points);
   const repeated = evaluateZijinRepairCandidate(prefix);
   assert.deepEqual(repeated, first);
+});
+
+test("one-minute L2 pulse cannot promote a grinding-bottom repair", () => {
+  const points = repairSequence().map((point, index, rows) => {
+    if (index < rows.length - 3) return point;
+    const ratio = index === rows.length - 1 ? 0.63 : index === rows.length - 2 ? 0.39 : 0.54;
+    const net = ratio >= 0.52 ? 220_000 : -180_000;
+    return minute(point.time, point.price, point.volume, ratio, net, net);
+  });
+  const result = evaluateZijinRepairCandidate(points);
+  assert.equal(result.status, "watch");
+  assert.equal(result.checks.l2BuyRecovery, false);
+});
+
+test("a confirmed repair is not repeated after price has already extended", () => {
+  const points = repairSequence();
+  points.push(
+    minute("1028", 31.36, 120, 0.61, 250_000, 180_000),
+    minute("1029", 31.45, 130, 0.64, 300_000, 220_000),
+  );
+  const result = evaluateZijinRepairCandidate(points);
+  assert.equal(result.status, "watch");
+  assert.equal(result.checks.notExtended, false);
 });
