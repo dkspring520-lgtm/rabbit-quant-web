@@ -24,6 +24,31 @@ export type StockAgentEvaluation = {
     volumeRatio:number|null;
     trendContinuationRisk?:unknown;
     orderFlow?:unknown;
+    structure?:{
+      direction:string;
+      directionScore:number;
+      chan:{location:string};
+      wyckoff:{phase:string};
+      volumeProfile:{poc:number;valueAreaLow:number;valueAreaHigh:number};
+      permissions:{positiveT:boolean;reverseT:boolean};
+      [key:string]:unknown;
+    };
+    largeOrder?:{
+      ready:boolean;
+      score:number;
+      label:string;
+      confirmed:boolean;
+      absorption:boolean;
+      directionConflict?:boolean;
+      stateMachine?:{
+        state:string;
+        label:string;
+        costPrice:number|null;
+        expiresAt:string|null;
+        [key:string]:unknown;
+      };
+      [key:string]:unknown;
+    };
   };
   executable:false;
   affectsV4:false;
@@ -34,4 +59,6 @@ export function evaluateStockAgent(options?:{
   code?:string|null;
   minutes?:{time:string;price:number;volume:number;l2?:unknown}[];
   previousClose?:number|null;
+  historicalBars?:{date:string;open:number;high:number;low:number;close:number;volume?:number;amount?:number}[];
+  sameTimeMedianNotional?:number|null;
 }):StockAgentEvaluation|null;
