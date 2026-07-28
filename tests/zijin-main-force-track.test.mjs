@@ -44,6 +44,9 @@ test("main-force chart is tracking evidence only and collector persists minute f
   ]);
   assert.match(page, /主力追踪/);
   assert.match(page, /追踪证据，不单独构成买卖信号/);
+  assert.match(page, /main-force-repair-state/);
+  assert.match(page, /zijinRepair\.checks\?\.l2BuyRecovery/);
+  assert.match(page, /zijinRepairMarker/);
   assert.match(collector, /def update_minute_flow\(/);
   assert.match(collector, /"schemaVersion": 4/);
   assert.match(collector, /load_intraday_flow_state/);

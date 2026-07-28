@@ -15,6 +15,8 @@ test("Zijin price plan exposes ordered buy and sell ranges", () => {
   assert.ok(plan.sellRange[0]<=plan.sellRange[1]);
   assert.equal(plan.asOfTime,"0937");
   assert.match(plan.source,/L2 主源/);
+  assert.ok(Array.isArray(plan.confidenceBreakdown));
+  assert.ok(plan.confidenceBreakdown.some(item=>item.label==="L2分钟覆盖"&&item.value>0));
   assert.ok(plan.riskPlan.positiveT.hardStop<plan.buyRange[0]);
   assert.ok(plan.riskPlan.positiveT.takeProfit1>plan.buyRange[1]);
   assert.ok(plan.riskPlan.positiveT.takeProfit2>=plan.riskPlan.positiveT.takeProfit1);

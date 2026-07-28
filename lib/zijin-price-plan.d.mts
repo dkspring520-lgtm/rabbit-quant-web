@@ -10,6 +10,7 @@ export type ZijinPricePlan =
       expectedGrossSpread:number;
       minimumGrossSpread:number;
       confidence:number;
+      confidenceBreakdown:{label:string;value:number}[];
       position:string;
       riskPlan:{
         positiveT:{hardStop:number;takeProfit1:number;takeProfit2:number;invalidation:string};
