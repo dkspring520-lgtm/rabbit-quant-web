@@ -11,6 +11,10 @@ export type ZijinPricePlan =
       minimumGrossSpread:number;
       confidence:number;
       position:string;
+      riskPlan:{
+        positiveT:{hardStop:number;takeProfit1:number;takeProfit2:number;invalidation:string};
+        reverseT:{hardStop:number;takeProfit1:number;takeProfit2:number;invalidation:string};
+      };
       source:string;
       reason:string;
     };
