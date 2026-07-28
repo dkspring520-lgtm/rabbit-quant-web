@@ -11,6 +11,7 @@
 @media (max-width:760px){
   .zijin-price-plan{padding:10px}
   .zijin-price-plan-grid b{font-size:11px}
+  .premium-feature-lock,.personal-training-lock{align-items:flex-start;flex-direction:column;gap:10px}
 }
 
 .brand-type-fallback,
