@@ -29,6 +29,19 @@
   color-scheme: light;
 }
 
+:root[data-theme="light"] .zijin-price-plan {
+  border-color: rgba(232, 161, 73, .26);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(255, 244, 218, .78), rgba(235, 250, 247, .72));
+  box-shadow: 0 8px 24px rgba(97, 72, 87, .035);
+}
+
+:root[data-theme="light"] .zijin-price-plan-grid > div {
+  border-color: rgba(97, 72, 87, .1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .8);
+}
+
 :root[data-theme="light"] body {
   background:
     radial-gradient(circle at 9% 3%, rgba(255, 195, 215, .22), transparent 24rem),

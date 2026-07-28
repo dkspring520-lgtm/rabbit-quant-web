@@ -25,6 +25,8 @@ import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-reminder.mjs";
 import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-policy.mjs";
 import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intraday-chart-model.mjs";
+import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
+import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminder.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
@@ -74,7 +76,7 @@ type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; 
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
-type MonitorScanLog = { id:number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"|null; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
+type MonitorScanLog = { id:string|number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"|null; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
 type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
 type Membership = { active:boolean; expiresAt:string|null; referralCode:string|null; referralCredits:number; referralReviews:number; referralRewardDays:number };
 type MemberRecord = { id:string; username:string; displayName:string; role:"admin"|"member"; status:"active"|"paused"; createdAt:string; lastLoginAt:string|null; monitorCount:number; alertCount:number; membership:Membership|null };
@@ -578,6 +580,7 @@ export default function Home() {
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,background:false,...JSON.parse(saved)}:{sound:false,system:false,background:false};}catch{return {sound:false,system:false,background:false};}});
   const [backgroundPushState,setBackgroundPushState]=useState<"idle"|"ready"|"unsupported"|"error">("idle");
   const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
+  const [alertHistory,setAlertHistory]=useState<TradeAlertToast[]>([]);
   const alertToast=alertQueue[0]??null;
   const alertSequence=useRef(0);
   const deliveredAlertByCode=useRef<Record<string,TradeAlertToast>>({});
@@ -588,6 +591,16 @@ export default function Home() {
   const serverAlertsInitialized = useRef(false);
   const riskAlertEpisodes = useRef<Record<string,string>>({});
   const nextPreviewRabbit = useRef<"buy"|"sell">("buy");
+  useEffect(()=>{
+    const timer=window.setTimeout(()=>{
+      try{
+        const saved=localStorage.getItem(`rabbit-alert-history:${accountName.toLowerCase()}`);
+        const parsed=saved?JSON.parse(saved):[];
+        setAlertHistory(Array.isArray(parsed)?parsed.slice(0,200):[]);
+      }catch{setAlertHistory([])}
+    },0);
+    return()=>window.clearTimeout(timer);
+  },[accountName]);
   const [customStrategy, setCustomStrategy] = useState("09:30开始实时扫描，至少4个真实分钟点后等待开盘价与VWAP双确认；正T、反T每次不超过可做T数量的1/3；扣费后目标净收益低于0.64%不执行。");
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [marketError, setMarketError] = useState("");
@@ -910,7 +923,20 @@ export default function Home() {
       const priceCompatible=Number.isFinite(l2Price)&&l2Price>0
         &&(!base||Math.abs(l2Price-base.price)/Math.max(base.price,.01)<=.05);
       if(!priceCompatible)continue;
-      const l2Volume=Number(l2.l2Bar?.volume??l2.flow?.tradeVolume60s);
+      // The snapshot field is cumulative for the whole session. A collector
+      // restart can therefore make the first derived L2 minute look enormous.
+      // Keep the public minute bar for completed minutes and only use the
+      // genuine rolling 60-second transaction flow for the active minute.
+      const flowVolume=Number(l2.flow?.tradeVolume60s);
+      const publicVolume=Number(base?.volume);
+      const derivedBarVolume=Number(l2.l2Bar?.volume);
+      const l2Volume=Number.isFinite(flowVolume)&&flowVolume>0
+        ? flowVolume
+        : Number.isFinite(publicVolume)&&publicVolume>0
+          ? publicVolume
+          : Number.isFinite(derivedBarVolume)&&derivedBarVolume>0
+            ? derivedBarVolume
+            : 0;
       merged.set(time,{
         ...(base??{time,price:l2Price,volume:0}),
         price:l2Price,
@@ -969,6 +995,13 @@ export default function Home() {
   },[minutePoints,activeQuote?.previousClose]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
   const isZijinStock=stock?.code===STOCK_AGENTS.zijin.code;
+  const zijinPricePlan=useMemo(()=>isZijinStock?buildZijinPricePlan({
+    minutes:minutePoints,
+    previousClose:activeQuote?.previousClose??null,
+    open:activeQuote?.open??null,
+    vwap:chartModel?.lastVwap??null,
+    l2Coverage:l2CalculationCoverage,
+  }):null,[isZijinStock,minutePoints,activeQuote?.previousClose,activeQuote?.open,chartModel?.lastVwap,l2CalculationCoverage]);
   // The validated V4 engine always remains the formal execution path. The
   // dedicated Zijin agent can only be added manually as a research overlay
   // until it passes the sealed out-of-sample gate and a human review.
@@ -1313,6 +1346,17 @@ export default function Home() {
       deliveredAlertByCode.current[alertCode]=alert;
     }
     setAlertQueue(current=>current.some(item=>alert.eventKey&&item.eventKey===alert.eventKey)?current:[...current,alert].slice(-12));
+    if(alert.source!=="preview"&&alert.code){
+      setAlertHistory(current=>{
+        const normalized={...alert,id:String(alert.id??`history-${now}`),createdAt:alert.createdAt??new Date(now).toISOString()};
+        const next=[
+          normalized,
+          ...current.filter(item=>alert.eventKey?item.eventKey!==alert.eventKey:item.id!==normalized.id),
+        ].slice(0,200);
+        try{localStorage.setItem(`rabbit-alert-history:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}
+        return next;
+      });
+    }
     return true;
   };
   const persistAlertSettings=(next:AlertSettings)=>{
@@ -1422,6 +1466,9 @@ export default function Home() {
       const experimentalReminder=item.code===STOCK_AGENTS.zijin.code
         ? evaluateZijinExperimentalReminder(points)
         : null;
+      const displacementReminder=item.code===STOCK_AGENTS.zijin.code
+        ? evaluateZijinDisplacementWatch(points)
+        : null;
       const formalFresh=Boolean(latest&&isRecentCausalEvent(lastTime,latest.time,3));
       const riskMessage=active&&autoDecision.status==="locked"
         ? autoDecision.reason
@@ -1435,56 +1482,72 @@ export default function Home() {
       const candidateFresh=Boolean(latestObservation&&isRecentCausalEvent(lastTime,latestObservation.time,2));
       const agentCandidateFresh=Boolean(agentEvaluation?.status==="candidate"&&agentEvaluation.asOfTime&&isRecentCausalEvent(lastTime,agentEvaluation.asOfTime,2));
       const experimentalFresh=Boolean(experimentalReminder&&isRecentCausalEvent(lastTime,experimentalReminder.asOfTime,2));
+      const displacementFresh=Boolean(displacementReminder&&isRecentCausalEvent(lastTime,displacementReminder.time,2));
+      const engineCandidateFresh=Boolean(candidateFresh&&latestObservation&&!latestObservation.executable);
+      const selectedExperimental=experimentalFresh?experimentalReminder:null;
+      const selectedDisplacement=displacementFresh?displacementReminder:null;
+      const selectedAgent=agentCandidateFresh?agentEvaluation:null;
+      const selectedEngineCandidate=engineCandidateFresh?latestObservation:null;
       const isCandidate=!isRisk&&!formalFresh&&Boolean(
-        experimentalFresh
-        || (agentEvaluation ? agentCandidateFresh : candidateFresh&&latestObservation&&!latestObservation.executable)
+        selectedExperimental
+        || selectedDisplacement
+        || selectedAgent
+        || selectedEngineCandidate
       );
       if(!isRisk&&!formalFresh&&!isCandidate)continue;
       const key=isRisk
         ? `${item.code}:risk:${riskSignature}`
         : formalFresh
           ? `${item.code}:${latest!.time}:${latest!.side}`
-          : experimentalFresh
-            ? `${item.code}:experimental:${experimentalReminder!.id}:${experimentalReminder!.stage}:${experimentalReminder!.asOfTime}`
-            : agentEvaluation
-              ? `${item.code}:agent:${agentEvaluation.asOfTime}:${agentEvaluation.direction}`
-              : `${item.code}:candidate:${latestObservation!.time}:${latestObservation!.direction}`;
+          : selectedExperimental
+            ? `${item.code}:experimental:${selectedExperimental.id}:${selectedExperimental.stage}:${selectedExperimental.asOfTime}`
+            : selectedDisplacement
+              ? `${item.code}:displacement:${selectedDisplacement.id}`
+            : selectedAgent
+              ? `${item.code}:agent:${selectedAgent.asOfTime}:${selectedAgent.direction}`
+              : `${item.code}:candidate:${selectedEngineCandidate!.time}:${selectedEngineCandidate!.direction}`;
       const eventDate=snapshot?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??"unknown-date";
       const persistedKey=`rabbit-alerted:${accountName.toLowerCase()}:${eventDate}:${key}`;
       let alreadyAlerted=!isRisk&&alertedEventKeys.current.has(persistedKey);
       try{alreadyAlerted=alreadyAlerted||(!isRisk&&localStorage.getItem(persistedKey)==="1");}catch{}
       if(alreadyAlerted)continue;
       if(!isRisk){alertedEventKeys.current.add(persistedKey);try{localStorage.setItem(persistedKey,"1");}catch{}}
-      const candidateDirection=experimentalReminder?.direction??agentEvaluation?.direction??latestObservation?.direction;
-      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):(experimentalReminder?.stage==="experimental-exit"?(candidateDirection==="正T"?"sell":"buy"):(candidateDirection==="反T"?"sell":"buy"));
+      const candidateDirection=selectedExperimental?.direction??selectedDisplacement?.direction??selectedAgent?.direction??selectedEngineCandidate?.direction;
+      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):(selectedExperimental?.stage==="experimental-exit"?(candidateDirection==="正T"?"sell":"buy"):(candidateDirection==="反T"?"sell":"buy"));
       const title=isRisk
         ? `${item.name} 风险锁定`
         : formalFresh
           ? `${item.name} ${latest!.direction}${latest!.side}`
-          : experimentalFresh
-            ? `${item.name} · ${experimentalReminder!.title}`
-            : agentEvaluation
-              ? `${item.name} · ${agentEvaluation.title}`
-              : `${item.name} ${latestObservation!.direction}候选观察`;
+          : selectedExperimental
+            ? `${item.name} · ${selectedExperimental.title}`
+            : selectedDisplacement
+              ? `${item.name} · ${selectedDisplacement.label}`
+            : selectedAgent
+              ? `${item.name} · ${selectedAgent.title}`
+              : `${item.name} ${selectedEngineCandidate!.direction}候选观察`;
       const message=isRisk
         ? riskMessage
         : formalFresh
           ? (latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`)
-          : experimentalFresh
-            ? `${experimentalReminder!.reason}${experimentalReminder!.plan} 这是实验观察，不是买卖指令。`
-            : agentEvaluation
-              ? `${agentEvaluation.reasons[0]}；紫金研究模型观察，不是买卖指令。`
-              : `${latestObservation!.reason}；${latestObservation!.blockers.join("；")||"等待正式过滤确认"}`;
+          : selectedExperimental
+            ? `${selectedExperimental.reason}${selectedExperimental.plan} 这是实验观察，不是买卖指令。`
+            : selectedDisplacement
+              ? selectedDisplacement.reason
+            : selectedAgent
+              ? `${selectedAgent.reasons[0]}；紫金研究模型观察，不是买卖指令。`
+              : `${selectedEngineCandidate!.reason}；${selectedEngineCandidate!.blockers.join("；")||"等待正式过滤确认"}`;
       const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
-      const candidateSpeech=experimentalFresh
-        ? experimentalReminder!.stage==="experimental-exit"
-          ? `${item.name}，${experimentalReminder!.direction}实验观察结束，${experimentalReminder!.reason}，不是买卖指令`
-          : `${item.name}，${experimentalReminder!.direction}实验观察，出现倍量、均价线偏离与实时拐头，不是买卖指令`
-        : agentEvaluation
-        ? `${item.name}，${agentEvaluation.direction??"做T"}专属候选观察，不是买卖指令`
-        : isVwapDisplacementObservation(latestObservation)
-        ? `${item.name}，${latestObservation!.reason.split("；")[0]}，请观察确认，不是买卖指令`
-        : `${item.name}，${latestObservation?.direction??"做T"}候选观察，不是买卖指令`;
+      const candidateSpeech=selectedExperimental
+        ? selectedExperimental.stage==="experimental-exit"
+          ? `${item.name}，${selectedExperimental.direction}实验观察结束，${selectedExperimental.reason}，不是买卖指令`
+          : `${item.name}，${selectedExperimental.direction}实验观察，出现倍量、均价线偏离与实时拐头，不是买卖指令`
+        : selectedDisplacement
+        ? `${item.name}，${selectedDisplacement.label}，等待转弱或转强确认，不是买卖点`
+        : selectedAgent
+        ? `${item.name}，${selectedAgent.direction??"做T"}专属候选观察，不是买卖指令`
+        : isVwapDisplacementObservation(selectedEngineCandidate)
+        ? `${item.name}，${selectedEngineCandidate!.reason.split("；")[0]}，请观察确认，不是买卖指令`
+        : `${item.name}，${selectedEngineCandidate?.direction??"做T"}候选观察，不是买卖指令`;
       if(queued&&alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latest!.direction}${latest!.side}提醒`:candidateSpeech,isRisk,isRisk?"risk":formalFresh?"signal":"candidate",rabbit==="both"?null:rabbit);
       if(queued&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
     }
@@ -1937,13 +2000,25 @@ export default function Home() {
             <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · V4 过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
           </div>
           <div className="signal-funnel-note"><span>{visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察")}</span><em>{visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒仍由 V4 运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层"}</em></div>
+          {isZijinStock&&zijinPricePlan&&<div className={`zijin-price-plan ${zijinPricePlan.status}`} aria-label="紫金矿业预判买入卖出价区间">
+            <div className="zijin-price-plan-head"><div><span>紫金专属 · 因果预判</span><b>预判买卖价区间</b></div><em>{zijinPricePlan.asOfTime?`${zijinPricePlan.asOfTime.slice(0,2)}:${zijinPricePlan.asOfTime.slice(2)}`:"等待分时"}</em></div>
+            {!zijinPricePlan.ready?<p>{zijinPricePlan.reason}</p>:<>
+              <div className="zijin-price-plan-grid">
+                <div className="buy"><small>正T关注区</small><b>¥{zijinPricePlan.buyRange[0].toFixed(2)}–{zijinPricePlan.buyRange[1].toFixed(2)}</b><span>到区后等承接确认</span></div>
+                <div className="sell"><small>反T关注区</small><b>¥{zijinPricePlan.sellRange[0].toFixed(2)}–{zijinPricePlan.sellRange[1].toFixed(2)}</b><span>到区后等衰竭确认</span></div>
+              </div>
+              <div className="zijin-price-plan-meta"><span>预期毛价差 <b>¥{zijinPricePlan.expectedGrossSpread.toFixed(2)}</b></span><span>置信度 <b>{zijinPricePlan.confidence}%</b></span><span>{zijinPricePlan.position}</span></div>
+              <p>{zijinPricePlan.reason}</p>
+              <small className="zijin-price-plan-note">仅使用截至当前已出现的分时、均价线与 L2 覆盖；这是预警区间，不是挂单建议。</small>
+            </>}
+          </div>}
           {visibleStockAgentEvaluation&&<div className={`zijin-opening-card stock-agent-card ${visibleStockAgentEvaluation.status}`}>
             <div><span>手动叠加 · {STOCK_AGENTS.zijin.name}</span><b>{visibleStockAgentEvaluation.title}</b><em>{visibleStockAgentEvaluation.asOfTime?`${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)}`:"--:--"} · {visibleStockAgentEvaluation.score}/100</em></div>
             <p>{visibleStockAgentEvaluation.reasons[0]}</p>
             <small>{visibleStockAgentEvaluation.phase==="opening"?"早盘专属层":"全天因子层"} · 振幅 {visibleStockAgentEvaluation.metrics.rangePct.toFixed(2)}% · 距VWAP {visibleStockAgentEvaluation.metrics.vwapBiasPct>=0?"+":""}{visibleStockAgentEvaluation.metrics.vwapBiasPct.toFixed(2)}% · 量比 {visibleStockAgentEvaluation.metrics.volumeRatio==null?"待数据":`${visibleStockAgentEvaluation.metrics.volumeRatio.toFixed(2)}×`}</small>
             <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
-          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、条件候补、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button onClick={()=>setAlertLogOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存后台扫描记录':'查看最近7天后台扫描与提醒原因'}>提醒记录</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button><button className={alertSettings.background?"active":""} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"手机后台系统通知"}>{backgroundPushState==="unsupported"?"后台不支持":`后台推送 ${alertSettings.background?"已开":"关闭"}`}</button>{alertSettings.background&&<button onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">测试推送</button>}</div></div>
+          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、条件候补、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button onClick={()=>setAlertLogOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':'查看实际出现过的候选、正式与风险提醒'}>提醒记录</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button><button className={alertSettings.background?"active":""} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"手机后台系统通知"}>{backgroundPushState==="unsupported"?"后台不支持":`后台推送 ${alertSettings.background?"已开":"关闭"}`}</button>{alertSettings.background&&<button onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">测试推送</button>}</div></div>
           <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div><small>{decisionModel.reason}</small><em>{decisionModel.confirmed}/4</em></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <div className={`stock-state ${stockState.level}`}>
@@ -2031,7 +2106,7 @@ export default function Home() {
         <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button>{accountRole==='admin'&&!demoMode&&<button onClick={()=>{setAccountOpen(false);setMemberAdminOpen(true)}}>会员后台</button>}<button onClick={()=>{void fetch('/api/control/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});try{localStorage.removeItem('rabbit-auth-session');localStorage.removeItem('rabbit-account-role');sessionStorage.removeItem('rabbit-auth-session')}catch{} remoteSyncReady.current=false;setAccountOpen(false);setDemoMode(false);setAuthScreen('landing');setLocalAuth(false)}}>{demoMode?'退出演示':'退出登录'}</button></div>
       </div></div>}
       {memberAdminOpen&&<MemberAdminView onClose={()=>setMemberAdminOpen(false)}/>}
-      {alertLogOpen&&<AlertLogView stocks={stockList} activeCode={stock.code} onClose={()=>setAlertLogOpen(false)}/>}
+      {alertLogOpen&&<AlertLogView stocks={stockList} activeCode={stock.code} localHistory={alertHistory} onClose={()=>setAlertLogOpen(false)}/>}
       {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><ReleaseVersion/></footer>
@@ -2099,7 +2174,13 @@ function AuthView({onAuthenticated,onBack,onDemo,theme,onToggleTheme}:{onAuthent
   </main>;
 }
 
-function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:string}[];activeCode:string;onClose:()=>void}){
+function AlertLogView({stocks,activeCode,localHistory,onClose}:{stocks:{code:string;name:string}[];activeCode:string;localHistory:TradeAlertToast[];onClose:()=>void}){
+  type ServerAlertRecord = {
+    id:string|number; code?:string; createdAt:string; marketTime?:string; level?:string;
+    title?:string; message?:string; eventKey?:string|null; deliveryStatus?:MonitorScanLog["deliveryStatus"];
+    deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null;
+    payload?:{provider?:string;action?:{price?:number};observation?:{price?:number}};
+  };
   const [code,setCode]=useState('');
   const [logs,setLogs]=useState<MonitorScanLog[]>([]);
   const [health,setHealth]=useState<{ok:boolean;tradingWindow:boolean;scanner:{running:boolean;lastCompletedAt:string|null;monitored:number;inserted:number;logged:number;marketErrors:number;error:string|null}}|null>(null);
@@ -2110,13 +2191,55 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
     setLoading(true);setError('');setHealthError('');
     try{
       const query=new URLSearchParams({limit:'120'});if(code)query.set('code',code);
-      const [response,healthResponse]=await Promise.all([
+      const [response,alertsResponse,healthResponse]=await Promise.all([
         fetch(`/api/control/alert-log?${query}`,{credentials:'include',cache:'no-store'}),
+        fetch('/api/control/alerts?afterId=0&limit=100',{credentials:'include',cache:'no-store'}).catch(()=>null),
         fetch('/api/control/health',{credentials:'include',cache:'no-store'}).catch(()=>null),
       ]);
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(payload.error||'提醒日志接口暂不可用');
-      setLogs(Array.isArray(payload.logs)?payload.logs:[]);
+      const serverPayload=alertsResponse?.ok?await alertsResponse.json().catch(()=>({})):null;
+      const stockNames=new Map(stocks.map(item=>[item.code,item.name]));
+      const formatDate=(createdAt:string)=>{
+        const value=new Date(createdAt);
+        if(Number.isNaN(value.getTime()))return {date:'--',time:'----'};
+        const parts=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(value);
+        const part=(type:string)=>parts.find(item=>item.type===type)?.value??'';
+        return {date:`${part('year')}${part('month')}${part('day')}`,time:`${part('hour')}${part('minute')}`};
+      };
+      const serverLogs:MonitorScanLog[]=(Array.isArray(serverPayload?.alerts)?serverPayload.alerts:[]).map((item:ServerAlertRecord)=>{
+        const stamp=formatDate(item.createdAt);
+        return {
+          id:`server-${item.id}`,code:String(item.code??''),name:stockNames.get(String(item.code))??String(item.code??''),
+          marketDate:stamp.date,marketTime:String(item.marketTime??stamp.time).replace(/\D/g,'').slice(0,4),
+          price:Number(item.payload?.action?.price??item.payload?.observation?.price)||null,
+          result:item.level==='formal'?'formal':item.level==='risk'?'risk':'candidate',
+          reason:[item.title,item.message].filter(Boolean).join('：'),provider:item.payload?.provider??'服务端监控',
+          eventKey:item.eventKey??null,createdAt:item.createdAt,deliveryStatus:item.deliveryStatus??'stored',
+          deliveryChannel:item.deliveryChannel??null,deliveredAt:item.deliveredAt??null,deliveryError:item.deliveryError??null,
+        };
+      });
+      const localLogs:MonitorScanLog[]=localHistory.map((item,index)=>{
+        const stamp=formatDate(item.createdAt??new Date().toISOString());
+        const itemCode=String(item.code??activeCode);
+        return {
+          id:`local-${item.id??index}`,code:itemCode,name:stockNames.get(itemCode)??itemCode,
+          marketDate:stamp.date,marketTime:stamp.time,price:null,
+          result:item.level==='signal'?'formal':item.level==='risk'?'risk':'candidate',
+          reason:[item.title,item.message].filter(Boolean).join('：'),provider:item.source==='server'?'服务端监控':'操盘台实时引擎',
+          eventKey:item.eventKey??null,createdAt:item.createdAt??new Date().toISOString(),
+          deliveryStatus:'displayed',deliveryChannel:'操盘台前台',
+        };
+      });
+      const auditLogs:MonitorScanLog[]=(Array.isArray(payload.logs)?payload.logs:[])
+        .filter((item:MonitorScanLog)=>['formal','candidate','watch','risk'].includes(item.result));
+      const merged=new Map<string,MonitorScanLog>();
+      for(const item of [...localLogs,...auditLogs,...serverLogs]){
+        if(code&&item.code!==code)continue;
+        const key=item.eventKey||`${item.code}:${item.createdAt}:${item.result}:${item.reason}`;
+        merged.set(key,{...(merged.get(key)??{}),...item});
+      }
+      setLogs([...merged.values()].sort((left,right)=>new Date(right.createdAt).getTime()-new Date(left.createdAt).getTime()).slice(0,200));
       if(healthResponse?.ok){
         const healthPayload=await healthResponse.json().catch(()=>null);
         if(healthPayload?.scanner)setHealth(healthPayload);
@@ -2127,9 +2250,9 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
   };
   useEffect(()=>{void load()},[code]);
   useEffect(()=>{const close=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose()};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close)},[onClose]);
-  const isAlertResult=(result:string)=>result==='formal'||result==='candidate';
+  const isAlertResult=(result:string)=>result==='formal'||result==='candidate'||result==='risk'||result==='watch';
   const isErrorResult=(result:string)=>result==='market_error'||result==='no_data';
-  const resultLabel=(result:string)=>result==='formal'?'正式信号':result==='candidate'?'候选提醒':result==='watch'?'观察记录':result==='market_error'?'行情异常':result==='no_data'?'暂无分时':'未触发';
+  const resultLabel=(result:string)=>result==='formal'?'正式信号':result==='candidate'?'候选提醒':result==='risk'?'风险提醒':result==='watch'?'观察记录':result==='market_error'?'行情异常':result==='no_data'?'暂无分时':'未触发';
   const alertCount=logs.filter(item=>isAlertResult(item.result)).length;
   const errorCount=logs.filter(item=>isErrorResult(item.result)).length;
   const lastCompletedAt=health?.scanner.lastCompletedAt?new Date(health.scanner.lastCompletedAt):null;
@@ -2145,13 +2268,13 @@ function AlertLogView({stocks,activeCode,onClose}:{stocks:{code:string;name:stri
     if(item.deliveryStatus==='displayed')return {label:'页面已显示',detail:item.deliveryChannel||'站内提醒',tone:'sent'};
     return {label:'等待浏览器领取',detail:'服务器已记录；关闭浏览器时无法播放语音或浏览器弹窗',tone:'pending'};
   };
-  return <div className="account-overlay alert-log-overlay" role="dialog" aria-modal="true" aria-label="提醒追踪日志" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>
+  return <div className="account-overlay alert-log-overlay" role="dialog" aria-modal="true" aria-label="提醒历史记录" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}>
     <section className="alert-log-dialog">
-      <header><div><span>MONITOR AUDIT</span><h2>提醒追踪日志</h2><p>服务器逐只扫描的时间、价格、判断理由与数据来源。没有触发也会留下原因，方便追查漏报。</p></div><button type="button" onClick={onClose} aria-label="关闭提醒追踪日志">×</button></header>
+      <header><div><span>ALERT HISTORY</span><h2>提醒历史记录</h2><p>只显示实际出现过的候选、正式、风险与观察提醒；合并操盘台前台和服务器后台记录。</p></div><button type="button" onClick={onClose} aria-label="关闭提醒历史记录">×</button></header>
       <div className="alert-log-toolbar"><label><span>查看股票</span><select value={code} onChange={event=>setCode(event.target.value)}><option value="">全部监控股票</option>{stocks.map(item=><option key={item.code} value={item.code}>{item.code} {item.name}{item.code===activeCode?'（当前）':''}</option>)}</select></label><button type="button" onClick={()=>void load()} disabled={loading}>{loading?'读取中…':'刷新记录'}</button></div>
       <div className={`alert-log-health ${healthTone}`}><i/><div><small>后台监控状态</small><b>{healthError||healthLabel}</b></div><p><span>最近完成</span><strong>{lastCompletedAt&&!Number.isNaN(lastCompletedAt.getTime())?lastCompletedAt.toLocaleString('zh-CN',{hour12:false}):'尚无记录'}</strong></p><p><span>本轮扫描</span><strong>{health?`${health.scanner.monitored} 只 · 记录 ${health.scanner.logged} 条`:'—'}</strong></p><p><span>行情异常</span><strong>{health?`${health.scanner.marketErrors} 次`:'—'}</strong></p></div>
-      <div className="alert-log-summary"><p><small>读取记录</small><b>{logs.length}</b></p><p><small>触发提醒</small><b>{alertCount}</b></p><p><small>行情异常</small><b>{errorCount}</b></p><em>仅保留最近 7 天；切换页面或关闭浏览器不影响服务器扫描。</em></div>
-      {error?<div className="alert-log-state error"><b>暂时无法读取</b><span>{error}</span><small>这不是“0 条记录”；请确认服务器已部署提醒日志接口。</small></div>:loading?<div className="alert-log-state"><b>正在读取服务器记录…</b></div>:logs.length===0?<div className="alert-log-state"><b>尚无扫描记录</b><span>服务器开始监控后，这里会显示每只股票未触发、触发或行情失败的原因。</span></div>:<div className="alert-log-list"><div className="alert-log-row head"><span>股票</span><span>时间 / 价格</span><span>结果</span><span>判断原因</span><span>发送结果</span><span>数据源</span></div>{logs.map(item=>{const delivery=deliveryText(item);return <div className={`alert-log-row ${isAlertResult(item.result)?'alert':isErrorResult(item.result)?'error':item.result}`} key={item.id}><span><b>{item.code}</b><small>{item.name}</small></span><span><b>{item.marketTime?.length>=4?`${item.marketTime.slice(0,2)}:${item.marketTime.slice(2)}`:'--:--'}</b><small>{item.marketDate} · {item.price==null?'--':`¥${Number(item.price).toFixed(2)}`}</small></span><span><em>{resultLabel(item.result)}</em></span><span><b>{item.reason||'服务器未返回判断原因'}</b><small>{new Date(item.createdAt).toLocaleString('zh-CN')}</small></span><span className={`delivery ${delivery.tone}`}><b>{delivery.label}</b><small>{delivery.detail}</small></span><span><small>{item.provider||'--'}</small></span></div>})}</div>}
+      <div className="alert-log-summary"><p><small>历史记录</small><b>{logs.length}</b></p><p><small>实际提醒</small><b>{alertCount}</b></p><p><small>读取异常</small><b>{errorCount}</b></p><em>服务端记录保留最近 7 天；本机前台提醒最多保留 200 条，并按事件去重。</em></div>
+      {error?<div className="alert-log-state error"><b>暂时无法读取</b><span>{error}</span><small>本机已出现的提醒仍会继续保存，恢复连接后会和服务器记录合并。</small></div>:loading?<div className="alert-log-state"><b>正在读取提醒历史…</b></div>:logs.length===0?<div className="alert-log-state"><b>尚无提醒记录</b><span>出现候选、正式买卖点或风险提醒后，这里会自动留下时间、原因和来源。</span></div>:<div className="alert-log-list"><div className="alert-log-row head"><span>股票</span><span>时间 / 价格</span><span>类型</span><span>提醒内容</span><span>送达结果</span><span>来源</span></div>{logs.map(item=>{const delivery=deliveryText(item);return <div className={`alert-log-row ${isAlertResult(item.result)?'alert':isErrorResult(item.result)?'error':item.result}`} key={item.id}><span><b>{item.code}</b><small>{item.name}</small></span><span><b>{item.marketTime?.length>=4?`${item.marketTime.slice(0,2)}:${item.marketTime.slice(2)}`:'--:--'}</b><small>{item.marketDate} · {item.price==null?'--':`¥${Number(item.price).toFixed(2)}`}</small></span><span><em>{resultLabel(item.result)}</em></span><span><b>{item.reason||'未记录提醒内容'}</b><small>{new Date(item.createdAt).toLocaleString('zh-CN')}</small></span><span className={`delivery ${delivery.tone}`}><b>{delivery.label}</b><small>{delivery.detail}</small></span><span><small>{item.provider||'--'}</small></span></div>})}</div>}
     </section>
   </div>;
 }

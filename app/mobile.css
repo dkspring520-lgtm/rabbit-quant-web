@@ -8,6 +8,11 @@
   object-position: left center;
 }
 
+@media (max-width:760px){
+  .zijin-price-plan{padding:10px}
+  .zijin-price-plan-grid b{font-size:11px}
+}
+
 .brand-type-fallback,
 .auth-brand > span,
 .public-brand > span {
