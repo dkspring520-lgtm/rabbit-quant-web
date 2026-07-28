@@ -134,3 +134,15 @@ test("deployment keeps rollback images and emits optional webhook notifications"
   assert.match(script, /sync_operations_assets/);
   assert.match(script, /rabbit-quant-backup\.timer/);
 });
+
+test("production deploy starts and verifies the Zijin L2 evidence audit", () => {
+  const compose = read("compose.web.yml");
+  const script = read("scripts/deploy-production.sh");
+
+  assert.match(compose, /l2-audit:/);
+  assert.match(compose, /container_name: rabbit-quant-zijin-l2-audit/);
+  assert.match(script, /L2_AUDIT_CONTAINER="rabbit-quant-zijin-l2-audit"/);
+  assert.match(script, /control shadow l2-audit/);
+  assert.match(script, /container_is_healthy "\$L2_AUDIT_CONTAINER"/);
+  assert.match(script, /wait_for_release "\$previous_sha" "\$active_slot" 0/);
+});

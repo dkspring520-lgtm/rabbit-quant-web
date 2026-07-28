@@ -15,6 +15,7 @@ WEB_BLUE_CONTAINER="rabbit-quant-modern-web"
 WEB_GREEN_CONTAINER="rabbit-quant-modern-web-green"
 TRAINER_CONTAINER="rabbit-quant-zijin-trainer"
 L2_CONTAINER="rabbit-quant-zijin-l2"
+L2_AUDIT_CONTAINER="rabbit-quant-zijin-l2-audit"
 NGINX_UPSTREAM_FILE="${RABBIT_QUANT_NGINX_UPSTREAM_FILE:-/etc/nginx/conf.d/rabbit-quant-active-upstream.conf}"
 NGINX_SITE_FILE="${RABBIT_QUANT_NGINX_SITE_FILE:-/etc/nginx/sites-available/rabbit-quant}"
 
@@ -245,12 +246,17 @@ wait_for_web_slot() {
 }
 
 wait_for_release() {
-  local expected_sha="$1" active_slot="${2:-blue}" active_container active_port
+  local expected_sha="$1" active_slot="${2:-blue}" require_l2_audit="${3:-1}" active_container active_port
   active_container="$(slot_container "$active_slot")"
   active_port="$(slot_port "$active_slot")"
   local deadline=$((SECONDS + HEALTH_TIMEOUT))
   while (( SECONDS < deadline )); do
-    if container_is_healthy "$active_container" \
+    local l2_audit_ready=1
+    if [[ "$require_l2_audit" == "1" ]] && ! container_is_healthy "$L2_AUDIT_CONTAINER"; then
+      l2_audit_ready=0
+    fi
+    if (( l2_audit_ready == 1 )) \
+      && container_is_healthy "$active_container" \
       && container_is_healthy "rabbit-quant-control" \
       && container_is_healthy "$TRAINER_CONTAINER" \
       && container_is_healthy "$L2_CONTAINER" \
@@ -395,7 +401,7 @@ if (( switch_failed == 0 )); then
     switch_failed=1
   else
     current_stage="update support services"
-    if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$target_sha" "$build_time" "$candidate_origin" l2 trainer control shadow; then
+    if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$target_sha" "$build_time" "$candidate_origin" l2 trainer control shadow l2-audit; then
       log "Support services failed to update; traffic will be restored to the old Web."
       switch_failed=1
     fi
@@ -433,7 +439,7 @@ if [[ -z "$previous_web_image" || -z "$previous_trainer_image" || -z "$previous_
 fi
 
 compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "$previous_l2_image" "${previous_sha:-development}" "rollback" "$active_origin" l2 trainer control shadow
-if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha" "$active_slot"; then
+if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha" "$active_slot" 0; then
   log "已恢复旧版本 ${previous_sha:0:12}。"
   record_result "rolled_back" "新版本不健康，旧版本已恢复"
 else
