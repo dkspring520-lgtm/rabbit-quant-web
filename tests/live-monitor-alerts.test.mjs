@@ -1,11 +1,31 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  compactChartObservations,
   fulfilledWatchlistSnapshots,
   isRecentCausalEvent,
   isVwapDisplacementObservation,
   selectLatestAlertableObservation,
 } from "../lib/live-monitor-alerts.mjs";
+
+test("repeated same-direction observations are compacted into one causal episode", () => {
+  const first = { time:"0942", direction:"正T", stage:"candidate", score:62, executable:false };
+  const second = { time:"0958", direction:"正T", stage:"candidate", score:64, executable:false };
+  assert.deepEqual(compactChartObservations([first, second], 30), [second]);
+});
+
+test("opposite directions and separate episodes remain visible", () => {
+  const rebound = { time:"0942", direction:"正T", stage:"candidate", executable:false };
+  const fade = { time:"0950", direction:"反T", stage:"candidate", executable:false };
+  const laterRebound = { time:"1020", direction:"正T", stage:"candidate", executable:false };
+  assert.deepEqual(compactChartObservations([rebound, fade, laterRebound], 30), [rebound, fade, laterRebound]);
+});
+
+test("a confirmed point is not replaced by a weaker repeat observation", () => {
+  const confirmed = { time:"0942", direction:"正T", pivotAssessment:"confirmed", executable:false };
+  const watch = { time:"0950", direction:"正T", stage:"watch", executable:false };
+  assert.deepEqual(compactChartObservations([confirmed, watch], 30), [confirmed]);
+});
 
 test("live alerts tolerate a short polling delay without reading future data", () => {
   assert.equal(isRecentCausalEvent("10:03", "1001", 3), true);

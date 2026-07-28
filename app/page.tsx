@@ -16,7 +16,7 @@ import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { buildZijinReplayCandidates } from "@/lib/zijin-replay-candidates.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
-import { fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
+import { compactChartObservations, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
@@ -284,12 +284,6 @@ type StockUniverseResponse = { provider:string; total:number; fallback:boolean; 
 type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction; exit:ReplayAction; holdingMinutes:number; gross:number; fees:number; executionCost:number; net:number; outcome:"盈利"|"亏损"|"持平"; explanation:string };
 type StockBatchFeedback = { code:string; name:string; date:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; candidates:number; keyObservations:number; strongSellTrendBlocked:number; strongBuyTrendBlocked:number; feedback:string; minutes:ReplayMinute[]; actions:ReplayAction[]; observations:ReplayObservation[]; cycles:StockBatchCycle[] };
 type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; attemptedStocks:number; replacementStocks:number; overlapWithPrevious:number; uniqueSessions:number; noTrade:number; referenceStocks:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; universeSize:number; universeProvider:string; fallbackUniverse:boolean; industries:number; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
-
-function selectVisibleChartObservations(observations: ReplayObservation[]) {
-  // Every live marker stays on the minute when the engine could first know it.
-  // Never reselect an old pivot later or paint a confirmed turn back in time.
-  return observations.filter(observation=>!observation.executable);
-}
 
 function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinute[], observations:ReplayObservation[]) {
   return code === "601899"
@@ -955,13 +949,21 @@ export default function Home() {
     const pointAt=(point:{price:number},index:number)=>`${liveChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
     const vwap=averageSeries.map((price,index)=>pointAt({price},index));
-    const maxVolume=Math.max(...minutePoints.map(point=>point.volume),1);
+    const sortedVolumes=minutePoints.map(point=>Math.max(0,point.volume)).sort((left,right)=>left-right);
+    const volumeReference=Math.max(1,sortedVolumes[Math.floor((sortedVolumes.length-1)*.92)]??1);
     const lastVwap=averageSeries.at(-1) ?? minutePoints.at(-1)!.price;
     const firstX=liveChartX(minutePoints[0].time); const lastX=liveChartX(minutePoints.at(-1)!.time);
     return {
       path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,
       lastY:liveChartPriceY(minutePoints.at(-1)!.price,min,max),
-      volumes:minutePoints.map((point,index)=>({x:liveChartX(point.time),height:Math.max(2,point.volume/maxVolume*42),up:index===0||point.price>=minutePoints[index-1].price})),
+      volumes:minutePoints.map((point,index)=>{
+        const normalized=Math.min(1.35,Math.max(0,point.volume)/volumeReference);
+        return {
+          x:liveChartX(point.time),
+          height:Math.max(3,Math.sqrt(normalized/1.35)*44),
+          up:index===0||point.price>=minutePoints[index-1].price,
+        };
+      }),
       ticks:scale.ticks.map(tick=>({...tick,y:liveChartPriceY(tick.value,min,max)})),
     };
   },[minutePoints,activeQuote?.previousClose]);
@@ -1003,7 +1005,10 @@ export default function Home() {
   );
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
-  const visibleChartObservations=useMemo(()=>selectVisibleChartObservations(currentObservations),[currentObservations]);
+  const visibleChartObservations=useMemo(
+    ()=>compactChartObservations(currentObservations,30) as ReplayObservation[],
+    [currentObservations],
+  );
   const intradayMarkerLayout=useMemo(()=>{
     if(!chartModel)return {observations:[],actions:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
@@ -1048,7 +1053,8 @@ export default function Home() {
       const qualified=observation.stage!=="watch";
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
-      const currentLabel=observation.confirmationLabel??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
+      const rawLabel=observation.confirmationLabel??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
+      const currentLabel=!isSell&&rawLabel==="反弹观察"&&observation.time<="1000"?"修复观察":rawLabel;
       const labelWidth=currentLabel.length*8+14;
       // Candidate dots are actionable observations, not decorative markers.
       // Keep their short labels on mobile as well; reserveLabel() already
@@ -3289,7 +3295,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const formatTime=(value:string|undefined)=>value && value.length>=4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : "--:--";
   const formatDate=(value:string|undefined)=>value && value.length===8 ? `${value.slice(0,4)}-${value.slice(4,6)}-${value.slice(6,8)}` : value ?? "—";
   const visibleBacktestObservations=result
-    ? selectVisibleChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? []))
+    ? compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? []),30) as ReplayObservation[]
     : [];
   const cycles = (() => {
     const paired: { first: ReplayAction; second: ReplayAction }[] = [];
