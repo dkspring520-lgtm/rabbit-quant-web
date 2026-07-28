@@ -11,6 +11,7 @@ export type ZijinMainForceMinute = {
 export type ZijinMainForceBar = Required<Omit<ZijinMainForceMinute,"activeBuyRatio">> & {
   activeBuyRatio:number|null;
   netNotional:number;
+  cumulativeNetNotional:number;
   strength:number;
 };
 export function buildZijinMainForceTrack(minutes?:ZijinMainForceMinute[]):{

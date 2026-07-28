@@ -149,6 +149,7 @@ services:
       ZIJIN_L2_AUDIT_STATE_PATH: /training-state/zijin-l2-state-audit.json
       ZIJIN_L2_AUDIT_LEDGER_PATH: /training-state/zijin-l2-state-events.jsonl
       ZIJIN_L2_AUDIT_LABEL_PATH: /training-state/zijin-l2-state-event-labels.jsonl
+      ZIJIN_L2_REPLAY_ARCHIVE_DIR: /training-state/zijin-l2-replay
       ZIJIN_L2_AUDIT_POLL_MS: "15000"
       ZIJIN_L2_AUDIT_IDLE_POLL_MS: "60000"
       ZIJIN_L2_AUDIT_COST_PCT: "0.46"

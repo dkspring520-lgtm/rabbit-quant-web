@@ -16,6 +16,7 @@ test("Zijin main-force tracker separates large active buys and sells", () => {
   assert.ok(result.bars[0].strength > 0);
   assert.equal(result.bars[2].netNotional, -700_000);
   assert.ok(result.bars[2].strength < 0);
+  assert.deepEqual(result.bars.map(row => row.cumulativeNetNotional), [500_000, 900_000, 200_000, 900_000]);
   assert.equal(result.totals.netNotional, 900_000);
 });
 

@@ -16,6 +16,7 @@ const origin = process.env.ZIJIN_L2_AUDIT_ORIGIN || "http://web-blue:3000";
 const statePath = process.env.ZIJIN_L2_AUDIT_STATE_PATH || "/training-state/zijin-l2-state-audit.json";
 const ledgerPath = process.env.ZIJIN_L2_AUDIT_LEDGER_PATH || "/training-state/zijin-l2-state-events.jsonl";
 const labelPath = process.env.ZIJIN_L2_AUDIT_LABEL_PATH || "/training-state/zijin-l2-state-event-labels.jsonl";
+const replayArchiveDir = process.env.ZIJIN_L2_REPLAY_ARCHIVE_DIR || "/training-state/zijin-l2-replay";
 const pollMs = Math.max(10_000, Number(process.env.ZIJIN_L2_AUDIT_POLL_MS) || 15_000);
 const idlePollMs = Math.max(30_000, Number(process.env.ZIJIN_L2_AUDIT_IDLE_POLL_MS) || 60_000);
 const costPct = Math.max(0, Number(process.env.ZIJIN_L2_AUDIT_COST_PCT) || 0.46);
@@ -74,6 +75,19 @@ async function writeJsonAtomic(path, value) {
   const temporary = `${path}.tmp`;
   await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
   await rename(temporary, path);
+}
+
+async function archiveReplayMinutes(exchangeMinute, minutes) {
+  const date = String(exchangeMinute ?? "").replace(/\D/g, "").slice(0, 8);
+  if (!/^\d{8}$/.test(date) || !Array.isArray(minutes) || !minutes.length) return;
+  await writeJsonAtomic(`${replayArchiveDir}/${date}.json`, {
+    schemaVersion: 1,
+    symbol: "601899",
+    date,
+    updatedAt: new Date().toISOString(),
+    causal: true,
+    minutes,
+  });
 }
 
 async function readPreviousState() {
@@ -137,6 +151,7 @@ export async function runOnce() {
   const stale = Boolean(payload?.meta?.stale || payload?.status?.stale);
   const exchangeMinute = payload.lastExchangeTime ?? rawMinutes.at(-1)?.exchangeMinute;
   const minutes = mergeMarketAndL2Minutes(rawMinutes, marketPayload, exchangeMinute);
+  await archiveReplayMinutes(exchangeMinute, minutes);
   const freshLiveMinute = isFreshLiveExchangeMinute(exchangeMinute, now);
   if (!payload?.status?.connected || !payload?.status?.authorized || stale || !rawMinutes.length || !freshLiveMinute) {
     const audit = summarizeZijinL2Audit({
