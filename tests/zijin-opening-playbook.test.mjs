@@ -68,6 +68,23 @@ test("a high-pullback plus VWAP loss and volume confirmation forms a reverse-T c
   assert.ok(result.metrics.distanceToVwapPct < 0.1);
 });
 
+test("a late reverse-T setup is demoted after price has already fallen far below VWAP", () => {
+  const rows = [];
+  for (let minute = 30; minute <= 58; minute += 1) {
+    rows.push([`09:${String(minute).padStart(2, "0")}`, 31.4 + (minute % 3) * 0.01, 100]);
+  }
+  for (let minute = 0; minute <= 28; minute += 1) {
+    const price = minute < 15 ? 31.55 - minute * 0.005 : 31.45 - (minute - 15) * 0.02;
+    rows.push([`10:${String(minute).padStart(2, "0")}`, price, minute >= 25 ? 220 : 100]);
+  }
+  const result = evaluateZijinOpeningPlaybook(points(rows), { previousClose: 31.4 });
+
+  assert.equal(result.direction, "反T");
+  assert.equal(result.status, "watch");
+  assert.ok(result.metrics.distanceToVwapPct < -0.3);
+  assert.match(result.reasons.join(" "), /避免低位补卖/);
+});
+
 test("high range without directional confirmation remains watch with explicit reasons", () => {
   const result = evaluateZijinOpeningPlaybook(points([
     ["09:30", 29.00, 100],
