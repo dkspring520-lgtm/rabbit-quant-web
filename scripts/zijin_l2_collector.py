@@ -146,10 +146,59 @@ class Collector:
         # from broker L2 instead of falling back to a public minute close.
         self.minute_bars = deque(maxlen=260)
         self.current_minute_bar = None
+        # Minute-level active-flow ledger for the dedicated "主力追踪" chart.
+        # It records large prints rather than trying to identify an account.
+        self.minute_flows = {}
+        self.restored_minute_rows = {}
         self.forward_label_count = 0
         self.forward_research_status = "collecting-forward-evidence"
+        self.load_intraday_flow_state()
         self.load_forward_index()
         self.refresh_forward_research()
+
+    def load_intraday_flow_state(self):
+        """Resume today's published minute flow after a collector restart."""
+        try:
+            payload = json.loads(Path(self.state_path).read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return
+        rows = payload.get("recentMinutes", [])
+        if not isinstance(rows, list):
+            return
+        dates = [
+            str(row.get("exchangeMinute", ""))[:8]
+            for row in rows if isinstance(row, dict) and len(str(row.get("exchangeMinute", ""))) >= 8
+        ]
+        active_date = max(dates, default="")
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            minute = str(row.get("exchangeMinute", ""))
+            if not active_date or not minute.startswith(active_date) or not is_a_share_cash_session(minute):
+                continue
+            self.minute_flows[minute] = {
+                "activeBuyNotional": float(row.get("activeBuyNotional", 0) or 0),
+                "activeSellNotional": float(row.get("activeSellNotional", 0) or 0),
+                "activeBuyVolume": int(row.get("activeBuyVolume", 0) or 0),
+                "activeSellVolume": int(row.get("activeSellVolume", 0) or 0),
+                "bigBuyNotional": float(row.get("bigBuyNotional", 0) or 0),
+                "bigSellNotional": float(row.get("bigSellNotional", 0) or 0),
+                "bigBuyVolume": int(row.get("bigBuyVolume", 0) or 0),
+                "bigSellVolume": int(row.get("bigSellVolume", 0) or 0),
+                "bigBuyCount": int(row.get("bigBuyCount", 0) or 0),
+                "bigSellCount": int(row.get("bigSellCount", 0) or 0),
+            }
+            self.restored_minute_rows[minute] = {
+                "time": minute[-4:],
+                "exchangeMinute": minute,
+                "price": float(row.get("price", 0) or 0),
+                "open": float(row.get("open", row.get("price", 0)) or 0),
+                "high": float(row.get("high", row.get("price", 0)) or 0),
+                "low": float(row.get("low", row.get("price", 0)) or 0),
+                "volume": int(row.get("volume", 0) or 0),
+                "amount": float(row.get("amount", 0) or 0),
+                "averagePrice": row.get("averagePrice"),
+            }
 
     def load_forward_index(self):
         try:
@@ -277,6 +326,89 @@ class Collector:
             "currentBar": bars[-1],
         }
 
+    def update_minute_flow(self, minute, side, volume, notional):
+        if not is_a_share_cash_session(minute) or side not in {"B", "S"}:
+            return
+        # A new trading date starts a fresh all-day ledger.
+        if self.minute_flows and minute[:8] != max(self.minute_flows)[:8]:
+            self.minute_flows.clear()
+            self.restored_minute_rows.clear()
+        flow = self.minute_flows.setdefault(minute, {
+            "activeBuyNotional": 0.0, "activeSellNotional": 0.0,
+            "activeBuyVolume": 0, "activeSellVolume": 0,
+            "bigBuyNotional": 0.0, "bigSellNotional": 0.0,
+            "bigBuyVolume": 0, "bigSellVolume": 0,
+            "bigBuyCount": 0, "bigSellCount": 0,
+        })
+        prefix = "Buy" if side == "B" else "Sell"
+        flow[f"active{prefix}Notional"] += notional
+        flow[f"active{prefix}Volume"] += volume
+        if notional >= self.big_order:
+            flow[f"big{prefix}Notional"] += notional
+            flow[f"big{prefix}Volume"] += volume
+            flow[f"big{prefix}Count"] += 1
+        # Defensive cap if a vendor sends packets for more than one day.
+        if len(self.minute_flows) > 260:
+            for stale_minute in sorted(self.minute_flows)[:-260]:
+                self.minute_flows.pop(stale_minute, None)
+
+    def minute_flow_payload(self, minute):
+        flow = self.minute_flows.get(minute, {})
+        active_buy = float(flow.get("activeBuyNotional", 0) or 0)
+        active_sell = float(flow.get("activeSellNotional", 0) or 0)
+        big_buy = float(flow.get("bigBuyNotional", 0) or 0)
+        big_sell = float(flow.get("bigSellNotional", 0) or 0)
+        active_total = active_buy + active_sell
+        return {
+            "activeBuyNotional": round(active_buy, 2),
+            "activeSellNotional": round(active_sell, 2),
+            "activeBuyVolume": int(flow.get("activeBuyVolume", 0) or 0),
+            "activeSellVolume": int(flow.get("activeSellVolume", 0) or 0),
+            "activeBuyRatio": None if active_total <= 0 else round(active_buy / active_total, 6),
+            "netActiveNotional": round(active_buy - active_sell, 2),
+            "bigBuyNotional": round(big_buy, 2),
+            "bigSellNotional": round(big_sell, 2),
+            "bigOrderNetNotional": round(big_buy - big_sell, 2),
+            "bigBuyVolume": int(flow.get("bigBuyVolume", 0) or 0),
+            "bigSellVolume": int(flow.get("bigSellVolume", 0) or 0),
+            "bigBuyCount": int(flow.get("bigBuyCount", 0) or 0),
+            "bigSellCount": int(flow.get("bigSellCount", 0) or 0),
+        }
+
+    def recent_minute_payload(self):
+        active_date = (self.last_exchange_time or "")[:8]
+        rows = {
+            minute: dict(row)
+            for minute, row in self.restored_minute_rows.items()
+            if not active_date or minute[:8] == active_date
+        }
+        live_bars = [
+            *self.minute_bars,
+            *([self.current_minute_bar] if self.current_minute_bar else []),
+        ]
+        for bar in live_bars:
+            minute = bar["minute"]
+            if active_date and minute[:8] != active_date:
+                continue
+            restored = rows.get(minute)
+            rows[minute] = {
+                "time": minute[-4:],
+                "exchangeMinute": minute,
+                "price": bar["close"],
+                "open": restored["open"] if restored else bar["open"],
+                "high": max(restored["high"], bar["high"]) if restored else bar["high"],
+                "low": min(restored["low"], bar["low"]) if restored else bar["low"],
+                "volume": (restored["volume"] if restored else 0) + bar.get("volume", 0),
+                "amount": (restored["amount"] if restored else 0) + bar.get("turnover", 0),
+                "averagePrice": bar.get("averagePrice") or (
+                    restored.get("averagePrice") if restored else None
+                ),
+            }
+        return [
+            {**rows[minute], **self.minute_flow_payload(minute)}
+            for minute in sorted(rows)[-260:]
+        ]
+
     async def on_transaction(self, message):
         received = time.time()
         for row in self.parse(message.data, TRANSACTION):
@@ -285,6 +417,9 @@ class Collector:
             self.transactions.append((received, side, volume, notional))
             self.message_counts["transaction"] += 1
             self.last_exchange_time = f"{int(row['date']):08d}-{int(row['time']):09d}"
+            minute = exchange_minute(self.last_exchange_time)
+            if minute:
+                self.update_minute_flow(minute, side, volume, notional)
         self.last_message_at = received
 
     async def on_order(self, message):
@@ -336,7 +471,7 @@ class Collector:
         }
         ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
         return {
-            "schemaVersion": 3, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
+            "schemaVersion": 4, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
             "symbol": self.symbol, "updatedAt": utc_now(),
             "lastMessageAt": None if age is None else datetime.fromtimestamp(self.last_message_at, timezone.utc).isoformat().replace("+00:00", "Z"),
             "lastExchangeTime": self.last_exchange_time,
@@ -363,16 +498,7 @@ class Collector:
                      "micropriceEdgeBps": None if mid <= 0 else round((microprice - mid) / mid * 10000, 4)},
             "session": session,
             "volatility": self.atr_state(),
-            "recentMinutes": [
-                {
-                    "time": bar["minute"][-4:], "exchangeMinute": bar["minute"],
-                    "price": bar["close"], "open": bar["open"], "high": bar["high"], "low": bar["low"],
-                    "volume": bar.get("volume", 0), "amount": bar.get("turnover", 0),
-                    "averagePrice": bar.get("averagePrice"),
-                }
-                for bar in [*self.minute_bars, *([self.current_minute_bar] if self.current_minute_bar else [])]
-                if bar["minute"][:8] == (self.last_exchange_time or "")[:8]
-            ],
+            "recentMinutes": self.recent_minute_payload(),
             "messages": self.message_counts,
             "forward": {
                 "path": self.forward_path, "samples": len(self.forward_minutes), "tradingDays": len(self.forward_days),
