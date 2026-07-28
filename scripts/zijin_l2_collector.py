@@ -227,8 +227,14 @@ class Collector:
         if bar is not None:
             self.minute_bars.append(bar)
         same_day = bar is not None and bar["minute"][:8] == minute[:8]
-        start_volume = bar["endVolume"] if same_day else 0
-        start_turnover = bar["endTurnover"] if same_day else 0
+        # A collector can restart in the middle of a session. Snapshot volume
+        # and turnover are session-cumulative, so treating the first snapshot
+        # as a zero-based minute creates one giant fake volume bar. Bootstrap
+        # the first minute from the current counters; later snapshots add only
+        # the genuinely observed increment.
+        first_observed_minute = bar is None
+        start_volume = cumulative_volume if first_observed_minute else (bar["endVolume"] if same_day else 0)
+        start_turnover = cumulative_turnover if first_observed_minute else (bar["endTurnover"] if same_day else 0)
         average = self.cumulative_average_price(cumulative_turnover, cumulative_volume, price)
         self.current_minute_bar = {
             "minute": minute, "open": price, "high": price, "low": price, "close": price,
