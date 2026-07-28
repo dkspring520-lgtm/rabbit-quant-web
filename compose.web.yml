@@ -16,6 +16,7 @@ x-web-common: &web-common
     ZIJIN_TRAINER_ALERTS_PATH: /training-state/zijin-trainer-alerts.jsonl
     ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
     ZIJIN_L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
+    ZIJIN_L2_AUDIT_STATE_PATH: /training-state/zijin-l2-state-audit.json
   volumes:
     - /opt/rabbit-quant-state:/training-state
     - /opt/rabbit-quant-research:/training-data:ro
@@ -131,6 +132,39 @@ services:
         - node
         - -e
         - "const fs=require('fs');const p='/training-state/zijin-shadow-ab.json';const s=JSON.parse(fs.readFileSync(p,'utf8'));if(Date.now()-Date.parse(s.updatedAt)>300000)process.exit(1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+  l2-audit:
+    image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: rabbit-quant-zijin-l2-audit
+    command: ["node", "scripts/zijin-l2-state-observer.mjs"]
+    restart: unless-stopped
+    environment:
+      ZIJIN_L2_AUDIT_ORIGIN: ${RABBIT_QUANT_ACTIVE_WEB_ORIGIN:-http://web-blue:3000}
+      ZIJIN_L2_AUDIT_STATE_PATH: /training-state/zijin-l2-state-audit.json
+      ZIJIN_L2_AUDIT_LEDGER_PATH: /training-state/zijin-l2-state-events.jsonl
+      ZIJIN_L2_AUDIT_LABEL_PATH: /training-state/zijin-l2-state-event-labels.jsonl
+      ZIJIN_L2_AUDIT_POLL_MS: "15000"
+      ZIJIN_L2_AUDIT_IDLE_POLL_MS: "60000"
+      ZIJIN_L2_AUDIT_COST_PCT: "0.46"
+    volumes:
+      - /opt/rabbit-quant-state:/training-state
+    depends_on:
+      l2:
+        condition: service_healthy
+      web-blue:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const fs=require('fs');const p='/training-state/zijin-l2-state-audit.json';const s=JSON.parse(fs.readFileSync(p,'utf8'));if(Date.now()-Date.parse(s.updatedAt)>300000)process.exit(1)"
       interval: 30s
       timeout: 5s
       retries: 3
