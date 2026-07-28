@@ -47,6 +47,27 @@ test("Zijin stays active after 10:30 with the intraday factor layer", () => {
   assert.equal(result.affectsV4, false);
 });
 
+test("Zijin intraday factor cannot become a candidate without same-minute L2", () => {
+  const rows = [];
+  for (let minute = 30; minute <= 59; minute += 1) {
+    rows.push({time:`09${minute}`, price:31.50, volume:100});
+  }
+  for (let minute = 0; minute <= 29; minute += 1) {
+    rows.push({time:`10${String(minute).padStart(2, "0")}`, price:31.50, volume:100});
+  }
+  rows.push(
+    {time:"1030", price:31.85, volume:220},
+    {time:"1031", price:31.82, volume:220},
+    {time:"1032", price:31.80, volume:220},
+    {time:"1033", price:31.78, volume:220},
+    {time:"1034", price:31.75, volume:220},
+    {time:"1035", price:31.70, volume:220},
+  );
+  const result = evaluateStockAgent({code:"601899", minutes:rows, previousClose:31.50});
+  assert.notEqual(result.status, "candidate");
+  assert.match(result.reasons.join(" "), /缺少同分钟真实 L2/);
+});
+
 test("non-Zijin stocks do not receive the standalone evaluation", () => {
   assert.equal(evaluateStockAgent({ code:"601012", minutes:opening }), null);
 });
