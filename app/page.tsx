@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import "./position-setup.css";
 import "./referral.css";
 import { buildHistoricalSimilarityArchive, runSmartTReplay } from "@/lib/smart-t-engine.mjs";
@@ -65,6 +65,13 @@ const formatMainForceAmount = (value:number) => {
   if(absolute>=100_000_000)return `${sign}${(absolute/100_000_000).toFixed(2)}亿`;
   if(absolute>=10_000)return `${sign}${(absolute/10_000).toFixed(1)}万`;
   return `${sign}${Math.round(absolute)}`;
+};
+
+const formatIntradayVolume = (value:number) => {
+  const safe=Math.max(0,Number(value)||0);
+  if(safe>=100_000_000)return `${(safe/100_000_000).toFixed(2)} 亿股`;
+  if(safe>=10_000)return `${(safe/10_000).toFixed(1)} 万股`;
+  return `${Math.round(safe).toLocaleString("zh-CN")} 股`;
 };
 
 const base64UrlToUint8Array = (value:string) => {
@@ -631,6 +638,8 @@ export default function Home() {
   const draggedStockCodeRef = useRef<string | null>(null);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
+  const intradayChartRef = useRef<SVGSVGElement | null>(null);
+  const [intradayCursorTime,setIntradayCursorTime]=useState<string|null>(null);
   const stock = stockList[activeStock] || stockList[0];
   const activeProfitMode=preferences.profitMode;
   const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
@@ -1000,6 +1009,12 @@ export default function Home() {
     return {
       path,vwapPath:`M${vwap.join(' L')}`,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,
       lastY:liveChartPriceY(minutePoints.at(-1)!.price,min,max),
+      points:minutePoints.map((point,index)=>({
+        ...point,
+        averagePrice:averageSeries[index]??point.price,
+        x:liveChartX(point.time),
+        y:liveChartPriceY(point.price,min,max),
+      })),
       volumes:minutePoints.map((point,index)=>{
         const normalized=Math.min(1.35,Math.max(0,point.volume)/volumeReference);
         return {
@@ -1017,6 +1032,60 @@ export default function Home() {
     ()=>buildZijinMainForceTrack(isZijinStock?(liveL2Status?.recentMinutes??[]):[]),
     [isZijinStock,liveL2Status?.recentMinutes],
   );
+  useEffect(()=>setIntradayCursorTime(null),[stock?.code]);
+  const intradayCursor=useMemo(()=>{
+    if(!intradayCursorTime||!chartModel)return null;
+    const point=chartModel.points.find(item=>item.time===intradayCursorTime);
+    if(!point)return null;
+    const previousClose=Number(activeQuote?.previousClose);
+    const changePercent=Number.isFinite(previousClose)&&previousClose>0
+      ? (point.price-previousClose)/previousClose*100
+      : null;
+    const mainForce=isZijinStock
+      ? zijinMainForceTrack.bars.find(bar=>bar.time===point.time)??null
+      : null;
+    return {...point,changePercent,mainForce};
+  },[intradayCursorTime,chartModel,activeQuote?.previousClose,isZijinStock,zijinMainForceTrack.bars]);
+  const updateIntradayCursor=(clientX:number,clientY:number)=>{
+    const svg=intradayChartRef.current;
+    if(!svg||!chartModel?.points.length)return;
+    const matrix=svg.getScreenCTM();
+    if(!matrix)return;
+    const pointer=svg.createSVGPoint();
+    pointer.x=clientX;
+    pointer.y=clientY;
+    const local=pointer.matrixTransform(matrix.inverse());
+    const targetX=Math.max(LIVE_CHART.plotLeft,Math.min(LIVE_CHART.plotRight,local.x));
+    let nearest=chartModel.points[0];
+    let distance=Math.abs(nearest.x-targetX);
+    for(const point of chartModel.points.slice(1)){
+      const nextDistance=Math.abs(point.x-targetX);
+      if(nextDistance<distance){
+        nearest=point;
+        distance=nextDistance;
+      }
+    }
+    setIntradayCursorTime(current=>current===nearest.time?current:nearest.time);
+  };
+  const handleIntradayPointer=(event:ReactPointerEvent<SVGSVGElement>)=>{
+    updateIntradayCursor(event.clientX,event.clientY);
+  };
+  const handleIntradayPointerDown=(event:ReactPointerEvent<SVGSVGElement>)=>{
+    updateIntradayCursor(event.clientX,event.clientY);
+    if(event.pointerType!=="mouse")event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const handleIntradayKeyDown=(event:ReactKeyboardEvent<SVGSVGElement>)=>{
+    if(!chartModel?.points.length)return;
+    if(event.key==="Escape"){
+      setIntradayCursorTime(null);
+      return;
+    }
+    if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
+    event.preventDefault();
+    const currentIndex=Math.max(0,chartModel.points.findIndex(point=>point.time===intradayCursorTime));
+    const nextIndex=Math.max(0,Math.min(chartModel.points.length-1,currentIndex+(event.key==="ArrowRight"?1:-1)));
+    setIntradayCursorTime(chartModel.points[nextIndex].time);
+  };
   const zijinPricePlan=useMemo(()=>isZijinStock?buildZijinPricePlan({
     minutes:minutePoints,
     previousClose:activeQuote?.previousClose??null,
@@ -2000,7 +2069,9 @@ export default function Home() {
               <span className="rabbit-chart-avatar"/>
               <div><b>兔兔分时花园</b><small>价格 · 均价 · 成交量</small></div>
             </div>}
-            <svg viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMax meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图`}>
+            <svg ref={intradayChartRef} className="interactive-intraday-chart" viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMax meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；移动鼠标或拖动手指查看分钟详情`} tabIndex={0}
+              onPointerEnter={handleIntradayPointer} onPointerMove={handleIntradayPointer} onPointerDown={handleIntradayPointerDown}
+              onPointerLeave={event=>{if(event.pointerType==="mouse")setIntradayCursorTime(null)}} onKeyDown={handleIntradayKeyDown}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
               {(chartModel?.ticks??[20,72.5,125,177.5,230].map(y=>({value:null,percent:null,y}))).map((tick,index)=>{const centre=tick.percent!=null&&Math.abs(tick.percent)<1e-8;return <g key={tick.value??index}><line x1={LIVE_CHART.plotLeft} y1={tick.y} x2={LIVE_CHART.plotRight} y2={tick.y} className={`grid-line ${centre?"previous-close-line":""}`}/>{tick.value!=null&&<text x="5" y={tick.y+3.5} className="intraday-axis-label">{tick.value.toFixed(2)}</text>}{tick.percent!=null&&<text x="914" y={tick.y+3.5} textAnchor="end" className={`intraday-percent-label ${tick.percent>0?"up":tick.percent<0?"down":"flat"}`}>{tick.percent>0?"+":""}{tick.percent.toFixed(2)}%</text>}</g>})}
               {A_SHARE_INTRADAY_AXIS.map(tick => {const x=liveChartSlotX(tick.slot);return <g key={tick.label}><line x1={x} y1={LIVE_CHART.priceTop} x2={x} y2={LIVE_CHART.volumeBottom} className="grid-line vertical"/><text x={x} y="317" textAnchor={tick.slot===0?"start":tick.slot===240?"end":"middle"} className="intraday-axis-label intraday-time-label">{tick.label}</text></g>})}
@@ -2011,6 +2082,29 @@ export default function Home() {
               <line x1={LIVE_CHART.plotLeft} y1={chartModel.lastY} x2={LIVE_CHART.plotRight} y2={chartModel.lastY} className="last-line"/><circle cx={chartModel.lastX} cy={chartModel.lastY} r="4" className="last-dot"/><g className="intraday-price-flag"><rect x="0" y={Math.max(6,Math.min(294,chartModel.lastY-12))} width="54" height="24" rx={uiTheme==="light"?7:0}/><text x="27" y={Math.max(6,Math.min(294,chartModel.lastY-12))+16} textAnchor="middle">{chartModel.last.price.toFixed(2)}</text></g></>}
               <line x1={LIVE_CHART.plotLeft} y1={LIVE_CHART.volumeTop} x2={LIVE_CHART.plotRight} y2={LIVE_CHART.volumeTop} className="volume-divider"/>
               {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x-1.35} y={LIVE_CHART.volumeBottom-bar.height} width="2.7" height={bar.height} rx=".45" className={bar.up?'volume':'volume red'}/>) }
+              {intradayCursor&&(()=>{
+                const tooltipWidth=158;
+                const tooltipHeight=isZijinStock?100:84;
+                const tooltipX=intradayCursor.x<LIVE_CHART.plotLeft+520
+                  ? Math.min(LIVE_CHART.plotRight-tooltipWidth-8,intradayCursor.x+12)
+                  : Math.max(LIVE_CHART.plotLeft+8,intradayCursor.x-tooltipWidth-12);
+                const tooltipY=Math.max(LIVE_CHART.priceTop+5,Math.min(LIVE_CHART.priceBottom-tooltipHeight-5,intradayCursor.y-tooltipHeight/2));
+                const change=intradayCursor.changePercent;
+                return <g className="intraday-crosshair" aria-label={`${intradayCursor.time}，价格 ${intradayCursor.price.toFixed(2)}`}>
+                  <line x1={intradayCursor.x} y1={LIVE_CHART.priceTop} x2={intradayCursor.x} y2={LIVE_CHART.volumeBottom} className="intraday-crosshair-line"/>
+                  <line x1={LIVE_CHART.plotLeft} y1={intradayCursor.y} x2={LIVE_CHART.plotRight} y2={intradayCursor.y} className="intraday-crosshair-line"/>
+                  <circle cx={intradayCursor.x} cy={intradayCursor.y} r="4" className="intraday-crosshair-dot"/>
+                  <g className="intraday-crosshair-card" transform={`translate(${tooltipX} ${tooltipY})`}>
+                    <rect width={tooltipWidth} height={tooltipHeight} rx="7"/>
+                    <text x="10" y="16" className="title">{intradayCursor.time}</text>
+                    <text x="10" y="33">最新</text><text x={tooltipWidth-10} y="33" textAnchor="end" className={change!=null&&change>=0?"up":"down"}>{intradayCursor.price.toFixed(2)}</text>
+                    <text x="10" y="48">涨跌幅</text><text x={tooltipWidth-10} y="48" textAnchor="end" className={change!=null&&change>=0?"up":"down"}>{change==null?"--":`${change>=0?"+":""}${change.toFixed(2)}%`}</text>
+                    <text x="10" y="63">均价</text><text x={tooltipWidth-10} y="63" textAnchor="end">{intradayCursor.averagePrice.toFixed(2)}</text>
+                    <text x="10" y="78">成交量</text><text x={tooltipWidth-10} y="78" textAnchor="end">{formatIntradayVolume(intradayCursor.volume)}</text>
+                    {isZijinStock&&<><text x="10" y="94">主力净额</text><text x={tooltipWidth-10} y="94" textAnchor="end" className={(intradayCursor.mainForce?.netNotional??0)>=0?"force-buy":"force-sell"}>{intradayCursor.mainForce?formatMainForceAmount(intradayCursor.mainForce.netNotional):"无大额成交"}</text></>}
+                  </g>
+                </g>;
+              })()}
             </svg>
           </div>
           {isZijinStock&&<section className="main-force-track" aria-label="紫金矿业全天 L2 主力追踪">
@@ -2029,6 +2123,7 @@ export default function Home() {
                 const y=bar.netNotional>=0?44-height:44;
                 return <rect key={bar.time} x={liveChartX(bar.time)-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
               })}
+              {intradayCursor&&<line x1={intradayCursor.x} y1="7" x2={intradayCursor.x} y2="81" className="main-force-crosshair"/>}
               {!zijinMainForceTrack.bars.some(bar=>bar.bigBuyNotional+bar.bigSellNotional>0)&&<text x="460" y="49" textAnchor="middle" className="main-force-empty">等待 L2 大额主动成交</text>}
             </svg>
             <div className="main-force-track-foot">
