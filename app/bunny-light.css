@@ -42,6 +42,18 @@
   background: rgba(255, 255, 255, .8);
 }
 
+:root[data-theme="light"] .zijin-price-plan.preopen-ready {
+  border-color: rgba(41, 178, 158, .3);
+  background: linear-gradient(145deg, rgba(231, 250, 246, .88), rgba(255, 248, 232, .72));
+}
+
+:root[data-theme="light"] .zijin-price-plan.locked,
+:root[data-theme="light"] .premium-feature-lock,
+:root[data-theme="light"] .personal-training-lock {
+  border-color: rgba(225, 193, 205, .72);
+  background: rgba(255, 255, 255, .76);
+}
+
 :root[data-theme="light"] body {
   background:
     radial-gradient(circle at 9% 3%, rgba(255, 195, 215, .22), transparent 24rem),

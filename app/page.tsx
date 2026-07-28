@@ -26,6 +26,7 @@ import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-remi
 import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-policy.mjs";
 import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intraday-chart-model.mjs";
 import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
+import { buildZijinPreopenPricePlan } from "@/lib/zijin-preopen-price-plan.mjs";
 import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminder.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
@@ -756,6 +757,7 @@ export default function Home() {
   const baseActiveQuote = currentTrial?.quote ?? currentMarket?.quote;
   const marketSession = useMemo(() => aShareSession(clockNow), [clockNow]);
   const marketDataActive = useMemo(() => isFastMarketDataPhase(marketSession), [marketSession]);
+  const premiumEnabled=accountRole==="admin"||(!demoMode&&accountMembership?.active===true);
   const removeStock=(index:number)=>{
     if(stockList.length<=1)return;
     const next=stockList.filter((_,i)=>i!==index);
@@ -1002,6 +1004,27 @@ export default function Home() {
     vwap:chartModel?.lastVwap??null,
     l2Coverage:l2CalculationCoverage,
   }):null,[isZijinStock,minutePoints,activeQuote?.previousClose,activeQuote?.open,chartModel?.lastVwap,l2CalculationCoverage]);
+  const isPreopenPlanPhase=["preauction","auction","auction-result"].includes(marketSession.phase);
+  const l2ExchangeMinute=liveL2Status?.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1]??null;
+  const preopenIndicativePrice=useMemo(()=>[
+    liveL2Status?.session?.open,
+    liveL2Status?.book?.lastPrice,
+    activeQuote?.open,
+    activeQuote?.price,
+  ].map(Number).find(value=>Number.isFinite(value)&&value>0)??null,[liveL2Status?.session?.open,liveL2Status?.book?.lastPrice,activeQuote?.open,activeQuote?.price]);
+  const zijinPreopenPricePlan=useMemo(()=>isZijinStock&&isPreopenPlanPhase?buildZijinPreopenPricePlan({
+    phase:marketSession.phase,
+    asOfTime:l2ExchangeMinute,
+    previousClose:liveL2Status?.session?.previousClose??activeQuote?.previousClose??null,
+    indicativePrice:preopenIndicativePrice,
+    bookImbalance:liveL2Status?.book?.nearTouchImbalance??null,
+    activeBuyRatio:liveL2Status?.flow?.activeBuyRatio60s??null,
+    atrPct:liveL2Status?.volatility?.atrPct14??null,
+    spreadBps:liveL2Status?.book?.spreadBps??null,
+    l2Connected:liveL2Status?.status?.connected===true,
+    l2Stale:liveL2Status?.status?.stale!==false,
+  }):null,[isZijinStock,isPreopenPlanPhase,marketSession.phase,l2ExchangeMinute,liveL2Status?.session?.previousClose,activeQuote?.previousClose,preopenIndicativePrice,liveL2Status?.book?.nearTouchImbalance,liveL2Status?.flow?.activeBuyRatio60s,liveL2Status?.volatility?.atrPct14,liveL2Status?.book?.spreadBps,liveL2Status?.status?.connected,liveL2Status?.status?.stale]);
+  const displayedZijinPricePlan=isPreopenPlanPhase?zijinPreopenPricePlan:zijinPricePlan;
   // The validated V4 engine always remains the formal execution path. The
   // dedicated Zijin agent can only be added manually as a research overlay
   // until it passes the sealed out-of-sample gate and a human review.
@@ -2000,16 +2023,16 @@ export default function Home() {
             <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · V4 过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
           </div>
           <div className="signal-funnel-note"><span>{visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察")}</span><em>{visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒仍由 V4 运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层"}</em></div>
-          {isZijinStock&&zijinPricePlan&&<div className={`zijin-price-plan ${zijinPricePlan.status}`} aria-label="紫金矿业预判买入卖出价区间">
-            <div className="zijin-price-plan-head"><div><span>紫金专属 · 因果预判</span><b>预判买卖价区间</b></div><em>{zijinPricePlan.asOfTime?`${zijinPricePlan.asOfTime.slice(0,2)}:${zijinPricePlan.asOfTime.slice(2)}`:"等待分时"}</em></div>
-            {!zijinPricePlan.ready?<p>{zijinPricePlan.reason}</p>:<>
+          {isZijinStock&&displayedZijinPricePlan&&<div className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"}`} aria-label="紫金矿业预判买入卖出价区间">
+            <div className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":"紫金会员 · 实时因果"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":"预判买卖价区间"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":"等待分时"):"会员功能"}</em></div>
+            {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
               <div className="zijin-price-plan-grid">
-                <div className="buy"><small>正T关注区</small><b>¥{zijinPricePlan.buyRange[0].toFixed(2)}–{zijinPricePlan.buyRange[1].toFixed(2)}</b><span>到区后等承接确认</span></div>
-                <div className="sell"><small>反T关注区</small><b>¥{zijinPricePlan.sellRange[0].toFixed(2)}–{zijinPricePlan.sellRange[1].toFixed(2)}</b><span>到区后等衰竭确认</span></div>
+                <div className="buy"><small>{isPreopenPlanPhase?"开盘正T观察区":"正T关注区"}</small><b>¥{displayedZijinPricePlan.buyRange[0].toFixed(2)}–{displayedZijinPricePlan.buyRange[1].toFixed(2)}</b><span>到区后等承接确认</span></div>
+                <div className="sell"><small>{isPreopenPlanPhase?"开盘反T观察区":"反T关注区"}</small><b>¥{displayedZijinPricePlan.sellRange[0].toFixed(2)}–{displayedZijinPricePlan.sellRange[1].toFixed(2)}</b><span>到区后等衰竭确认</span></div>
               </div>
-              <div className="zijin-price-plan-meta"><span>预期毛价差 <b>¥{zijinPricePlan.expectedGrossSpread.toFixed(2)}</b></span><span>置信度 <b>{zijinPricePlan.confidence}%</b></span><span>{zijinPricePlan.position}</span></div>
-              <p>{zijinPricePlan.reason}</p>
-              <small className="zijin-price-plan-note">仅使用截至当前已出现的分时、均价线与 L2 覆盖；这是预警区间，不是挂单建议。</small>
+              <div className="zijin-price-plan-meta"><span>预期毛价差 <b>¥{displayedZijinPricePlan.expectedGrossSpread.toFixed(2)}</b></span><span>置信度 <b>{displayedZijinPricePlan.confidence}%</b></span><span>{displayedZijinPricePlan.position}</span></div>
+              <p>{displayedZijinPricePlan.reason}</p>
+              <small className="zijin-price-plan-note">{isPreopenPlanPhase?"仅使用当时已知的竞价价格与 L2 状态；09:30 自动失效并切换为真实分时因果区间。":"仅使用截至当前已出现的分时、均价线与 L2 覆盖；这是预警区间，不是挂单建议。"}</small>
             </>}
           </div>}
           {visibleStockAgentEvaluation&&<div className={`zijin-opening-card stock-agent-card ${visibleStockAgentEvaluation.status}`}>
@@ -2018,7 +2041,7 @@ export default function Home() {
             <small>{visibleStockAgentEvaluation.phase==="opening"?"早盘专属层":"全天因子层"} · 振幅 {visibleStockAgentEvaluation.metrics.rangePct.toFixed(2)}% · 距VWAP {visibleStockAgentEvaluation.metrics.vwapBiasPct>=0?"+":""}{visibleStockAgentEvaluation.metrics.vwapBiasPct.toFixed(2)}% · 量比 {visibleStockAgentEvaluation.metrics.volumeRatio==null?"待数据":`${visibleStockAgentEvaluation.metrics.volumeRatio.toFixed(2)}×`}</small>
             <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
-          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、条件候补、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button onClick={()=>setAlertLogOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':'查看实际出现过的候选、正式与风险提醒'}>提醒记录</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button><button className={alertSettings.background?"active":""} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"手机后台系统通知"}>{backgroundPushState==="unsupported"?"后台不支持":`后台推送 ${alertSettings.background?"已开":"关闭"}`}</button>{alertSettings.background&&<button onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">测试推送</button>}</div></div>
+          <div className="alert-channel"><div><span>全自选股双兔提醒</span><small>均价线大偏离、条件候补、正式买卖点与新风险全股提醒；同一点只提醒一次</small></div><div className="alert-channel-actions"><button onClick={previewRabbitAlert}>预览</button><button onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>提醒记录{premiumEnabled?"":" · 会员"}</button><button className={alertSettings.sound?"active":""} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound}>语音 {alertSettings.sound?"已开":"关闭"}</button><button className={alertSettings.system?"active":""} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system}>通知 {alertSettings.system?"已开":"关闭"}</button><button className={alertSettings.background?"active":""} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"手机后台系统通知"}>{backgroundPushState==="unsupported"?"后台不支持":`后台推送 ${alertSettings.background?"已开":"关闭"}`}</button>{alertSettings.background&&<button onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">测试推送</button>}</div></div>
           <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div><small>{decisionModel.reason}</small><em>{decisionModel.confirmed}/4</em></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <div className={`stock-state ${stockState.level}`}>
@@ -2072,7 +2095,7 @@ export default function Home() {
           <div className="agent-grid">{liveAgents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><img src={agent.avatar} alt={`${agent.name} AI头像`}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>
         </div>
       </section>
-      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
+      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} premiumEnabled={premiumEnabled} onOpenAccount={()=>setAccountOpen(true)} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -2099,6 +2122,7 @@ export default function Home() {
       {accountOpen && <div className="account-overlay" role="dialog" aria-modal="true" aria-label="账户中心" onMouseDown={e=>{if(e.target===e.currentTarget)setAccountOpen(false)}}><div className="account-dialog">
         <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>{demoMode?'免注册演示已进入':'服务器账户已登录'}</span><h2>{accountName}</h2><p>{demoMode?'临时演示会话':accountRole==='admin'?'管理员账户':'会员账户 · 跨设备同步'}</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
         <div className="account-plan"><div><span>当前状态</span><b>{demoMode?'免注册演示':accountRole==='admin'?'运营管理员':accountMembership?.active?'内测会员':'内测权益已到期'}</b><small>{demoMode?'不跨设备同步，刷新后可能丢失':accountRole==='admin'?'管理员权益长期有效':accountMembership?.expiresAt?`有效至 ${membershipExpiry}`:'监控清单、持仓设置和提醒偏好已保存到服务器'}</small></div><em>{demoMode?'演示中':accountMembership?.active||accountRole==='admin'?'有效':'已到期'}</em></div>
+        <div className={`account-premium-features ${premiumEnabled?"enabled":"locked"}`}><div><span>高级会员能力</span><b>{premiumEnabled?"已全部开启":"购买会员后开启"}</b></div><ul><li>9:25盘前预判</li><li>L2精确价区间</li><li>提醒历史复盘</li><li>个人回放训练</li></ul></div>
         {!demoMode&&accountRole!=='admin'&&accountMembership?.referralCode&&<div className="account-referral"><div><span>邀请好友</span><b>有效注册 1 人，+7 天权益</b><small>邀请码 {accountMembership.referralCode} · 已奖励 {accountMembership.referralCredits} 人{accountMembership.referralReviews?` · 待审核 ${accountMembership.referralReviews} 人`:''}</small></div><button onClick={()=>void copyReferralLink()}>复制邀请链接</button>{inviteMessage&&<em>{inviteMessage}</em>}</div>}
         <div className="account-stats"><div><span>监控股票</span><b>{stockList.length} / {monitorLimit}</b></div><div><span>后台监控</span><b>{demoMode?'关闭':'已连接'}</b></div><div><span>策略版本</span><b>V4</b></div></div>
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>当前股票计划底仓<small>{stock.code} · 用于当日闭环校验</small></span><b>{activePosition.plannedBase.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
@@ -2106,7 +2130,7 @@ export default function Home() {
         <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button>{accountRole==='admin'&&!demoMode&&<button onClick={()=>{setAccountOpen(false);setMemberAdminOpen(true)}}>会员后台</button>}<button onClick={()=>{void fetch('/api/control/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});try{localStorage.removeItem('rabbit-auth-session');localStorage.removeItem('rabbit-account-role');sessionStorage.removeItem('rabbit-auth-session')}catch{} remoteSyncReady.current=false;setAccountOpen(false);setDemoMode(false);setAuthScreen('landing');setLocalAuth(false)}}>{demoMode?'退出演示':'退出登录'}</button></div>
       </div></div>}
       {memberAdminOpen&&<MemberAdminView onClose={()=>setMemberAdminOpen(false)}/>}
-      {alertLogOpen&&<AlertLogView stocks={stockList} activeCode={stock.code} localHistory={alertHistory} onClose={()=>setAlertLogOpen(false)}/>}
+      {alertLogOpen&&premiumEnabled&&<AlertLogView stocks={stockList} activeCode={stock.code} localHistory={alertHistory} onClose={()=>setAlertLogOpen(false)}/>}
       {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><ReleaseVersion/></footer>
@@ -3019,7 +3043,7 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
   </section>;
 }
 
-function TrainingView({evidence,accountName,stock,position}:{evidence:{sessions:number;cycles:number;wins:number;net:number;maxDrawdown:number;confidence:string;winRate:number|null};accountName:string;stock:{code:string;name:string};position:StockPosition}) {
+function TrainingView({evidence,accountName,stock,position,premiumEnabled,onOpenAccount}:{evidence:{sessions:number;cycles:number;wins:number;net:number;maxDrawdown:number;confidence:string;winRate:number|null};accountName:string;stock:{code:string;name:string};position:StockPosition;premiumEnabled:boolean;onOpenAccount:()=>void}) {
   const sampleCoverage=Math.min(100,evidence.sessions/20*100);
   const validationCoverage=Math.min(100,evidence.cycles/20*100);
   const evidenceCoverage=Math.min(sampleCoverage,validationCoverage);
@@ -3029,7 +3053,7 @@ function TrainingView({evidence,accountName,stock,position}:{evidence:{sessions:
     <div className="module-head"><div><span className="eyebrow">SMART-T FUSION V4 · RESEARCH PIPELINE</span><h1>通用 V4 四兔研究中心</h1><p>四兔的目标是形成可审计的 V4.x 候选版本；当前页面展示本股票的真实核对证据，不把“打开网页”伪装成云端持续训练。</p></div><button className="lab-run" onClick={primaryAction}>查看当前证据<span>→</span></button></div>
     <div className="training-scope-strip" aria-label="通用四兔研究范围"><p><span>训练范围</span><b>历史全市场样本</b><small>用于提出 V4.x 候选，不只学习操盘台里的几只股票。</small></p><p><span>当日监控股</span><b>影子逐笔核对</b><small>只验证理论提醒与实际模拟成交是否一致。</small></p><p><span>正式 V4</span><b>始终人工审批</b><small>四兔不能静默改参数，也不会自动下单。</small></p></div>
     <div className="training-purpose"><div><span>训练目标</span><h2>让 V4 在扣除费用后更稳，而不是把历史胜率刷高</h2><p>候选参数包括 VWAP 偏离、连续确认、最低净价差、单次仓位、连续失败熔断和尾盘恢复时间。任何候选都必须通过未见股票与日期、费用滑点和过拟合检查，再由人工决定是否进入影子观察。</p></div><div className="training-role-grid"><p><b>训练兔</b><span>历史全市场提出候选</span></p><p><b>挑战兔</b><span>未见股票与日期盲测</span></p><p><b>风控兔</b><span>成本、回撤、PBO/DSR 否决</span></p><p><b>正式兔</b><span>只管理影子观察资格</span></p></div></div>
-    <PersonalReplayTraining key={stock.code} accountName={accountName} stock={stock} position={position}/>
+    {premiumEnabled?<PersonalReplayTraining key={stock.code} accountName={accountName} stock={stock} position={position}/>:<div className="personal-training-lock"><div><span>会员专属 · 个人训练</span><h2>手动回放训练已锁定</h2><p>会员可随机抽取近五年交易日，逐分钟手动买卖，并保存个人训练结果。</p></div><button onClick={onOpenAccount}>查看会员权益</button></div>}
     <RabbitProgressMeter
       label="当前股票证据覆盖"
       detail={`最近 ${evidence.sessions} 个完整交易日 · ${evidence.cycles} 个扣费闭环 · Smart-T V4 ${evidence.confidence}`}
