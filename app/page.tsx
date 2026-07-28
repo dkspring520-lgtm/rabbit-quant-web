@@ -15,6 +15,7 @@ import { evaluateStockAgent, STOCK_AGENTS } from "@/lib/stock-agent-router.mjs";
 import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { buildZijinReplayCandidates } from "@/lib/zijin-replay-candidates.mjs";
+import { buildZijinL2CausalReplayObservations, mergeZijinL2ReplayMinutes } from "@/lib/zijin-l2-causal-replay.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
 import { compactChartObservations, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
@@ -284,7 +285,8 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 }
 
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
-type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; blockers:string[]; reason:string };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string };
+type L2ReplayState = { available:boolean; source:string; minuteCount:number; observations:ReplayObservation[]; reason:string };
 type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; favorable:boolean; status:string };
 type OpenCandidateObservation = { direction:"正T"|"反T"; time:string; price:number; label:string; status:"候补未闭环" };
 type DeskHistoryRow = { time:string; direction:string; price:string; quantity:string; spread:string; status:string; tone?:"buy"|"sell"|"candidate" };
@@ -1037,6 +1039,9 @@ export default function Home() {
       points:minutePoints.map((point,index)=>({
         ...point,
         averagePrice:averageSeries[index]??point.price,
+        biasPercent:(averageSeries[index]??point.price)>0
+          ? (point.price-(averageSeries[index]??point.price))/(averageSeries[index]??point.price)*100
+          : 0,
         x:liveChartX(point.time),
         y:liveChartPriceY(point.price,min,max),
       })),
@@ -1057,6 +1062,20 @@ export default function Home() {
     ()=>buildZijinMainForceTrack(isZijinStock?(liveL2Status?.recentMinutes??[]):[]),
     [isZijinStock,liveL2Status?.recentMinutes],
   );
+  const zijinMainForceCumulative=useMemo(()=>{
+    const bars=zijinMainForceTrack.bars;
+    if(!bars.length)return null;
+    const scale=Math.max(1,...bars.map(bar=>Math.abs(bar.cumulativeNetNotional)));
+    const points=bars.map(bar=>({
+      x:liveChartX(bar.time),
+      y:44-(bar.cumulativeNetNotional/scale)*31,
+      value:bar.cumulativeNetNotional,
+    }));
+    return {
+      path:`M${points.map(point=>`${point.x},${point.y}`).join(" L")}`,
+      last:points.at(-1)??null,
+    };
+  },[zijinMainForceTrack.bars]);
   useEffect(()=>setIntradayCursorTime(null),[stock?.code]);
   const intradayCursor=useMemo(()=>{
     if(!intradayCursorTime||!chartModel)return null;
@@ -1139,6 +1158,33 @@ export default function Home() {
     l2Stale:liveL2Status?.status?.stale!==false,
   }):null,[isZijinStock,isPreopenPlanPhase,marketSession.phase,l2ExchangeMinute,liveL2Status?.session?.previousClose,activeQuote?.previousClose,preopenIndicativePrice,liveL2Status?.book?.nearTouchImbalance,liveL2Status?.flow?.activeBuyRatio60s,liveL2Status?.volatility?.atrPct14,liveL2Status?.book?.spreadBps,liveL2Status?.status?.connected,liveL2Status?.status?.stale]);
   const displayedZijinPricePlan=isPreopenPlanPhase?zijinPreopenPricePlan:zijinPricePlan;
+  const zijinChartPriceOverlay=useMemo(()=>{
+    if(!premiumEnabled||!isZijinStock||isPreopenPlanPhase||!chartModel||!displayedZijinPricePlan?.ready||!("riskPlan" in displayedZijinPricePlan))return null;
+    const visibleBand=(range:[number,number],kind:"buy"|"sell")=>{
+      const low=Math.max(chartModel.min,Math.min(...range));
+      const high=Math.min(chartModel.max,Math.max(...range));
+      if(low>high)return null;
+      const top=liveChartPriceY(high,chartModel.min,chartModel.max);
+      const bottom=liveChartPriceY(low,chartModel.min,chartModel.max);
+      return {kind,top,bottom,height:Math.max(2,bottom-top),label:kind==="buy"?"正T区":"反T区"};
+    };
+    const lines=[
+      {kind:"buy-stop",label:"正T止损",price:displayedZijinPricePlan.riskPlan.positiveT.hardStop},
+      {kind:"buy-profit",label:"正T止盈1",price:displayedZijinPricePlan.riskPlan.positiveT.takeProfit1},
+      {kind:"buy-profit",label:"正T止盈2",price:displayedZijinPricePlan.riskPlan.positiveT.takeProfit2},
+      {kind:"sell-stop",label:"反T止损",price:displayedZijinPricePlan.riskPlan.reverseT.hardStop},
+      {kind:"sell-profit",label:"反T买回1",price:displayedZijinPricePlan.riskPlan.reverseT.takeProfit1},
+      {kind:"sell-profit",label:"反T买回2",price:displayedZijinPricePlan.riskPlan.reverseT.takeProfit2},
+    ].filter(line=>line.price>=chartModel.min&&line.price<=chartModel.max)
+      .map(line=>({...line,y:liveChartPriceY(line.price,chartModel.min,chartModel.max)}));
+    return {
+      bands:[
+        visibleBand(displayedZijinPricePlan.buyRange,"buy"),
+        visibleBand(displayedZijinPricePlan.sellRange,"sell"),
+      ].filter((band):band is NonNullable<typeof band>=>Boolean(band)),
+      lines,
+    };
+  },[premiumEnabled,isZijinStock,isPreopenPlanPhase,chartModel,displayedZijinPricePlan]);
   // The validated V4 engine always remains the formal execution path. The
   // dedicated Zijin agent can only be added manually as a research overlay
   // until it passes the sealed out-of-sample gate and a human review.
@@ -1240,6 +1286,13 @@ export default function Home() {
     });
     return {observations,actions};
   },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions]);
+  const intradayCursorSignal=useMemo(()=>{
+    if(!intradayCursor)return "无提醒";
+    const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
+    if(action)return action.label;
+    const observation=intradayMarkerLayout.observations.find(marker=>marker.observation.time===intradayCursor.time);
+    return observation?.currentLabel??"无提醒";
+  },[intradayCursor,intradayMarkerLayout]);
   const signalFunnel = (() => {
     const rows=stockList.flatMap(item=>{
       const snapshot=item.code===stock?.code ? (currentTrial ?? currentMarket ?? marketSnapshots[item.code]) : marketSnapshots[item.code];
@@ -2103,6 +2156,10 @@ export default function Home() {
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
               {(chartModel?.ticks??[20,72.5,125,177.5,230].map(y=>({value:null,percent:null,y}))).map((tick,index)=>{const centre=tick.percent!=null&&Math.abs(tick.percent)<1e-8;return <g key={tick.value??index}><line x1={LIVE_CHART.plotLeft} y1={tick.y} x2={LIVE_CHART.plotRight} y2={tick.y} className={`grid-line ${centre?"previous-close-line":""}`}/>{tick.value!=null&&<text x="5" y={tick.y+3.5} className="intraday-axis-label">{tick.value.toFixed(2)}</text>}{tick.percent!=null&&<text x="914" y={tick.y+3.5} textAnchor="end" className={`intraday-percent-label ${tick.percent>0?"up":tick.percent<0?"down":"flat"}`}>{tick.percent>0?"+":""}{tick.percent.toFixed(2)}%</text>}</g>})}
               {A_SHARE_INTRADAY_AXIS.map(tick => {const x=liveChartSlotX(tick.slot);return <g key={tick.label}><line x1={x} y1={LIVE_CHART.priceTop} x2={x} y2={LIVE_CHART.volumeBottom} className="grid-line vertical"/><text x={x} y="317" textAnchor={tick.slot===0?"start":tick.slot===240?"end":"middle"} className="intraday-axis-label intraday-time-label">{tick.label}</text></g>})}
+              {zijinChartPriceOverlay&&<g className="zijin-chart-price-overlay" aria-label="紫金矿业实时预判区间与风控线">
+                {zijinChartPriceOverlay.bands.map(band=><g key={band.kind} className={`price-plan-band ${band.kind}`}><rect x={LIVE_CHART.plotLeft} y={band.top} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={band.height}/><text x={LIVE_CHART.plotLeft+5} y={Math.max(LIVE_CHART.priceTop+9,band.top+9)}>{band.label}</text></g>)}
+                {zijinChartPriceOverlay.lines.map(line=><g key={`${line.kind}-${line.price}`} className={`price-plan-line ${line.kind}`}><line x1={LIVE_CHART.plotLeft} y1={line.y} x2={LIVE_CHART.plotRight} y2={line.y}/><text x={LIVE_CHART.plotRight-4} y={Math.max(LIVE_CHART.priceTop+8,Math.min(LIVE_CHART.priceBottom-3,line.y-3))} textAnchor="end">{line.label} {line.price.toFixed(2)}</text></g>)}
+              </g>}
               {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
@@ -2115,7 +2172,7 @@ export default function Home() {
               {chartModel&&<g className="peak-volume-marker"><line x1={chartModel.peakVolume.x} y1={LIVE_CHART.volumeTop-3} x2={chartModel.peakVolume.x} y2={LIVE_CHART.volumeBottom}/><text x={Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4)} y={LIVE_CHART.volumeTop-6} textAnchor={chartModel.peakVolume.x>LIVE_CHART.plotRight-72?"end":"start"}>峰量 {chartModel.peakVolume.time.slice(0,2)}:{chartModel.peakVolume.time.slice(2)}</text></g>}
               {intradayCursor&&(()=>{
                 const tooltipWidth=158;
-                const tooltipHeight=isZijinStock?100:84;
+                const tooltipHeight=isZijinStock?132:116;
                 const tooltipX=intradayCursor.x<LIVE_CHART.plotLeft+520
                   ? Math.min(LIVE_CHART.plotRight-tooltipWidth-8,intradayCursor.x+12)
                   : Math.max(LIVE_CHART.plotLeft+8,intradayCursor.x-tooltipWidth-12);
@@ -2131,8 +2188,10 @@ export default function Home() {
                     <text x="10" y="33">最新</text><text x={tooltipWidth-10} y="33" textAnchor="end" className={change!=null&&change>=0?"up":"down"}>{intradayCursor.price.toFixed(2)}</text>
                     <text x="10" y="48">涨跌幅</text><text x={tooltipWidth-10} y="48" textAnchor="end" className={change!=null&&change>=0?"up":"down"}>{change==null?"--":`${change>=0?"+":""}${change.toFixed(2)}%`}</text>
                     <text x="10" y="63">均价</text><text x={tooltipWidth-10} y="63" textAnchor="end">{intradayCursor.averagePrice.toFixed(2)}</text>
-                    <text x="10" y="78">成交量</text><text x={tooltipWidth-10} y="78" textAnchor="end">{formatIntradayVolume(intradayCursor.volume)}</text>
-                    {isZijinStock&&<><text x="10" y="94">主力净额</text><text x={tooltipWidth-10} y="94" textAnchor="end" className={(intradayCursor.mainForce?.netNotional??0)>=0?"force-buy":"force-sell"}>{intradayCursor.mainForce?formatMainForceAmount(intradayCursor.mainForce.netNotional):"无大额成交"}</text></>}
+                    <text x="10" y="78">BIAS</text><text x={tooltipWidth-10} y="78" textAnchor="end" className={intradayCursor.biasPercent>=0?"up":"down"}>{intradayCursor.biasPercent>=0?"+":""}{intradayCursor.biasPercent.toFixed(2)}%</text>
+                    <text x="10" y="93">成交量</text><text x={tooltipWidth-10} y="93" textAnchor="end">{formatIntradayVolume(intradayCursor.volume)}</text>
+                    {isZijinStock&&<><text x="10" y="108">主力净额</text><text x={tooltipWidth-10} y="108" textAnchor="end" className={(intradayCursor.mainForce?.netNotional??0)>=0?"force-buy":"force-sell"}>{intradayCursor.mainForce?formatMainForceAmount(intradayCursor.mainForce.netNotional):"无大额成交"}</text></>}
+                    <text x="10" y={isZijinStock?123:108}>提醒状态</text><text x={tooltipWidth-10} y={isZijinStock?123:108} textAnchor="end">{intradayCursorSignal}</text>
                   </g>
                 </g>;
               })()}
@@ -2141,7 +2200,7 @@ export default function Home() {
           {isZijinStock&&<section className="main-force-track" aria-label="紫金矿业全天 L2 主力追踪">
             <div className="main-force-track-head">
               <div><strong>主力追踪</strong><span>仅统计 L2 大额主动成交</span></div>
-              <div className="main-force-track-legend"><span className="buy"><i/>大额主动净买</span><span className="sell"><i/>大额主动净卖</span></div>
+              <div className="main-force-track-legend"><span className="buy"><i/>大额主动净买</span><span className="sell"><i/>大额主动净卖</span><span className="cumulative"><i/>累计净额</span></div>
               {zijinLargeOrder?.ready&&<div className={`main-force-authenticity ${zijinLargeOrder.absorption||zijinLargeOrder.directionConflict?"risk":zijinLargeOrder.confirmed?"confirmed":"watch"}`}><b>真实性 {zijinLargeOrder.score}</b><span>{zijinLargeOrder.stateMachine?.label??zijinLargeOrder.label}</span></div>}
               <div className={`main-force-track-summary ${zijinMainForceTrack.totals.netNotional>=0?'buy':'sell'}`}>
                 <span>{zijinMainForceTrack.stance}</span><b>{formatMainForceAmount(zijinMainForceTrack.totals.netNotional)}</b>
@@ -2155,6 +2214,7 @@ export default function Home() {
                 const y=bar.netNotional>=0?44-height:44;
                 return <rect key={bar.time} x={liveChartX(bar.time)-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
               })}
+              {zijinMainForceCumulative&&<><path d={zijinMainForceCumulative.path} className="main-force-cumulative"/>{zijinMainForceCumulative.last&&<circle cx={zijinMainForceCumulative.last.x} cy={zijinMainForceCumulative.last.y} r="2.4" className="main-force-cumulative-dot"/>}</>}
               {intradayCursor&&<line x1={intradayCursor.x} y1="7" x2={intradayCursor.x} y2="81" className="main-force-crosshair"/>}
               {!zijinMainForceTrack.bars.some(bar=>bar.bigBuyNotional+bar.bigSellNotional>0)&&<text x="460" y="49" textAnchor="middle" className="main-force-empty">等待 L2 大额主动成交</text>}
             </svg>
@@ -3332,6 +3392,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [batch, setBatch] = useState<BatchBacktestResult | null>(null);
   const [source, setSource] = useState<MarketData | null>(null);
+  const [l2Replay, setL2Replay] = useState<L2ReplayState>({available:false,source:"idle",minuteCount:0,observations:[],reason:"等待紫金矿业回放"});
   const [error, setError] = useState("");
   const [runStatus, setRunStatus] = useState("等待运行");
   const [accountNotice, setAccountNotice] = useState("");
@@ -3347,6 +3408,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
     setResult(null);
     setBatch(null);
     setSource(null);
+    setL2Replay({available:false,source:"idle",minuteCount:0,observations:[],reason:"等待紫金矿业回放"});
     setError("");
     setRunStatus("等待运行");
     setReplayProgress({value:0,detail:"等待选择测试"});
@@ -3377,6 +3439,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
     setLastAction("single");
     setAccountNotice("");
     setRunning(true); setRunMode("single"); setError(""); setResult(null); setBatch(null); setSource(null);
+    setL2Replay({available:false,source:"loading",minuteCount:0,observations:[],reason:"正在读取历史L2分钟快照"});
     setReplayProgress({value:6,detail:`正在连接 ${stock.code} 公开分时数据`});
     setRunStatus(`第 ${attempt} 次：正在获取 ${stock.code} ${stock.name} 最新完整分时…`);
     try {
@@ -3412,11 +3475,32 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       }
       setReplayProgress({value:68,detail:"逐分钟推进策略，不读取未来高低点"});
       const calculated=replay(data,replayAccount);
+      let strictL2:L2ReplayState={available:false,source:"not-applicable",minuteCount:0,observations:[],reason:"仅紫金矿业启用L2严格回放"};
+      if(data.quote.code==="601899"){
+        try{
+          const l2Response=await fetch(`/api/research/zijin-l2-replay?date=${encodeURIComponent(selected.date)}&t=${Date.now()}`,{cache:"no-store"});
+          const l2Payload=await l2Response.json() as {available?:boolean;source?:string;minutes?:Record<string,unknown>[];reason?:string};
+          const merged=mergeZijinL2ReplayMinutes(data.minutes??[],l2Payload.minutes??[],selected.date);
+          const observations=l2Payload.available?buildZijinL2CausalReplayObservations(merged) as ReplayObservation[]:[];
+          strictL2={
+            available:Boolean(l2Payload.available),
+            source:l2Payload.source??"unavailable",
+            minuteCount:l2Payload.minutes?.length??0,
+            observations,
+            reason:l2Payload.available
+              ? observations.length?`已严格复现 ${observations.length} 个L2修复候选`:"历史L2已加载，本日没有通过持续资金确认的修复候选"
+              : l2Payload.reason??"本交易日没有历史L2快照",
+          };
+        }catch{
+          strictL2={available:false,source:"error",minuteCount:0,observations:[],reason:"历史L2读取失败，未参与本次回放"};
+        }
+      }
+      setL2Replay(strictL2);
       setReplayProgress({value:88,detail:"正在扣除佣金、印花税与双向滑点"});
       setResult(calculated);
       setBatch(null);
       const candidateCount=calculated.diagnostics?.candidates ?? 0;
-      const observationCount=buildReplayChartObservations(data.quote.code,data.minutes ?? [],calculated.observations ?? []).length;
+      const observationCount=buildReplayChartObservations(data.quote.code,data.minutes ?? [],calculated.observations ?? []).length+strictL2.observations.length;
       setRunStatus(calculated.trades
         ? `全日回放完成：形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
         : `全日回放完成：展示 ${observationCount} 个候补观察点，出现 ${candidateCount} 次候选判定，0 个通过正式过滤`);
@@ -3424,6 +3508,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       setTimeout(()=>document.getElementById("single-backtest-result")?.scrollIntoView({behavior:"smooth",block:"start"}),0);
     } catch {
       setResult(null); setBatch(null); setSource(null);
+      setL2Replay({available:false,source:"error",minuteCount:0,observations:[],reason:"回放失败，未读取L2"});
       setError("公开行情源暂不可用，未生成测试结果。请稍后重试。");
       setRunStatus("行情获取失败");
       setReplayProgress({value:0,detail:"行情获取失败，本次没有生成结果"});
@@ -3619,7 +3704,11 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const formatTime=(value:string|undefined)=>value && value.length>=4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : "--:--";
   const formatDate=(value:string|undefined)=>value && value.length===8 ? `${value.slice(0,4)}-${value.slice(4,6)}-${value.slice(6,8)}` : value ?? "—";
   const visibleBacktestObservations=result
-    ? compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? []),30) as ReplayObservation[]
+    ? [
+        ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? []),30) as ReplayObservation[],
+        ...l2Replay.observations,
+      ].filter((observation,index,rows)=>rows.findIndex(row=>row.time===observation.time&&row.confirmationLabel===observation.confirmationLabel)===index)
+        .sort((left,right)=>left.time.localeCompare(right.time))
     : [];
   const cycles = (() => {
     const paired: { first: ReplayAction; second: ReplayAction }[] = [];
@@ -3695,8 +3784,9 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <div className="equity-panel">
           <div className="panel-heading">
             <div><h2>{source?`完整交易日真实分时 · ${source.quote.code} ${source.quote.name}`:"完整交易日真实分时"}</h2><span>{result ? `${formatDate(source?.sampleDate)} · ${formatTime(fullDayMinutes[0]?.time)} 至 ${formatTime(fullDayMinutes.at(-1)?.time)} · 策略从 ${formatTime(result.startTime)} 起逐分钟判断` : "运行后显示"}</span></div>
-            <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 候补观察</span>}</div>
+            <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 候补观察</span>}{l2Replay.observations.length>0&&<span className="l2-marker">◎ L2修复</span>}</div>
           </div>
+          {result&&source?.quote.code==="601899"&&<div className={`l2-replay-audit ${l2Replay.available?"available":"unavailable"}`}><span><i/>L2严格因果回放</span><b>{l2Replay.reason}</b><em>{l2Replay.available?`${l2Replay.minuteCount} 个L2分钟点 · ${l2Replay.source==="archive"?"交易日归档":"当日实时快照"}`:"未使用L2补值"}</em></div>}
           <svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点">
             <defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".16"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>
             {chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toFixed(2)}</text></g>})}
@@ -3716,7 +3806,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
                 const labelY=placeAbove?Math.max(17,point.y-19-(index%2)*8):Math.min(191,point.y+25+(index%2)*8);
                 const labelX=Math.max(65+labelWidth/2,Math.min(820-labelWidth/2,point.x+((index%3)-1)*4));
                 const labelTop=labelY-13;
-                return <g className={`backtest-candidate-marker ${isSell?"is-high":"is-low"}`} key={`${observation.direction}-${observation.time}-${index}`}>
+                return <g className={`backtest-candidate-marker ${isSell?"is-high":"is-low"} ${observation.l2Strict?"is-l2-strict":""}`} key={`${observation.direction}-${observation.time}-${index}`}>
                   <title>{`${label}；${observationDirectionNote(observation)}；${observation.reason}${observation.blockers.length?`；未通过：${observation.blockers.join("；")}`:""}`}</title>
                   <line className="candidate-leader" x1={point.x} y1={point.y} x2={labelX} y2={placeAbove?labelTop+22:labelTop}/>
                   <rect className="candidate-label-bg" x={labelX-labelWidth/2} y={labelTop} width={labelWidth} height="22" rx="11"/>
@@ -3774,7 +3864,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           {visibleBacktestObservations.length>0?<div className="candidate-audit-list">{visibleBacktestObservations.map((observation,index)=>{
             const pivotState=observation.pivotAssessment==="strong"?"强确认":observation.pivotAssessment==="confirmed"?"已确认":"未确认";
             return <article key={`${observation.direction}-${observation.time}-${index}`} className={observation.executable?"passed":observation.stage==="candidate"?"candidate":"watch"}>
-              <header><span><i>{observation.coverageOnly&&source?.quote.code==="601899"?"紫金候选":observation.coverageOnly?"覆盖":observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation)}</b></span><em>{observation.coverageOnly?"研究候选 · 不计胜率":`${observation.score}/${observation.threshold} 分 · 预估价差 ${observation.edge.toFixed(2)}%`}</em></header>
+              <header><span><i>{observation.l2Strict?"L2严格":observation.coverageOnly&&source?.quote.code==="601899"?"紫金候选":observation.coverageOnly?"覆盖":observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation)}</b></span><em>{observation.l2Strict?`${observation.score}/${observation.threshold} 分 · 历史L2因果确认`:observation.coverageOnly?"研究候选 · 不计胜率":`${observation.score}/${observation.threshold} 分 · 预估价差 ${observation.edge.toFixed(2)}%`}</em></header>
               <p>{observationDirectionNote(observation)}；{observation.reason}</p>
               {observation.scoreBreakdown&&<small>三分离证据：方向 {observation.scoreBreakdown.direction}/{observation.scoreBreakdown.thresholds.direction} · 位置 {observation.scoreBreakdown.location}/{observation.scoreBreakdown.thresholds.location} · 触发 {observation.scoreBreakdown.trigger}/{observation.scoreBreakdown.thresholds.trigger}</small>}
               {observation.similarity&&<small>历史相似：{observation.similarity.ready?`${observation.similarity.samples} 个已完成样本 · 10分钟达标 ${(observation.similarity.hitRate??0).toFixed(0)}% · 平均有利 ${(observation.similarity.averageFavorablePct??0).toFixed(2)}%`:`样本 ${observation.similarity.samples} 个，未达最小样本量，仅作观察`}</small>}
