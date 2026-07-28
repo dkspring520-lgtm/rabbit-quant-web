@@ -511,7 +511,7 @@
 }
 
 :root[data-theme="light"] .vwap-path {
-  stroke:var(--teal);
+  stroke:var(--amber);
 }
 
 :root[data-theme="light"] .coral-line {
@@ -520,6 +520,10 @@
 
 :root[data-theme="light"] .teal-line {
   background:var(--teal);
+}
+
+:root[data-theme="light"] .average-line {
+  background:var(--amber);
 }
 
 :root[data-theme="light"] :is(.stock-head,.chart-tools,.decision-zone,.ticker) {

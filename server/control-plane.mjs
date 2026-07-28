@@ -3,6 +3,7 @@ import { createCipheriv, createHash, createPrivateKey, createPublicKey, createSi
 import { createControlStore } from "./control-store.mjs";
 import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
 import { selectLatestAlertableObservation } from "../lib/live-monitor-alerts.mjs";
+import { resolveAlertDelivery } from "../lib/alert-delivery-policy.mjs";
 import { evaluateScannerHealth } from "../lib/server-monitor-health.mjs";
 import { advanceScannerWatchdog } from "../lib/scanner-watchdog.mjs";
 
@@ -235,10 +236,11 @@ function evaluateCausalMonitor(monitor, market, clock) {
     return { alert, audit: { ...auditBase, marketTime: action.time, result: "formal", reason: action.reason || "V4 因果条件已确认", eventKey: alert.eventKey } };
   }
   if (candidateIsNew) {
+    const candidateLabel = observation.direction === "反T" ? "高位候选观察" : observation.direction === "正T" ? "低位候选观察" : "候选观察";
     const alert = {
       code: monitor.code,
       level: observation.stage === "candidate" ? "candidate" : "watch",
-      title: `${monitor.name} · ${observation.confirmationLabel || "候选观察"}`,
+      title: `${monitor.name} · ${candidateLabel}`,
       message: `${observation.time} ${observation.reason || "价格与 VWAP 出现显著偏离，等待确认"}`,
       eventKey: `${clock.date}:${monitor.code}:${observation.stage}:${observation.direction}:${observation.time}:${Math.round(Number(observation.price) * 100)}`,
       marketTime: observation.time,
@@ -300,11 +302,20 @@ async function scanMonitors({ force = false } = {}) {
       }
       const evaluation = evaluateCausalMonitor(monitor, market, clock);
       const alert = evaluation.alert;
-      if (alert && store.addAlert(monitor.userId, alert)) {
+      const delivery = alert
+        ? resolveAlertDelivery({ previous: store.latestAlertForCode(monitor.userId, monitor.code), next: alert })
+        : null;
+      const deliverableAlert = delivery?.deliver ? delivery.alert : null;
+      if (deliverableAlert && store.addAlert(monitor.userId, deliverableAlert)) {
         scanState.inserted += 1;
-        void deliverPushToUser(monitor.userId, alert).catch(error => console.error("[control] push delivery", error));
+        void deliverPushToUser(monitor.userId, deliverableAlert).catch(error => console.error("[control] push delivery", error));
       }
-      store.recordMonitorScan(monitor.userId, { code: monitor.code, name: monitor.name, marketDate: clock.date, ...evaluation.audit });
+      const audit = alert && !deliverableAlert
+        ? { ...evaluation.audit, result: "alert_suppressed", reason: `提醒限频：${delivery?.reason || "重复候选"}`, eventKey: null }
+        : deliverableAlert?.level === "risk" && alert?.level === "formal"
+          ? { ...evaluation.audit, result: "direction_conflict", reason: deliverableAlert.message, eventKey: deliverableAlert.eventKey }
+          : evaluation.audit;
+      store.recordMonitorScan(monitor.userId, { code: monitor.code, name: monitor.name, marketDate: clock.date, ...audit });
       scanState.logged += 1;
     }
     scanState.lastCompletedAt = new Date().toISOString();

@@ -142,7 +142,9 @@ class Collector:
         self.forward_minutes = set()
         self.forward_days = set()
         self.last_forward_minute = None
-        self.minute_bars = deque(maxlen=60)
+        # Keep a full A-share day so a page reload can rebuild the Zijin chart
+        # from broker L2 instead of falling back to a public minute close.
+        self.minute_bars = deque(maxlen=260)
         self.current_minute_bar = None
         self.forward_label_count = 0
         self.forward_research_status = "collecting-forward-evidence"
@@ -192,21 +194,49 @@ class Collector:
             minute = exchange_minute(self.last_exchange_time)
             price = float(row["last"]) / 10000
             if minute and price > 0:
-                self.update_minute_bar(minute, price)
+                self.update_minute_bar(
+                    minute, price, int(row["volume"]), int(row["turnover"])
+                )
             self.message_counts["snapshot"] += 1
         self.last_message_at = time.time()
 
-    def update_minute_bar(self, minute, price):
+    @staticmethod
+    def cumulative_average_price(cumulative_turnover, cumulative_volume, last_price):
+        """Normalize vendor amount/volume units against the observed L2 price."""
+        if cumulative_volume <= 0 or cumulative_turnover <= 0 or last_price <= 0:
+            return None
+        raw = cumulative_turnover / cumulative_volume
+        candidates = (raw, raw / 100, raw / 10000, raw * 100)
+        average = min(candidates, key=lambda value: abs(value - last_price))
+        return average if abs(average - last_price) / last_price <= 0.1 else None
+
+    def update_minute_bar(self, minute, price, cumulative_volume=0, cumulative_turnover=0):
         bar = self.current_minute_bar
         if bar is not None and bar["minute"] == minute:
             bar["high"] = max(bar["high"], price)
             bar["low"] = min(bar["low"], price)
             bar["close"] = price
+            bar["endVolume"] = cumulative_volume
+            bar["endTurnover"] = cumulative_turnover
+            bar["volume"] = max(0, cumulative_volume - bar["startVolume"])
+            bar["turnover"] = max(0, cumulative_turnover - bar["startTurnover"])
+            bar["averagePrice"] = self.cumulative_average_price(
+                cumulative_turnover, cumulative_volume, price
+            )
             return
         if bar is not None:
             self.minute_bars.append(bar)
+        same_day = bar is not None and bar["minute"][:8] == minute[:8]
+        start_volume = bar["endVolume"] if same_day else 0
+        start_turnover = bar["endTurnover"] if same_day else 0
+        average = self.cumulative_average_price(cumulative_turnover, cumulative_volume, price)
         self.current_minute_bar = {
             "minute": minute, "open": price, "high": price, "low": price, "close": price,
+            "startVolume": start_volume, "endVolume": cumulative_volume,
+            "startTurnover": start_turnover, "endTurnover": cumulative_turnover,
+            "volume": max(0, cumulative_volume - start_volume),
+            "turnover": max(0, cumulative_turnover - start_turnover),
+            "averagePrice": average,
         }
 
     def atr_state(self, period=14, minimum_samples=4):
@@ -266,6 +296,8 @@ class Collector:
         while self.orders and now - self.orders[0][0] > 60: self.orders.popleft()
         buy = sum(row[3] for row in self.transactions if row[1] == "B")
         sell = sum(row[3] for row in self.transactions if row[1] == "S")
+        buy_volume = sum(row[2] for row in self.transactions if row[1] == "B")
+        sell_volume = sum(row[2] for row in self.transactions if row[1] == "S")
         big_buy = sum(row[3] for row in self.transactions if row[1] == "B" and row[3] >= self.big_order)
         big_sell = sum(row[3] for row in self.transactions if row[1] == "S" and row[3] >= self.big_order)
         buy_sweep_streak = trailing_big_sweep_streak(self.transactions, "B", self.big_order)
@@ -287,6 +319,15 @@ class Collector:
             if mid > 0 and bid1_volume + ask1_volume > 0 else 0
         )
         last_price = round(float(self.snapshot["last"]) / 10000, 4) if self.snapshot is not None else None
+        session = None if self.snapshot is None else {
+            "previousClose": round(float(self.snapshot["pre_close"]) / 10000, 4),
+            "open": round(float(self.snapshot["open"]) / 10000, 4),
+            "high": round(float(self.snapshot["high"]) / 10000, 4),
+            "low": round(float(self.snapshot["low"]) / 10000, 4),
+            "volume": int(self.snapshot["volume"]),
+            "amount": int(self.snapshot["turnover"]),
+            "trades": int(self.snapshot["num_trades"]),
+        }
         ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
         return {
             "schemaVersion": 3, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
@@ -297,6 +338,8 @@ class Collector:
                        "stale": age is None or age > self.stale_seconds, "ageSeconds": None if age is None else round(age, 3),
                        "parseErrors": self.parse_errors, "reconnects": self.reconnects},
             "flow": {"activeBuyNotional60s": round(buy, 2), "activeSellNotional60s": round(sell, 2),
+                     "activeBuyVolume60s": buy_volume, "activeSellVolume60s": sell_volume,
+                     "tradeVolume60s": buy_volume + sell_volume,
                      "activeBuyRatio60s": None if total <= 0 else round(buy / total, 6),
                      "netActiveNotional60s": round(buy - sell, 2),
                      "bigBuyNotional60s": round(big_buy, 2),
@@ -312,7 +355,18 @@ class Collector:
                      "spreadBps": None if mid <= 0 else round((best_ask - best_bid) / mid * 10000, 4),
                      "microprice": None if microprice <= 0 else round(microprice, 4),
                      "micropriceEdgeBps": None if mid <= 0 else round((microprice - mid) / mid * 10000, 4)},
+            "session": session,
             "volatility": self.atr_state(),
+            "recentMinutes": [
+                {
+                    "time": bar["minute"][-4:], "exchangeMinute": bar["minute"],
+                    "price": bar["close"], "open": bar["open"], "high": bar["high"], "low": bar["low"],
+                    "volume": bar.get("volume", 0), "amount": bar.get("turnover", 0),
+                    "averagePrice": bar.get("averagePrice"),
+                }
+                for bar in [*self.minute_bars, *([self.current_minute_bar] if self.current_minute_bar else [])]
+                if bar["minute"][:8] == (self.last_exchange_time or "")[:8]
+            ],
             "messages": self.message_counts,
             "forward": {
                 "path": self.forward_path, "samples": len(self.forward_minutes), "tradingDays": len(self.forward_days),

@@ -5,7 +5,7 @@ type Quote = {
   change: number | null; changePercent: number | null; open: number | null;
   high: number | null; low: number | null; volume: number | null; amount: number | null;
 };
-type MinutePoint = { time: string; price: number; volume: number };
+type MinutePoint = { time: string; price: number; volume: number; averagePrice?: number | null };
 type IntradaySession = { date: string; previousClose: number | null; minutes: MinutePoint[] };
 
 type EastmoneyQuote = { f43?: number; f44?: number; f45?: number; f46?: number; f47?: number; f48?: number; f57?: string; f58?: string; f60?: number; f169?: number; f170?: number; };
@@ -71,11 +71,15 @@ async function fromTencentMinutes(code: string): Promise<MinutePoint[]> {
   const rows = payload.data?.[`${marketPrefix(code)}${code}`]?.data?.data ?? [];
   let previousVolume = 0;
   return rows.map((row) => {
-    const [time, rawPrice, rawVolume] = row.split(" ");
+    const [time, rawPrice, rawVolume, rawAmount] = row.split(" ");
     const price = Number(rawPrice); const cumulativeVolume = Number(rawVolume);
+    const cumulativeAmount = Number(rawAmount);
     const volume = Number.isFinite(cumulativeVolume) ? Math.max(0, cumulativeVolume - previousVolume) : 0;
     previousVolume = Number.isFinite(cumulativeVolume) ? cumulativeVolume : previousVolume;
-    return { time, price, volume };
+    const averagePrice = cumulativeVolume > 0 && Number.isFinite(cumulativeAmount)
+      ? cumulativeAmount / (cumulativeVolume * 100)
+      : null;
+    return { time, price, volume, averagePrice };
   }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price));
 }
 
@@ -88,11 +92,15 @@ async function fromTencentIntradaySessions(code: string): Promise<IntradaySessio
   return days.flatMap((day, index) => {
     let previousVolume = 0;
     const minutes = (day.data ?? []).map((row) => {
-      const [time, rawPrice, rawVolume] = row.split(" ");
+      const [time, rawPrice, rawVolume, rawAmount] = row.split(" ");
       const price = Number(rawPrice); const cumulativeVolume = Number(rawVolume);
+      const cumulativeAmount = Number(rawAmount);
       const volume = Number.isFinite(cumulativeVolume) ? Math.max(0, cumulativeVolume - previousVolume) : 0;
       previousVolume = Number.isFinite(cumulativeVolume) ? cumulativeVolume : previousVolume;
-      return { time, price, volume };
+      const averagePrice = cumulativeVolume > 0 && Number.isFinite(cumulativeAmount)
+        ? cumulativeAmount / (cumulativeVolume * 100)
+        : null;
+      return { time, price, volume, averagePrice };
     }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price) && point.price > 0 && point.time <= "1500");
     const previousRows = days[index + 1]?.data ?? [];
     const previousClose = numeric(previousRows.at(-1)?.split(" ")[1]);

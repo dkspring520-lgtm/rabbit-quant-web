@@ -50,6 +50,7 @@ test("server accounts, sessions and cross-device profile data", () => {
     assert.equal(store.addAlert(member.id, { code: "601899", level: "candidate", title: "重复", message: "不应重复", eventKey: "601899:20260718:0940:buy" }), false);
     const alerts = store.listAlerts(member.id);
     assert.equal(alerts.length, 1);
+    assert.equal(store.latestAlertForCode(member.id, "601899")?.eventKey, "601899:20260718:0940:buy");
     assert.equal(alerts[0].deliveryStatus, "stored");
     const delivery = store.markAlertDelivery(member.id, alerts[0].id, { status: "notified", channel: "in-app+system" });
     assert.equal(delivery.delivery_status, "notified");
