@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildMatureZijinL2Labels,
   buildZijinL2Observation,
+  buildZijinRepairObservation,
   decideZijinL2Append,
   summarizeZijinL2Audit,
 } from "../lib/zijin-l2-event-ledger.mjs";
@@ -75,4 +76,49 @@ test("thresholds stay frozen before evidence gate", () => {
   assert.equal(summary.readiness.ready, false);
   assert.equal(summary.thresholdRecommendation, "keep-current-thresholds");
   assert.equal(summary.automaticPromotion, false);
+});
+
+test("a repair candidate enters the same causal 5/15/30-minute label ledger", () => {
+  const observation = buildZijinRepairObservation({
+    repair: {
+      status: "candidate",
+      candidateKey: "601899:1109:repair",
+      score: 88,
+      asOfTime: "1113",
+      metrics: {
+        price: 31.34,
+        secondLow: { time: "1109", price: 31.19 },
+        vwap: 31.35,
+        vwapBiasPct: -0.03,
+        deepestBiasPct: -0.65,
+        momentum3Pct: 0.45,
+        pullbackVolumeRatio: 0.65,
+        activeBuyRatio: 0.56,
+        breakoutPrice: 31.29,
+      },
+      checks: { secondBottom: true, l2BuyRecovery: true, localBreakout: true },
+      hardConditions: { afterStart: true, deepVwapDiscount: true },
+    },
+    exchangeMinute: "20260728-1113",
+  });
+  assert.equal(observation.state, "repair-confirmed");
+  assert.equal(observation.side, "buy");
+  assert.equal(observation.decisionMinute, "202607281113");
+  assert.equal(decideZijinL2Append([], observation).append, true);
+
+  const minutes = Array.from({ length: 31 }, (_, index) => ({
+    exchangeMinute: `20260728-${String(11 + Math.floor((13 + index) / 60)).padStart(2, "0")}${String((13 + index) % 60).padStart(2, "0")}`,
+    price: 31.34 + index * 0.01,
+  }));
+  const labels = buildMatureZijinL2Labels({ observations: [observation], minutes });
+  assert.deepEqual(labels.map(item => item.horizonMinutes), [5, 15, 30]);
+});
+
+test("probabilities remain hidden until each horizon has enough forward samples", () => {
+  const collecting = summarizeZijinL2Audit({
+    observations: [],
+    labels: [{ horizonMinutes: 5, marketDate: "20260728", netDirectionalWin: true }],
+  });
+  assert.equal(collecting.calibrationByHorizon["5m"].calibratedWinProbability, null);
+  assert.equal(collecting.calibrationByHorizon["5m"].status, "collecting-forward-samples");
 });

@@ -49,6 +49,30 @@ export type StockAgentEvaluation = {
       };
       [key:string]:unknown;
     };
+    repair?:{
+      ready:boolean;
+      phase:"repair";
+      status:"waiting"|"watch"|"candidate";
+      direction:"正T";
+      score:number;
+      asOfTime:string|null;
+      title:string;
+      candidateKey:string|null;
+      checks:Record<string,boolean>;
+      hardConditions:Record<string,boolean>;
+      metrics:{
+        price:number;
+        rangePct:number;
+        vwap:number;
+        vwapBiasPct:number;
+        deepestBiasPct:number;
+        momentum3Pct:number;
+        pullbackVolumeRatio:number|null;
+        activeBuyRatio:number|null;
+        [key:string]:unknown;
+      };
+      [key:string]:unknown;
+    };
   };
   executable:false;
   affectsV4:false;

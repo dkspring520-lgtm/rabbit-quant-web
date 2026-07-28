@@ -2,9 +2,11 @@ import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises
 import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 import { evaluateZijinLargeOrder } from "../lib/zijin-large-order-confirmation.mjs";
+import { evaluateZijinRepairCandidate } from "../lib/zijin-repair-candidate.mjs";
 import {
   buildMatureZijinL2Labels,
   buildZijinL2Observation,
+  buildZijinRepairObservation,
   decideZijinL2Append,
   summarizeZijinL2Audit,
 } from "../lib/zijin-l2-event-ledger.mjs";
@@ -91,19 +93,52 @@ async function fetchL2State() {
   return response.json();
 }
 
+async function fetchMarketReplay() {
+  const response = await fetch(`${origin}/api/market-data?code=601899&mode=replay`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) throw new Error(`market replay HTTP ${response.status}`);
+  return response.json();
+}
+
+function mergeMarketAndL2Minutes(l2Minutes, marketPayload, exchangeMinute) {
+  const date = String(exchangeMinute ?? "").replace(/\D/g, "").slice(0, 8);
+  const session = (Array.isArray(marketPayload?.intradaySessions) ? marketPayload.intradaySessions : [])
+    .find(item => String(item?.date ?? "").replace(/\D/g, "").slice(0, 8) === date);
+  if (!session?.minutes?.length) return l2Minutes;
+  const l2ByTime = new Map(l2Minutes.map(row => [String(row?.time ?? "").replace(/\D/g, "").slice(-4), row]));
+  return session.minutes.map(row => {
+    const time = String(row?.time ?? "").replace(/\D/g, "").slice(-4);
+    const l2 = l2ByTime.get(time);
+    return {
+      ...row,
+      ...l2,
+      time,
+      exchangeMinute: l2?.exchangeMinute ?? `${date}-${time}`,
+      price: Number(l2?.price) > 0 ? Number(l2.price) : Number(row?.price),
+      volume: Number(row?.volume) || 0,
+      amount: Number(row?.amount) || 0,
+      averagePrice: Number(row?.averagePrice) || null,
+    };
+  });
+}
+
 export async function runOnce() {
   const now = new Date().toISOString();
-  const [payload, observations, existingLabels, previous] = await Promise.all([
+  const [payload, marketPayload, observations, existingLabels, previous] = await Promise.all([
     fetchL2State(),
+    fetchMarketReplay().catch(() => null),
     readJsonLines(ledgerPath),
     readJsonLines(labelPath),
     readPreviousState(),
   ]);
-  const minutes = Array.isArray(payload?.recentMinutes) ? payload.recentMinutes : [];
+  const rawMinutes = Array.isArray(payload?.recentMinutes) ? payload.recentMinutes : [];
   const stale = Boolean(payload?.meta?.stale || payload?.status?.stale);
-  const exchangeMinute = payload.lastExchangeTime ?? minutes.at(-1)?.exchangeMinute;
+  const exchangeMinute = payload.lastExchangeTime ?? rawMinutes.at(-1)?.exchangeMinute;
+  const minutes = mergeMarketAndL2Minutes(rawMinutes, marketPayload, exchangeMinute);
   const freshLiveMinute = isFreshLiveExchangeMinute(exchangeMinute, now);
-  if (!payload?.status?.connected || !payload?.status?.authorized || stale || !minutes.length || !freshLiveMinute) {
+  if (!payload?.status?.connected || !payload?.status?.authorized || stale || !rawMinutes.length || !freshLiveMinute) {
     const audit = summarizeZijinL2Audit({
       observations,
       labels: existingLabels,
@@ -127,14 +162,22 @@ export async function runOnce() {
 
   const structure = evaluateZijinStructure({ minutes });
   const evaluation = evaluateZijinLargeOrder({ minutes, structure });
-  const candidate = buildZijinL2Observation({ evaluation, structure, exchangeMinute, observedAt: now });
-  const decision = decideZijinL2Append(observations, candidate);
-  if (decision.append) {
-    await appendJsonLines(ledgerPath, [candidate]);
-    observations.push(candidate);
+  const repair = evaluateZijinRepairCandidate(minutes);
+  const candidates = [
+    buildZijinL2Observation({ evaluation, structure, exchangeMinute, observedAt: now }),
+    buildZijinRepairObservation({ repair, exchangeMinute, observedAt: now }),
+  ].filter(Boolean);
+  const decisions = candidates.map(candidate => ({
+    candidate,
+    decision: decideZijinL2Append(observations, candidate),
+  }));
+  const appended = decisions.filter(item => item.decision.append).map(item => item.candidate);
+  if (appended.length) {
+    await appendJsonLines(ledgerPath, appended);
+    observations.push(...appended);
   }
   const suppressedRepeats = (previous.suppressedRepeats ?? 0)
-    + (!decision.append && !["idle"].includes(decision.reason) ? 1 : 0);
+    + decisions.filter(item => !item.decision.append && item.decision.reason !== "idle").length;
   const newLabels = buildMatureZijinL2Labels({
     observations,
     existingLabels,
@@ -155,13 +198,13 @@ export async function runOnce() {
     sourceStatus: "live",
     sourceUpdatedAt: payload.updatedAt ?? null,
     lastExchangeTime: payload.lastExchangeTime ?? null,
-    current: candidate ? {
+    current: decisions.map(({ candidate, decision }) => ({
       eventId: candidate.eventId,
       state: candidate.state,
       side: candidate.side,
       score: candidate.featureSnapshot.score,
       appendDecision: decision.reason,
-    } : null,
+    })),
   };
   await writeJsonAtomic(statePath, state);
   return { state, marketOpen: true };
