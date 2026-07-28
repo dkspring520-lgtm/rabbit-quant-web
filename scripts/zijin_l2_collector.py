@@ -153,6 +153,7 @@ class Collector:
         self.forward_label_count = 0
         self.forward_research_status = "collecting-forward-evidence"
         self.load_intraday_flow_state()
+        self.load_intraday_flow_forward_fallback()
         self.load_forward_index()
         self.refresh_forward_research()
 
@@ -198,6 +199,70 @@ class Collector:
                 "volume": int(row.get("volume", 0) or 0),
                 "amount": float(row.get("amount", 0) or 0),
                 "averagePrice": row.get("averagePrice"),
+            }
+
+    def load_intraday_flow_forward_fallback(self):
+        """Backfill restart gaps from the immutable one-sample-per-minute ledger.
+
+        The primary state contains exact minute aggregates. The forward ledger
+        stores a causal trailing-60-second snapshot, so it is used only when an
+        exact minute disappeared during a restart and never replaces an exact
+        row that was restored successfully.
+        """
+        records = {}
+        try:
+            with Path(self.forward_path).open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    try:
+                        value = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    minute = value.get("exchangeMinute")
+                    if isinstance(minute, str) and is_a_share_cash_session(minute):
+                        records[minute] = value
+        except (FileNotFoundError, OSError):
+            return
+        if not records:
+            return
+        active_date = (
+            max(self.minute_flows)[:8]
+            if self.minute_flows
+            else max(records)[:8]
+        )
+        for minute, record in records.items():
+            if not minute.startswith(active_date) or minute in self.minute_flows:
+                continue
+            flow = record.get("flow", {})
+            if not isinstance(flow, dict):
+                continue
+            active_buy = float(flow.get("activeBuyNotional60s", 0) or 0)
+            active_sell = float(flow.get("activeSellNotional60s", 0) or 0)
+            big_buy = float(flow.get("bigBuyNotional60s", 0) or 0)
+            big_sell = float(flow.get("bigSellNotional60s", 0) or 0)
+            self.minute_flows[minute] = {
+                "activeBuyNotional": active_buy,
+                "activeSellNotional": active_sell,
+                "activeBuyVolume": 0,
+                "activeSellVolume": 0,
+                "bigBuyNotional": big_buy,
+                "bigSellNotional": big_sell,
+                "bigBuyVolume": 0,
+                "bigSellVolume": 0,
+                "bigBuyCount": 0,
+                "bigSellCount": 0,
+            }
+            price = float(record.get("lastPrice", 0) or 0)
+            self.restored_minute_rows[minute] = {
+                "time": minute[-4:],
+                "exchangeMinute": minute,
+                "price": price,
+                "open": price,
+                "high": price,
+                "low": price,
+                "volume": 0,
+                "amount": 0,
+                "averagePrice": None,
+                "flowRecovery": "causal-rolling-60s",
             }
 
     def load_forward_index(self):
