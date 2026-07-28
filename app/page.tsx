@@ -27,6 +27,7 @@ import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-p
 import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intraday-chart-model.mjs";
 import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
 import { buildZijinPreopenPricePlan } from "@/lib/zijin-preopen-price-plan.mjs";
+import { buildZijinMainForceTrack } from "@/lib/zijin-main-force-track.mjs";
 import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminder.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
@@ -56,6 +57,14 @@ const liveChartSlotX = (slot:number) =>
 const liveChartPriceY = (price:number, min:number, max:number) => {
   const range=max-min||Math.max(max*.002,.01);
   return LIVE_CHART.priceTop+(max-price)/range*(LIVE_CHART.priceBottom-LIVE_CHART.priceTop);
+};
+
+const formatMainForceAmount = (value:number) => {
+  const absolute=Math.abs(value);
+  const sign=value>0?"+":value<0?"−":"";
+  if(absolute>=100_000_000)return `${sign}${(absolute/100_000_000).toFixed(2)}亿`;
+  if(absolute>=10_000)return `${sign}${(absolute/10_000).toFixed(1)}万`;
+  return `${sign}${Math.round(absolute)}`;
 };
 
 const base64UrlToUint8Array = (value:string) => {
@@ -840,6 +849,13 @@ export default function Home() {
                   : {
                     status:{...payload.status,stale:false},
                     meta:{...payload.meta,stale:false},
+                    flow:{
+                      activeBuyRatio60s:bar.activeBuyRatio,
+                      netActiveNotional60s:bar.netActiveNotional,
+                      bigOrderNetNotional60s:bar.bigOrderNetNotional,
+                      activeBuyVolume60s:bar.activeBuyVolume,
+                      activeSellVolume60s:bar.activeSellVolume,
+                    },
                     book:{lastPrice:bar.price},
                     l2Bar:bar,
                   };
@@ -997,6 +1013,10 @@ export default function Home() {
   },[minutePoints,activeQuote?.previousClose]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
   const isZijinStock=stock?.code===STOCK_AGENTS.zijin.code;
+  const zijinMainForceTrack=useMemo(
+    ()=>buildZijinMainForceTrack(isZijinStock?(liveL2Status?.recentMinutes??[]):[]),
+    [isZijinStock,liveL2Status?.recentMinutes],
+  );
   const zijinPricePlan=useMemo(()=>isZijinStock?buildZijinPricePlan({
     minutes:minutePoints,
     previousClose:activeQuote?.previousClose??null,
@@ -1965,7 +1985,7 @@ export default function Home() {
         <div className="opening-assessment"><span>开盘状态</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {openingAssessment.confirmation}</small></div>
       </section>
 
-      <section className={`workspace ${workspaceFullscreen?'workspace-fullscreen':''}`} ref={workspaceRef}>
+      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''}`} ref={workspaceRef}>
         <div className="chart-zone">
           <div className="chart-tools">
             <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}<span className="causal-marker-legend"><i/>提醒按确认分钟实时落点 · 不回填峰谷</span></div>
@@ -1993,6 +2013,30 @@ export default function Home() {
               {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x-1.35} y={LIVE_CHART.volumeBottom-bar.height} width="2.7" height={bar.height} rx=".45" className={bar.up?'volume':'volume red'}/>) }
             </svg>
           </div>
+          {isZijinStock&&<section className="main-force-track" aria-label="紫金矿业全天 L2 主力追踪">
+            <div className="main-force-track-head">
+              <div><strong>主力追踪</strong><span>仅统计 L2 大额主动成交</span></div>
+              <div className="main-force-track-legend"><span className="buy"><i/>大额主动净买</span><span className="sell"><i/>大额主动净卖</span></div>
+              <div className={`main-force-track-summary ${zijinMainForceTrack.totals.netNotional>=0?'buy':'sell'}`}>
+                <span>{zijinMainForceTrack.stance}</span><b>{formatMainForceAmount(zijinMainForceTrack.totals.netNotional)}</b>
+              </div>
+            </div>
+            <svg viewBox={`0 0 ${LIVE_CHART.width} 88`} preserveAspectRatio="none" role="img" aria-label={`主力追踪：${zijinMainForceTrack.stance}`}>
+              <line x1={LIVE_CHART.plotLeft} y1="44" x2={LIVE_CHART.plotRight} y2="44" className="main-force-zero"/>
+              {A_SHARE_INTRADAY_AXIS.map(tick=><line key={tick.label} x1={liveChartSlotX(tick.slot)} y1="7" x2={liveChartSlotX(tick.slot)} y2="81" className="main-force-grid"/>)}
+              {zijinMainForceTrack.bars.map(bar=>{
+                const height=Math.max(bar.netNotional===0?0:2,Math.min(37,Math.abs(bar.strength)*30));
+                const y=bar.netNotional>=0?44-height:44;
+                return <rect key={bar.time} x={liveChartX(bar.time)-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
+              })}
+              {!zijinMainForceTrack.bars.some(bar=>bar.bigBuyCount+bar.bigSellCount>0)&&<text x="460" y="49" textAnchor="middle" className="main-force-empty">等待 L2 大额主动成交</text>}
+            </svg>
+            <div className="main-force-track-foot">
+              <span>大额买入 {formatMainForceAmount(zijinMainForceTrack.totals.bigBuyNotional)}</span>
+              <span>大额卖出 {formatMainForceAmount(zijinMainForceTrack.totals.bigSellNotional)}</span>
+              <em>追踪证据，不单独构成买卖信号</em>
+            </div>
+          </section>}
           {afterHoursSummary&&<div className="after-hours-strip" role="status" aria-label="盘后固定价格交易数据">
             <span><i/>盘后固定价</span><b>15:05–15:30</b><strong>¥{afterHoursSummary.price.toFixed(2)}</strong>
             <small>{afterHoursSummary.points} 个成交点 · 成交量 {afterHoursSummary.totalVolume.toLocaleString("zh-CN")} · 仅展示，不触发做 T 信号</small>
@@ -2465,8 +2509,8 @@ type ZijinL2State = {
   flow?:{activeBuyRatio60s?:number|null;netActiveNotional60s?:number;bigOrderNetNotional60s?:number;activeBuyVolume60s?:number;activeSellVolume60s?:number;tradeVolume60s?:number};
   book?:{lastPrice?:number|null;nearTouchImbalance?:number|null;spreadBps?:number|null;microprice?:number|null;micropriceEdgeBps?:number|null};
   session?:{previousClose?:number|null;open?:number|null;high?:number|null;low?:number|null;volume?:number|null;amount?:number|null;trades?:number|null};
-  recentMinutes?:{time:string;exchangeMinute?:string;price:number;open?:number;high?:number;low?:number;volume?:number;amount?:number;averagePrice?:number|null}[];
-  l2Bar?:{time:string;exchangeMinute?:string;price:number;open?:number;high?:number;low?:number;volume?:number;amount?:number;averagePrice?:number|null};
+  recentMinutes?:{time:string;exchangeMinute?:string;price:number;open?:number;high?:number;low?:number;volume?:number;amount?:number;averagePrice?:number|null;activeBuyNotional?:number;activeSellNotional?:number;activeBuyVolume?:number;activeSellVolume?:number;activeBuyRatio?:number|null;netActiveNotional?:number;bigBuyNotional?:number;bigSellNotional?:number;bigOrderNetNotional?:number;bigBuyVolume?:number;bigSellVolume?:number;bigBuyCount?:number;bigSellCount?:number}[];
+  l2Bar?:{time:string;exchangeMinute?:string;price:number;open?:number;high?:number;low?:number;volume?:number;amount?:number;averagePrice?:number|null;activeBuyNotional?:number;activeSellNotional?:number;activeBuyVolume?:number;activeSellVolume?:number;activeBuyRatio?:number|null;netActiveNotional?:number;bigBuyNotional?:number;bigSellNotional?:number;bigOrderNetNotional?:number;bigBuyVolume?:number;bigSellVolume?:number;bigBuyCount?:number;bigSellCount?:number};
   messages?:{snapshot?:number;transaction?:number;order?:number};
   volatility?:{source?:string;period?:number;samples?:number;ready?:boolean;atr14?:number|null;atrPct14?:number|null};
   forward?:{samples?:number;tradingDays?:number;trainingReady?:boolean;reason?:string};

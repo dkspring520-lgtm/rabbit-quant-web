@@ -266,6 +266,27 @@
   stroke: #eadfe6;
 }
 
+:root[data-theme="light"] .main-force-track {
+  background: linear-gradient(180deg, #fffafd, #fff7fb);
+  border-top-color: #f0e3eb;
+}
+
+:root[data-theme="light"] .main-force-zero {
+  stroke: #d8cbd6;
+}
+
+:root[data-theme="light"] .main-force-grid {
+  stroke: #f0e7ed;
+}
+
+:root[data-theme="light"] .main-force-buy {
+  fill: #9b6cff;
+}
+
+:root[data-theme="light"] .main-force-sell {
+  fill: #f0647e;
+}
+
 :root[data-theme="light"] .price-path,
 :root[data-theme="light"] .last-line {
   stroke: #ff668f;
