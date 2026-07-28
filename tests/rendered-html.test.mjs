@@ -63,7 +63,8 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /左兔 · 买入\/买回提醒/);
   assert.match(source, /右兔 · 卖出提醒/);
-  assert.match(source, /均价线大偏离、条件候补、正式买卖点与新风险全股提醒/);
+  assert.match(source, /提醒控制/);
+  assert.match(source, /同一点只提醒一次/);
   assert.match(source, /className="alert-channel-actions"/);
   assert.match(source, /function observationConfirmationLabel/);
   assert.match(source, /function observationDirectionNote/);
