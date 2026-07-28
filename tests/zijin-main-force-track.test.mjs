@@ -27,6 +27,15 @@ test("each historical main-force bar is causal and cannot be repainted by later 
   }
 });
 
+test("restart-recovered notional remains visible without fabricated trade counts", () => {
+  const result = buildZijinMainForceTrack([
+    {time:"0930",bigBuyNotional:600_000,bigSellNotional:100_000,bigBuyCount:0,bigSellCount:0},
+  ]);
+  assert.equal(result.bars.length, 1);
+  assert.equal(result.bars[0].netNotional, 500_000);
+  assert.notEqual(result.stance, "等待大额成交");
+});
+
 test("main-force chart is tracking evidence only and collector persists minute fields", async () => {
   const [page, collector] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -37,5 +46,7 @@ test("main-force chart is tracking evidence only and collector persists minute f
   assert.match(collector, /def update_minute_flow\(/);
   assert.match(collector, /"schemaVersion": 4/);
   assert.match(collector, /load_intraday_flow_state/);
+  assert.match(collector, /load_intraday_flow_forward_fallback/);
+  assert.match(collector, /causal-rolling-60s/);
   assert.match(collector, /bigOrderNetNotional/);
 });

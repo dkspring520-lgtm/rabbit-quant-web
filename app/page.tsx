@@ -2029,7 +2029,7 @@ export default function Home() {
                 const y=bar.netNotional>=0?44-height:44;
                 return <rect key={bar.time} x={liveChartX(bar.time)-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
               })}
-              {!zijinMainForceTrack.bars.some(bar=>bar.bigBuyCount+bar.bigSellCount>0)&&<text x="460" y="49" textAnchor="middle" className="main-force-empty">等待 L2 大额主动成交</text>}
+              {!zijinMainForceTrack.bars.some(bar=>bar.bigBuyNotional+bar.bigSellNotional>0)&&<text x="460" y="49" textAnchor="middle" className="main-force-empty">等待 L2 大额主动成交</text>}
             </svg>
             <div className="main-force-track-foot">
               <span>大额买入 {formatMainForceAmount(zijinMainForceTrack.totals.bigBuyNotional)}</span>
