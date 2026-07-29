@@ -1,5 +1,6 @@
 export type ZijinMainForceMinute = {
   time:string;
+  price?:number;
   bigBuyNotional?:number;
   bigSellNotional?:number;
   activeBuyNotional?:number;

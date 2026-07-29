@@ -43,7 +43,8 @@ test("main-force chart is tracking evidence only and collector persists minute f
     readFile(new URL("../scripts/zijin_l2_collector.py", import.meta.url), "utf8"),
   ]);
   assert.match(page, /主力追踪/);
-  assert.match(page, /追踪证据，不单独构成买卖信号/);
+  assert.match(page, /evaluateZijinFundResponse/);
+  assert.match(page, /main-force-response-note/);
   assert.match(page, /main-force-repair-state/);
   assert.match(page, /zijinRepair\.checks\?\.l2BuyRecovery/);
   assert.doesNotMatch(page, /zijinRepairMarker/);
