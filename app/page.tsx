@@ -29,6 +29,7 @@ import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intrada
 import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
 import { buildZijinPreopenPricePlan } from "@/lib/zijin-preopen-price-plan.mjs";
 import { buildZijinMainForceTrack } from "@/lib/zijin-main-force-track.mjs";
+import { evaluateZijinFundResponse } from "@/lib/zijin-fund-response.mjs";
 import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminder.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
@@ -1130,6 +1131,10 @@ export default function Home() {
   );
   const zijinMainForcePeak=useMemo(
     ()=>Math.max(1,...zijinMainForceTrack.bars.map(bar=>Math.abs(bar.netNotional))),
+    [zijinMainForceTrack.bars],
+  );
+  const zijinFundResponse=useMemo(
+    ()=>evaluateZijinFundResponse(zijinMainForceTrack.bars),
     [zijinMainForceTrack.bars],
   );
   const zijinMainForceCumulative=useMemo(()=>{
@@ -2406,7 +2411,11 @@ export default function Home() {
             <div className="main-force-track-head">
               <div><strong>主力追踪</strong><span>仅统计 L2 大额主动成交</span></div>
               <div className="main-force-track-legend"><span className="buy"><i/>大额主动净买</span><span className="sell"><i/>大额主动净卖</span><span className="cumulative"><i/>累计净额</span></div>
-              {zijinLargeOrder?.ready&&<div className={`main-force-authenticity ${zijinLargeOrder.absorption||zijinLargeOrder.directionConflict?"risk":zijinLargeOrder.confirmed?"confirmed":"watch"}`}><b>真实性 {zijinLargeOrder.score}</b><span>{zijinLargeOrder.stateMachine?.label??zijinLargeOrder.label}</span></div>}
+              <div className={`main-force-response ${zijinFundResponse.state}`} title={`${zijinFundResponse.message}；${zijinFundResponse.evidence}`}>
+                <span>{zijinFundResponse.label}</span>
+                <i><u style={{width:`${zijinFundResponse.score}%`}}/></i>
+                <b>{zijinFundResponse.score}</b>
+              </div>
               <div className={`main-force-track-summary ${zijinMainForceTrack.totals.netNotional>=0?'buy':'sell'}`}>
                 <span>{zijinMainForceTrack.stance}</span><b>{formatMainForceAmount(zijinMainForceTrack.totals.netNotional)}</b>
               </div>
@@ -2431,8 +2440,8 @@ export default function Home() {
             <div className="main-force-track-foot">
               <span>大额买入 {formatMainForceAmount(zijinMainForceTrack.totals.bigBuyNotional)}</span>
               <span>大额卖出 {formatMainForceAmount(zijinMainForceTrack.totals.bigSellNotional)}</span>
-              {zijinLargeOrder?.ready&&<span className="main-force-cost">{zijinLargeOrder.stateMachine?.costPrice?`大单成本 ¥${zijinLargeOrder.stateMachine.costPrice.toFixed(2)}`:"等待大单成本"} · {zijinLargeOrder.stateMachine?.expiresAt??"等待事件"}</span>}
-              <em>追踪证据，不单独构成买卖信号</em>
+              <span className={`main-force-response-note ${zijinFundResponse.state}`}>{zijinFundResponse.message}</span>
+              <em>{zijinFundResponse.evidence}</em>
             </div>
           </section>}
           {afterHoursSummary&&<div className="after-hours-strip" role="status" aria-label="盘后固定价格交易数据">
