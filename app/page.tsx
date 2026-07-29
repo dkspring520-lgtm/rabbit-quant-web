@@ -94,6 +94,16 @@ type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; 
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
+function tradeAlertLabel(alert:TradeAlertToast){
+  if(alert.level==="risk"||alert.rabbit==="both")return "风险提醒";
+  if(alert.level==="candidate")return alert.rabbit==="buy"?"低位观察":"高位观察";
+  return alert.rabbit==="buy"?"买入 / 买回":"卖出 / 减仓";
+}
+function tradeAlertGuide(alert:TradeAlertToast){
+  if(alert.level==="risk"||alert.rabbit==="both")return "先暂停操作，查看风险依据";
+  if(alert.level==="candidate")return "仅观察，尚未形成买卖点";
+  return alert.rabbit==="buy"?"确认价格与仓位后再买":"确认价格与仓位后再卖";
+}
 type MonitorScanLog = { id:string|number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"|null; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
 type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
 type Membership = { active:boolean; expiresAt:string|null; referralCode:string|null; referralCredits:number; referralReviews:number; referralRewardDays:number };
@@ -2383,7 +2393,7 @@ export default function Home() {
             <div><b>双兔决策屋</b><small>低吸兔找机会 · 止盈兔守风险</small></div>
             <em>陪你盯盘</em>
           </div>}
-          {alertQueue.length>0&&<div className="trade-alert-stack" aria-label="股票提醒列表">{alertQueue.slice(0,4).map((item,index)=><div key={item.id??`${item.title}-${index}`} className={`trade-alert-toast ${item.level} rabbit-${item.rabbit}`} role="alert"><span className={`rabbit-speaker ${item.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{item.level==="candidate"?`${item.rabbit==="sell"?"右兔 · 高位观察":item.rabbit==="buy"?"左兔 · 低位观察":"双兔 · 候选观察"}`:item.rabbit==="buy"?"左兔 · 买入/买回提醒":item.rabbit==="sell"?"右兔 · 卖出提醒":"双兔 · 风控提醒"}</small><b>{item.title}</b><span>{item.message}</span></div>{index===3&&alertQueue.length>4&&<em className="alert-queue-count">+{alertQueue.length-4}</em>}<button onClick={()=>setAlertQueue(current=>current.filter(alert=>alert.id!==item.id))} aria-label={`关闭${item.title}提醒`}>×</button></div>)}</div>}
+          {alertQueue.length>0&&<div className="trade-alert-stack" aria-label="股票提醒列表">{alertQueue.slice(0,3).map((item,index)=><div key={item.id??`${item.title}-${index}`} className={`trade-alert-toast ${item.level} rabbit-${item.rabbit}`} role="alert"><span className={`rabbit-speaker ${item.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{tradeAlertLabel(item)}</small><b>{item.title}</b><span>{tradeAlertGuide(item)}</span><details className="trade-alert-detail"><summary>查看依据</summary><p>{item.message}</p></details></div>{index===2&&alertQueue.length>3&&<em className="alert-queue-count">+{alertQueue.length-3}</em>}<button onClick={()=>setAlertQueue(current=>current.filter(alert=>alert.id!==item.id))} aria-label={`关闭${item.title}提醒`}>×</button></div>)}</div>}
           {isZijinStock&&<div className="stock-agent-switch" aria-label="紫金矿业信号引擎选择">
             <div><span>正式信号引擎 · 三分离过滤</span><b>Smart-T V4.1</b><small>紫金外因与相对强弱仅进入因果研究层；未通过前瞻毕业门槛前不能接管正式执行</small></div>
             <div className="stock-agent-switch-actions"><button className={!zijinResearchEnabled?"active":""} onClick={()=>setZijinResearchEnabled(false)} aria-pressed={!zijinResearchEnabled}>V4 正式</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(true)} aria-pressed={zijinResearchEnabled}>紫金研究叠加</button></div>
