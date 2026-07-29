@@ -431,7 +431,9 @@
     gap:6px
   }
   .minimal-ui .desk-core-strip>div{padding:4px 9px;gap:1px}
-  .minimal-ui .desk-core-strip b{font-size:13px}
+  .minimal-ui .desk-core-strip span{color:#7f8a87}
+  .minimal-ui .desk-core-strip b{font-size:16px;line-height:1.05}
+  .minimal-ui .desk-core-strip .desk-core-reason b{font-size:11px;line-height:1.3}
 
   .minimal-ui .workspace{grid-template-columns:minmax(0,3.35fr) minmax(350px,1fr)}
   .minimal-ui .workspace.with-main-force{height:700px}
@@ -441,10 +443,51 @@
 
   .minimal-ui .decision-zone{padding:14px;background:linear-gradient(180deg,#0a0d0c,#090c0b)}
   .minimal-ui .decision-zone-tabs{margin:-14px -14px 9px;padding:8px 14px 7px}
-  .minimal-ui .zijin-price-plan{margin-bottom:8px;padding:10px}
-  .minimal-ui .zijin-price-plan-grid>div{min-height:54px;padding:7px}
-  .minimal-ui .alert-channel{margin:6px 0;padding:6px 7px}
-  .minimal-ui .auto-direction{min-height:52px;padding:7px 10px}
-  .minimal-ui .decision-zone h2{font-size:24px;margin-top:10px}
+  .minimal-ui .zijin-price-plan{margin-bottom:9px;padding:12px;border-color:rgba(242,184,75,.4);box-shadow:inset 0 1px rgba(255,255,255,.025)}
+  .minimal-ui .zijin-price-plan-head b{font-size:14px}
+  .minimal-ui .zijin-price-plan-grid>div{min-height:62px;padding:9px}
+  .minimal-ui .zijin-price-plan-grid small{font-size:9px}
+  .minimal-ui .zijin-price-plan-grid b{font-size:15px}
+  .minimal-ui .zijin-price-plan-grid span{font-size:8.5px;color:#7b8582}
+  .minimal-ui .alert-channel{margin:6px 0;padding:6px 7px;background:#080b0a;border-color:var(--line-soft)}
+  .minimal-ui .alert-channel>div:first-child span{font-size:9px;color:#8b9693}
+  .minimal-ui .alert-channel button{color:#818b88}
+  .minimal-ui .auto-direction{min-height:58px;padding:9px 11px;border-left-width:3px}
+  .minimal-ui .auto-direction span{color:#7f8986}
+  .minimal-ui .auto-direction b{font-size:16px}
+  .minimal-ui .auto-direction em{font-size:14px}
+  .minimal-ui .decision-zone h2{font-size:27px;margin-top:10px}
   .minimal-ui .decision-copy{margin-bottom:12px;line-height:1.55}
+  .minimal-ui .decision-copy,.minimal-ui .auto-direction small,.minimal-ui .zijin-price-plan>p{color:#929c99}
+  .session-closed.minimal-ui .session-ribbon,.session-postclose.minimal-ui .session-ribbon{
+    border-bottom-color:rgba(242,184,75,.28);
+    background:linear-gradient(90deg,rgba(242,184,75,.13),rgba(242,184,75,.025) 52%,transparent)
+  }
+  .session-closed.minimal-ui .session-ribbon strong,.session-postclose.minimal-ui .session-ribbon strong{color:#e5c477}
 }
+
+/* Candidate observations stay as precise points; details expand only on intent. */
+.interactive-intraday-chart .candidate-signal-marker{
+  pointer-events:bounding-box;
+  cursor:help
+}
+.interactive-intraday-chart .candidate-signal-marker.with-label>rect,
+.interactive-intraday-chart .candidate-signal-marker.with-label>text,
+.interactive-intraday-chart .candidate-signal-marker.with-label>.marker-label-leader{
+  opacity:0;
+  transition:opacity .14s ease
+}
+.interactive-intraday-chart .candidate-signal-marker.with-label:hover>rect,
+.interactive-intraday-chart .candidate-signal-marker.with-label:hover>text,
+.interactive-intraday-chart .candidate-signal-marker.with-label:hover>.marker-label-leader{
+  opacity:1
+}
+.interactive-intraday-chart .candidate-signal-marker circle{
+  transition:r .14s ease,filter .14s ease;
+  vector-effect:non-scaling-stroke
+}
+.interactive-intraday-chart .candidate-signal-marker:hover circle{
+  r:6px;
+  filter:drop-shadow(0 0 3px currentColor)
+}
+.intraday-crosshair-card{opacity:.92}
