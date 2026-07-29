@@ -2300,12 +2300,10 @@ export default function Home() {
       </section>
 
       <section className="desk-core-strip" aria-label="做T核心指标">
-        <div><span>当前浮动</span><b className={(activeQuote?.changePercent??0)>=0?"up":"down"}>{activeQuote?.changePercent==null?"--":`${activeQuote.changePercent>=0?"+":""}${activeQuote.changePercent.toFixed(2)}%`}</b></div>
         <div><span>持仓 / 可卖</span><b>{displayedShares.toLocaleString()}<small> / {effectiveLivePosition.sellable.toLocaleString()} 股</small></b></div>
         <div><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></div>
         <div><span>信号置信度</span><b className={decisionModel.status==="ready"?"ready":decisionModel.status==="locked"?"risk":""}>{decisionModel.confirmed}/4</b></div>
         <div className="desk-core-reason"><span>当前依据</span><b>{marketSession.live?decisionModel.reason:"复盘模式"}</b></div>
-        <small className="desk-shortcuts">↑↓ 切股 · 空格 试算</small>
       </section>
 
       <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'}`} ref={workspaceRef}>
