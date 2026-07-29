@@ -705,3 +705,140 @@
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .signal-funnel-note,
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .risk-box,
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .opening-causal{display:none}
+
+/* Decision-first layout: signal -> price zones -> position -> tools. */
+.decision-primary-card,.decision-position-card{
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--surface);
+  padding:12px
+}
+.decision-primary-card header,.decision-position-card header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:8px
+}
+.decision-primary-card header span,.decision-position-card header span{
+  color:var(--dim);
+  font-size:9px;
+  letter-spacing:.09em
+}
+.decision-primary-card header em,.decision-position-card header em{
+  color:var(--amber);
+  font-size:9px;
+  font-style:normal
+}
+.decision-primary-card>b{
+  display:block;
+  margin-bottom:10px;
+  color:var(--text);
+  font-size:20px;
+  line-height:1.2;
+  letter-spacing:-.025em
+}
+.decision-primary-card>div{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding-top:9px;
+  border-top:1px solid var(--line-soft)
+}
+.decision-primary-card>div span{color:var(--muted);font-size:11px}
+.decision-primary-card>div strong{color:var(--amber);font-size:10px}
+.decision-primary-card.ready{border-color:rgba(40,215,196,.42)}
+.decision-primary-card.ready>div strong{color:var(--teal)}
+.decision-primary-card.locked{border-color:rgba(255,101,95,.42)}
+.decision-primary-card.locked>div strong{color:var(--coral)}
+.decision-position-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px
+}
+.decision-position-grid p{
+  min-width:0;
+  margin:0;
+  padding:9px;
+  border:1px solid var(--line-soft);
+  border-radius:6px;
+  display:flex;
+  flex-direction:column;
+  gap:5px
+}
+.decision-position-grid p>span{color:var(--dim);font-size:8px}
+.decision-position-grid p>b{
+  color:var(--text);
+  font-size:15px;
+  line-height:1;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis
+}
+.decision-position-grid p>b small{color:var(--muted);font-size:8px}
+.decision-position-grid p.accent>b{color:var(--amber)}
+.decision-position-grid p>b.positive{color:var(--coral)}
+.decision-position-grid p>b.negative{color:var(--teal)}
+
+:root:not([data-theme="light"]) .minimal-ui .decision-zone-tabs{order:0}
+:root:not([data-theme="light"]) .minimal-ui .decision-primary-card{
+  order:1;
+  background:linear-gradient(135deg,rgba(242,184,75,.045),var(--desk-panel-raised));
+  border-color:rgba(242,184,75,.24)
+}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan{order:2}
+:root:not([data-theme="light"]) .minimal-ui .decision-position-card{
+  order:3;
+  background:var(--desk-panel-raised);
+  border-color:rgba(154,164,161,.18)
+}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel{order:4}
+:root:not([data-theme="light"]) .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.zijin-price-plan):not(.decision-position-card):not(.alert-channel){order:10}
+:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .auto-direction,
+:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode>.t-calculator,
+:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode>.decision-label{display:none}
+
+/* Sell first, buy second: the two decision prices read as one balanced pair. */
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid .sell{order:1}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid .buy{order:2}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-head b{font-size:15px}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid b{font-size:17px}
+
+/* Low-frequency controls stay in one quiet row. */
+:root:not([data-theme="light"]) .minimal-ui .alert-channel>div:first-child small{display:none}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .utility{
+  width:34px;
+  min-width:34px;
+  overflow:hidden;
+  font-size:0
+}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .utility:first-child::before{content:"◉";font-size:12px}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .utility:nth-child(2)::before{content:"≡";font-size:14px}
+
+/* Desktop density: remove the duplicated strip, compress chrome, return height to the chart. */
+@media(min-width:1101px){
+  :root:not([data-theme="light"]) .minimal-ui .topbar{height:54px;min-height:54px}
+  :root:not([data-theme="light"]) .minimal-ui .brand{padding-right:16px}
+  :root:not([data-theme="light"]) .minimal-ui .main-nav button{padding-left:9px;padding-right:9px;font-size:12px}
+  :root:not([data-theme="light"]) .minimal-ui .top-actions{gap:8px}
+  :root:not([data-theme="light"]) .minimal-ui .strategy-help,
+  :root:not([data-theme="light"]) .minimal-ui .auto-off{display:none}
+  :root:not([data-theme="light"]) .minimal-ui .ticker{height:36px}
+  :root:not([data-theme="light"]) .minimal-ui .session-ribbon{height:28px;flex-basis:28px;padding-left:18px}
+  :root:not([data-theme="light"]) .minimal-ui .stock-head{height:88px;min-height:88px;padding-top:7px;padding-bottom:7px}
+  :root:not([data-theme="light"]) .minimal-ui .desk-core-strip{display:none}
+  :root:not([data-theme="light"]) .minimal-ui .workspace{
+    grid-template-columns:minmax(0,1fr) clamp(360px,24vw,430px);
+    height:calc(100vh - 206px);
+    min-height:600px;
+    max-height:760px
+  }
+  :root:not([data-theme="light"]) .minimal-ui .decision-zone{padding:12px}
+  :root:not([data-theme="light"]) .minimal-ui .decision-zone-tabs{
+    top:-12px;
+    margin:-12px -12px 2px;
+    padding:9px 12px 8px
+  }
+  :root:not([data-theme="light"]) .minimal-ui .chart-wrap{padding:18px 22px 28px 58px}
+}

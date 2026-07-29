@@ -2462,6 +2462,20 @@ export default function Home() {
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>盯盘重点</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>全部证据</button>
           </div>
+          <section className={`decision-primary-card ${decisionModel.status}`} aria-label="当前主要信号">
+            <header><span>主要信号</span><em>{decisionModel.confirmed}/4 条件</em></header>
+            <b>{signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</b>
+            <div><span>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</span><strong>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"实时监控"):"研究观察"}</strong></div>
+          </section>
+          <section className="decision-position-card" aria-label="持仓与本次做T">
+            <header><span>持仓与试算</span><em>{marketSession.live?"实时":"复盘"}</em></header>
+            <div className="decision-position-grid">
+              <p><span>当前持仓</span><b>{displayedShares.toLocaleString()}<small> 股</small></b></p>
+              <p><span>可卖数量</span><b>{effectiveLivePosition.sellable.toLocaleString()}<small> 股</small></b></p>
+              <p className="accent"><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></p>
+              <p><span>预估净收益</span><b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"--"}</b></p>
+            </div>
+          </section>
           {uiTheme==="light"&&<div className="rabbit-decision-header" aria-hidden="true">
             <span className="rabbit-decision-avatar"/>
             <div><b>双兔决策屋</b><small>低吸兔找机会 · 止盈兔守风险</small></div>
