@@ -61,8 +61,10 @@ test("brand uses the 双兔助手 and 做T神器 lockup without regressing to th
 test("all-watchlist alerts use branded rabbits while candidates stay non-executable", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(source, /左兔 · 买入\/买回提醒/);
-  assert.match(source, /右兔 · 卖出提醒/);
+  assert.match(source, /买入 \/ 买回/);
+  assert.match(source, /卖出 \/ 减仓/);
+  assert.match(source, /仅观察，尚未形成买卖点/);
+  assert.match(source, /className="trade-alert-detail"/);
   assert.match(source, /提醒控制/);
   assert.match(source, /同一点只提醒一次/);
   assert.match(source, /className="alert-channel-actions"/);

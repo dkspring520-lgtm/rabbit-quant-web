@@ -34,7 +34,7 @@ test("foreground voice is deliberately concise", () => {
 
 test("simultaneous stock alerts render as separate cards", () => {
   assert.match(page, /className="trade-alert-stack"/);
-  assert.match(page, /alertQueue\.slice\(0,4\)\.map/);
-  assert.match(page, /右兔 · 高位观察/);
-  assert.match(page, /左兔 · 低位观察/);
+  assert.match(page, /alertQueue\.slice\(0,3\)\.map/);
+  assert.match(page, /tradeAlertLabel\(item\)/);
+  assert.match(page, /查看依据/);
 });
