@@ -2327,7 +2327,7 @@ export default function Home() {
               <span>实时盯盘</span><b>{chartHud.title}</b><small>{chartHud.detail} · {chartHud.risk}</small>
               {zijinChartPriceOverlay?.hiddenCount>0&&<button onClick={()=>setShowAllPriceLevels(value=>!value)}>{showAllPriceLevels?"只看最近2条":`展开全部 +${zijinChartPriceOverlay.hiddenCount}`}</button>}
             </div>
-            <svg ref={intradayChartRef} className="interactive-intraday-chart" viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMax meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；移动鼠标或拖动手指查看分钟详情`} tabIndex={0}
+            <svg ref={intradayChartRef} className="interactive-intraday-chart" viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；移动鼠标或拖动手指查看分钟详情`} tabIndex={0}
               onPointerEnter={handleIntradayPointer} onPointerMove={handleIntradayPointer} onPointerDown={handleIntradayPointerDown}
               onPointerLeave={event=>{if(event.pointerType==="mouse")setIntradayCursorTime(null)}} onKeyDown={handleIntradayKeyDown}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient></defs>
