@@ -1857,7 +1857,11 @@ export default function Home() {
           ? `${item.name}，${selectedExperimental.direction}实验观察结束，${selectedExperimental.reason}，不是买卖指令`
           : `${item.name}，${selectedExperimental.direction}实验观察，出现倍量、均价线偏离与实时拐头，不是买卖指令`
         : selectedDisplacement
-        ? `${item.name}，${selectedDisplacement.label}，等待转弱或转强确认，不是买卖点`
+        ? selectedDisplacement.stage==="displacement-l2-confirmation"
+          ? `${item.name}，${selectedDisplacement.label}，订单流正在确认，不是正式买卖点`
+          : selectedDisplacement.stage==="displacement-progress"
+            ? `${item.name}，${selectedDisplacement.label}，继续观察，不是正式买卖点`
+            : `${item.name}，${selectedDisplacement.label}，等待转弱或转强确认，不是买卖点`
         : selectedAgent
         ? `${item.name}，${selectedAgent.direction??"做T"}专属候选观察，不是买卖指令`
         : isVwapDisplacementObservation(selectedEngineCandidate)
