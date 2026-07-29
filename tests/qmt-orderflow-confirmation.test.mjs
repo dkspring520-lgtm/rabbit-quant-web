@@ -52,7 +52,7 @@ test("native nested L2 fields are normalized", () => {
     price: point.price,
     l2: {
       status: { connected: true, authorized: true, stale: false },
-      flow: { activeBuyNotional60s: 70, activeSellNotional60s: 30, netActiveNotional60s: index + 1 },
+      flow: { activeBuyVolume60s: 70, activeSellVolume60s: 30, netActiveNotional60s: index + 1 },
       book: { bid1Volume: 140, ask1Volume: 80 },
     },
   }));
