@@ -2347,28 +2347,56 @@ export default function Home() {
               {indicatorsVisible&&chartModel&&<path d={chartModel.biasPath} className="bias-path"/>}
               {chartModel&&<g className={`peak-volume-marker ${chartModel.peakVolume.abnormal?"abnormal":""}`}><line x1={chartModel.peakVolume.x} y1={LIVE_CHART.volumeTop-3} x2={chartModel.peakVolume.x} y2={LIVE_CHART.volumeBottom}/><text x={Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4)} y={LIVE_CHART.volumeTop-6} textAnchor={chartModel.peakVolume.x>LIVE_CHART.plotRight-72?"end":"start"}>{chartModel.peakVolume.abnormal&&chartModel.peakVolume.ratio?`爆量 ${chartModel.peakVolume.ratio.toFixed(1)}×`:"峰量"} {chartModel.peakVolume.time.slice(0,2)}:{chartModel.peakVolume.time.slice(2)}</text></g>}
               {intradayCursor&&(()=>{
-                const tooltipWidth=158;
-                const tooltipHeight=isZijinStock?132:116;
+                const tooltipWidth=176;
+                const tooltipHeight=isZijinStock?156:139;
+                const tooltipGap=12;
                 const chartMid=(LIVE_CHART.plotLeft+LIVE_CHART.plotRight)/2;
-                const tooltipX=intradayCursor.x>chartMid
-                  ? LIVE_CHART.plotLeft+10
-                  : LIVE_CHART.plotRight-tooltipWidth-10;
-                const tooltipY=LIVE_CHART.priceTop+8;
+                const priceMid=(LIVE_CHART.priceTop+LIVE_CHART.priceBottom)/2;
+                const tooltipX=Math.max(
+                  LIVE_CHART.plotLeft+6,
+                  Math.min(
+                    LIVE_CHART.plotRight-tooltipWidth-6,
+                    intradayCursor.x>chartMid
+                      ? intradayCursor.x-tooltipWidth-tooltipGap
+                      : intradayCursor.x+tooltipGap,
+                  ),
+                );
+                const tooltipY=Math.max(
+                  LIVE_CHART.priceTop+6,
+                  Math.min(
+                    LIVE_CHART.volumeTop-tooltipHeight-6,
+                    intradayCursor.y<priceMid
+                      ? intradayCursor.y+tooltipGap
+                      : intradayCursor.y-tooltipHeight-tooltipGap,
+                  ),
+                );
+                const axisTimeX=Math.max(LIVE_CHART.plotLeft+24,Math.min(LIVE_CHART.plotRight-24,intradayCursor.x));
+                const axisPriceY=Math.max(LIVE_CHART.priceTop+9,Math.min(LIVE_CHART.priceBottom-9,intradayCursor.y));
                 const change=intradayCursor.changePercent;
+                const directionClass=change!=null&&change>=0?"up":"down";
                 return <g className="intraday-crosshair" aria-label={`${intradayCursor.time}，价格 ${intradayCursor.price.toFixed(2)}`}>
                   <line x1={intradayCursor.x} y1={LIVE_CHART.priceTop} x2={intradayCursor.x} y2={LIVE_CHART.volumeBottom} className="intraday-crosshair-line"/>
                   <line x1={LIVE_CHART.plotLeft} y1={intradayCursor.y} x2={LIVE_CHART.plotRight} y2={intradayCursor.y} className="intraday-crosshair-line"/>
                   <circle cx={intradayCursor.x} cy={intradayCursor.y} r="4" className="intraday-crosshair-dot"/>
+                  <g className={`intraday-crosshair-axis-label price ${directionClass}`}>
+                    <rect x="3" y={axisPriceY-9} width={LIVE_CHART.plotLeft-8} height="18" rx="3"/>
+                    <text x={(LIVE_CHART.plotLeft-2)/2} y={axisPriceY+3.5} textAnchor="middle">{intradayCursor.price.toFixed(2)}</text>
+                  </g>
+                  <g className="intraday-crosshair-axis-label time">
+                    <rect x={axisTimeX-24} y={LIVE_CHART.volumeBottom+3} width="48" height="17" rx="3"/>
+                    <text x={axisTimeX} y={LIVE_CHART.volumeBottom+15} textAnchor="middle">{intradayCursor.time}</text>
+                  </g>
                   <g className="intraday-crosshair-card" transform={`translate(${tooltipX} ${tooltipY})`}>
                     <rect width={tooltipWidth} height={tooltipHeight} rx="7"/>
-                    <text x="10" y="16" className="title">{intradayCursor.time}</text>
-                    <text x="10" y="33">最新</text><text x={tooltipWidth-10} y="33" textAnchor="end" className={change!=null&&change>=0?"up":"down"}>{intradayCursor.price.toFixed(2)}</text>
-                    <text x="10" y="48">涨跌幅</text><text x={tooltipWidth-10} y="48" textAnchor="end" className={change!=null&&change>=0?"up":"down"}>{change==null?"--":`${change>=0?"+":""}${change.toFixed(2)}%`}</text>
-                    <text x="10" y="63">均价</text><text x={tooltipWidth-10} y="63" textAnchor="end">{intradayCursor.averagePrice.toFixed(2)}</text>
-                    <text x="10" y="78">BIAS</text><text x={tooltipWidth-10} y="78" textAnchor="end" className={intradayCursor.biasPercent>=0?"up":"down"}>{intradayCursor.biasPercent>=0?"+":""}{intradayCursor.biasPercent.toFixed(2)}%</text>
-                    <text x="10" y="93">成交量</text><text x={tooltipWidth-10} y="93" textAnchor="end">{formatIntradayVolume(intradayCursor.volume)}</text>
-                    {isZijinStock&&<><text x="10" y="108">主力净额</text><text x={tooltipWidth-10} y="108" textAnchor="end" className={(intradayCursor.mainForce?.netNotional??0)>=0?"force-buy":"force-sell"}>{intradayCursor.mainForce?formatMainForceAmount(intradayCursor.mainForce.netNotional):"无大额成交"}</text></>}
-                    <text x="10" y={isZijinStock?123:108}>提醒状态</text><text x={tooltipWidth-10} y={isZijinStock?123:108} textAnchor="end">{intradayCursorSignal}</text>
+                    <text x="11" y="18" className="title">{intradayCursor.time.slice(0,2)}:{intradayCursor.time.slice(2)}</text>
+                    <line x1="10" y1="27" x2={tooltipWidth-10} y2="27" className="tooltip-divider"/>
+                    <text x="11" y="45">最新</text><text x={tooltipWidth-11} y="45" textAnchor="end" className={`primary ${directionClass}`}>{intradayCursor.price.toFixed(2)}</text>
+                    <text x="11" y="62">涨跌幅</text><text x={tooltipWidth-11} y="62" textAnchor="end" className={`primary ${directionClass}`}>{change==null?"--":`${change>=0?"+":""}${change.toFixed(2)}%`}</text>
+                    <text x="11" y="79">均价</text><text x={tooltipWidth-11} y="79" textAnchor="end">{intradayCursor.averagePrice.toFixed(2)}</text>
+                    <text x="11" y="96">BIAS</text><text x={tooltipWidth-11} y="96" textAnchor="end" className={intradayCursor.biasPercent>=0?"up":"down"}>{intradayCursor.biasPercent>=0?"+":""}{intradayCursor.biasPercent.toFixed(2)}%</text>
+                    <text x="11" y="113">成交量</text><text x={tooltipWidth-11} y="113" textAnchor="end">{formatIntradayVolume(intradayCursor.volume)}</text>
+                    {isZijinStock&&<><text x="11" y="130">主力净额</text><text x={tooltipWidth-11} y="130" textAnchor="end" className={(intradayCursor.mainForce?.netNotional??0)>=0?"force-buy":"force-sell"}>{intradayCursor.mainForce?formatMainForceAmount(intradayCursor.mainForce.netNotional):"无大额成交"}</text></>}
+                    <text x="11" y={isZijinStock?147:130}>提醒状态</text><text x={tooltipWidth-11} y={isZijinStock?147:130} textAnchor="end">{intradayCursorSignal}</text>
                   </g>
                 </g>;
               })()}
@@ -2473,11 +2501,18 @@ export default function Home() {
           <div className="alert-channel"><div><span>提醒控制</span><small>同一点只提醒一次</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="语音提醒">🔊 语音 · {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="系统通知">🔔 弹窗 · {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"手机后台系统通知"}>📱 后台 · {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">测试</button>}</div></div>
           <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div>{marketSession.live&&<small>{decisionModel.reason}</small>}<em>{decisionModel.confirmed}/4 条件</em></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
-          <div className={`stock-state ${stockState.level}`}>
-            <div><span>股票状态识别器</span><b>{stockState.label}</b></div><strong>{stockState.score}<small>/100</small></strong>
-            <div className="stock-state-meter" role="meter" aria-label={`股票状态评分 ${stockState.score} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={stockState.score}><i style={{width:`${stockState.score}%`}}/></div>
-            <p>{stockState.summary}</p><ul>{stockState.details.map(detail=><li key={detail}>{detail}</li>)}</ul><em>{stockState.action}</em>
-          </div>
+          <section className="t-calculator" aria-label="日内做T试算">
+            <header><div><span>日内做T试算</span><b>实时估算收益与成本变化</b></div><small>空格快速定位</small></header>
+            <div className="t-calculator-inputs"><label>买入价<input inputMode="decimal" value={tEntryPrice} onChange={event=>setTEntryPrice(event.target.value)} placeholder={activeQuote?.price?.toFixed(2)??"0.00"}/></label><label>卖出价<input inputMode="decimal" value={tExitPrice} onChange={event=>setTExitPrice(event.target.value)} placeholder={activeQuote?.price?.toFixed(2)??"0.00"}/></label><label>数量<input inputMode="numeric" value={tQuantity} onChange={event=>setTQuantity(event.target.value)} placeholder="1000"/></label></div>
+            <div className="t-calculator-result"><span>预估净收益 <b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"待输入"}</b></span><span>摊薄成本 <b>{tCalculator?`${tCalculator.costChange>=0?"-":"+"}¥${Math.abs(tCalculator.costChange).toFixed(3)}/股`:"--"}</b></span><small>{tCalculator?`毛收益 ${money(tCalculator.gross)} · 预估费用 ¥${tCalculator.estimatedFees.toFixed(2)} · ${tCalculator.quantity.toLocaleString()} 股`:"输入计划买卖价与整手数量后自动计算"}</small></div>
+          </section>
+          <details className={`stock-state stock-state-collapsible ${stockState.level}`}>
+            <summary><span>状态判断</span><b>{stockState.label}</b><strong>{stockState.score}<small>/100</small></strong><i aria-hidden="true">⌄</i></summary>
+            <div className="stock-state-details">
+              <div className="stock-state-meter" role="meter" aria-label={`股票状态评分 ${stockState.score} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={stockState.score}><i style={{width:`${stockState.score}%`}}/></div>
+              <p>{stockState.summary}</p><ul>{stockState.details.map(detail=><li key={detail}>{detail}</li>)}</ul><em>{stockState.action}</em>
+            </div>
+          </details>
           <div className={`context-radar ${currentContext?.gate.level ?? "loading"} event-${currentEvents?.gate.level ?? "loading"}`}>
             <div className="context-radar-head"><span>全市场风险雷达 · {currentContext?.profile ?? "加载中"}</span><b>{Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)||"--"}<small>/100</small></b></div>
             <div className="context-radar-meter" role="meter" aria-label={`全市场风险评分 ${Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)}><i style={{width:`${Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)}%`}}/></div>
@@ -2491,11 +2526,6 @@ export default function Home() {
           <div className="opening-causal"><span>09:30 起实时扫描</span><b>仅使用已出现数据 · 无需手动切换</b><small>最早 09:33 显示候选，09:36–09:44 经连续走势与 VWAP 确认后才允许小仓正式信号；09:45 后恢复完整过滤。</small></div>
           <h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2>
           <p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p>
-          <section className="t-calculator" aria-label="日内做T试算">
-            <header><div><span>日内做T试算</span><b>实时估算收益与成本变化</b></div><small>空格快速定位</small></header>
-            <div className="t-calculator-inputs"><label>买入价<input inputMode="decimal" value={tEntryPrice} onChange={event=>setTEntryPrice(event.target.value)} placeholder={activeQuote?.price?.toFixed(2)??"0.00"}/></label><label>卖出价<input inputMode="decimal" value={tExitPrice} onChange={event=>setTExitPrice(event.target.value)} placeholder={activeQuote?.price?.toFixed(2)??"0.00"}/></label><label>数量<input inputMode="numeric" value={tQuantity} onChange={event=>setTQuantity(event.target.value)} placeholder="1000"/></label></div>
-            <div className="t-calculator-result"><span>预估净收益 <b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"待输入"}</b></span><span>摊薄成本 <b>{tCalculator?`${tCalculator.costChange>=0?"-":"+"}¥${Math.abs(tCalculator.costChange).toFixed(3)}/股`:"--"}</b></span><small>{tCalculator?`毛收益 ${money(tCalculator.gross)} · 预估费用 ¥${tCalculator.estimatedFees.toFixed(2)} · ${tCalculator.quantity.toLocaleString()} 股`:"输入计划买卖价与整手数量后自动计算"}</small></div>
-          </section>
           <button disabled={!stockAgent.canExecute||cycleQuantity<100||(cycleStage==='ready'&&decisionModel.status!=="ready")} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
             <span>{!stockAgent.canExecute?'紫金智能体观察中 · 未开放执行':cycleQuantity<100?'先设置本股底仓与昨日可卖':cycleStage === 'ready' ? decisionModel.status==="locked"?'风控锁定 · 暂停做T':decisionModel.status!=="ready"?'等待自动信号':(signalMode === '反T' ? `反T信号 · 卖出 ${cycleQuantity.toLocaleString()} 股` : `正T信号 · 买入 ${cycleQuantity.toLocaleString()} 股`) : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
             <small>{cycleStage === 'ready' ? '记录首笔成交' : cycleStage === 'opened' ? '完成反向成交' : '开始下一次循环'} →</small>
