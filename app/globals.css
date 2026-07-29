@@ -780,6 +780,25 @@
 .decision-position-grid p.accent>b{color:var(--amber)}
 .decision-position-grid p>b.positive{color:var(--coral)}
 .decision-position-grid p>b.negative{color:var(--teal)}
+.decision-position-grid p>b small{
+  display:block;
+  margin-top:5px;
+  line-height:1;
+  font-weight:500;
+  letter-spacing:.08em
+}
+.zijin-price-plan.compact-waiting{
+  gap:5px;
+  padding-top:9px;
+  padding-bottom:9px
+}
+.zijin-price-plan.compact-waiting>p{
+  overflow:hidden;
+  margin:0;
+  white-space:nowrap;
+  text-overflow:ellipsis
+}
+.session-inline{display:none}
 
 :root:not([data-theme="light"]) .minimal-ui .decision-zone-tabs{order:0}
 :root:not([data-theme="light"]) .minimal-ui .decision-primary-card{
@@ -825,12 +844,36 @@
   :root:not([data-theme="light"]) .minimal-ui .strategy-help,
   :root:not([data-theme="light"]) .minimal-ui .auto-off{display:none}
   :root:not([data-theme="light"]) .minimal-ui .ticker{height:36px}
-  :root:not([data-theme="light"]) .minimal-ui .session-ribbon{height:28px;flex-basis:28px;padding-left:18px}
-  :root:not([data-theme="light"]) .minimal-ui .stock-head{height:88px;min-height:88px;padding-top:7px;padding-bottom:7px}
+  :root:not([data-theme="light"]) .minimal-ui .session-ribbon{display:none}
+  :root:not([data-theme="light"]) .minimal-ui .session-inline{
+    min-width:150px;
+    height:100%;
+    padding:0 12px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    border-left:1px solid var(--line-soft);
+    color:var(--muted);
+    white-space:nowrap
+  }
+  :root:not([data-theme="light"]) .minimal-ui .session-inline i{
+    width:6px;
+    height:6px;
+    flex:0 0 6px;
+    border-radius:50%;
+    background:currentColor
+  }
+  :root:not([data-theme="light"]) .minimal-ui .session-inline b{font-size:9px;color:var(--text)}
+  :root:not([data-theme="light"]) .minimal-ui .session-inline span{font-size:8px;color:var(--dim)}
+  :root:not([data-theme="light"]) .minimal-ui .session-inline.pending,
+  :root:not([data-theme="light"]) .minimal-ui .session-inline.auction,
+  :root:not([data-theme="light"]) .minimal-ui .session-inline.paused{color:var(--amber)}
+  :root:not([data-theme="light"]) .minimal-ui .session-inline.closed{color:#7c8784}
+  :root:not([data-theme="light"]) .minimal-ui .stock-head{height:78px;min-height:78px;padding-top:6px;padding-bottom:6px}
   :root:not([data-theme="light"]) .minimal-ui .desk-core-strip{display:none}
   :root:not([data-theme="light"]) .minimal-ui .workspace{
     grid-template-columns:minmax(0,1fr) clamp(360px,24vw,430px);
-    height:calc(100vh - 206px);
+    height:calc(100vh - 168px);
     min-height:600px;
     max-height:760px
   }
@@ -841,4 +884,34 @@
     padding:9px 12px 8px
   }
   :root:not([data-theme="light"]) .minimal-ui .chart-wrap{padding:18px 22px 28px 58px}
+}
+
+@media(min-width:1101px){
+  :root[data-theme="light"] .minimal-ui .session-ribbon{display:none}
+  :root[data-theme="light"] .minimal-ui .session-inline{
+    min-width:150px;
+    height:100%;
+    padding:0 12px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    border-left:1px solid var(--line-soft);
+    color:var(--muted);
+    white-space:nowrap
+  }
+  :root[data-theme="light"] .minimal-ui .session-inline i{
+    width:6px;
+    height:6px;
+    flex:0 0 6px;
+    border-radius:50%;
+    background:currentColor
+  }
+  :root[data-theme="light"] .minimal-ui .session-inline b{font-size:9px;color:var(--text)}
+  :root[data-theme="light"] .minimal-ui .session-inline span{font-size:8px;color:var(--dim)}
+  :root[data-theme="light"] .minimal-ui .session-inline.pending,
+  :root[data-theme="light"] .minimal-ui .session-inline.auction,
+  :root[data-theme="light"] .minimal-ui .session-inline.paused{color:var(--amber)}
+  :root[data-theme="light"] .minimal-ui .session-inline.closed{color:#7c8784}
+  :root[data-theme="light"] .minimal-ui .stock-head{height:78px;min-height:78px;padding-top:6px;padding-bottom:6px}
+  :root[data-theme="light"] .minimal-ui .workspace{height:calc(100vh - 168px)}
 }
