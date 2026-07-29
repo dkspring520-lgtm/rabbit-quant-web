@@ -370,6 +370,15 @@
 @media(max-width:1180px){.workspace{grid-template-columns:112px minmax(0,2.4fr) minmax(310px,1fr)}.legend .causal-marker-legend,.desk-core-strip .desk-core-reason{display:none}.desk-core-strip{grid-template-columns:repeat(4,1fr) auto}.layer-switches button{padding:5px}.chart-tools{gap:7px;padding-left:12px;padding-right:12px}}
 @media(max-width:820px){.desk-core-strip{overflow-x:auto;grid-template-columns:repeat(4,120px);padding:7px}.desk-shortcuts{display:none}.workspace{grid-template-columns:1fr;height:auto;overflow:visible}.desk-watchrail{display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);height:64px}.desk-watchrail header,.desk-watchrail>button.manage{display:none}.desk-watchrail>button{min-width:130px;width:130px;min-height:64px}.chart-zone{min-height:520px;border-right:0}.decision-zone{max-height:none}.layer-switches{overflow-x:auto}}
 
+/* Decision hierarchy pass: keep quote and conclusion adjacent, reduce chart duplication. */
+.quote-focus{display:flex;align-items:center;gap:13px;min-width:0;flex:0 1 auto}.quote-focus .opening-assessment{margin-left:0;min-width:215px;padding-top:3px;padding-bottom:3px}.quote-focus .opening-assessment small{max-width:155px}.quote-focus+.quote-metrics{margin-left:auto}
+.legend sup,.zijin-price-plan sup{font-size:8px;color:var(--dim);cursor:help;vertical-align:baseline}.price-plan-line text{opacity:0;transition:opacity .14s ease}.zijin-chart-price-overlay:hover .price-plan-line text,.zijin-chart-price-overlay:focus-within .price-plan-line text{opacity:1}.price-plan-line line{opacity:.46}.zijin-chart-price-overlay:hover .price-plan-line line{opacity:.82}
+.decision-zone-tabs{top:0;margin:-20px -20px 12px;padding-top:12px}.decision-zone.focus-mode{scroll-padding-top:48px}.zijin-price-plan-grid>div{min-height:62px}.zijin-price-plan-grid span{white-space:normal;line-height:1.35}
+.alert-channel-actions .channel{border-left-width:3px}.alert-channel-actions .channel.sound{border-left-color:#c18cff}.alert-channel-actions .channel.system{border-left-color:#f0bd4f}.alert-channel-actions .channel.mobile{border-left-color:#55b890}.alert-channel-actions .channel:not(.active){opacity:.7}.alert-channel-actions .utility{background:transparent}
+.stock-state-meter{display:block!important;height:6px;margin:10px 0 4px;border-radius:999px;background:#222826;overflow:hidden}.stock-state-meter i{display:block;height:100%;border-radius:inherit;background:#d5b35d;transition:width .25s ease}.stock-state.down .stock-state-meter i,.stock-state.risk .stock-state-meter i{background:#ff9e4a}.stock-state.up .stock-state-meter i{background:var(--teal)}
+@media(max-width:1180px){.quote-focus .opening-assessment{min-width:190px}.quote-focus .opening-assessment small{max-width:125px}.quote-focus+.quote-metrics{display:none}}
+@media(max-width:760px){.quote-focus{margin-left:auto}.quote-focus .opening-assessment{display:none!important}}
+
 @media(max-width:1100px){
   .main-force-track-head>div:first-child span,.main-force-authenticity span{display:none}
   .main-force-track-legend{margin-left:auto}
