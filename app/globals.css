@@ -401,32 +401,41 @@
 
 /* Desktop desk refinement: tighten chrome, enlarge the useful chart and keep the action rail quiet. */
 @media(min-width:1181px){
-  .minimal-ui .topbar{height:58px;min-height:58px;padding-left:16px;padding-right:16px}
+  .minimal-ui .topbar{height:56px;min-height:56px;padding-left:16px;padding-right:16px}
   .minimal-ui .brand{padding-right:18px}
-  .minimal-ui .ticker{height:38px;min-height:38px}
-  .minimal-ui .ticker-item{min-height:38px}
-  .minimal-ui .session-ribbon{height:30px;min-height:30px;padding-left:18px;padding-right:18px}
-  .minimal-ui .stock-head{height:96px;min-height:96px;padding:8px 22px;gap:16px}
-  .minimal-ui .stock-identity{min-width:205px}
-  .minimal-ui .quote strong{font-size:32px}
+  .minimal-ui .ticker{height:34px;min-height:34px}
+  .minimal-ui .ticker-item{min-height:34px}
+  .minimal-ui .session-ribbon{height:28px;min-height:28px;padding-left:18px;padding-right:18px}
+  .minimal-ui .stock-head{
+    height:80px;
+    min-height:80px;
+    padding:7px 20px;
+    gap:14px;
+    display:grid;
+    grid-template-columns:minmax(185px,210px) minmax(330px,420px) minmax(280px,1fr) minmax(190px,230px)
+  }
+  .minimal-ui .stock-identity{min-width:0}
+  .minimal-ui .stock-identity h1{font-size:21px}
+  .minimal-ui .quote{padding-left:16px}
+  .minimal-ui .quote strong{font-size:30px}
   .minimal-ui .quote-focus{gap:10px}
-  .minimal-ui .quote-focus .opening-assessment{min-width:198px}
-  .minimal-ui .quote-focus .opening-assessment small{max-width:135px}
-  .minimal-ui .quote-metrics{gap:13px}
-  .minimal-ui .l2-console-status{flex-basis:220px;max-width:230px}
+  .minimal-ui .quote-focus .opening-assessment{min-width:190px}
+  .minimal-ui .quote-focus .opening-assessment small{max-width:130px}
+  .minimal-ui .quote-focus+.quote-metrics{margin-left:0;justify-content:flex-end;gap:10px}
+  .minimal-ui .l2-console-status{width:100%;min-width:0;max-width:230px;justify-self:end}
 
   .minimal-ui .desk-core-strip{
-    min-height:52px;
-    padding:5px 12px;
-    grid-template-columns:repeat(4,minmax(105px,.75fr)) minmax(220px,1.25fr) auto;
+    min-height:44px;
+    padding:4px 12px;
+    grid-template-columns:repeat(3,minmax(130px,.7fr)) minmax(300px,1.5fr);
     gap:6px
   }
-  .minimal-ui .desk-core-strip>div{padding:5px 9px;gap:2px}
-  .minimal-ui .desk-core-strip b{font-size:14px}
+  .minimal-ui .desk-core-strip>div{padding:4px 9px;gap:1px}
+  .minimal-ui .desk-core-strip b{font-size:13px}
 
   .minimal-ui .workspace{grid-template-columns:minmax(0,3.35fr) minmax(350px,1fr)}
   .minimal-ui .workspace.with-main-force{height:700px}
-  .minimal-ui .chart-tools{height:46px;flex-basis:46px;padding-left:14px;padding-right:12px}
+  .minimal-ui .chart-tools{height:44px;flex-basis:44px;padding-left:14px;padding-right:12px}
   .minimal-ui .chart-wrap{padding:6px 10px 4px}
   .minimal-ui .intraday-hud{right:16px;top:12px;min-width:190px;padding:7px 9px}
 
