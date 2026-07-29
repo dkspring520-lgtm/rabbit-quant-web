@@ -398,3 +398,44 @@
   .alert-channel{align-items:flex-start;flex-direction:column}
   .alert-channel-actions{justify-content:flex-start;flex-wrap:wrap}
 }
+
+/* Desktop desk refinement: tighten chrome, enlarge the useful chart and keep the action rail quiet. */
+@media(min-width:1181px){
+  .minimal-ui .topbar{height:58px;min-height:58px;padding-left:16px;padding-right:16px}
+  .minimal-ui .brand{padding-right:18px}
+  .minimal-ui .ticker{height:38px;min-height:38px}
+  .minimal-ui .ticker-item{min-height:38px}
+  .minimal-ui .session-ribbon{height:30px;min-height:30px;padding-left:18px;padding-right:18px}
+  .minimal-ui .stock-head{height:96px;min-height:96px;padding:8px 22px;gap:16px}
+  .minimal-ui .stock-identity{min-width:205px}
+  .minimal-ui .quote strong{font-size:32px}
+  .minimal-ui .quote-focus{gap:10px}
+  .minimal-ui .quote-focus .opening-assessment{min-width:198px}
+  .minimal-ui .quote-focus .opening-assessment small{max-width:135px}
+  .minimal-ui .quote-metrics{gap:13px}
+  .minimal-ui .l2-console-status{flex-basis:220px;max-width:230px}
+
+  .minimal-ui .desk-core-strip{
+    min-height:52px;
+    padding:5px 12px;
+    grid-template-columns:repeat(4,minmax(105px,.75fr)) minmax(220px,1.25fr) auto;
+    gap:6px
+  }
+  .minimal-ui .desk-core-strip>div{padding:5px 9px;gap:2px}
+  .minimal-ui .desk-core-strip b{font-size:14px}
+
+  .minimal-ui .workspace{grid-template-columns:minmax(0,3.35fr) minmax(350px,1fr)}
+  .minimal-ui .workspace.with-main-force{height:700px}
+  .minimal-ui .chart-tools{height:46px;flex-basis:46px;padding-left:14px;padding-right:12px}
+  .minimal-ui .chart-wrap{padding:6px 10px 4px}
+  .minimal-ui .intraday-hud{right:16px;top:12px;min-width:190px;padding:7px 9px}
+
+  .minimal-ui .decision-zone{padding:14px;background:linear-gradient(180deg,#0a0d0c,#090c0b)}
+  .minimal-ui .decision-zone-tabs{margin:-14px -14px 9px;padding:8px 14px 7px}
+  .minimal-ui .zijin-price-plan{margin-bottom:8px;padding:10px}
+  .minimal-ui .zijin-price-plan-grid>div{min-height:54px;padding:7px}
+  .minimal-ui .alert-channel{margin:6px 0;padding:6px 7px}
+  .minimal-ui .auto-direction{min-height:52px;padding:7px 10px}
+  .minimal-ui .decision-zone h2{font-size:24px;margin-top:10px}
+  .minimal-ui .decision-copy{margin-bottom:12px;line-height:1.55}
+}
