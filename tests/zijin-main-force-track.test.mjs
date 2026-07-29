@@ -46,7 +46,9 @@ test("main-force chart is tracking evidence only and collector persists minute f
   assert.match(page, /追踪证据，不单独构成买卖信号/);
   assert.match(page, /main-force-repair-state/);
   assert.match(page, /zijinRepair\.checks\?\.l2BuyRecovery/);
-  assert.match(page, /zijinRepairMarker/);
+  assert.doesNotMatch(page, /zijinRepairMarker/);
+  assert.doesNotMatch(page, /const time=zijinRepair\.metrics\.secondLow\.time/);
+  assert.match(page, /buildZijinL2CausalReplayObservations at the causal confirmation minute/);
   assert.match(page, /buildZijinL2CausalReplayObservations\(minutePoints\)/);
   assert.match(page, /const merged=\[\.\.\.\(\(liveEngine\.observations \?\? \[\]\) as ReplayObservation\[\]\),\.\.\.zijinRepairHistory\]/);
   assert.match(page, /main-force-cumulative-axis/);

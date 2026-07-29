@@ -1257,21 +1257,9 @@ export default function Home() {
     historicalBars:currentMarket?.bars??[],
   }),[stock?.code,minutePoints,activeQuote?.previousClose,currentMarket?.bars]);
   const zijinRepair=stockAgentEvaluation?.metrics?.repair??null;
-  const zijinRepairMarker=useMemo(()=>{
-    if(!isZijinStock||!chartModel||zijinRepair?.status==="candidate"||!zijinRepair?.metrics?.secondLow)return null;
-    const time=zijinRepair.metrics.secondLow.time;
-    const point=chartModel.points.find(item=>item.time===time);
-    if(!point)return null;
-    const l2Confirmed=zijinRepair.checks?.l2BuyRecovery===true;
-    return {
-      x:point.x,
-      y:point.y,
-      time,
-      candidate:false,
-      l2Confirmed,
-      label:l2Confirmed?"修复待突破":"磨底观察",
-    };
-  },[isZijinStock,chartModel,zijinRepair]);
+  // An unconfirmed repair is a moving state, not a historical event. Keep it
+  // in the side status panel only. The chart receives a fixed marker solely
+  // from buildZijinL2CausalReplayObservations at the causal confirmation minute.
   const zijinStructure=stockAgentEvaluation?.metrics?.structure??null;
   const zijinLargeOrder=stockAgentEvaluation?.metrics?.largeOrder??null;
   const visibleStockAgentEvaluation=zijinResearchEnabled&&isZijinStock?stockAgentEvaluation:null;
@@ -2301,7 +2289,6 @@ export default function Home() {
               {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
-              {zijinRepairMarker&&<g className={`zijin-repair-marker ${zijinRepairMarker.candidate?"candidate":"watch"} ${zijinRepairMarker.l2Confirmed?"l2-confirmed":""}`}><line x1={zijinRepairMarker.x} y1={zijinRepairMarker.y} x2={zijinRepairMarker.x} y2={zijinRepairMarker.y-22}/><circle cx={zijinRepairMarker.x} cy={zijinRepairMarker.y} r="5"/><rect x={zijinRepairMarker.x-28} y={zijinRepairMarker.y-37} width="56" height="15" rx="4"/><text x={zijinRepairMarker.x} y={zijinRepairMarker.y-27} textAnchor="middle">{zijinRepairMarker.label}</text></g>}
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <line x1={LIVE_CHART.plotLeft} y1={chartModel.lastY} x2={LIVE_CHART.plotRight} y2={chartModel.lastY} className="last-line"/><circle cx={chartModel.lastX} cy={chartModel.lastY} r="4" className="last-dot"/><g className="intraday-price-flag"><rect x="0" y={Math.max(6,Math.min(294,chartModel.lastY-12))} width="54" height="24" rx={uiTheme==="light"?7:0}/><text x="27" y={Math.max(6,Math.min(294,chartModel.lastY-12))+16} textAnchor="middle">{chartModel.last.price.toFixed(2)}</text></g></>}
