@@ -645,6 +645,12 @@ export default function Home() {
   const [eventRadarError, setEventRadarError] = useState("");
   const [starredRevision, setStarredRevision] = useState(0);
   const [indicatorsVisible, setIndicatorsVisible] = useState(true);
+  const [signalLayerVisible,setSignalLayerVisible]=useState(true);
+  const [pricePlanLayerVisible,setPricePlanLayerVisible]=useState(true);
+  const [volumeLayerVisible,setVolumeLayerVisible]=useState(true);
+  const [tEntryPrice,setTEntryPrice]=useState("");
+  const [tExitPrice,setTExitPrice]=useState("");
+  const [tQuantity,setTQuantity]=useState("1000");
   const [showAllPriceLevels,setShowAllPriceLevels]=useState(false);
   const [decisionZoneMode,setDecisionZoneMode]=useState<"focus"|"all">("focus");
   const [draggedStockCode, setDraggedStockCode] = useState<string | null>(null);
@@ -733,6 +739,24 @@ export default function Home() {
     if(!nextCode||!accountName||typeof window==='undefined')return;
     try{localStorage.setItem(`rabbit-active-stock:${accountName.toLowerCase()}`,nextCode)}catch{}
   };
+  useEffect(()=>{
+    const handleDeskShortcut=(event:KeyboardEvent)=>{
+      if(activeView!=="操盘台"||event.altKey||event.ctrlKey||event.metaKey)return;
+      const target=event.target as HTMLElement|null;
+      if(target?.matches("input, textarea, select, [contenteditable='true']"))return;
+      if(event.key==="ArrowDown"||event.key==="ArrowUp"){
+        event.preventDefault();
+        const delta=event.key==="ArrowDown"?1:-1;
+        selectActiveStock((activeStock+delta+stockList.length)%stockList.length);
+      }
+      if(event.code==="Space"){
+        event.preventDefault();
+        document.querySelector<HTMLElement>(".t-calculator input")?.focus();
+      }
+    };
+    document.addEventListener("keydown",handleDeskShortcut);
+    return()=>document.removeEventListener("keydown",handleDeskShortcut);
+  },[activeView,activeStock,stockList.length]);
   useEffect(()=>{
     if(!localAuth||!accountName||!stockList.length||isZijinExperimentDeepLink())return;
     try{
@@ -1560,6 +1584,18 @@ export default function Home() {
   const displayedShares=cycleStage==='opened'
     ? effectiveLivePosition.openingShares+(signalMode==='正T'?cycleQuantity:-cycleQuantity)
     : effectiveLivePosition.openingShares;
+  const tCalculator=useMemo(()=>{
+    const entry=Number(tEntryPrice);
+    const exit=Number(tExitPrice);
+    const quantity=Math.max(0,Math.floor(Number(tQuantity)/100)*100);
+    if(!Number.isFinite(entry)||!Number.isFinite(exit)||entry<=0||exit<=0||quantity<=0)return null;
+    const gross=(exit-entry)*quantity;
+    const turnover=(entry+exit)*quantity;
+    const estimatedFees=Math.max(10,turnover*.00035)+Math.max(0,exit*quantity*.0005);
+    const net=gross-estimatedFees;
+    const base=Math.max(1,effectiveLivePosition.openingShares);
+    return {quantity,gross,estimatedFees,net,costChange:net/base};
+  },[tEntryPrice,tExitPrice,tQuantity,effectiveLivePosition.openingShares]);
   const confirmedCycleRows=useMemo<DeskHistoryRow[]>(()=>{
     const trades=tradeLedgerRows
       .filter(row=>row.status!=="已失效")
@@ -2261,7 +2297,31 @@ export default function Home() {
         <div className="opening-assessment"><span>开盘状态</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {openingAssessment.confirmation}</small></div>
       </section>
 
-      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''}`} ref={workspaceRef}>
+      <section className="desk-core-strip" aria-label="做T核心指标">
+        <div><span>当前浮动</span><b className={(activeQuote?.changePercent??0)>=0?"up":"down"}>{activeQuote?.changePercent==null?"--":`${activeQuote.changePercent>=0?"+":""}${activeQuote.changePercent.toFixed(2)}%`}</b></div>
+        <div><span>持仓 / 可卖</span><b>{displayedShares.toLocaleString()}<small> / {effectiveLivePosition.sellable.toLocaleString()} 股</small></b></div>
+        <div><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></div>
+        <div><span>信号置信度</span><b className={decisionModel.status==="ready"?"ready":decisionModel.status==="locked"?"risk":""}>{decisionModel.confirmed}/4</b></div>
+        <div className="desk-core-reason"><span>当前依据</span><b>{decisionModel.reason}</b></div>
+        <small className="desk-shortcuts">↑↓ 切股 · 空格 试算</small>
+      </section>
+
+      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'}`} ref={workspaceRef}>
+        <nav className="desk-watchrail" aria-label="自选股快速切换">
+          <header><span>自选监控</span><small>{activeStock+1}/{stockList.length}</small></header>
+          {stockList.map((item,index)=>{
+            const quote=item.code===stock?.code?(activeQuote??marketQuotes[item.code]):marketQuotes[item.code];
+            const change=quote?.changePercent??Number.parseFloat(item.change);
+            const radar=eventsByCode[item.code];
+            return <button key={item.code} className={activeStock===index?"active":""} onClick={()=>selectActiveStock(index)}>
+              <span><b>{item.code}</b><small>{quote?.name||item.name}</small></span>
+              <strong>{quote?.price?.toFixed(2)??item.price}</strong>
+              <em className={change<0?"down":"up"}>{Number.isFinite(change)?`${change>=0?"+":""}${change.toFixed(2)}%`:"--"}</em>
+              <i className={radar?.counts.negative?"risk":radar?.counts.positive?"ready":"watch"}>{radar?.counts.negative?"风险":radar?.counts.positive?"机会":"观察"}</i>
+            </button>;
+          })}
+          <button className="manage" onClick={()=>setOnboardingOpen(true)}>管理自选</button>
+        </nav>
         <div className="chart-zone">
           <div className="chart-tools">
             <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<><span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span><span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`}><i/>BIAS {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span></>}<span className="causal-marker-legend"><i/>提醒按确认分钟实时落点 · 不回填峰谷</span></div>
@@ -2269,7 +2329,7 @@ export default function Home() {
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
-            <button className="tool-button" onClick={()=>setIndicatorsVisible(value=>!value)} aria-pressed={indicatorsVisible}>{indicatorsVisible ? "隐藏指标" : "显示指标"}</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出全屏":"全屏"}</button>
+            <div className="layer-switches" aria-label="图表图层开关"><button className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>支撑压力</button><button className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>成交量</button></div><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出全屏":"全屏"}</button>
           </div>
           <div className="chart-wrap">
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
@@ -2443,6 +2503,11 @@ export default function Home() {
           <div className="opening-causal"><span>09:30 起实时扫描</span><b>仅使用已出现数据 · 无需手动切换</b><small>最早 09:33 显示候选，09:36–09:44 经连续走势与 VWAP 确认后才允许小仓正式信号；09:45 后恢复完整过滤。</small></div>
           <h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2>
           <p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p>
+          <section className="t-calculator" aria-label="日内做T试算">
+            <header><div><span>日内做T试算</span><b>实时估算收益与成本变化</b></div><small>空格快速定位</small></header>
+            <div className="t-calculator-inputs"><label>买入价<input inputMode="decimal" value={tEntryPrice} onChange={event=>setTEntryPrice(event.target.value)} placeholder={activeQuote?.price?.toFixed(2)??"0.00"}/></label><label>卖出价<input inputMode="decimal" value={tExitPrice} onChange={event=>setTExitPrice(event.target.value)} placeholder={activeQuote?.price?.toFixed(2)??"0.00"}/></label><label>数量<input inputMode="numeric" value={tQuantity} onChange={event=>setTQuantity(event.target.value)} placeholder="1000"/></label></div>
+            <div className="t-calculator-result"><span>预估净收益 <b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"待输入"}</b></span><span>摊薄成本 <b>{tCalculator?`${tCalculator.costChange>=0?"-":"+"}¥${Math.abs(tCalculator.costChange).toFixed(3)}/股`:"--"}</b></span><small>{tCalculator?`毛收益 ${money(tCalculator.gross)} · 预估费用 ¥${tCalculator.estimatedFees.toFixed(2)} · ${tCalculator.quantity.toLocaleString()} 股`:"输入计划买卖价与整手数量后自动计算"}</small></div>
+          </section>
           <button disabled={!stockAgent.canExecute||cycleQuantity<100||(cycleStage==='ready'&&decisionModel.status!=="ready")} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
             <span>{!stockAgent.canExecute?'紫金智能体观察中 · 未开放执行':cycleQuantity<100?'先设置本股底仓与昨日可卖':cycleStage === 'ready' ? decisionModel.status==="locked"?'风控锁定 · 暂停做T':decisionModel.status!=="ready"?'等待自动信号':(signalMode === '反T' ? `反T信号 · 卖出 ${cycleQuantity.toLocaleString()} 股` : `正T信号 · 买入 ${cycleQuantity.toLocaleString()} 股`) : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
             <small>{cycleStage === 'ready' ? '记录首笔成交' : cycleStage === 'opened' ? '完成反向成交' : '开始下一次循环'} →</small>
