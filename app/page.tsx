@@ -2304,30 +2304,15 @@ export default function Home() {
         <div><span>持仓 / 可卖</span><b>{displayedShares.toLocaleString()}<small> / {effectiveLivePosition.sellable.toLocaleString()} 股</small></b></div>
         <div><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></div>
         <div><span>信号置信度</span><b className={decisionModel.status==="ready"?"ready":decisionModel.status==="locked"?"risk":""}>{decisionModel.confirmed}/4</b></div>
-        <div className="desk-core-reason"><span>当前依据</span><b>{decisionModel.reason}</b></div>
+        <div className="desk-core-reason"><span>当前依据</span><b>{marketSession.live?decisionModel.reason:"复盘模式"}</b></div>
         <small className="desk-shortcuts">↑↓ 切股 · 空格 试算</small>
       </section>
 
-      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'}`} ref={workspaceRef}>
-        <nav className="desk-watchrail" aria-label="自选股快速切换">
-          <header><span>自选监控</span><small>{activeStock+1}/{stockList.length}</small></header>
-          {stockList.map((item,index)=>{
-            const quote=item.code===stock?.code?(activeQuote??marketQuotes[item.code]):marketQuotes[item.code];
-            const change=quote?.changePercent??Number.parseFloat(item.change);
-            const radar=eventsByCode[item.code];
-            return <button key={item.code} className={activeStock===index?"active":""} onClick={()=>selectActiveStock(index)}>
-              <span><b>{item.code}</b><small>{quote?.name||item.name}</small></span>
-              <strong>{quote?.price?.toFixed(2)??item.price}</strong>
-              <em className={change<0?"down":"up"}>{Number.isFinite(change)?`${change>=0?"+":""}${change.toFixed(2)}%`:"--"}</em>
-              <i className={radar?.counts.negative?"risk":radar?.counts.positive?"ready":"watch"}>{radar?.counts.negative?"风险":radar?.counts.positive?"机会":"观察"}</i>
-            </button>;
-          })}
-          <button className="manage" onClick={()=>setOnboardingOpen(true)}>管理自选</button>
-        </nav>
+      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'}`} ref={workspaceRef}>
         <div className="chart-zone">
           <div className="chart-tools">
             <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<><span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span><span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS <sup>ⓘ</sup> {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span></>}<span className="causal-marker-legend"><i/>提醒按确认分钟实时落点 · 不回填峰谷</span></div>
-            <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? "1 秒轮询试用 · 实时行情源" : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):marketSession.detail}</span>
+            <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? "1 秒轮询试用 · 实时行情源" : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):"复盘模式"}</span>
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
@@ -2339,7 +2324,7 @@ export default function Home() {
               <div><b>兔兔分时花园</b><small>价格 · 均价 · 成交量</small></div>
             </div>}
             <div className={`intraday-hud ${chartHud.tone}`} aria-live="polite">
-              <span>当前状态</span><b>{chartHud.title}</b><small>{chartHud.detail} · {chartHud.risk}</small>
+              <span>实时盯盘</span><b>{chartHud.title}</b><small>{chartHud.detail} · {chartHud.risk}</small>
               {zijinChartPriceOverlay?.hiddenCount>0&&<button onClick={()=>setShowAllPriceLevels(value=>!value)}>{showAllPriceLevels?"只看最近2条":`展开全部 +${zijinChartPriceOverlay.hiddenCount}`}</button>}
             </div>
             <svg ref={intradayChartRef} className="interactive-intraday-chart" viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMax meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；移动鼠标或拖动手指查看分钟详情`} tabIndex={0}
@@ -2366,10 +2351,11 @@ export default function Home() {
               {intradayCursor&&(()=>{
                 const tooltipWidth=158;
                 const tooltipHeight=isZijinStock?132:116;
-                const tooltipX=intradayCursor.x<LIVE_CHART.plotLeft+520
-                  ? Math.min(LIVE_CHART.plotRight-tooltipWidth-8,intradayCursor.x+12)
-                  : Math.max(LIVE_CHART.plotLeft+8,intradayCursor.x-tooltipWidth-12);
-                const tooltipY=Math.max(LIVE_CHART.priceTop+5,Math.min(LIVE_CHART.priceBottom-tooltipHeight-5,intradayCursor.y-tooltipHeight/2));
+                const chartMid=(LIVE_CHART.plotLeft+LIVE_CHART.plotRight)/2;
+                const tooltipX=intradayCursor.x>chartMid
+                  ? LIVE_CHART.plotLeft+10
+                  : LIVE_CHART.plotRight-tooltipWidth-10;
+                const tooltipY=LIVE_CHART.priceTop+8;
                 const change=intradayCursor.changePercent;
                 return <g className="intraday-crosshair" aria-label={`${intradayCursor.time}，价格 ${intradayCursor.price.toFixed(2)}`}>
                   <line x1={intradayCursor.x} y1={LIVE_CHART.priceTop} x2={intradayCursor.x} y2={LIVE_CHART.volumeBottom} className="intraday-crosshair-line"/>
@@ -2487,7 +2473,7 @@ export default function Home() {
             <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
           <div className="alert-channel"><div><span>提醒控制</span><small>同一点只提醒一次</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="语音提醒">🔊 语音 · {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="系统通知">🔔 弹窗 · {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"手机后台系统通知"}>📱 后台 · {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">测试</button>}</div></div>
-          <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div>{marketSession.live&&<small>{decisionModel.reason}</small>}<em>{decisionModel.confirmed}/4</em></div>
+          <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div>{marketSession.live&&<small>{decisionModel.reason}</small>}<em>{decisionModel.confirmed}/4 条件</em></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <div className={`stock-state ${stockState.level}`}>
             <div><span>股票状态识别器</span><b>{stockState.label}</b></div><strong>{stockState.score}<small>/100</small></strong>
@@ -2496,6 +2482,7 @@ export default function Home() {
           </div>
           <div className={`context-radar ${currentContext?.gate.level ?? "loading"} event-${currentEvents?.gate.level ?? "loading"}`}>
             <div className="context-radar-head"><span>全市场风险雷达 · {currentContext?.profile ?? "加载中"}</span><b>{Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)||"--"}<small>/100</small></b></div>
+            <div className="context-radar-meter" role="meter" aria-label={`全市场风险评分 ${Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)}><i style={{width:`${Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)}%`}}/></div>
             <p><i/>{currentContext?.gate.label ?? "正在获取指数、行业与关联品种"}</p>
             <strong>{(currentContext?.gate.action ?? marketContextError) || "15 秒级异步风控，不阻塞 1 秒个股监控"}</strong>
             {Boolean(currentContext?.items.length)&&<div className="context-radar-grid">{currentContext!.items.slice(0,6).map(item=><span key={item.id}><small>{item.label}</small><b className={(item.changePercent??0)>0?"up":(item.changePercent??0)<0?"down":""}>{item.changePercent==null?"--":`${item.changePercent>0?"+":""}${item.changePercent.toFixed(2)}%`}</b></span>)}</div>}
