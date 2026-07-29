@@ -545,3 +545,163 @@
 .stock-state-collapsible .stock-state-details{display:block;padding:0 12px 12px;border-top:1px solid var(--line-soft)}
 .stock-state-collapsible .stock-state-details>p{margin-top:9px}
 .decision-zone>.t-calculator{margin:10px 0 8px;border-color:rgba(40,215,196,.2);background:linear-gradient(135deg,rgba(40,215,196,.035),rgba(255,255,255,.012))}
+
+/* Dark console: three-color terminal and progressive disclosure.
+   Direction = coral/teal, attention = amber, everything else = neutral. */
+:root:not([data-theme="light"]) .minimal-ui{
+  --desk-neutral:#9aa4a1;
+  --desk-neutral-soft:#68726f;
+  --desk-panel:#0b0f0e;
+  --desk-panel-raised:#0e1312
+}
+:root:not([data-theme="light"]) .minimal-ui .chart-wrap .volume{
+  fill:#268d84;
+  opacity:.42
+}
+:root:not([data-theme="light"]) .minimal-ui .chart-wrap .volume.red{
+  fill:#b84f4c;
+  opacity:.42
+}
+:root:not([data-theme="light"]) .minimal-ui .bias-legend,
+:root:not([data-theme="light"]) .minimal-ui .bias-legend.up,
+:root:not([data-theme="light"]) .minimal-ui .bias-legend.down{color:var(--desk-neutral)!important}
+:root:not([data-theme="light"]) .minimal-ui .bias-legend>i{background:var(--desk-neutral-soft)!important}
+:root:not([data-theme="light"]) .minimal-ui .bias-path{
+  stroke:var(--desk-neutral-soft);
+  opacity:.58
+}
+:root:not([data-theme="light"]) .minimal-ui .bias-alert-band.up,
+:root:not([data-theme="light"]) .minimal-ui .bias-alert-band.down{fill:rgba(242,184,75,.025)}
+
+:root:not([data-theme="light"]) .minimal-ui .main-force-track{
+  background:linear-gradient(180deg,rgba(255,255,255,.018),rgba(0,0,0,.04))
+}
+:root:not([data-theme="light"]) .minimal-ui .main-force-buy{fill:#2f9f94;opacity:.64}
+:root:not([data-theme="light"]) .minimal-ui .main-force-sell{fill:#bd5552;opacity:.62}
+:root:not([data-theme="light"]) .minimal-ui .main-force-zero{stroke:#39413f}
+:root:not([data-theme="light"]) .minimal-ui .main-force-grid{stroke:#1d2321}
+:root:not([data-theme="light"]) .minimal-ui .main-force-cumulative{
+  stroke:#b6bfbc;
+  opacity:.7
+}
+:root:not([data-theme="light"]) .minimal-ui .main-force-cumulative-dot{fill:#d4dbd8}
+:root:not([data-theme="light"]) .minimal-ui .main-force-cumulative-axis{fill:#8f9996}
+:root:not([data-theme="light"]) .minimal-ui .main-force-track-summary.buy b,
+:root:not([data-theme="light"]) .minimal-ui .main-force-track-foot span:first-child{color:#5fcabd}
+:root:not([data-theme="light"]) .minimal-ui .main-force-track-summary.sell b,
+:root:not([data-theme="light"]) .minimal-ui .main-force-track-foot span:nth-child(2){color:#df7470}
+:root:not([data-theme="light"]) .minimal-ui .main-force-response.accumulation{color:var(--amber)}
+:root:not([data-theme="light"]) .minimal-ui .main-force-response.accumulation>i>u{background:var(--amber)}
+
+/* Keep the chart as a chart: point labels and analysis only appear on intent. */
+:root:not([data-theme="light"]) .minimal-ui .intraday-hud{display:none}
+:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>rect,
+:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>text,
+:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>.marker-label-leader{opacity:0}
+:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label:hover>rect,
+:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label:hover>text,
+:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label:hover>.marker-label-leader{opacity:1}
+
+/* Right rail: numeric cards first; explanatory prose stays available through titles/details. */
+:root:not([data-theme="light"]) .minimal-ui .decision-zone{
+  gap:9px;
+  background:var(--desk-panel)
+}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan,
+:root:not([data-theme="light"]) .minimal-ui .auto-direction,
+:root:not([data-theme="light"]) .minimal-ui .alert-channel{
+  margin:0;
+  border:1px solid rgba(154,164,161,.18);
+  border-radius:9px;
+  background:var(--desk-panel-raised);
+  box-shadow:none
+}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan{
+  padding:13px;
+  gap:10px
+}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-head span,
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan>p,
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-note,
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid span,
+:root:not([data-theme="light"]) .minimal-ui .decision-copy,
+:root:not([data-theme="light"]) .minimal-ui .opening-causal,
+:root:not([data-theme="light"]) .minimal-ui .decision-label{display:none}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-head b{font-size:13px;color:var(--desk-neutral)}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid{gap:8px}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid>div{
+  min-height:68px;
+  padding:10px 8px;
+  align-content:center;
+  justify-items:center;
+  text-align:center;
+  background:#090d0c;
+  border-color:rgba(154,164,161,.17)
+}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid small{color:#899390}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid b{font-size:16px}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-meta{
+  justify-content:center;
+  padding-top:0
+}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-meta>span:last-child{display:none}
+:root:not([data-theme="light"]) .minimal-ui .zijin-risk-plan small{display:none}
+
+:root:not([data-theme="light"]) .minimal-ui .auto-direction{
+  min-height:64px;
+  padding:10px 12px
+}
+:root:not([data-theme="light"]) .minimal-ui .auto-direction span{color:#808a87}
+:root:not([data-theme="light"]) .minimal-ui .auto-direction b{font-size:18px}
+:root:not([data-theme="light"]) .minimal-ui .auto-direction small{display:none}
+:root:not([data-theme="light"]) .minimal-ui .auto-direction em{font-size:13px}
+:root:not([data-theme="light"]) .minimal-ui>h2,
+:root:not([data-theme="light"]) .minimal-ui .decision-zone>h2{display:none}
+
+/* One quiet icon grid for low-frequency controls; active channels share one color. */
+:root:not([data-theme="light"]) .minimal-ui .alert-channel{
+  padding:8px 10px;
+  border-top:1px solid rgba(154,164,161,.18)
+}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel>div:first-child span{font-size:9px}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions{
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(34px,auto));
+  justify-content:end;
+  gap:5px
+}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions button{
+  min-width:34px;
+  height:30px;
+  padding:0 7px;
+  border:1px solid rgba(154,164,161,.18);
+  border-left-width:1px;
+  background:#090d0c;
+  color:#7e8885;
+  opacity:.72
+}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel{
+  width:34px;
+  padding:0;
+  overflow:hidden;
+  font-size:0
+}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel::before{font-size:13px}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.sound::before{content:"🔊"}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.system::before{content:"🔔"}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.mobile::before{content:"▣"}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.sound,
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.system,
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.mobile{border-left-color:rgba(154,164,161,.18)}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions button.active{
+  border-color:rgba(40,215,196,.42);
+  background:rgba(40,215,196,.07);
+  color:var(--teal);
+  opacity:1
+}
+
+/* Secondary research and explanations remain in “全部证据”, not in the one-second scan view. */
+:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .stock-agent-card,
+:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .signal-funnel-note,
+:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .risk-box,
+:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .opening-causal{display:none}
