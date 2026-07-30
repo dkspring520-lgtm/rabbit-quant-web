@@ -79,6 +79,26 @@ test("historical trade-flow-only L2 remains available without fabricating a book
   assert.equal(result.pass, true);
 });
 
+test("zero historical volume placeholders fall back to genuine transaction notional", () => {
+  const points = [0, 1, 2].map((index) => ({
+    time: `111${index}`,
+    price: 31.2 + index * 0.04,
+    activeBuyVolume: 0,
+    activeSellVolume: 0,
+    activeBuyNotional: 7_000_000,
+    activeSellNotional: 3_000_000,
+    activeBuyRatio: 0.70,
+    netActiveNotional: 4_000_000,
+    bigOrderNetNotional: 1_800_000,
+    l2Status: { connected: true, authorized: true, stale: false },
+  }));
+  const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
+  assert.equal(result.available, true);
+  assert.equal(result.bookAvailable, false);
+  assert.equal(result.pass, true);
+  assert.equal(result.activeBuyRatio, 0.70);
+});
+
 test("trade-flow-only L2 still vetoes an opposing direction", () => {
   const points = rows("sell").map(({ bid1Volume, ask1Volume, ...point }) => point);
   const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");

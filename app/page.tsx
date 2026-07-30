@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import "./position-setup.css";
 import "./referral.css";
 import { buildHistoricalSimilarityArchive, runSmartTReplay } from "@/lib/smart-t-engine.mjs";
@@ -17,7 +17,7 @@ import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { buildZijinReplayCandidates } from "@/lib/zijin-replay-candidates.mjs";
 import { buildZijinL2CausalReplayObservations, mergeZijinL2ReplayMinutes } from "@/lib/zijin-l2-causal-replay.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
-import { compactChartObservations, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
+import { compactChartObservations, compactRepairChartMarkers, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
@@ -298,7 +298,7 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 }
 
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
-type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string };
 type L2ReplayState = { available:boolean; source:string; minuteCount:number; observations:ReplayObservation[]; reason:string };
 type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; favorable:boolean; status:string };
 type OpenCandidateObservation = { direction:"正T"|"反T"; time:string; price:number; label:string; status:"候补未闭环" };
@@ -1382,6 +1382,36 @@ export default function Home() {
     ()=>compactChartObservations(currentObservations,30) as ReplayObservation[],
     [currentObservations],
   );
+  const rabbitTrackerSignal=useMemo(()=>{
+    const latestTime=minutePoints.at(-1)?.time;
+    if(!latestTime)return null;
+    const recentAction=[...(liveEngine.actions??[])].reverse().find(action=>isRecentCausalEvent(latestTime,action.time,2));
+    if(recentAction){
+      const sell=recentAction.side==="卖出";
+      return {
+        key:`action-${recentAction.time}-${recentAction.side}`,
+        label:sell?"卖点提醒":"买点提醒",
+        tone:sell?"sell":"buy",
+      };
+    }
+    const displacement=isZijinStock?evaluateZijinDisplacementWatch(minutePoints):null;
+    if(displacement?.stage==="displacement-candidate"&&isRecentCausalEvent(latestTime,displacement.time,2)){
+      return {
+        key:`displacement-${displacement.id}`,
+        label:displacement.label,
+        tone:displacement.direction==="反T"?"sell":"buy",
+      };
+    }
+    const recentObservation=[...currentObservations].reverse().find(observation=>isRecentCausalEvent(latestTime,observation.time,2));
+    if(!recentObservation)return null;
+    const rawLabel=recentObservation.confirmationLabel
+      ?? (recentObservation.direction==="反T"?"高位观察":"低位观察");
+    return {
+      key:`observation-${recentObservation.time}-${rawLabel}`,
+      label:rawLabel.length>8?`${rawLabel.slice(0,7)}…`:rawLabel,
+      tone:"watch",
+    };
+  },[currentObservations,isZijinStock,liveEngine.actions,minutePoints]);
   const intradayMarkerLayout=useMemo(()=>{
     if(!chartModel)return {observations:[],actions:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
@@ -1591,6 +1621,30 @@ export default function Home() {
     };
   },[stockAgent,visibleStockAgentEvaluation,autoDecision]);
   const signalMode:"正T"|"反T"=decisionModel.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
+  const decisionConditions=useMemo(()=>{
+    const reverse=signalMode==="反T";
+    const l2Confirmed=decisionModel.status==="ready"
+      || (reverse
+        ? zijinFundResponse.score>=65
+        : Boolean(zijinRepair?.checks?.l2BuyRecovery));
+    return [
+      {label:"时段有效",met:decisionModel.inDecisionWindow},
+      {label:reverse?"跌回均价":"站回均价",met:decisionModel.referenceConfirmed},
+      {label:reverse?"动量转弱":"动量转强",met:decisionModel.trendConfirmed},
+      {label:isZijinStock?"L2确认":"量价确认",met:l2Confirmed},
+    ];
+  },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,isZijinStock,signalMode,zijinFundResponse.score,zijinRepair?.checks?.l2BuyRecovery]);
+  const rabbitTrackerMode=rabbitTrackerSignal
+    ?"signal"
+    :marketSession.phase==="lunch"
+      ?"rest"
+      :["closing","afterhours","closed"].includes(marketSession.phase)
+        ?"closed"
+        :marketSession.live
+          ?"tracking"
+          :"waiting";
+  const rabbitTrackerLabel=rabbitTrackerSignal?.label
+    ??(rabbitTrackerMode==="rest"?"午休":rabbitTrackerMode==="closed"?"今日收盘":rabbitTrackerMode==="waiting"?"等开盘":"");
   const chartHud=useMemo(()=>{
     const price=Number(activeQuote?.price);
     const plan=displayedZijinPricePlan;
@@ -1947,7 +2001,9 @@ export default function Home() {
           ? `${item.name}，${selectedExperimental.direction}实验观察结束，${selectedExperimental.reason}，不是买卖指令`
           : `${item.name}，${selectedExperimental.direction}实验观察，出现倍量、均价线偏离与实时拐头，不是买卖指令`
         : selectedDisplacement
-        ? selectedDisplacement.stage==="displacement-l2-confirmation"
+        ? selectedDisplacement.stage==="displacement-candidate"
+          ? `${item.name}，${selectedDisplacement.label}，等待确认，不是正式买卖点`
+          : selectedDisplacement.stage==="displacement-l2-confirmation"
           ? `${item.name}，${selectedDisplacement.label}，订单流正在确认，不是正式买卖点`
           : selectedDisplacement.stage==="displacement-progress"
             ? `${item.name}，${selectedDisplacement.label}，继续观察，不是正式买卖点`
@@ -2368,12 +2424,23 @@ export default function Home() {
       <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'}`} ref={workspaceRef}>
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<><span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span><span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS <sup>ⓘ</sup> {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span></>}{stock?.code==="601899"&&<span className={`hk-linkage-legend ${zijinAhLinkage.bias}`} title={zijinAhLinkage.reason}><i/>港股紫金 <b>{zijinAhLinkage.available?`${zijinAhLinkage.hkReturnPercent!>=0?"+":""}${zijinAhLinkage.hkReturnPercent!.toFixed(2)}%`:"--"}</b><em>{zijinAhLinkage.label}</em></span>}<span className="causal-marker-legend" title="前低/前高确认表示系统到该分钟才确认此前的转折，只是观察记录，不是买卖指令"><i/>中文提示常驻 · 前低/前高确认不是买卖点</span></div>
+            <div className="legend primary-chart-legend">
+              <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
+              {indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}
+              <details className="auxiliary-indicators">
+                <summary>辅助指标</summary>
+                <div>
+                  {indicatorsVisible&&<span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span>}
+                  {stock?.code==="601899"&&<span className={`hk-linkage-legend ${zijinAhLinkage.bias}`} title={zijinAhLinkage.reason}><i/>港股紫金 <b>{zijinAhLinkage.available?`${zijinAhLinkage.hkReturnPercent!>=0?"+":""}${zijinAhLinkage.hkReturnPercent!.toFixed(2)}%`:"--"}</b></span>}
+                  <small>观察点不是买卖指令</small>
+                </div>
+              </details>
+            </div>
             <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? "1 秒轮询试用 · 实时行情源" : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):"复盘模式"}</span>
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
-            <div className="layer-switches" aria-label="图表图层开关"><button className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>支撑压力</button><button className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>成交量</button></div><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出全屏":"全屏"}</button>
+            <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="中文提示常驻 · 前低/前高确认不是买卖点；同时显示或隐藏跟线兔兔" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button></div><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
           <div className="chart-wrap">
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
@@ -2400,6 +2467,35 @@ export default function Home() {
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
+              <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
+                <image className="rabbit-brand-reference" href="/rabbit-daylight-pair.webp" width="0" height="0" opacity="0" aria-hidden="true"/>
+                <circle className="rabbit-tracker-halo" r="15"/>
+                {rabbitTrackerMode==="signal"&&<g className="rabbit-signal-companion" transform="translate(-19 2)">
+                  <ellipse className="rabbit-fur tan" cx="0" cy="4" rx="8" ry="6"/>
+                  <circle className="rabbit-fur tan" cx="0" cy="-3" r="6.5"/>
+                  <ellipse className="rabbit-ear tan" cx="-6" cy="-6" rx="2.5" ry="7" transform="rotate(24 -6 -6)"/>
+                  <ellipse className="rabbit-ear tan" cx="6" cy="-6" rx="2.5" ry="7" transform="rotate(-24 6 -6)"/>
+                  <circle className="rabbit-eye" cx="-2.4" cy="-3.5" r=".8"/><circle className="rabbit-eye" cx="2.4" cy="-3.5" r=".8"/>
+                </g>}
+                <g className="rabbit-tracker-body">
+                  <ellipse className="rabbit-fur" cx="0" cy="4" rx="9" ry="7"/>
+                  <circle className="rabbit-fur" cx="0" cy="-4" r="7.5"/>
+                  <ellipse className="rabbit-ear" cx="-7" cy="-7" rx="2.8" ry="8" transform="rotate(24 -7 -7)"/>
+                  <ellipse className="rabbit-ear" cx="7" cy="-7" rx="2.8" ry="8" transform="rotate(-24 7 -7)"/>
+                  <circle className="rabbit-eye" cx="-2.7" cy="-4.3" r=".9"/><circle className="rabbit-eye" cx="2.7" cy="-4.3" r=".9"/>
+                  <path className="rabbit-nose" d="M-1 -1.5 L0 -.6 L1 -1.5"/>
+                </g>
+                {rabbitTrackerMode==="signal"&&<g className={`rabbit-signal-flag ${rabbitTrackerSignal?.tone??"watch"}`} transform="translate(8 -19)"><line x1="0" y1="0" x2="0" y2="14"/><path d="M0 0 L10 3.5 L0 7 Z"/></g>}
+                {rabbitTrackerMode==="rest"&&<text className="rabbit-rest-z" x="10" y="-14">Z</text>}
+                {rabbitTrackerLabel&&(()=>{
+                  const bubbleWidth=Math.max(38,rabbitTrackerLabel.length*7+14);
+                  const bubbleX=chartModel.lastX>LIVE_CHART.plotRight-105?-bubbleWidth-20:20;
+                  return <g className={`rabbit-tracker-bubble ${rabbitTrackerMode}`} transform={`translate(${bubbleX} -30)`}>
+                    <rect width={bubbleWidth} height="18" rx="8"/>
+                    <text x={bubbleWidth/2} y="12.5" textAnchor="middle">{rabbitTrackerLabel}</text>
+                  </g>;
+                })()}
+              </g>
               <line x1={LIVE_CHART.plotLeft} y1={chartModel.lastY} x2={LIVE_CHART.plotRight} y2={chartModel.lastY} className="last-line"/><circle cx={chartModel.lastX} cy={chartModel.lastY} r="4" className="last-dot"/><g className="intraday-price-flag"><rect x="0" y={Math.max(6,Math.min(294,chartModel.lastY-12))} width="54" height="24" rx={uiTheme==="light"?7:0}/><text x="27" y={Math.max(6,Math.min(294,chartModel.lastY-12))+16} textAnchor="middle">{chartModel.last.price.toFixed(2)}</text></g></>}
               <line x1={LIVE_CHART.plotLeft} y1={LIVE_CHART.volumeTop} x2={LIVE_CHART.plotRight} y2={LIVE_CHART.volumeTop} className="volume-divider"/>
               {chartModel?.biasAlert&&<rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.volumeTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.volumeTop} className={`bias-alert-band ${chartModel.latestBias>=0?"up":"down"}`}/>}
@@ -2521,7 +2617,10 @@ export default function Home() {
           <section className={`decision-primary-card ${decisionModel.status}`} aria-label="当前主要信号">
             <header><span>主要信号</span><em>{decisionModel.confirmed}/4 条件</em></header>
             <b>{signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</b>
-            <div><span>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</span><strong>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"实时监控"):"研究观察"}</strong></div>
+            <div className="decision-condition-grid" aria-label="主要信号条件进度">
+              {decisionConditions.map(item=><span key={item.label} className={item.met?"met":""}><i>{item.met?"✓":"×"}</i>{item.label}</span>)}
+            </div>
+            <div className="decision-primary-meta"><span>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</span><strong>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"实时监控"):"研究观察"}</strong></div>
           </section>
           <section className="decision-position-card" aria-label="持仓与本次做T">
             <header><span>持仓与试算</span><em>{marketSession.live?"实时":"复盘"}</em></header>
@@ -3769,7 +3868,6 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       const data=sessionData(fetched,selected);
       setReplayProgress({value:46,detail:`已锁定 ${selected.date}，准备逐分钟因果回放`});
       setSingleRunDate(selected.date);
-      setSource(data);
       const configuredQuantity=Math.min(baseShares,sellable);
       const replayCapital=capital>0?capital:200_000;
       const fallbackShares=standardBacktestShares(data,replayCapital);
@@ -3782,13 +3880,14 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         setAccountNotice(`原模拟底仓不足 300 股，本次已使用标准模拟底仓 ${fallbackShares.toLocaleString("zh-CN")} 股；仅用于回测，不写入持仓对账。`);
       }
       setReplayProgress({value:68,detail:"逐分钟推进策略，不读取未来高低点"});
-      const calculated=replay(data,replayAccount);
       let strictL2:L2ReplayState={available:false,source:"not-applicable",minuteCount:0,observations:[],reason:"仅紫金矿业启用L2严格回放"};
+      let replayMinutes=data.minutes??[];
       if(data.quote.code==="601899"){
         try{
           const l2Response=await fetch(`/api/research/zijin-l2-replay?date=${encodeURIComponent(selected.date)}&t=${Date.now()}`,{cache:"no-store"});
           const l2Payload=await l2Response.json() as {available?:boolean;source?:string;minutes?:Record<string,unknown>[];reason?:string};
           const merged=mergeZijinL2ReplayMinutes(data.minutes??[],l2Payload.minutes??[],selected.date);
+          if(l2Payload.available)replayMinutes=merged;
           const observations=l2Payload.available?buildZijinL2CausalReplayObservations(merged) as ReplayObservation[]:[];
           strictL2={
             available:Boolean(l2Payload.available),
@@ -3796,13 +3895,16 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
             minuteCount:l2Payload.minutes?.length??0,
             observations,
             reason:l2Payload.available
-              ? observations.length?`已严格复现 ${observations.length} 个资金承接修复候选`:"历史L2已加载，本日没有通过持续资金确认的修复候选"
+              ? observations.length?`L2已进入正式过滤，并复现 ${observations.length} 个独立资金修复阶段`:"L2已进入正式过滤，本日没有通过持续资金确认的修复候选"
               : l2Payload.reason??"本交易日没有历史L2快照",
           };
         }catch{
           strictL2={available:false,source:"error",minuteCount:0,observations:[],reason:"历史L2读取失败，未参与本次回放"};
         }
       }
+      const replayData={...data,minutes:replayMinutes};
+      setSource(replayData);
+      const calculated=replay(replayData,replayAccount);
       setL2Replay(strictL2);
       setReplayProgress({value:88,detail:"正在扣除佣金、印花税与双向滑点"});
       setResult(calculated);
@@ -4011,10 +4113,11 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const previousCloseY=previousClose && previousClose>=chartMin && previousClose<=chartMax ? chartPoint(previousClose,0).y : null;
   const formatTime=(value:string|undefined)=>value && value.length>=4 ? `${value.slice(0,2)}:${value.slice(2,4)}` : "--:--";
   const formatDate=(value:string|undefined)=>value && value.length===8 ? `${value.slice(0,4)}-${value.slice(4,6)}-${value.slice(6,8)}` : value ?? "—";
+  const visibleL2ReplayMarkers=compactRepairChartMarkers(l2Replay.observations,40) as ReplayObservation[];
   const visibleBacktestObservations=result
     ? [
         ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? []),30) as ReplayObservation[],
-        ...l2Replay.observations,
+        ...visibleL2ReplayMarkers,
       ].filter((observation,index,rows)=>rows.findIndex(row=>row.time===observation.time&&row.confirmationLabel===observation.confirmationLabel)===index)
         .sort((left,right)=>left.time.localeCompare(right.time))
     : [];
@@ -4094,7 +4197,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
             <div><h2>{source?`完整交易日真实分时 · ${source.quote.code} ${source.quote.name}`:"完整交易日真实分时"}</h2><span>{result ? `${formatDate(source?.sampleDate)} · ${formatTime(fullDayMinutes[0]?.time)} 至 ${formatTime(fullDayMinutes.at(-1)?.time)} · 策略从 ${formatTime(result.startTime)} 起逐分钟判断` : "运行后显示"}</span></div>
             <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 候补观察</span>}{l2Replay.observations.length>0&&<span className="l2-marker">◎ 资金承接修复</span>}</div>
           </div>
-          {result&&source?.quote.code==="601899"&&<div className={`l2-replay-audit ${l2Replay.available?"available":"unavailable"}`}><span><i/>L2严格因果回放</span><b>{l2Replay.reason}</b><em>{l2Replay.available?`${l2Replay.minuteCount} 个L2分钟点 · ${l2Replay.source==="archive"?"交易日归档":"当日实时快照"}`:"未使用L2补值"}</em></div>}
+          {result&&source?.quote.code==="601899"&&<div className={`l2-replay-audit ${l2Replay.available?"available":"unavailable"}`}><span><i/>L2严格因果回放</span><b>{l2Replay.reason}</b><em>{l2Replay.available?`${l2Replay.minuteCount} 个L2分钟点 · 图上合并为 ${visibleL2ReplayMarkers.length} 个关键波段 · ${l2Replay.source==="archive"?"交易日归档":"当日实时快照"}`:"未使用L2补值"}</em></div>}
           <svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点">
             <defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".16"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>
             {chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toFixed(2)}</text></g>})}

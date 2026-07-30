@@ -100,6 +100,10 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /intradayMarkerLayout\.actions/);
   assert.match(source, /marker-label-leader/);
   assert.match(source, /中文提示常驻 · 前低\/前高确认不是买卖点/);
+  assert.match(source, /className=\{`chart-rabbit-tracker/);
+  assert.match(source, /href="\/rabbit-daylight-pair\.webp"/);
+  assert.match(source, /rabbitTrackerSignal/);
+  assert.match(styles, /@keyframes rabbit-signal-hop/);
   assert.match(source, /"低位参考":"前低确认"/);
   assert.match(styles, /candidate-signal-marker\.with-label>text,[\s\S]*?opacity:1/);
   assert.match(source, /const formalFresh=Boolean/);

@@ -112,3 +112,49 @@ test("a repaired pivot stops being a grinding-bottom watch after price leaves th
   assert.equal(result.status, "watch");
   assert.equal(result.checks.lowZoneWatch, false);
 });
+
+test("afternoon repair structure cannot reuse a morning pivot across the lunch break", () => {
+  const morning = repairSequence().map((point, index) => ({
+    ...point,
+    time: `11${String(18 + index).padStart(2, "0")}`,
+  }));
+  const afternoon = [
+    minute("1300", 31.30, 0, 0.57, 120_000, 80_000),
+    minute("1301", 31.34, 120, 0.58, 160_000, 100_000),
+    minute("1302", 31.38, 130, 0.60, 180_000, 120_000),
+    minute("1303", 31.42, 140, 0.61, 200_000, 140_000),
+  ];
+  const result = evaluateZijinRepairCandidate([...morning, ...afternoon]);
+  assert.notEqual(result.status, "candidate");
+  assert.equal(result.title, "等待二次探底");
+});
+
+test("a short flat-bottom structure with easing L2 sell pressure becomes an early watch only", () => {
+  const prices = [
+    ["1300", 31.12, 0.38],
+    ["1301", 31.10, 0.40],
+    ["1302", 31.07, 0.41],
+    ["1303", 31.09, 0.43],
+    ["1304", 31.08, 0.45],
+    ["1305", 31.07, 0.46],
+    ["1306", 31.08, 0.52],
+    ["1307", 31.09, 0.58],
+  ];
+  const points = prices.map(([time, price, ratio]) => minute(
+    time,
+    price,
+    90,
+    ratio,
+    ratio >= 0.50 ? 80_000 : -180_000,
+    ratio >= 0.50 ? 50_000 : -100_000,
+  ));
+  const result = evaluateZijinRepairCandidate(points);
+  assert.equal(result.status, "watch");
+  assert.equal(result.title, "磨底预警");
+  assert.equal(result.checks.earlyBottom, true);
+  assert.equal(result.checks.earlyWatch, true);
+  assert.equal(result.checks.l2PressureEasing, true);
+  assert.equal(result.candidateKey, null);
+  assert.match(result.watchKey, /bottom-watch$/);
+  assert.equal(result.executable, false);
+});

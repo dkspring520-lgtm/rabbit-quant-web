@@ -39,6 +39,32 @@ test("stable tier id supports one reminder per displacement episode", () => {
   assert.equal(first?.id, second?.id);
 });
 
+test("persistent low and high displacement promote symmetric fast candidates", () => {
+  const low = evaluateZijinDisplacementWatch(
+    buildPoints([31.4, 31.4, 31.4, 31.4, 31.4, 31.1, 31.08]),
+    { minimumBiasPct: 0.5 },
+  );
+  assert.equal(low?.stage, "displacement-candidate");
+  assert.equal(low?.label, "候选买点");
+  assert.equal(low?.executable, false);
+
+  const high = evaluateZijinDisplacementWatch(
+    buildPoints([31.2, 31.2, 31.2, 31.2, 31.2, 31.5, 31.52]),
+    { minimumBiasPct: 0.5 },
+  );
+  assert.equal(high?.stage, "displacement-candidate");
+  assert.equal(high?.label, "候选卖点");
+  assert.equal(high?.executable, false);
+});
+
+test("a still accelerating displacement remains watch-only", () => {
+  const result = evaluateZijinDisplacementWatch(
+    buildPoints([31.4, 31.4, 31.4, 31.4, 31.4, 31.1, 30.8]),
+    { minimumBiasPct: 0.5 },
+  );
+  assert.equal(result?.stage, "displacement-watch");
+});
+
 test("future suffix cannot change an earlier causal result", () => {
   const prefix = buildPoints([31.2, 31.2, 31.2, 31.2, 31.2, 31.6]);
   const before = evaluateZijinDisplacementWatch(prefix);
