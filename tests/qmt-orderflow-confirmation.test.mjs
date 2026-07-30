@@ -61,6 +61,32 @@ test("native nested L2 fields are normalized", () => {
   assert.equal(result.pass, true);
 });
 
+test("historical trade-flow-only L2 remains available without fabricating a book", () => {
+  const points = [0, 1, 2].map((index) => ({
+    time: `102${index}`,
+    price: 10 + index * 0.02,
+    activeBuyNotional: 700_000,
+    activeSellNotional: 300_000,
+    netActiveNotional: 400_000,
+    bigOrderNetNotional: 180_000,
+    l2Status: { connected: true, authorized: true, stale: false },
+  }));
+  const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
+  assert.equal(result.available, true);
+  assert.equal(result.bookAvailable, false);
+  assert.equal(result.required, 2);
+  assert.equal(result.score, 2);
+  assert.equal(result.pass, true);
+});
+
+test("trade-flow-only L2 still vetoes an opposing direction", () => {
+  const points = rows("sell").map(({ bid1Volume, ask1Volume, ...point }) => point);
+  const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
+  assert.equal(result.available, true);
+  assert.equal(result.bookAvailable, false);
+  assert.equal(result.pass, false);
+});
+
 test("abnormal spread vetoes otherwise supportive flow", () => {
   const points = rows("buy").map((point) => ({ ...point, spreadBps: 25, transactionCount60s: 20 }));
   const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
@@ -125,4 +151,18 @@ test("Zijin research summary consumes five L2 features without creating an order
   assert.equal(result.available, true);
   assert.equal(result.stance, "buy");
   assert.equal("executable" in result, false);
+});
+
+test("Zijin research summary classifies retained transaction flow without book snapshots", () => {
+  const result = summarizeZijinOrderFlow({
+    activeBuyNotional: 760_000,
+    activeSellNotional: 240_000,
+    netActiveNotional: 520_000,
+    bigOrderNetNotional: 210_000,
+    l2Status: { connected: true, authorized: true, stale: false },
+  });
+  assert.equal(result.available, true);
+  assert.equal(result.bookAvailable, false);
+  assert.equal(result.required, 2);
+  assert.equal(result.stance, "buy");
 });
