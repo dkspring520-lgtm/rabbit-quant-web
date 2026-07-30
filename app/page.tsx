@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type Ke
 import "./position-setup.css";
 import "./referral.css";
 import { buildHistoricalSimilarityArchive, runSmartTReplay } from "@/lib/smart-t-engine.mjs";
-import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
+import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareClosingAuctionMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
 import { confirmStockPosition, loadStockPosition, migrateLegacyPosition, normalizeStockPosition, saveStockPosition } from "@/lib/stock-position.mjs";
 import type { StockPosition } from "@/lib/stock-position.mjs";
 import { normalizeTradeLedgerRows, summarizeTradeLedger, tradeLedgerDate, tradeLedgerKey } from "@/lib/trade-ledger.mjs";
@@ -1084,8 +1084,23 @@ export default function Home() {
     const peakVolumeIndex=minutePoints.reduce((bestIndex,point,index)=>
       Math.max(0,point.volume)>Math.max(0,minutePoints[bestIndex]?.volume??0)?index:bestIndex,0);
     const peakVolumePoint=minutePoints[peakVolumeIndex];
+    const latestPoint=minutePoints.at(-1)!;
+    const preCloseAuctionIndex=minutePoints.findLastIndex(point=>point.time<"1457");
+    const preCloseAuctionPoint=preCloseAuctionIndex>=0?minutePoints[preCloseAuctionIndex]:null;
+    const closingAuctionMovePct=isAShareClosingAuctionMinute(latestPoint.time)&&preCloseAuctionPoint?.price
+      ? (latestPoint.price-preCloseAuctionPoint.price)/preCloseAuctionPoint.price*100
+      : null;
+    const closingAuctionJump=closingAuctionMovePct!==null&&Math.abs(closingAuctionMovePct)>=.3
+      ? {
+        x:liveChartX(latestPoint.time),
+        y:liveChartPriceY(latestPoint.price,min,max),
+        time:latestPoint.time,
+        movePct:closingAuctionMovePct,
+      }
+      : null;
     let latestVwapCross:null|{x:number;y:number;time:string;direction:"up"|"down";index:number}=null;
     for(let index=1;index<minutePoints.length;index+=1){
+      if(isAShareClosingAuctionMinute(minutePoints[index].time))continue;
       const previousDelta=minutePoints[index-1].price-averageSeries[index-1];
       const currentDelta=minutePoints[index].price-averageSeries[index];
       if((previousDelta<0&&currentDelta>=0)||(previousDelta>0&&currentDelta<=0)){
@@ -1111,6 +1126,7 @@ export default function Home() {
         ratio:volumeSignals[peakVolumeIndex]?.ratio??null,
         abnormal:volumeSignals[peakVolumeIndex]?.abnormal??false,
       },
+      closingAuctionJump,
       recentVwapCross,
       lastY:liveChartPriceY(minutePoints.at(-1)!.price,min,max),
       points:minutePoints.map((point,index)=>({
@@ -2381,6 +2397,7 @@ export default function Home() {
               {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}{zijinHkOverlay&&<path d={zijinHkOverlay.path} className={`hk-zijin-path ${zijinAhLinkage.bias}`}/>}<path d={chartModel.path} className="price-path"/>
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
+              {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <line x1={LIVE_CHART.plotLeft} y1={chartModel.lastY} x2={LIVE_CHART.plotRight} y2={chartModel.lastY} className="last-line"/><circle cx={chartModel.lastX} cy={chartModel.lastY} r="4" className="last-dot"/><g className="intraday-price-flag"><rect x="0" y={Math.max(6,Math.min(294,chartModel.lastY-12))} width="54" height="24" rx={uiTheme==="light"?7:0}/><text x="27" y={Math.max(6,Math.min(294,chartModel.lastY-12))+16} textAnchor="middle">{chartModel.last.price.toFixed(2)}</text></g></>}

@@ -90,3 +90,10 @@ test("progress event id stays stable while the same excursion continues", () => 
   );
   assert.equal(first?.id, second?.id);
 });
+
+test("closing call auction jump is not labelled as a normal displacement repair", () => {
+  const points = buildPoints([31.2, 31.2, 31.2, 31.2, 31.3, 31.35]);
+  points.at(-1).time = "15:00";
+  points.at(-1).price = 31.8;
+  assert.equal(evaluateZijinDisplacementWatch(points), null);
+});
