@@ -40,17 +40,57 @@ test("normalizes only the requested historical L2 trading day", () => {
   assert.equal(result.minutes[0].time,"1025");
 });
 
-test("strict causal replay promotes one repair only after three aligned L2 minutes", () => {
+test("strict causal replay records the early watch before the confirmed L2 repair", () => {
   const l2=marketSequence().map((row,index)=>l2Minute(row.time,index >= 10 ? .58 : .43));
   const merged=mergeZijinL2ReplayMinutes(marketSequence(),l2,"20260728");
   const observations=buildZijinL2CausalReplayObservations(merged);
-  assert.equal(observations.length,1);
-  assert.equal(observations[0].time,"1027");
-  assert.equal(observations[0].confirmationLabel,"L2修复");
-  assert.equal(observations[0].l2Strict,true);
+  assert.equal(observations.length,2);
+  assert.equal(observations[0].time,"1026");
+  assert.equal(observations[0].confirmationLabel,"磨底预警");
+  assert.equal(observations[1].time,"1027");
+  assert.equal(observations[1].confirmationLabel,"L2修复");
+  assert.equal(observations[1].l2Strict,true);
 });
 
 test("missing historical L2 cannot fabricate a strict repair marker", () => {
   const merged=mergeZijinL2ReplayMinutes(marketSequence(),[],"20260728");
   assert.deepEqual(buildZijinL2CausalReplayObservations(merged),[]);
+});
+
+test("one repair episode does not emit repeated L2 markers for every nearby pivot", () => {
+  const first=marketSequence();
+  const continuation=[
+    {time:"1028",price:31.31,volume:90,averagePrice:31.40},
+    {time:"1029",price:31.28,volume:80,averagePrice:31.40},
+    {time:"1030",price:31.27,volume:75,averagePrice:31.40},
+    {time:"1031",price:31.29,volume:70,averagePrice:31.40},
+    {time:"1032",price:31.28,volume:65,averagePrice:31.40},
+    {time:"1033",price:31.30,volume:75,averagePrice:31.40},
+    {time:"1034",price:31.33,volume:85,averagePrice:31.40},
+  ];
+  const market=[...first,...continuation];
+  const l2=market.map((row,index)=>l2Minute(row.time,index >= 10 ? .58 : .43));
+  const merged=mergeZijinL2ReplayMinutes(market,l2,"20260728");
+  const observations=buildZijinL2CausalReplayObservations(merged);
+  assert.equal(observations.length,2);
+  assert.equal(observations[0].confirmationLabel,"磨底预警");
+  assert.equal(observations[1].time,"1027");
+  assert.equal(observations[1].confirmationLabel,"L2修复");
+});
+
+test("strict replay records an early flat-bottom warning without promoting it to a trade", () => {
+  const prices = [
+    ["1300",31.12,.38],["1301",31.10,.40],["1302",31.07,.41],["1303",31.09,.43],
+    ["1304",31.08,.45],["1305",31.07,.46],["1306",31.08,.52],["1307",31.09,.58],
+  ];
+  const market=prices.map(([time,price])=>({time,price,volume:90,averagePrice:31.40}));
+  const l2=prices.map(([time,,ratio])=>l2Minute(time,ratio));
+  const merged=mergeZijinL2ReplayMinutes(market,l2,"20260728");
+  const observations=buildZijinL2CausalReplayObservations(merged);
+  assert.equal(observations.length,1);
+  assert.equal(observations[0].time,"1306");
+  assert.equal(observations[0].stage,"watch");
+  assert.equal(observations[0].confirmationLabel,"磨底预警");
+  assert.equal(observations[0].repairPhase,"bottom-watch");
+  assert.equal(observations[0].executable,false);
 });
