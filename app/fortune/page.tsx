@@ -56,6 +56,9 @@ export default function FortunePage(){
   const [readingProgress,setReadingProgress]=useState(0);
   const [readingStage,setReadingStage]=useState("等待起卦");
   const [readingStatus,setReadingStatus]=useState<"idle"|"reading"|"cached"|"fresh">("idle");
+  const [shareImage,setShareImage]=useState("");
+  const [shareBusy,setShareBusy]=useState(false);
+  const [shareMessage,setShareMessage]=useState("");
   const readingRun=useRef(0);
   useEffect(()=>{
     if(!/^\d{6}$/.test(code)){setMarketStatus("idle");setMarketMessage("请输入 6 位股票代码");return}
@@ -131,7 +134,15 @@ export default function FortunePage(){
     const last=safeValues.at(-1)||0;
     const chanState=hasCenter?(last>centerHigh?"离开中枢向上":last<centerLow?"离开中枢向下":"中枢震荡"):"中枢尚未确认";
     const chanBoost=hasCenter?(last>centerHigh?5:last<centerLow?-5:0):0;
-    const score=Math.max(18,Math.min(82,Math.round(50+(ma20?(ma5/ma20-1)*600:0)+momentum*2+volumeBoost+chanBoost)));
+    const horizonDays=Number(horizon);
+    const horizonSlice=values.slice(-Math.min(horizonDays,values.length));
+    const horizonBase=avg(horizonSlice);
+    const horizonMomentum=horizonSlice.length>2?(horizonSlice.at(-1)!/horizonSlice[0]-1)*100:momentum;
+    const shortSignal=(ma20?(ma5/ma20-1)*600:0)+momentum*2+volumeBoost;
+    const mediumSignal=(ma20&&last?(last/ma20-1)*420:0)+horizonMomentum*1.25+chanBoost;
+    const longSignal=(horizonBase&&last?(last/horizonBase-1)*330:0)+horizonMomentum*.8+chanBoost*.65;
+    const periodSignal=horizonDays<=5?shortSignal:horizonDays<=20?mediumSignal:longSignal;
+    const score=Math.max(18,Math.min(82,Math.round(50+periodSignal)));
     const seed=`${code}-${horizon}-${draw}-${readingDate}-${marketFingerprint}`;
     const lot=lots[Math.max(0,Math.min(5,Math.floor((1-(seeded(seed)*.72+(score-50)/180+.14))*6)))];
     const moving=Math.floor(seeded(seed+"变")*6);
@@ -140,7 +151,7 @@ export default function FortunePage(){
     const lower=trigramFor(lines.slice(0,3)),upper=trigramFor(lines.slice(3,6));
     const changedLower=trigramFor(changedLines.slice(0,3)),changedUpper=trigramFor(changedLines.slice(3,6));
     const elementCounts=(["金","木","水","火","土"] as const).map(element=>({element,count:lines.filter(line=>line.element===element).length})).sort((a,b)=>b.count-a.count);
-    return {values,ma5,ma20,momentum,rsi,score,lot,upper,lower,changedUpper,changedLower,moving,lines,dominantElement:elementCounts[0],support:Math.min(...safeValues.slice(-20)),resistance:Math.max(...safeValues.slice(-20)),fractals,hasCenter,centerLow,centerHigh,chanState};
+    return {values,ma5,ma20,momentum,rsi,score,lot,upper,lower,changedUpper,changedLower,moving,lines,dominantElement:elementCounts[0],support:Math.min(...(horizonSlice.length?horizonSlice:safeValues)),resistance:Math.max(...(horizonSlice.length?horizonSlice:safeValues)),fractals,hasCenter,centerLow,centerHigh,chanState};
   },[prices,volumes,code,horizon,draw,readingDate,marketFingerprint]);
   const trend=analysis.score>58?"偏多":analysis.score<42?"偏空":"震荡";
   const paths=[
@@ -157,6 +168,33 @@ export default function FortunePage(){
   const astroTone=zodiac[1]==="火"?"倾向快速启动与较大波动":zodiac[1]==="土"?"倾向重视支撑与趋势确认":zodiac[1]==="风"?"倾向受消息和市场预期推动":"倾向受资金流动与市场情绪影响";
   const spokenReport=`小兔为你解签。${name||code}，${analysis.upper[0]}上${analysis.lower[0]}下，${lineNames[analysis.moving]}动。未来走势判断：${futureTitle}。${futurePath} 上行观察位${analysis.resistance.toFixed(2)}元，下行警戒位${analysis.support.toFixed(2)}元。卦象仅供文化娱乐，走势判断不构成投资建议。`;
   const speak=()=>{if(!("speechSynthesis" in window))return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(spokenReport);utterance.lang="zh-CN";utterance.rate=.92;window.speechSynthesis.speak(utterance)};
+  const shareCopy=`${name||code}（${code}）股票推演签\n未来 ${horizon} 个交易日：${trend} · ${analysis.score}/100\n${futureTitle}\n上行确认 ¥${analysis.resistance.toFixed(2)}｜下行警戒 ¥${analysis.support.toFixed(2)}\n卦象：${analysis.upper[0]}上${analysis.lower[0]}下，${lineNames[analysis.moving]}动\n#股票推演 #传统文化 #行情观察\n仅供文化娱乐，不构成投资建议。`;
+  const generateShareCard=async()=>{
+    setShareBusy(true);setShareMessage("");
+    const canvas=document.createElement("canvas");canvas.width=1080;canvas.height=1440;
+    const ctx=canvas.getContext("2d");if(!ctx){setShareBusy(false);return}
+    const gradient=ctx.createLinearGradient(0,0,1080,1440);gradient.addColorStop(0,"#10251e");gradient.addColorStop(.56,"#091713");gradient.addColorStop(1,"#050d0b");ctx.fillStyle=gradient;ctx.fillRect(0,0,1080,1440);
+    ctx.strokeStyle="rgba(219,181,105,.5)";ctx.lineWidth=2;ctx.strokeRect(44,44,992,1352);ctx.strokeStyle="rgba(219,181,105,.16)";ctx.strokeRect(62,62,956,1316);
+    ctx.fillStyle="#c8a45e";ctx.font='32px "Songti SC","Noto Serif SC",serif';ctx.fillText("股票推演局",88,124);
+    ctx.fillStyle="#657e73";ctx.font="22px Georgia,serif";ctx.fillText("STOCK ORACLE · RESULT",88,166);
+    ctx.textAlign="right";ctx.fillStyle="#d8bf83";ctx.font='28px "Songti SC",serif';ctx.fillText(`${name||code}  ${code}`,992,126);ctx.textAlign="left";
+    ctx.fillStyle="#839a90";ctx.font='25px "Songti SC",serif';ctx.fillText(`未来 ${horizon} 个交易日`,88,270);
+    ctx.fillStyle="#e8c87f";ctx.font='700 132px "Songti SC","Noto Serif SC",serif';ctx.fillText(trend,80,430);
+    ctx.fillStyle="#76988b";ctx.font="700 72px Georgia,serif";ctx.textAlign="right";ctx.fillText(`${analysis.score}`,990,420);ctx.font="24px Georgia,serif";ctx.fillText("/ 100",990,455);ctx.textAlign="left";
+    const wrap=(text:string,x:number,y:number,maxWidth:number,lineHeight:number,maxLines=3)=>{let line="",lineNo=0;for(const char of text){const test=line+char;if(ctx.measureText(test).width>maxWidth&&line){ctx.fillText(line,x,y+lineNo*lineHeight);line=char;lineNo++;if(lineNo>=maxLines)return}else line=test}if(lineNo<maxLines)ctx.fillText(line,x,y+lineNo*lineHeight)};
+    ctx.fillStyle="#e4e7df";ctx.font='44px "Songti SC","Noto Serif SC",serif';wrap(futureTitle,88,550,900,64,2);
+    ctx.fillStyle="#8da097";ctx.font='27px "Songti SC","Noto Serif SC",serif';wrap(futurePath,88,710,900,46,3);
+    ctx.strokeStyle="rgba(210,173,99,.22)";ctx.beginPath();ctx.moveTo(88,875);ctx.lineTo(992,875);ctx.stroke();
+    const facts=[["上行确认",`¥${analysis.resistance.toFixed(2)}`],["下行警戒",`¥${analysis.support.toFixed(2)}`],["风险等级",riskLevel],["缠论状态",analysis.chanState]];
+    facts.forEach(([label,value],i)=>{const x=88+(i%2)*455,y=950+Math.floor(i/2)*145;ctx.fillStyle="#6f887d";ctx.font='23px "Songti SC",serif';ctx.fillText(label,x,y);ctx.fillStyle="#d9c18c";ctx.font='34px "Songti SC",serif';ctx.fillText(value,x,y+48)});
+    ctx.fillStyle="#c6a45f";ctx.font='28px "Songti SC",serif';ctx.fillText(`${analysis.upper[1]} ${analysis.upper[0]}上 · ${analysis.lower[1]} ${analysis.lower[0]}下 · ${lineNames[analysis.moving]}动`,88,1250);
+    ctx.strokeStyle="#a74b38";ctx.fillStyle="rgba(167,75,56,.08)";ctx.lineWidth=3;ctx.strokeRect(862,1186,106,106);ctx.fillRect(862,1186,106,106);ctx.fillStyle="#bd634b";ctx.font='30px "Songti SC",serif';ctx.fillText("定 势",872,1248);
+    ctx.fillStyle="#536b61";ctx.font='20px "Songti SC",serif';ctx.fillText("传统文化娱乐推演 · 不构成投资建议",88,1340);
+    setShareImage(canvas.toDataURL("image/png"));setShareBusy(false);
+  };
+  const downloadShare=()=>{if(!shareImage)return;const a=document.createElement("a");a.href=shareImage;a.download=`${name||code}-${code}-股票推演签.png`;a.click()};
+  const copyShare=async()=>{await navigator.clipboard.writeText(shareCopy);setShareMessage("分享文案已复制")};
+  const systemShare=async()=>{if(!shareImage)return;try{const blob=await(await fetch(shareImage)).blob();const file=new File([blob],`${name||code}-股票推演签.png`,{type:"image/png"});if(navigator.share&&navigator.canShare?.({files:[file]})){await navigator.share({title:`${name||code} 股票推演签`,text:shareCopy,files:[file]})}else{downloadShare();await copyShare();setShareMessage("图片已保存，文案已复制")}}catch(error){if((error as Error).name!=="AbortError")setShareMessage("分享未完成，请先保存图片")}};
   return <main className="oracle">
     <nav><a href="/">← 返回做T神器</a><span>股票算命 · STOCK ORACLE</span><b>娱乐推演</b></nav>
     <header><div><small>东方术数 × 西方星象 × 行情技术</small><h1>股票<br/><span>推演局</span></h1><p>输入代码，查看未来走势、卦象与关键价位。</p></div>
@@ -179,8 +217,9 @@ export default function FortunePage(){
     <section className="engine-map"><header><small>推演法门</small><h2>文化取象，技术定势</h2><p>每一层都展示依据，但只有行情层参与方向评分。</p></header><div><article><em>01</em><b>易学取象</b><p>梅花数字起卦、六爻阴阳与动爻、八卦上下体。</p></article><article><em>02</em><b>道家观变</b><p>以阴阳消长、五行生克描述强弱转换，不作宗教断言。</p></article><article><em>03</em><b>西方占星</b><p>以上市日期映射星座四元素，作为市场性格叙事。</p></article><article><em>04</em><b>量价技术</b><p>均线、RSI、动量、成交量与支撑压力共同评分。</p></article><article><em>05</em><b>缠论复核</b><p>识别顶底分型、三段重叠中枢及价格离开方向。</p></article></div></section>
     <section className={`result ${readingStatus==="reading"?"result-thinking":""}`}>
       <article className="lot gua-card"><div className="gua-heading"><em>{analysis.lot[0]}</em><span>本卦</span><h2>{analysis.upper[3]}上{analysis.lower[3]}下</h2><p>{analysis.upper[0]}上 {analysis.lower[0]}下 · {lineNames[analysis.moving]}动 · 之卦 {analysis.changedUpper[0]}上{analysis.changedLower[0]}下</p></div><div className="hexagram">{analysis.lines.map((line,index)=><div className={`yao ${line.moving?"moving":""}`} key={index}><small>{lineNames[index]}</small><span className={`yao-line ${line.yang?"yang":"yin"}`}>{line.yang?<i/>:<><i/><i/></>}</span><b>{line.element}</b>{line.moving?<em>○</em>:<em/>}</div>)}</div><div className="gua-symbols"><div><strong>{analysis.upper[1]}</strong><span>上卦 · {analysis.upper[0]}</span><small>{analysis.upper[2]} · {analysis.upper[3]}</small></div><i/><div><strong>{analysis.lower[1]}</strong><span>下卦 · {analysis.lower[0]}</span><small>{analysis.lower[2]} · {analysis.lower[3]}</small></div><i/><div><strong>{analysis.changedUpper[1]}{analysis.changedLower[1]}</strong><span>变卦</span><small>{analysis.changedUpper[0]} / {analysis.changedLower[0]}</small></div></div><blockquote><b>{analysis.lot[1]}</b><br/>{analysis.lot[2]}</blockquote><button disabled={readingStatus==="reading"} onClick={()=>void runReading(true)}>主动重新起卦</button><small className="seed-note">同一行情、周期与交易日保持同一卦；只有主动重起才会换签。</small></article>
-      <article className="tech forecast-card"><header><div><small>最终走势</small><h2>{trend}</h2></div><strong>{analysis.score}<i>/100</i></strong></header><div className="meter"><i style={{width:`${analysis.score}%`}}/></div><h3>{futureTitle}</h3><p className="future-path">{futurePath}</p><dl><div><dt>预测周期</dt><dd>未来 {horizon} 个交易日</dd></div><div><dt>风险等级</dt><dd>{riskLevel}</dd></div><div><dt>上行确认</dt><dd>¥{analysis.resistance.toFixed(2)}</dd></div><div><dt>下行警戒</dt><dd>¥{analysis.support.toFixed(2)}</dd></div><div><dt>缠论状态</dt><dd>{analysis.chanState}</dd></div></dl><footer><button type="button" onClick={speak}>◉ 小兔播报</button><div className="result-seal">行情模型定势 · 术数星象解签</div></footer></article>
+      <article className="tech forecast-card"><header><div><small>最终走势</small><h2>{trend}</h2></div><strong>{analysis.score}<i>/100</i></strong></header><div className="meter"><i style={{width:`${analysis.score}%`}}/></div><h3>{futureTitle}</h3><p className="future-path">{futurePath}</p><dl><div><dt>预测周期</dt><dd>未来 {horizon} 个交易日</dd></div><div><dt>风险等级</dt><dd>{riskLevel}</dd></div><div><dt>上行确认</dt><dd>¥{analysis.resistance.toFixed(2)}</dd></div><div><dt>下行警戒</dt><dd>¥{analysis.support.toFixed(2)}</dd></div><div><dt>缠论状态</dt><dd>{analysis.chanState}</dd></div></dl><footer><button type="button" onClick={speak}>◉ 小兔播报</button><button type="button" className="share-trigger" onClick={()=>void generateShareCard()}>{shareBusy?"正在生成…":"生成分享签"}</button><div className="result-seal">行情模型定势 · 术数星象解签</div></footer></article>
     </section>
+    {shareImage&&<div className="share-modal" role="dialog" aria-modal="true" aria-label="分享股票推演签" onClick={()=>setShareImage("")}><section onClick={e=>e.stopPropagation()}><header><div><small>分享签已生成</small><h2>发布你的推演结果</h2></div><button type="button" aria-label="关闭" onClick={()=>setShareImage("")}>×</button></header><img src={shareImage} alt={`${name||code} 股票推演结果分享签`}/><div className="share-actions"><button type="button" className="primary" onClick={()=>void systemShare()}>一键分享</button><button type="button" onClick={downloadShare}>保存图片</button><button type="button" onClick={()=>void copyShare()}>复制文案</button></div>{shareMessage&&<p aria-live="polite">{shareMessage}</p>}<small>手机端会唤起系统分享面板；不支持时自动保存图片并复制文案。</small></section></div>}
     <section className="five-elements"><header><div><small>五行审势</small><h2>金木水火土 · 旺衰分布</h2></div><p>由六爻元素分布生成，仅作文化展示。</p></header><div>{(["金","木","水","火","土"] as const).map(element=>{const count=analysis.lines.filter(line=>line.element===element).length;return <article className="element" key={element}><strong>{element}</strong><i><u style={{height:`${24+count*22}%`}}/></i><span><b>{count>=2?"旺":count===1?"平":"弱"}</b><small>{element==="金"?"纪律 / 收敛":element==="木"?"生长 / 趋势":element==="水"?"流动 / 资金":element==="火"?"热度 / 动能":"承载 / 支撑"}</small></span><em>{count}/6</em></article>})}</div></section>
     <section className="rabbit-oracle"><img src="/rabbit-brand-gold.png" alt="小兔解签官"/><div><small>小兔解签官</small><h2>{futureTitle}</h2><p>{spokenReport}</p></div><button type="button" onClick={speak}>🔊 语音播报</button></section>
     <section className="east-west"><header><small>EAST × WEST</small><h2>东方六爻 · 西方星象</h2><p>两套文化象征共同参与叙事，技术模型独立决定走势评分。</p></header><div><article><span>东方</span><strong>{analysis.upper[1]}{analysis.lower[1]}</strong><h3>{analysis.upper[0]}上{analysis.lower[0]}下</h3><p>{lineNames[analysis.moving]}动，变为{analysis.changedUpper[0]}上{analysis.changedLower[0]}下。</p></article><i>合参</i><article><span>西方</span><strong>✦</strong><h3>{zodiac[0]} · {zodiac[1]}象</h3><p>以上市日期 {listingDate} 作为象征性诞生日期，主题为“{zodiac[2]}”，{astroTone}。</p></article><article className="combined"><span>东西方合盘</span><h3>{agreement} · {futureTitle}</h3><p>东方卦象用于解释变化阶段，西方四元素用于描述市场性格；最终方向仍由真实行情模型给出。</p></article></div></section>
