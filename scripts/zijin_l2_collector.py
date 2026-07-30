@@ -18,6 +18,12 @@ from pathlib import Path
 import nats
 import numpy as np
 from zijin_l2_forward_labels import refresh_labels_and_state
+from zijin_l2_second_state import (
+    SecondLevelSignalMachine,
+    book_persistence,
+    flow_window,
+    weighted_book,
+)
 
 SNAPSHOT = np.dtype([
     ("symbol", "S32"), ("market", "u1"), ("date", "<i4"), ("time", "<i4"),
@@ -123,6 +129,7 @@ class Collector:
         self.password = os.environ["L2_NATS_PASSWORD"]
         self.state_path = os.getenv("L2_STATE_PATH", "/training-state/zijin-l2-orderflow.json")
         self.forward_path = os.getenv("L2_FORWARD_PATH", "/training-state/zijin-l2-forward.jsonl")
+        self.second_event_path = os.getenv("L2_SECOND_EVENT_PATH", "/training-state/zijin-l2-second-events.jsonl")
         self.forward_label_path = os.getenv("L2_FORWARD_LABEL_PATH", "/training-state/zijin-l2-forward-labels.jsonl")
         self.forward_research_state_path = os.getenv("L2_FORWARD_RESEARCH_STATE_PATH", "/training-state/zijin-opening-l2-shadow.json")
         self.forward_min_samples = int(os.getenv("L2_FORWARD_MIN_SAMPLES", "1200"))
@@ -135,6 +142,9 @@ class Collector:
         # for an intraday monitor, without attempting per-packet filesystem writes.
         self.publish_interval = float(os.getenv("L2_PUBLISH_INTERVAL_SECONDS", "0.25"))
         self.transactions, self.orders = deque(), deque()
+        self.book_samples = deque()
+        self.second_signal_machine = SecondLevelSignalMachine()
+        self.last_second_sequence = -1
         self.snapshot = self.last_message_at = self.last_exchange_time = None
         self.connected = self.authorization_error = False
         self.parse_errors = self.reconnects = 0
@@ -302,6 +312,7 @@ class Collector:
         return np.frombuffer(payload, dtype=dtype)
 
     async def on_snapshot(self, message):
+        received = time.time()
         for row in self.parse(message.data, SNAPSHOT):
             self.snapshot = row.copy()
             self.last_exchange_time = f"{int(row['date']):08d}-{int(row['time']):09d}"
@@ -311,8 +322,15 @@ class Collector:
                 self.update_minute_bar(
                     minute, price, int(row["volume"]), int(row["turnover"])
                 )
+            book = weighted_book(row)
+            self.book_samples.append({
+                "receivedAt": received,
+                "obi": book.get("obi"),
+                "micropriceEdgeBps": book.get("micropriceEdgeBps"),
+                "price": price,
+            })
             self.message_counts["snapshot"] += 1
-        self.last_message_at = time.time()
+        self.last_message_at = received
 
     @staticmethod
     def cumulative_average_price(cumulative_turnover, cumulative_volume, last_price):
@@ -479,7 +497,7 @@ class Collector:
         for row in self.parse(message.data, TRANSACTION):
             side, price, volume = decoded(row["bs_flag"]).upper(), float(row["price"]) / 10000, int(row["volume"])
             notional = int(row["turnover"]) or price * volume
-            self.transactions.append((received, side, volume, notional))
+            self.transactions.append((received, side, volume, notional, price))
             self.message_counts["transaction"] += 1
             self.last_exchange_time = f"{int(row['date']):08d}-{int(row['time']):09d}"
             minute = exchange_minute(self.last_exchange_time)
@@ -500,6 +518,7 @@ class Collector:
         now = time.time()
         while self.transactions and now - self.transactions[0][0] > 60: self.transactions.popleft()
         while self.orders and now - self.orders[0][0] > 60: self.orders.popleft()
+        while self.book_samples and now - self.book_samples[0]["receivedAt"] > 60: self.book_samples.popleft()
         buy = sum(row[3] for row in self.transactions if row[1] == "B")
         sell = sum(row[3] for row in self.transactions if row[1] == "S")
         buy_volume = sum(row[2] for row in self.transactions if row[1] == "B")
@@ -534,9 +553,51 @@ class Collector:
             "amount": int(self.snapshot["turnover"]),
             "trades": int(self.snapshot["num_trades"]),
         }
+        cumulative_vwap = None if session is None or last_price is None else self.cumulative_average_price(
+            session["amount"], session["volume"], last_price
+        )
+        atr = self.atr_state()
+        windows = {
+            f"{seconds}s": flow_window(self.transactions, now, seconds)
+            for seconds in (1, 3, 10, 30, 60)
+        }
+        fast_book = weighted_book(self.snapshot)
+        book3 = book_persistence(self.book_samples, now, 3)
+        exchange_clock = (
+            self.last_exchange_time.split("-", 1)[1][:6]
+            if self.last_exchange_time and "-" in self.last_exchange_time else ""
+        )
+        # 14:57-15:00 is the Shanghai closing call auction.  It is archived
+        # for research, but never fed into an ordinary intraday trigger.
+        market_open = (
+            "093000" <= exchange_clock <= "112959"
+            or "130000" <= exchange_clock <= "145659"
+        )
+        market_mode = (
+            "continuous"
+            if market_open else
+            "closing-auction"
+            if "145700" <= exchange_clock <= "150000" else
+            "closed"
+        )
+        second_state = self.second_signal_machine.evaluate(
+            now=now,
+            market_open=market_open,
+            stale=age is None or age > self.stale_seconds,
+            price=last_price,
+            vwap=cumulative_vwap,
+            high=None if session is None else session["high"],
+            low=None if session is None else session["low"],
+            atr_pct=atr.get("atrPct14"),
+            windows=windows,
+            book=fast_book,
+            book3=book3,
+            exchange_minute_key=exchange_clock[:4],
+        )
+        second_state["marketMode"] = market_mode
         ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
         return {
-            "schemaVersion": 4, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
+            "schemaVersion": 5, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
             "symbol": self.symbol, "updatedAt": utc_now(),
             "lastMessageAt": None if age is None else datetime.fromtimestamp(self.last_message_at, timezone.utc).isoformat().replace("+00:00", "Z"),
             "lastExchangeTime": self.last_exchange_time,
@@ -562,7 +623,8 @@ class Collector:
                      "microprice": None if microprice <= 0 else round(microprice, 4),
                      "micropriceEdgeBps": None if mid <= 0 else round((microprice - mid) / mid * 10000, 4)},
             "session": session,
-            "volatility": self.atr_state(),
+            "volatility": atr,
+            "secondState": second_state,
             "recentMinutes": self.recent_minute_payload(),
             "messages": self.message_counts,
             "forward": {
@@ -597,6 +659,7 @@ class Collector:
                 )
             },
             "messages": dict(messages), "target": None,
+            "secondState": state.get("secondState"),
         }
         target = Path(self.forward_path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -609,12 +672,41 @@ class Collector:
         self.last_forward_minute = minute
         self.refresh_forward_research()
 
+    def append_second_event(self, state):
+        signal = state.get("secondState") or {}
+        sequence = signal.get("sequence")
+        if sequence is None or sequence == self.last_second_sequence:
+            return
+        self.last_second_sequence = sequence
+        if signal.get("state") == "normal":
+            return
+        record = {
+            "schemaVersion": 1,
+            "symbol": self.symbol,
+            "source": state.get("source"),
+            "node": state.get("node"),
+            "observedAt": state.get("updatedAt"),
+            "lastExchangeTime": state.get("lastExchangeTime"),
+            "lastPrice": (state.get("book") or {}).get("lastPrice"),
+            "status": state.get("status"),
+            "secondState": signal,
+            "target": None,
+        }
+        target = Path(self.second_event_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
     async def publish_state(self):
         while True:
             state = self.state()
+            self.append_second_event(state)
             self.append_forward_sample(state)
-            # Rebuild so the state immediately reflects a newly appended sample.
-            atomic_json(self.state_path, self.state())
+            # Publish the exact evaluated state. Re-evaluating here could advance
+            # a state twice in one 250ms cycle and create artificial confirmations.
+            atomic_json(self.state_path, state)
             await asyncio.sleep(self.publish_interval)
 
     async def run(self):
