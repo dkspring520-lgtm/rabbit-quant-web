@@ -26,16 +26,14 @@ test("Zijin crosshair synchronizes price, volume and main-force evidence by minu
   assert.match(source,/zijinMainForceTrack\.bars\.find\(bar=>bar\.time===point\.time\)/);
   assert.match(source,/formatIntradayVolume\(intradayCursor\.volume\)/);
   assert.match(source,/formatMainForceAmount\(intradayCursor\.mainForce\.netNotional\)/);
-  assert.match(source,/const mainForceChartRef = useRef<SVGSVGElement \| null>\(null\)/);
-  assert.match(source,/point\.matrixTransform\(sourceMatrix\)\.matrixTransform\(targetMatrix\.inverse\(\)\)/);
+  assert.match(source,/const mainForceCursorX=intradayCursor\?\.x\?\?null/);
   assert.match(source,/mainForceCursorX!==null/);
   assert.match(source,/className="main-force-crosshair"/);
   assert.match(source,/intradayCursor\.time\.slice\(0,2\).*intradayCursor\.time\.slice\(2\)/);
 });
 
-test("price and main-force SVGs share the same horizontal gutter",()=>{
-  assert.match(source,/const \[mainForceProjection,setMainForceProjection\]=useState\(\{scale:1,offset:0\}\)/);
-  assert.match(source,/const mainForceX=\(x:number\)=>mainForceProjection\.offset\+mainForceProjection\.scale\*x/);
-  assert.match(source,/x=\{mainForceX\(liveChartX\(bar\.time\)\)-1\.45\}/);
-  assert.match(source,/x1=\{mainForceX\(liveChartSlotX\(tick\.slot\)\)\}/);
+test("price and main-force SVGs share minute coordinates and the desktop gutter",()=>{
+  assert.match(source,/x=\{liveChartX\(bar\.time\)-1\.45\}/);
+  assert.match(source,/x1=\{liveChartSlotX\(tick\.slot\)\}/);
+  assert.match(styles,/:root:not\(\[data-theme="light"\]\) \.minimal-ui \.main-force-track\{padding-left:58px;padding-right:22px\}/);
 });
