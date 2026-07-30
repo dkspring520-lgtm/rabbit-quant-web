@@ -1,6 +1,7 @@
 import { GET as getEventRadar } from "@/app/api/event-radar/route";
 import { GET as getMarketContext } from "@/app/api/market-context/route";
 import { GET as getMarketData } from "@/app/api/market-data/route";
+import { GET as getZijinHkMinute } from "@/app/api/zijin-hk-minute/route";
 
 async function readPayload(response: Response) {
   const payload = await response.json().catch(() => null);
@@ -24,13 +25,15 @@ export async function GET(request: Request) {
   radarUrl.searchParams.set("codes", incoming.searchParams.get("codes") ?? code);
   radarUrl.searchParams.set("names", incoming.searchParams.get("names") ?? code);
 
-  const [marketResponse, radarResponse] = await Promise.all([
+  const [marketResponse, radarResponse, hkResponse] = await Promise.all([
     getMarketData(new Request(marketUrl)),
     getEventRadar(new Request(radarUrl)),
+    code === "601899" ? getZijinHkMinute() : Promise.resolve(null),
   ]);
-  const [marketResult, radarResult] = await Promise.all([
+  const [marketResult, radarResult, hkResult] = await Promise.all([
     readPayload(marketResponse),
     readPayload(radarResponse),
+    hkResponse ? readPayload(hkResponse) : Promise.resolve({ payload:null, error:null }),
   ]);
 
   const contextUrl = new URL("/api/market-context", incoming.origin);
@@ -42,6 +45,7 @@ export async function GET(request: Request) {
     marketResult.error && `行情：${marketResult.error}`,
     contextResult.error && `市场环境：${contextResult.error}`,
     radarResult.error && `事件雷达：${radarResult.error}`,
+    hkResult.error && `港股紫金：${hkResult.error}`,
   ].filter(Boolean);
 
   return Response.json({
@@ -49,6 +53,7 @@ export async function GET(request: Request) {
     market: marketResult.payload,
     context: contextResult.payload,
     eventRadar: radarResult.payload,
+    zijinHk: hkResult.payload,
     errors,
   }, {
     status: marketResult.payload || contextResult.payload || radarResult.payload ? 200 : 502,

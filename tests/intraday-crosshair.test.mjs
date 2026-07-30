@@ -26,7 +26,11 @@ test("Zijin crosshair synchronizes price, volume and main-force evidence by minu
   assert.match(source,/zijinMainForceTrack\.bars\.find\(bar=>bar\.time===point\.time\)/);
   assert.match(source,/formatIntradayVolume\(intradayCursor\.volume\)/);
   assert.match(source,/formatMainForceAmount\(intradayCursor\.mainForce\.netNotional\)/);
+  assert.match(source,/const mainForceChartRef = useRef<SVGSVGElement \| null>\(null\)/);
+  assert.match(source,/point\.matrixTransform\(sourceMatrix\)\.matrixTransform\(targetMatrix\.inverse\(\)\)/);
+  assert.match(source,/mainForceCursorX!==null/);
   assert.match(source,/className="main-force-crosshair"/);
+  assert.match(source,/intradayCursor\.time\.slice\(0,2\).*intradayCursor\.time\.slice\(2\)/);
 });
 
 test("price and main-force SVGs share the same horizontal gutter",()=>{
