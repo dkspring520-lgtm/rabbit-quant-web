@@ -2496,7 +2496,7 @@ export default function Home() {
               </div>
             </div>
             {zijinRepair?.ready&&<div className={`main-force-repair-state ${zijinRepair.status} ${zijinRepair.checks?.l2BuyRecovery?"confirmed":"waiting"}`}>
-              <span>L2修复体系</span><b>{zijinRepair.title}</b><small>二次探底 {zijinRepair.checks?.secondBottom?"✓":"·"} · 动量 {zijinRepair.checks?.momentumPositive?"✓":"·"} · L2连续回流 {zijinRepair.checks?.l2BuyRecovery?"✓":"·"} · 局部突破 {zijinRepair.checks?.localBreakout?"✓":"·"}</small>
+              <span>资金承接修复</span><b>{zijinRepair.title}</b><small>二次探底 {zijinRepair.checks?.secondBottom?"✓":"·"} · 动量 {zijinRepair.checks?.momentumPositive?"✓":"·"} · L2连续回流 {zijinRepair.checks?.l2BuyRecovery?"✓":"·"} · 局部突破 {zijinRepair.checks?.localBreakout?"✓":"·"}</small>
             </div>}
             <svg ref={mainForceChartRef} viewBox={`0 0 ${LIVE_CHART.width} 72`} preserveAspectRatio="none" role="img" aria-label={`主力追踪：${zijinMainForceTrack.stance}`}>
               <line x1={mainForceX(LIVE_CHART.plotLeft)} y1="36" x2={mainForceX(LIVE_CHART.plotRight)} y2="36" className="main-force-zero"/>
