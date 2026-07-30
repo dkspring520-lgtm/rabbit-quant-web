@@ -21,7 +21,7 @@ import { compactChartObservations, fulfilledWatchlistSnapshots, isRecentCausalEv
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
-import { clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling } from "@/lib/client-polling-policy.mjs";
+import { clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "@/lib/client-polling-policy.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-reminder.mjs";
 import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-policy.mjs";
@@ -889,7 +889,7 @@ export default function Home() {
   const [liveL2ByMinute,setLiveL2ByMinute]=useState<Record<string,ZijinL2State>>({});
   const [liveL2Status,setLiveL2Status]=useState<ZijinL2State|null>(null);
   useEffect(()=>{
-    if(stock?.code!=="601899")return;
+    if(!localAuth||stock?.code!=="601899"||!shouldRunTradingDeskPolling(activeView,document.visibilityState))return;
     let active=true;
     let timer:number|undefined;
     const poll=async()=>{
@@ -938,7 +938,7 @@ export default function Home() {
     };
     void poll();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
-  },[stock?.code,marketDataActive]);
+  },[localAuth,activeView,stock?.code,marketDataActive]);
   const liveL2Stale=Boolean(liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
   const liveL2HasTicks=Boolean((liveL2Status?.messages?.transaction??0)>0||(liveL2Status?.messages?.order??0)>0);
   const liveL2LatencyMs=Number.isFinite(liveL2Status?.status?.ageSeconds)
@@ -2108,10 +2108,10 @@ export default function Home() {
     return()=>window.clearTimeout(timer);
   },[stock?.code]);
   useEffect(() => {
-    if (!localAuth || !stock?.code) return;
+    if (!localAuth || !stock?.code || activeView!=="操盘台") return;
     let cancelled = false;
     const load = async () => {
-      if (!shouldRunClientPolling(document.visibilityState)) return;
+      if (!shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       try {
         const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`);
         if (!response.ok) throw new Error("行情服务暂不可用");
@@ -2123,16 +2123,16 @@ export default function Home() {
     };
     void load();
     const timer = window.setInterval(load, clientPollingInterval("referenceData", marketDataActive));
-    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
+    const onVisibility=()=>{if(shouldRunTradingDeskPolling(activeView,document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stock?.code, marketDataActive]);
+  }, [localAuth, activeView, stock?.code, marketDataActive]);
   useEffect(() => {
-    if (!localAuth || !stockList.length) return;
+    if (!localAuth || activeView!=="操盘台" || !stockList.length) return;
     let cancelled = false;
     let inFlight=false;
     const load=async()=>{
-      if(inFlight||!shouldRunClientPolling(document.visibilityState))return;
+      if(inFlight||!shouldRunTradingDeskPolling(activeView,document.visibilityState))return;
       const passiveStocks=passiveWatchlistItems(stockList,stock?.code) as typeof stockList;
       if(!passiveStocks.length)return;
       inFlight=true;
@@ -2153,16 +2153,16 @@ export default function Home() {
     // The control-plane keeps monitoring when the page is hidden or closed.
     // The browser only refreshes visible UI, avoiding redundant background work.
     const timer=window.setInterval(()=>void load(),clientPollingInterval("watchlist",marketDataActive));
-    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
+    const onVisibility=()=>{if(shouldRunTradingDeskPolling(activeView,document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stockList, stock?.code, marketDataActive]);
+  }, [localAuth, activeView, stockList, stock?.code, marketDataActive]);
   useEffect(() => {
-    if (!localAuth || !stock?.code || !stockList.length) return;
+    if (!localAuth || activeView!=="操盘台" || !stock?.code || !stockList.length) return;
     let cancelled = false;
     let inFlight = false;
     const load = async () => {
-      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
+      if (inFlight || !shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       inFlight = true;
       try {
         const params = new URLSearchParams({
@@ -2198,13 +2198,13 @@ export default function Home() {
     void load();
     const timer = window.setInterval(() => void load(), clientPollingInterval("deskSnapshot",marketDataActive));
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [localAuth, stock?.code, stockList, marketDataActive]);
+  }, [localAuth, activeView, stock?.code, stockList, marketDataActive]);
   useEffect(() => {
-    if (!localAuth || !stock?.code) return;
+    if (!localAuth || activeView!=="操盘台" || !stock?.code) return;
     let cancelled = false;
     let inFlight = false;
     const load = async () => {
-      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
+      if (inFlight || !shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       inFlight = true;
       try {
         const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-realtime`, { cache: "no-store" });
@@ -2222,16 +2222,16 @@ export default function Home() {
     };
     void load();
     const timer = window.setInterval(() => void load(), clientPollingInterval("activeChart",marketDataActive));
-    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
+    const onVisibility=()=>{if(shouldRunTradingDeskPolling(activeView,document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stock?.code, marketDataActive]);
+  }, [localAuth, activeView, stock?.code, marketDataActive]);
   useEffect(() => {
-    if (!localAuth || !stock?.code) return;
+    if (!localAuth || activeView!=="操盘台" || !stock?.code) return;
     let cancelled = false;
     let inFlight = false;
     const load = async () => {
-      if (inFlight || !shouldRunClientPolling(document.visibilityState)) return;
+      if (inFlight || !shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       inFlight = true;
       try {
         const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-quote`, { cache: "no-store" });
@@ -2249,10 +2249,10 @@ export default function Home() {
       } finally { inFlight = false; }
     };
     const timer = window.setInterval(() => void load(), clientPollingInterval("activeQuote",marketDataActive));
-    const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void load()};
+    const onVisibility=()=>{if(shouldRunTradingDeskPolling(activeView,document.visibilityState))void load()};
     document.addEventListener("visibilitychange",onVisibility);
     return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
-  }, [localAuth, stock?.code, marketDataActive]);
+  }, [localAuth, activeView, stock?.code, marketDataActive]);
   const starKey = localAuth && stock?.code ? `rabbit-star:${accountName.toLowerCase()}:${stock.code}` : "";
   const starred = useMemo(() => {
     void starredRevision;
@@ -2474,9 +2474,9 @@ export default function Home() {
               })()}
             </svg>
           </div>
-          {isZijinStock&&<section className="main-force-track" aria-label="紫金矿业全天 L2 主力追踪">
+          {isZijinStock&&<section className="main-force-track" aria-label="紫金矿业全天 L2 大额主动净额追踪，非总成交量">
             <div className="main-force-track-head">
-              <div><strong>主力追踪</strong><span>仅统计 L2 大额主动成交</span></div>
+              <div><strong>主力追踪</strong><span>L2 大额主动净额 · 非总成交量 · 与主图按分钟对齐</span></div>
               <div className="main-force-track-legend"><span className="buy"><i/>大额主动净买</span><span className="sell"><i/>大额主动净卖</span><span className="cumulative"><i/>累计净额</span></div>
               <div className={`main-force-response ${zijinFundResponse.state}`} title={`${zijinFundResponse.message}；${zijinFundResponse.evidence}`}>
                 <span>{zijinFundResponse.label}</span>
