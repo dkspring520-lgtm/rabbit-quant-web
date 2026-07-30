@@ -1629,6 +1629,7 @@ export default function Home() {
     };
   },[stockAgent,visibleStockAgentEvaluation,autoDecision]);
   const signalMode:"正T"|"反T"=decisionModel.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
+  const secondLevelSignal=isZijinStock?liveL2Status?.secondState:null;
   const web4Microstructure=useMemo(()=>evaluateWeb4Microstructure({
     points:isZijinStock?minutePoints:[],
     historicalSessions:isZijinStock?(currentMarket?.intradaySessions??[]):[],
@@ -1637,6 +1638,17 @@ export default function Home() {
     stale:!isZijinStock||liveL2Stale||!liveL2HasTicks,
   }),[isZijinStock,minutePoints,currentMarket?.intradaySessions,currentMarket?.sampleDate,currentTrial?.sampleDate,liveL2Status,liveL2Stale,liveL2HasTicks]);
   const web4L2Evidence=useMemo(()=>{
+    if(secondLevelSignal&&secondLevelSignal.state!=="normal"){
+      const direction=secondLevelSignal.direction;
+      const state=secondLevelSignal.state==="trigger"
+        ? direction==="buy"?"confirmed_buy":"confirmed_sell"
+        :secondLevelSignal.state==="ready"
+          ?direction==="buy"?"absorption_buy":"absorption_sell"
+          :secondLevelSignal.state==="watch"
+            ?"repair"
+            :"waiting";
+      return {state,score:secondLevelSignal.score,label:secondLevelSignal.label};
+    }
     if(zijinRepair?.status==="candidate")return {
       state:"repair",
       score:Math.max(72,web4Microstructure.score),
@@ -1652,7 +1664,7 @@ export default function Home() {
       score:Math.max(zijinFundResponse.score,web4Microstructure.score),
       label:web4Microstructure.available?`${zijinFundResponse.label} · 微观待持续`:zijinFundResponse.label,
     };
-  },[zijinRepair?.status,web4Microstructure.score,web4Microstructure.state,web4Microstructure.label,web4Microstructure.available,web4Microstructure.absorption.side,zijinFundResponse.state,zijinFundResponse.score,zijinFundResponse.label]);
+  },[secondLevelSignal,zijinRepair?.status,web4Microstructure.score,web4Microstructure.state,web4Microstructure.label,web4Microstructure.available,web4Microstructure.absorption.side,zijinFundResponse.state,zijinFundResponse.score,zijinFundResponse.label]);
   const web4Monitor=useMemo(()=>evaluateWeb4RealtimeMonitor({
     symbol:stock?.code,
     now:clockNow?.toISOString()??null,
@@ -2762,6 +2774,13 @@ export default function Home() {
               <strong>{web4Monitor.confidence}<small>/100</small></strong>
             </header>
             <div className="web4-monitor-meter" role="meter" aria-label={`WEB 4.0 多源置信度 ${web4Monitor.confidence} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={web4Monitor.confidence}><i style={{width:`${web4Monitor.confidence}%`}}/></div>
+            {secondLevelSignal&&<div className={`second-level-state ${secondLevelSignal.state}`}>
+              <span>秒级状态</span>
+              <b>{secondLevelSignal.label}</b>
+              <strong>{secondLevelSignal.direction==="buy"?"正T":secondLevelSignal.direction==="sell"?"反T":"扫描"} · {secondLevelSignal.score}/100</strong>
+              <small>{secondLevelSignal.plan?.action??"暂不操作"}{secondLevelSignal.plan?.triggerPrice?` · 触发 ¥${secondLevelSignal.plan.triggerPrice.toFixed(2)}`:""}{secondLevelSignal.plan?.invalidPrice?` · 失效 ¥${secondLevelSignal.plan.invalidPrice.toFixed(2)}`:""}</small>
+              {secondLevelSignal.timeline?.lastReason&&<small>{secondLevelSignal.timeline.lastReason}{secondLevelSignal.timeline.confirmationDelaySeconds!=null?` · 确认延迟 ${secondLevelSignal.timeline.confirmationDelaySeconds.toFixed(1)} 秒`:""} · {secondLevelSignal.timeline.confirmationPolicy}</small>}
+            </div>}
             <div className="web4-monitor-votes">
               {web4Monitor.votes.map(vote=><span key={vote.id} className={vote.state} title={vote.detail}><i/>{vote.label}<small>{vote.detail}</small></span>)}
             </div>
@@ -3189,6 +3208,26 @@ type ZijinL2State = {
   l2Bar?:{time:string;exchangeMinute?:string;price:number;open?:number;high?:number;low?:number;volume?:number;amount?:number;averagePrice?:number|null;activeBuyNotional?:number;activeSellNotional?:number;activeBuyVolume?:number;activeSellVolume?:number;activeBuyRatio?:number|null;netActiveNotional?:number;bigBuyNotional?:number;bigSellNotional?:number;bigOrderNetNotional?:number;bigBuyVolume?:number;bigSellVolume?:number;bigBuyCount?:number;bigSellCount?:number};
   messages?:{snapshot?:number;transaction?:number;order?:number};
   volatility?:{source?:string;period?:number;samples?:number;ready?:boolean;atr14?:number|null;atrPct14?:number|null};
+  secondState?:{
+    schemaVersion?:number;
+    state:"normal"|"watch"|"ready"|"trigger"|"cooldown"|"invalid"|"expired";
+    direction:"buy"|"sell"|"none";
+    label:string;
+    score:number;
+    formalSignal?:boolean;
+    autoOrderAuthorized?:boolean;
+    tradePermission?:string;
+    marketMode?:"continuous"|"closing-auction"|"closed";
+    sequence?:number;
+    stateAgeSeconds?:number;
+    cooldownRemainingSeconds?:number;
+    validForSeconds?:number;
+    timeline?:{warningAtEpoch?:number|null;candidateAtEpoch?:number|null;confirmedAtEpoch?:number|null;confirmationDelaySeconds?:number|null;validUntilEpoch?:number|null;lastTransitionAtEpoch?:number|null;lastReason?:string;confirmationPolicy?:string};
+    plan?:{action?:string;triggerPrice?:number|null;executableReferencePrice?:number|null;invalidPrice?:number|null;targetPrice?:number|null;suggestedSize?:string;executionModel?:string};
+    position?:{biasPct?:number|null;thresholdPct?:number|null;nearSessionLow?:boolean;nearSessionHigh?:boolean};
+    evidence?:{count?:number;requiredForReady?:number;fastVolumeOk?:boolean;absorption?:boolean;flowReversal?:boolean;bookAligned?:boolean;priceConclusion?:string;flowConclusion?:string;bookConclusion?:string};
+    windows?:Record<string,{seconds?:number;transactions?:number;buyNotional?:number;sellNotional?:number;grossNotional?:number;netNotional?:number;tfi?:number|null}>;
+  };
   forward?:{samples?:number;tradingDays?:number;trainingReady?:boolean;reason?:string};
 };
 
