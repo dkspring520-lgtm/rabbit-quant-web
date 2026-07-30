@@ -99,4 +99,16 @@ test("a confirmed repair is not repeated after price has already extended", () =
   const result = evaluateZijinRepairCandidate(points);
   assert.equal(result.status, "watch");
   assert.equal(result.checks.notExtended, false);
+  assert.equal(result.checks.lowZoneWatch, false);
+});
+
+test("a repaired pivot stops being a grinding-bottom watch after price leaves the low zone", () => {
+  const points = repairSequence();
+  points.push(
+    minute("1028", 31.37, 120, 0.48, -40_000, -20_000),
+    minute("1029", 31.44, 130, 0.47, -60_000, -30_000),
+  );
+  const result = evaluateZijinRepairCandidate(points);
+  assert.equal(result.status, "watch");
+  assert.equal(result.checks.lowZoneWatch, false);
 });

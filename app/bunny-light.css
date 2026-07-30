@@ -921,6 +921,37 @@
   }
 }
 
+/* Keep the light trading desk structurally aligned with the dark terminal.
+   This strip used to retain the dark terminal's hard-coded black gradient. */
+:root[data-theme="light"] .desk-core-strip {
+  background: linear-gradient(90deg, #fffafb 0%, #f7fbfb 100%);
+  border-top: 1px solid #f0e4e8;
+  border-bottom-color: #e7dde2;
+  box-shadow: 0 6px 18px rgba(111, 82, 96, .045);
+}
+
+:root[data-theme="light"] .desk-core-strip > div {
+  background: rgba(255, 255, 255, .88);
+  border-color: #e7dde2;
+  box-shadow: 0 3px 12px rgba(101, 75, 88, .045);
+}
+
+:root[data-theme="light"] .desk-core-strip span {
+  color: #8a7d85;
+}
+
+:root[data-theme="light"] .desk-core-strip b {
+  color: #28363d;
+}
+
+:root[data-theme="light"] .desk-core-strip b small {
+  color: #77868c;
+}
+
+:root[data-theme="light"] .desk-core-strip .desk-core-reason b {
+  color: #53676f;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme="light"] *,
   :root[data-theme="light"] *::before,

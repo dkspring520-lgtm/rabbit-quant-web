@@ -975,19 +975,20 @@
   }
 
   .trade-alert-toast {
-    grid-template-columns: 44px minmax(0, 1fr) 16px;
+    grid-template-columns: 38px minmax(0, 1fr) 16px;
     gap: 7px;
-    padding-right: 6px;
+    min-height: 54px;
+    padding: 7px 6px;
   }
 
   .rabbit-speaker {
-    width: 44px;
-    height: 48px;
-    background-size: 88px auto;
+    width: 38px;
+    height: 38px;
+    background-size: 76px auto;
   }
 
   .rabbit-speech {
-    padding: 7px;
+    min-width: 0;
   }
 
   .rabbit-speech b {
@@ -996,7 +997,9 @@
   }
 
   .rabbit-speech span {
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .agent-grid,
