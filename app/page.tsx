@@ -674,7 +674,7 @@ export default function Home() {
   const intradayChartRef = useRef<SVGSVGElement | null>(null);
   const mainForceChartRef = useRef<SVGSVGElement | null>(null);
   const [intradayCursorTime,setIntradayCursorTime]=useState<string|null>(null);
-  const [mainForceCursorX,setMainForceCursorX]=useState<number|null>(null);
+  const [mainForceProjection,setMainForceProjection]=useState({scale:1,offset:0});
   const stock = stockList[activeStock] || stockList[0];
   const activeProfitMode=preferences.profitMode;
   const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
@@ -1184,7 +1184,7 @@ export default function Home() {
     const bottom=65;
     const yFor=(value:number)=>top+(max-value)/(max-min)*(bottom-top);
     const points=bars.map(bar=>({
-      x:liveChartX(bar.time),
+      x:mainForceProjection.offset+mainForceProjection.scale*liveChartX(bar.time),
       y:yFor(bar.cumulativeNetNotional),
       value:bar.cumulativeNetNotional,
     }));
@@ -1194,7 +1194,7 @@ export default function Home() {
       last:points.at(-1)??null,
       ticks,
     };
-  },[zijinMainForceTrack.bars]);
+  },[zijinMainForceTrack.bars,mainForceProjection]);
   useEffect(()=>setIntradayCursorTime(null),[stock?.code]);
   const intradayCursor=useMemo(()=>{
     if(!intradayCursorTime||!chartModel)return null;
@@ -1212,31 +1212,39 @@ export default function Home() {
   useEffect(()=>{
     const source=intradayChartRef.current;
     const target=mainForceChartRef.current;
-    if(!intradayCursor||!source||!target){
-      setMainForceCursorX(null);
-      return;
-    }
-    const projectCursor=()=>{
+    if(!source||!target)return;
+    const projectLayout=()=>{
       const sourceMatrix=source.getScreenCTM();
       const targetMatrix=target.getScreenCTM();
       if(!sourceMatrix||!targetMatrix)return;
-      const point=source.createSVGPoint();
-      point.x=intradayCursor.x;
-      point.y=LIVE_CHART.priceTop;
-      const projected=point.matrixTransform(sourceMatrix).matrixTransform(targetMatrix.inverse());
-      const nextX=Math.max(0,Math.min(LIVE_CHART.width,projected.x));
-      setMainForceCursorX(current=>current!==null&&Math.abs(current-nextX)<.05?current:nextX);
+      const projectX=(x:number)=>{
+        const point=source.createSVGPoint();
+        point.x=x;
+        point.y=LIVE_CHART.priceTop;
+        return point.matrixTransform(sourceMatrix).matrixTransform(targetMatrix.inverse()).x;
+      };
+      const offset=projectX(0);
+      const scale=(projectX(LIVE_CHART.width)-offset)/LIVE_CHART.width;
+      setMainForceProjection(current=>
+        Math.abs(current.scale-scale)<.0001&&Math.abs(current.offset-offset)<.05
+          ? current
+          : {scale,offset},
+      );
     };
-    projectCursor();
-    const observer=new ResizeObserver(projectCursor);
+    projectLayout();
+    const frame=window.requestAnimationFrame(projectLayout);
+    const observer=new ResizeObserver(projectLayout);
     observer.observe(source);
     observer.observe(target);
-    window.addEventListener("resize",projectCursor);
+    window.addEventListener("resize",projectLayout);
     return ()=>{
+      window.cancelAnimationFrame(frame);
       observer.disconnect();
-      window.removeEventListener("resize",projectCursor);
+      window.removeEventListener("resize",projectLayout);
     };
-  },[intradayCursor?.x,workspaceFullscreen,decisionZoneMode]);
+  },[isZijinStock,workspaceFullscreen,decisionZoneMode,uiTheme]);
+  const mainForceX=(x:number)=>mainForceProjection.offset+mainForceProjection.scale*x;
+  const mainForceCursorX=intradayCursor?mainForceX(intradayCursor.x):null;
   const updateIntradayCursor=(clientX:number,clientY:number)=>{
     const svg=intradayChartRef.current;
     if(!svg||!chartModel?.points.length)return;
@@ -2491,16 +2499,16 @@ export default function Home() {
               <span>L2修复体系</span><b>{zijinRepair.title}</b><small>二次探底 {zijinRepair.checks?.secondBottom?"✓":"·"} · 动量 {zijinRepair.checks?.momentumPositive?"✓":"·"} · L2连续回流 {zijinRepair.checks?.l2BuyRecovery?"✓":"·"} · 局部突破 {zijinRepair.checks?.localBreakout?"✓":"·"}</small>
             </div>}
             <svg ref={mainForceChartRef} viewBox={`0 0 ${LIVE_CHART.width} 72`} preserveAspectRatio="none" role="img" aria-label={`主力追踪：${zijinMainForceTrack.stance}`}>
-              <line x1={LIVE_CHART.plotLeft} y1="36" x2={LIVE_CHART.plotRight} y2="36" className="main-force-zero"/>
-              {A_SHARE_INTRADAY_AXIS.map(tick=><line key={tick.label} x1={liveChartSlotX(tick.slot)} y1="6" x2={liveChartSlotX(tick.slot)} y2="66" className="main-force-grid"/>)}
-              <text x={LIVE_CHART.plotLeft-5} y="10" textAnchor="end" className="main-force-bar-axis">{formatMainForceAmount(zijinMainForcePeak)}</text>
-              <text x={LIVE_CHART.plotLeft-5} y="68" textAnchor="end" className="main-force-bar-axis">-{formatMainForceAmount(zijinMainForcePeak)}</text>
+              <line x1={mainForceX(LIVE_CHART.plotLeft)} y1="36" x2={mainForceX(LIVE_CHART.plotRight)} y2="36" className="main-force-zero"/>
+              {A_SHARE_INTRADAY_AXIS.map(tick=><line key={tick.label} x1={mainForceX(liveChartSlotX(tick.slot))} y1="6" x2={mainForceX(liveChartSlotX(tick.slot))} y2="66" className="main-force-grid"/>)}
+              <text x={mainForceX(LIVE_CHART.plotLeft)-5} y="10" textAnchor="end" className="main-force-bar-axis">{formatMainForceAmount(zijinMainForcePeak)}</text>
+              <text x={mainForceX(LIVE_CHART.plotLeft)-5} y="68" textAnchor="end" className="main-force-bar-axis">-{formatMainForceAmount(zijinMainForcePeak)}</text>
               {zijinMainForceTrack.bars.map(bar=>{
                 const height=Math.max(bar.netNotional===0?0:2,Math.min(28,Math.abs(bar.netNotional)/zijinMainForcePeak*28));
                 const y=bar.netNotional>=0?36-height:36;
-                return <rect key={bar.time} x={liveChartX(bar.time)-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
+                return <rect key={bar.time} x={mainForceX(liveChartX(bar.time))-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
               })}
-              {zijinMainForceCumulative&&<><path d={zijinMainForceCumulative.path} className="main-force-cumulative"/>{zijinMainForceCumulative.ticks.map((tick,index)=><text key={index} x="914" y={tick.y+3} textAnchor="end" className="main-force-cumulative-axis">{formatMainForceAmount(tick.value)}</text>)}{zijinMainForceCumulative.last&&<circle cx={zijinMainForceCumulative.last.x} cy={zijinMainForceCumulative.last.y} r="2.4" className="main-force-cumulative-dot"/>}</>}
+              {zijinMainForceCumulative&&<><path d={zijinMainForceCumulative.path} className="main-force-cumulative"/>{zijinMainForceCumulative.ticks.map((tick,index)=><text key={index} x={mainForceX(LIVE_CHART.plotRight)+54} y={tick.y+3} textAnchor="end" className="main-force-cumulative-axis">{formatMainForceAmount(tick.value)}</text>)}{zijinMainForceCumulative.last&&<circle cx={zijinMainForceCumulative.last.x} cy={zijinMainForceCumulative.last.y} r="2.4" className="main-force-cumulative-dot"/>}</>}
               {intradayCursor&&mainForceCursorX!==null&&<line x1={mainForceCursorX} y1="6" x2={mainForceCursorX} y2="66" className="main-force-crosshair"/>}
               {!zijinMainForceTrack.bars.some(bar=>bar.bigBuyNotional+bar.bigSellNotional>0)&&<text x="460" y="40" textAnchor="middle" className="main-force-empty">等待 L2 大额主动成交</text>}
             </svg>
