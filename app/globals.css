@@ -507,7 +507,7 @@
   .session-closed.minimal-ui .session-ribbon strong,.session-postclose.minimal-ui .session-ribbon strong{color:#e5c477}
 }
 
-/* Candidate observations stay as precise points; details expand only on intent. */
+/* Keep short Chinese observation labels visible; the legend distinguishes them from orders. */
 .interactive-intraday-chart .candidate-signal-marker{
   pointer-events:bounding-box;
   cursor:help
@@ -515,12 +515,6 @@
 .interactive-intraday-chart .candidate-signal-marker.with-label>rect,
 .interactive-intraday-chart .candidate-signal-marker.with-label>text,
 .interactive-intraday-chart .candidate-signal-marker.with-label>.marker-label-leader{
-  opacity:0;
-  transition:opacity .14s ease
-}
-.interactive-intraday-chart .candidate-signal-marker.with-label:hover>rect,
-.interactive-intraday-chart .candidate-signal-marker.with-label:hover>text,
-.interactive-intraday-chart .candidate-signal-marker.with-label:hover>.marker-label-leader{
   opacity:1
 }
 .interactive-intraday-chart .candidate-signal-marker circle{
@@ -593,14 +587,11 @@
 :root:not([data-theme="light"]) .minimal-ui .main-force-response.accumulation{color:var(--amber)}
 :root:not([data-theme="light"]) .minimal-ui .main-force-response.accumulation>i>u{background:var(--amber)}
 
-/* Keep the chart as a chart: point labels and analysis only appear on intent. */
+/* Observation labels remain visible in the dark console as short Chinese status tags. */
 :root:not([data-theme="light"]) .minimal-ui .intraday-hud{display:none}
 :root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>rect,
 :root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>text,
-:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>.marker-label-leader{opacity:0}
-:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label:hover>rect,
-:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label:hover>text,
-:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label:hover>.marker-label-leader{opacity:1}
+:root:not([data-theme="light"]) .minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>.marker-label-leader{opacity:1}
 
 /* Right rail: numeric cards first; explanatory prose stays available through titles/details. */
 :root:not([data-theme="light"]) .minimal-ui .decision-zone{

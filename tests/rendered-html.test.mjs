@@ -99,7 +99,9 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /const occupied:LabelBox\[\]=\[\]/);
   assert.match(source, /intradayMarkerLayout\.actions/);
   assert.match(source, /marker-label-leader/);
-  assert.match(source, /提醒按确认分钟实时落点 · 不回填峰谷/);
+  assert.match(source, /中文提示常驻 · 前低\/前高确认不是买卖点/);
+  assert.match(source, /"低位参考":"前低确认"/);
+  assert.match(styles, /candidate-signal-marker\.with-label>text,[\s\S]*?opacity:1/);
   assert.match(source, /const formalFresh=Boolean/);
   assert.match(source, /isRecentCausalEvent\(lastTime,latest\.time,3\)/);
   assert.match(source, /for\(const \[index,item\] of stockList\.entries\(\)\)/);
