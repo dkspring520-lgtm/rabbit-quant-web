@@ -1051,3 +1051,13 @@
   .minimal-ui .chart-tools .live-scan{display:none}
   .primary-chart-legend{gap:8px!important}
 }
+.second-level-state{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:3px 8px;margin:8px 0;padding:7px 8px;border:1px solid var(--line-soft);border-radius:6px;background:rgba(255,255,255,.018)}
+.second-level-state>span{font-size:7px;color:var(--dim);letter-spacing:.08em}
+.second-level-state>b{font-size:10px;color:var(--text)}
+.second-level-state>strong{font:700 9px/1 var(--font-geist-mono);color:var(--muted)}
+.second-level-state>small{grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px;color:var(--muted)}
+.second-level-state.ready,.second-level-state.trigger{border-color:color-mix(in srgb,var(--teal) 46%,var(--line-soft))}
+.second-level-state.ready>b,.second-level-state.trigger>b,.second-level-state.trigger>strong{color:var(--teal)}
+.second-level-state.watch{border-color:color-mix(in srgb,var(--amber) 38%,var(--line-soft))}
+.second-level-state.watch>b{color:var(--amber)}
+.second-level-state.invalid,.second-level-state.expired,.second-level-state.cooldown{opacity:.72}
