@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling } from "../lib/client-polling-policy.mjs";
+import { clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "../lib/client-polling-policy.mjs";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
@@ -47,6 +47,14 @@ test("browser polling stops while hidden because the control-plane remains respo
   assert.equal(shouldRunClientPolling("prerender"), false);
   assert.match(page, /if\(inFlight\|\|!shouldRunClientPolling\(document\.visibilityState\)\)return;/);
   assert.match(page, /document\.addEventListener\('visibilitychange',onVisibility\)/);
+});
+
+test("high-frequency desk polling only runs on the visible trading desk", () => {
+  assert.equal(shouldRunTradingDeskPolling("操盘台", "visible"), true);
+  assert.equal(shouldRunTradingDeskPolling("首页", "visible"), false);
+  assert.equal(shouldRunTradingDeskPolling("智能训练", "visible"), false);
+  assert.equal(shouldRunTradingDeskPolling("操盘台", "hidden"), false);
+  assert.match(page, /shouldRunTradingDeskPolling\(activeView,document\.visibilityState\)/);
 });
 
 test("the large trading desk clock does not force a full render every second", () => {
