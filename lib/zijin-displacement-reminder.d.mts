@@ -1,6 +1,6 @@
 export type ZijinDisplacementWatch = {
   id: string;
-  stage: "displacement-watch" | "displacement-progress" | "displacement-l2-confirmation";
+  stage: "displacement-watch" | "displacement-candidate" | "displacement-progress" | "displacement-l2-confirmation";
   direction: "正T" | "反T";
   label: string;
   time: string;
@@ -30,5 +30,7 @@ export function evaluateZijinDisplacementWatch(
     lookbackPoints?: number;
     minimumProgressPct?: number;
     minimumMomentum3Pct?: number;
+    minimumDwellMinutes?: number;
+    maximumContinuationPct?: number;
   },
 ): ZijinDisplacementWatch | null;
