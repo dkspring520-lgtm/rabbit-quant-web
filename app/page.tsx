@@ -30,6 +30,7 @@ import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
 import { buildZijinPreopenPricePlan } from "@/lib/zijin-preopen-price-plan.mjs";
 import { buildZijinMainForceTrack } from "@/lib/zijin-main-force-track.mjs";
 import { evaluateZijinFundResponse } from "@/lib/zijin-fund-response.mjs";
+import { analyzeZijinAhLinkage } from "@/lib/zijin-ah-linkage.mjs";
 import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminder.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
@@ -92,7 +93,8 @@ type MarketContext = { code:string; profile:string; fetchedAt:string; items:Mark
 type EventRadarItem = { id:string; code:string; title:string; summary:string; url:string; source:string; sources?:string[]; relatedCount?:number; provider:string; official:boolean; publishedAt:string; sentiment:"positive"|"negative"|"neutral"; severity:"critical"|"warning"|"info"; reason:string; ageHours:number };
 type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; counts:{ positive:number; negative:number; neutral:number }; gate:{ level:"normal"|"caution"|"restricted"|"locked"; hardLock:boolean; score:number; label:string; action:string; reason:string } };
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
-type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; errors:string[] };
+type ZijinHkMarket = { symbol:string; name:string; provider:string; fetchedAt:string; sourceTimestamp:string|null; quote:{price:number;previousClose:number;changePercent:number}; minutes:{time:string;price:number}[] };
+type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; zijinHk:ZijinHkMarket|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 function tradeAlertLabel(alert:TradeAlertToast){
@@ -650,6 +652,7 @@ export default function Home() {
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
   const [trialError, setTrialError] = useState("");
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
+  const [zijinHkMarket,setZijinHkMarket]=useState<ZijinHkMarket|null>(null);
   const [marketContextError, setMarketContextError] = useState("");
   const [eventRadar, setEventRadar] = useState<EventRadarResponse | null>(null);
   const [eventRadarError, setEventRadarError] = useState("");
@@ -669,7 +672,9 @@ export default function Home() {
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const intradayChartRef = useRef<SVGSVGElement | null>(null);
+  const mainForceChartRef = useRef<SVGSVGElement | null>(null);
   const [intradayCursorTime,setIntradayCursorTime]=useState<string|null>(null);
+  const [mainForceCursorX,setMainForceCursorX]=useState<number|null>(null);
   const stock = stockList[activeStock] || stockList[0];
   const activeProfitMode=preferences.profitMode;
   const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
@@ -1132,6 +1137,26 @@ export default function Home() {
       ticks:scale.ticks.map(tick=>({...tick,y:liveChartPriceY(tick.value,min,max)})),
     };
   },[minutePoints,activeQuote?.previousClose]);
+  const zijinAhLinkage=useMemo(()=>{
+    if(stock?.code!=="601899"||!zijinHkMarket)return analyzeZijinAhLinkage();
+    const sourceTime=zijinHkMarket.sourceTimestamp?new Date(zijinHkMarket.sourceTimestamp).getTime():NaN;
+    const stale=marketSession.live&&(!Number.isFinite(sourceTime)||Date.now()-sourceTime>120_000);
+    if(stale)return {...analyzeZijinAhLinkage(),label:"港股数据延迟",reason:"港股分钟数据超过120秒未更新"};
+    return analyzeZijinAhLinkage({
+      aMinutes:minutePoints,
+      aPreviousClose:activeQuote?.previousClose,
+      hkMinutes:zijinHkMarket.minutes,
+      hkPreviousClose:zijinHkMarket.quote.previousClose,
+    });
+  },[stock?.code,zijinHkMarket,minutePoints,activeQuote?.previousClose,marketSession.live]);
+  const zijinHkOverlay=useMemo(()=>{
+    if(!chartModel||!zijinAhLinkage.available||!activeQuote?.previousClose||zijinAhLinkage.points.length<2)return null;
+    const path=zijinAhLinkage.points.map((point,index)=>{
+      const aEquivalent=activeQuote.previousClose!*(1+point.hkReturnPercent/100);
+      return `${index?"L":"M"}${liveChartX(point.time)},${liveChartPriceY(aEquivalent,chartModel.min,chartModel.max)}`;
+    }).join(" ");
+    return {path,last:zijinAhLinkage.points.at(-1)!};
+  },[chartModel,zijinAhLinkage,activeQuote?.previousClose]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
   const isZijinStock=stock?.code===STOCK_AGENTS.zijin.code;
   const zijinMainForceTrack=useMemo(
@@ -1184,6 +1209,34 @@ export default function Home() {
       : null;
     return {...point,changePercent,mainForce};
   },[intradayCursorTime,chartModel,activeQuote?.previousClose,isZijinStock,zijinMainForceTrack.bars]);
+  useEffect(()=>{
+    const source=intradayChartRef.current;
+    const target=mainForceChartRef.current;
+    if(!intradayCursor||!source||!target){
+      setMainForceCursorX(null);
+      return;
+    }
+    const projectCursor=()=>{
+      const sourceMatrix=source.getScreenCTM();
+      const targetMatrix=target.getScreenCTM();
+      if(!sourceMatrix||!targetMatrix)return;
+      const point=source.createSVGPoint();
+      point.x=intradayCursor.x;
+      point.y=LIVE_CHART.priceTop;
+      const projected=point.matrixTransform(sourceMatrix).matrixTransform(targetMatrix.inverse());
+      const nextX=Math.max(0,Math.min(LIVE_CHART.width,projected.x));
+      setMainForceCursorX(current=>current!==null&&Math.abs(current-nextX)<.05?current:nextX);
+    };
+    projectCursor();
+    const observer=new ResizeObserver(projectCursor);
+    observer.observe(source);
+    observer.observe(target);
+    window.addEventListener("resize",projectCursor);
+    return ()=>{
+      observer.disconnect();
+      window.removeEventListener("resize",projectCursor);
+    };
+  },[intradayCursor?.x,workspaceFullscreen,decisionZoneMode]);
   const updateIntradayCursor=(clientX:number,clientY:number)=>{
     const svg=intradayChartRef.current;
     if(!svg||!chartModel?.points.length)return;
@@ -2127,6 +2180,7 @@ export default function Home() {
             setMarketSnapshots(current=>({...current,[data.market!.quote.code]:data.market!}));
           }
           setMarketContext(data.context);
+          setZijinHkMarket(data.zijinHk);
           setEventRadar(data.eventRadar);
           setMarketContextError(data.context ? "" : "外部环境暂不可用，已降为个股保守模式");
           setEventRadarError(data.eventRadar ? "" : "事件雷达暂不可用，不使用旧消息改变信号");
@@ -2134,6 +2188,7 @@ export default function Home() {
       } catch {
         if (!cancelled) {
           setMarketContext(null);
+          setZijinHkMarket(null);
           setEventRadar(null);
           setMarketContextError("外部环境暂不可用，已降为个股保守模式");
           setEventRadarError("事件雷达暂不可用，不使用旧消息改变信号");
@@ -2326,7 +2381,7 @@ export default function Home() {
       <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'}`} ref={workspaceRef}>
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<><span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span><span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS <sup>ⓘ</sup> {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span></>}<span className="causal-marker-legend" title="前低/前高确认表示系统到该分钟才确认此前的转折，只是观察记录，不是买卖指令"><i/>中文提示常驻 · 前低/前高确认不是买卖点</span></div>
+            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<><span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span><span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS <sup>ⓘ</sup> {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span></>}{stock?.code==="601899"&&<span className={`hk-linkage-legend ${zijinAhLinkage.bias}`} title={zijinAhLinkage.reason}><i/>港股紫金 <b>{zijinAhLinkage.available?`${zijinAhLinkage.hkReturnPercent!>=0?"+":""}${zijinAhLinkage.hkReturnPercent!.toFixed(2)}%`:"--"}</b><em>{zijinAhLinkage.label}</em></span>}<span className="causal-marker-legend" title="前低/前高确认表示系统到该分钟才确认此前的转折，只是观察记录，不是买卖指令"><i/>中文提示常驻 · 前低/前高确认不是买卖点</span></div>
             <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? "1 秒轮询试用 · 实时行情源" : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):"复盘模式"}</span>
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
@@ -2353,7 +2408,7 @@ export default function Home() {
                 {zijinChartPriceOverlay.lines.map(line=><g key={`${line.kind}-${line.price}`} className={`price-plan-line ${line.kind}`}><line x1={showAllPriceLevels?LIVE_CHART.plotLeft:LIVE_CHART.plotRight-145} y1={line.y} x2={LIVE_CHART.plotRight} y2={line.y}/><text x={LIVE_CHART.plotRight-4} y={Math.max(LIVE_CHART.priceTop+8,Math.min(LIVE_CHART.priceBottom-3,line.y-3))} textAnchor="end">{line.label} {line.price.toFixed(2)}</text></g>)}
               </g>}
               {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
-              {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}<path d={chartModel.path} className="price-path"/>
+              {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}{zijinHkOverlay&&<path d={zijinHkOverlay.path} className={`hk-zijin-path ${zijinAhLinkage.bias}`}/>}<path d={chartModel.path} className="price-path"/>
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
@@ -2401,7 +2456,7 @@ export default function Home() {
                   </g>
                   <g className="intraday-crosshair-axis-label time">
                     <rect x={axisTimeX-24} y={LIVE_CHART.volumeBottom+3} width="48" height="17" rx="3"/>
-                    <text x={axisTimeX} y={LIVE_CHART.volumeBottom+15} textAnchor="middle">{intradayCursor.time}</text>
+                    <text x={axisTimeX} y={LIVE_CHART.volumeBottom+15} textAnchor="middle">{intradayCursor.time.slice(0,2)}:{intradayCursor.time.slice(2)}</text>
                   </g>
                   <g className="intraday-crosshair-card" transform={`translate(${tooltipX} ${tooltipY})`}>
                     <rect width={tooltipWidth} height={tooltipHeight} rx="7"/>
@@ -2435,7 +2490,7 @@ export default function Home() {
             {zijinRepair?.ready&&<div className={`main-force-repair-state ${zijinRepair.status} ${zijinRepair.checks?.l2BuyRecovery?"confirmed":"waiting"}`}>
               <span>L2修复体系</span><b>{zijinRepair.title}</b><small>二次探底 {zijinRepair.checks?.secondBottom?"✓":"·"} · 动量 {zijinRepair.checks?.momentumPositive?"✓":"·"} · L2连续回流 {zijinRepair.checks?.l2BuyRecovery?"✓":"·"} · 局部突破 {zijinRepair.checks?.localBreakout?"✓":"·"}</small>
             </div>}
-            <svg viewBox={`0 0 ${LIVE_CHART.width} 72`} preserveAspectRatio="none" role="img" aria-label={`主力追踪：${zijinMainForceTrack.stance}`}>
+            <svg ref={mainForceChartRef} viewBox={`0 0 ${LIVE_CHART.width} 72`} preserveAspectRatio="none" role="img" aria-label={`主力追踪：${zijinMainForceTrack.stance}`}>
               <line x1={LIVE_CHART.plotLeft} y1="36" x2={LIVE_CHART.plotRight} y2="36" className="main-force-zero"/>
               {A_SHARE_INTRADAY_AXIS.map(tick=><line key={tick.label} x1={liveChartSlotX(tick.slot)} y1="6" x2={liveChartSlotX(tick.slot)} y2="66" className="main-force-grid"/>)}
               <text x={LIVE_CHART.plotLeft-5} y="10" textAnchor="end" className="main-force-bar-axis">{formatMainForceAmount(zijinMainForcePeak)}</text>
@@ -2446,7 +2501,7 @@ export default function Home() {
                 return <rect key={bar.time} x={liveChartX(bar.time)-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
               })}
               {zijinMainForceCumulative&&<><path d={zijinMainForceCumulative.path} className="main-force-cumulative"/>{zijinMainForceCumulative.ticks.map((tick,index)=><text key={index} x="914" y={tick.y+3} textAnchor="end" className="main-force-cumulative-axis">{formatMainForceAmount(tick.value)}</text>)}{zijinMainForceCumulative.last&&<circle cx={zijinMainForceCumulative.last.x} cy={zijinMainForceCumulative.last.y} r="2.4" className="main-force-cumulative-dot"/>}</>}
-              {intradayCursor&&<line x1={intradayCursor.x} y1="6" x2={intradayCursor.x} y2="66" className="main-force-crosshair"/>}
+              {intradayCursor&&mainForceCursorX!==null&&<line x1={mainForceCursorX} y1="6" x2={mainForceCursorX} y2="66" className="main-force-crosshair"/>}
               {!zijinMainForceTrack.bars.some(bar=>bar.bigBuyNotional+bar.bigSellNotional>0)&&<text x="460" y="40" textAnchor="middle" className="main-force-empty">等待 L2 大额主动成交</text>}
             </svg>
             <div className="main-force-track-foot">
@@ -2465,6 +2520,7 @@ export default function Home() {
             <span><i className={openingAssessment.session==="低开"||openingAssessment.session==="高开"?"ok":"wait"}>{openingAssessment.session==="低开"||openingAssessment.session==="高开"?"✓":"·"}</i>{openingAssessment.gapText}</span>
             <span><i className={decisionModel.referenceConfirmed?"ok":"wait"}>{decisionModel.referenceConfirmed?"✓":"·"}</i>开盘价 + VWAP</span>
             <span><i className={decisionModel.trendConfirmed?"ok":"wait"}>{decisionModel.trendConfirmed?"✓":"·"}</i>连续走势确认</span>
+            {stock?.code==="601899"&&<span title={zijinAhLinkage.reason}><i className={zijinAhLinkage.available&&zijinAhLinkage.state!=="neutral"?"ok":"wait"}>{zijinAhLinkage.available&&zijinAhLinkage.state!=="neutral"?"✓":"·"}</i>{zijinAhLinkage.label}</span>}
             <span><i className={decisionModel.inDecisionWindow?"ok":"wait"}>{decisionModel.inDecisionWindow?"✓":"·"}</i>{decisionModel.lastTime||"--:--"} 时间门控</span>
           </div>
         </div>
