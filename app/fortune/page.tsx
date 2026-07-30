@@ -1,0 +1,131 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import "./fortune.css";
+import "./traditional.css";
+import "./interpretation.css";
+import "./astro.css";
+
+const lots = [
+  ["上上签","云开见月","潮来有信，风起于青萍；先看承接，再等长阳。"],
+  ["上签","竹节新高","节节有序，不争一日之先；守住均线，方见新枝。"],
+  ["中上签","雁行有序","远近相随，量价相和；缓步为宜，忌见急追。"],
+  ["中签","雾里看花","花影未定，真假相生；等风吹雾，莫凭一念。"],
+  ["中下签","逆水行舟","水急舟轻，宜减不宜争；先守船身，再候回流。"],
+  ["下签","惊弦之鸟","高枝风紧，声动先飞；宁失一程，不失归路。"],
+] as const;
+const trigrams=[["乾","☰","金","天"],["兑","☱","金","泽"],["离","☲","火","火"],["震","☳","木","雷"],["巽","☴","木","风"],["坎","☵","水","水"],["艮","☶","土","山"],["坤","☷","土","地"]] as const;
+const elements=["水","土","木","木","土","火","火","土","金","金","土","水"] as const;
+const lineNames=["初爻","二爻","三爻","四爻","五爻","上爻"];
+const trigramByLines:Record<string,number>={"111":0,"110":1,"101":2,"100":3,"011":4,"010":5,"001":6,"000":7};
+const trigramMeanings:Record<string,string>={
+  "乾":"刚健主动，象征趋势延续与进取，但过刚容易追高。",
+  "兑":"悦而有缺，象征情绪活跃与兑现压力，宜观察放量后的承接。",
+  "离":"明而附丽，象征热度、辨识度与波动，强势时也需防过热。",
+  "震":"一阳发动，象征消息或资金突然驱动，方向确认前波动较大。",
+  "巽":"渐入而行，象征趋势渗透与缓慢积累，更重持续性而非急涨。",
+  "坎":"险中有流，象征资金反复与风险考验，先看支撑是否有效。",
+  "艮":"止于其所，象征阻力、整理与边界，突破前不宜预判。",
+  "坤":"厚载顺势，象征承接、蓄势与被动跟随，需要外部动能启动。"
+};
+
+function seeded(text:string){let h=2166136261;for(const c of text){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return(h>>>0)/4294967295}
+function trigramFor(lines:{yang:boolean}[]){return trigrams[trigramByLines[lines.map(line=>line.yang?"1":"0").join("")]??7]}
+function zodiacFor(date:string){
+  const [,month=1,day=1]=date.split("-").map(Number);const md=month*100+day;
+  if(md>=321&&md<=419)return["白羊座","火","行动与突破"];if(md<=520&&md>=420)return["金牛座","土","稳定与价值"];
+  if(md<=621&&md>=521)return["双子座","风","信息与变化"];if(md<=722&&md>=622)return["巨蟹座","水","情绪与防守"];
+  if(md<=822&&md>=723)return["狮子座","火","热度与表现"];if(md<=922&&md>=823)return["处女座","土","秩序与筛选"];
+  if(md<=1023&&md>=923)return["天秤座","风","平衡与博弈"];if(md<=1122&&md>=1024)return["天蝎座","水","深度与转折"];
+  if(md<=1221&&md>=1123)return["射手座","火","扩张与预期"];if(md>=1222||md<=119)return["摩羯座","土","纪律与周期"];
+  if(md<=218)return["水瓶座","风","创新与独立"];return["双鱼座","水","想象与流动"];
+}
+
+export default function FortunePage(){
+  const [code,setCode]=useState("601899");
+  const [name,setName]=useState("紫金矿业");
+  const [horizon,setHorizon]=useState("20");
+  const [listingDate,setListingDate]=useState("2008-04-25");
+  const [listingDateAuto,setListingDateAuto]=useState(true);
+  const [draw,setDraw]=useState(0);
+  const [prices,setPrices]=useState("18.62,18.75,18.58,18.91,19.06,19.12,18.98,19.26,19.38,19.51,19.44,19.70,19.82,19.66,19.94,20.08,20.22,20.16,20.41,20.56");
+  const [volumes,setVolumes]=useState<number[]>([]);
+  const [marketStatus,setMarketStatus]=useState<"idle"|"loading"|"ready"|"error">("idle");
+  const [marketMessage,setMarketMessage]=useState("输入 6 位股票代码后自动读取行情");
+  useEffect(()=>{
+    if(!/^\d{6}$/.test(code)){setMarketStatus("idle");setMarketMessage("请输入 6 位股票代码");return}
+    const controller=new AbortController();
+    const timer=window.setTimeout(async()=>{
+      setMarketStatus("loading");setMarketMessage("正在读取真实行情…");
+      try{
+        const response=await fetch(`/api/market-data?code=${encodeURIComponent(code)}`,{cache:"no-store",signal:controller.signal});
+        const payload=await response.json();
+        if(!response.ok)throw new Error(payload.error||"行情暂不可用");
+        const bars=Array.isArray(payload.bars)?payload.bars.filter((bar:{close?:unknown})=>Number.isFinite(Number(bar.close))):[];
+        if(bars.length<5)throw new Error("历史行情样本不足");
+        setName(payload.quote?.name||code);
+        if(payload.listingDate){setListingDate(payload.listingDate);setListingDateAuto(true)}else setListingDateAuto(false);
+        setPrices(bars.slice(-120).map((bar:{close:number})=>Number(bar.close).toFixed(2)).join(","));
+        setVolumes(bars.slice(-120).map((bar:{volume:number})=>Number(bar.volume)||0));
+        setMarketStatus("ready");setMarketMessage(`已更新 ${bars.length} 个交易日 · ${payload.provider||"公开行情源"}`);
+      }catch(error){if(!controller.signal.aborted){setMarketStatus("error");setMarketMessage(error instanceof Error?error.message:"行情读取失败")}}
+    },500);
+    return()=>{window.clearTimeout(timer);controller.abort()};
+  },[code]);
+  const analysis=useMemo(()=>{
+    const values=prices.split(/[,，\s]+/).map(Number).filter(v=>Number.isFinite(v)&&v>0);
+    const safeValues=values.length?values:[0];
+    const avg=(xs:number[])=>xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:0;
+    const ma5=avg(values.slice(-5)),ma20=avg(values.slice(-20));
+    const momentum=values.length>5?(values.at(-1)!/values.at(-6)!-1)*100:0;
+    let gains=0,losses=0;values.slice(-15).forEach((v,i,a)=>{if(i){const d=v-a[i-1];d>0?gains+=d:losses-=d}});
+    const rsi=losses?100-100/(1+gains/losses):gains?72:50;
+    const recentVolume=avg(volumes.slice(-5)),baseVolume=avg(volumes.slice(-20));
+    const volumeBoost=baseVolume&&momentum>0?Math.min(6,(recentVolume/baseVolume-1)*8):0;
+    const score=Math.max(18,Math.min(82,Math.round(50+(ma20?(ma5/ma20-1)*600:0)+momentum*2+volumeBoost)));
+    const seed=`${code}-${horizon}-${draw}-${new Date().toISOString().slice(0,10)}`;
+    const lot=lots[Math.max(0,Math.min(5,Math.floor((1-(seeded(seed)*.72+(score-50)/180+.14))*6)))];
+    const moving=Math.floor(seeded(seed+"变")*6);
+    const lines=Array.from({length:6},(_,i)=>({yang:seeded(seed+`爻${i}`)>.5,moving:i===moving,element:elements[Math.floor(seeded(seed+`支${i}`)*12)]}));
+    const changedLines=lines.map((line,i)=>({...line,yang:i===moving?!line.yang:line.yang}));
+    const lower=trigramFor(lines.slice(0,3)),upper=trigramFor(lines.slice(3,6));
+    const changedLower=trigramFor(changedLines.slice(0,3)),changedUpper=trigramFor(changedLines.slice(3,6));
+    const elementCounts=(["金","木","水","火","土"] as const).map(element=>({element,count:lines.filter(line=>line.element===element).length})).sort((a,b)=>b.count-a.count);
+    return {values,ma5,ma20,momentum,rsi,score,lot,upper,lower,changedUpper,changedLower,moving,lines,dominantElement:elementCounts[0],support:Math.min(...safeValues.slice(-20)),resistance:Math.max(...safeValues.slice(-20))};
+  },[prices,volumes,code,horizon,draw]);
+  const trend=analysis.score>58?"偏多":analysis.score<42?"偏空":"震荡";
+  const paths=[
+    ["顺势",Math.max(20,Math.round(analysis.score*.62)),`守住 ${analysis.ma20.toFixed(2)}，量能温和放大`],
+    ["盘整",Math.max(18,Math.round(48-Math.abs(analysis.score-50)*.35)),"均线反复缠绕，等待方向选择"],
+    ["转弱",Math.max(15,Math.round((100-analysis.score)*.55)),`跌破 ${analysis.support.toFixed(2)}，优先控制风险`],
+  ] as const;
+  const total=paths.reduce((s,p)=>s+p[1],0);
+  const agreement=trend==="偏多"&&analysis.lot[0].includes("上")||trend==="偏空"&&analysis.lot[0].includes("下")?"卦势相合":"仍待行情验证";
+  const futureTitle=trend==="偏多"?"震荡上行，回踩后仍有走强机会":trend==="偏空"?"弱势震荡，反弹后仍有回落风险":"区间震荡，方向尚未选择";
+  const futurePath=trend==="偏多"?`未来 ${horizon} 个交易日更可能先震荡消化，再尝试向上突破。`:trend==="偏空"?`未来 ${horizon} 个交易日更可能维持弱势或出现冲高回落。`:`未来 ${horizon} 个交易日更可能在 ${analysis.support.toFixed(2)} 至 ${analysis.resistance.toFixed(2)} 区间反复。`;
+  const riskLevel=analysis.score>=68||analysis.score<=32?"较高":analysis.score>=58||analysis.score<=42?"中等":"一般";
+  const zodiac=zodiacFor(listingDate);
+  const astroTone=zodiac[1]==="火"?"倾向快速启动与较大波动":zodiac[1]==="土"?"倾向重视支撑与趋势确认":zodiac[1]==="风"?"倾向受消息和市场预期推动":"倾向受资金流动与市场情绪影响";
+  const spokenReport=`小兔为你解签。${name||code}，${analysis.upper[0]}上${analysis.lower[0]}下，${lineNames[analysis.moving]}动。未来走势判断：${futureTitle}。${futurePath} 上行观察位${analysis.resistance.toFixed(2)}元，下行警戒位${analysis.support.toFixed(2)}元。卦象仅供文化娱乐，走势判断不构成投资建议。`;
+  const speak=()=>{if(!("speechSynthesis" in window))return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(spokenReport);utterance.lang="zh-CN";utterance.rate=.92;window.speechSynthesis.speak(utterance)};
+  return <main className="oracle">
+    <nav><a href="/">← 返回做T神器</a><span>股票算命 · STOCK ORACLE</span><b>娱乐推演</b></nav>
+    <header><div><small>命理作表，技术为里</small><h1>问一问<br/>这只股票的<span>运势</span></h1><p>签文负责讲故事，技术指标负责给证据。它测算的是当前结构下的可能路径，不是预言。</p></div>
+      <form onSubmit={e=>{e.preventDefault();setDraw(v=>v+1)}}><label>股票代码<input value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="例如 601899"/></label><label>股票名称<input value={name} readOnly placeholder="行情自动识别"/></label><label>问卦周期<select value={horizon} onChange={e=>setHorizon(e.target.value)}><option value="5">未来 5 个交易日</option><option value="20">未来 20 个交易日</option><option value="60">未来 60 个交易日</option></select></label><label>上市日期 · {listingDateAuto?"自动识别":"可手动补充"}<input type="date" value={listingDate} onChange={e=>{setListingDate(e.target.value);setListingDateAuto(false)}}/></label><div className={`market-fetch ${marketStatus}`}><i/>{marketMessage}{marketStatus==="ready"&&listingDateAuto?` · 上市 ${listingDate}`:""}</div><button disabled={marketStatus==="loading"}>{marketStatus==="loading"?"正在观盘…":`为 ${name||code} 起卦 →`}</button></form>
+    </header>
+    <section className="method-strip"><span><b>起卦法</b> 梅花易数 · 数字起卦</span><i>股票代码</i><u>＋</u><i>问卦日期</i><u>＋</u><i>测算周期</i><em>传统文化娱乐推演</em></section>
+    <section className="result">
+      <article className="lot gua-card"><div className="gua-heading"><em>{analysis.lot[0]}</em><span>本卦</span><h2>{analysis.upper[3]}上{analysis.lower[3]}下</h2><p>{analysis.upper[0]}上 {analysis.lower[0]}下 · {lineNames[analysis.moving]}动 · 之卦 {analysis.changedUpper[0]}上{analysis.changedLower[0]}下</p></div><div className="hexagram">{analysis.lines.map((line,index)=><div className={`yao ${line.moving?"moving":""}`} key={index}><small>{lineNames[index]}</small><span className={`yao-line ${line.yang?"yang":"yin"}`}>{line.yang?<i/>:<><i/><i/></>}</span><b>{line.element}</b>{line.moving?<em>○</em>:<em/>}</div>)}</div><div className="gua-symbols"><div><strong>{analysis.upper[1]}</strong><span>上卦 · {analysis.upper[0]}</span><small>{analysis.upper[2]} · {analysis.upper[3]}</small></div><i/><div><strong>{analysis.lower[1]}</strong><span>下卦 · {analysis.lower[0]}</span><small>{analysis.lower[2]} · {analysis.lower[3]}</small></div><i/><div><strong>{analysis.changedUpper[1]}{analysis.changedLower[1]}</strong><span>变卦</span><small>{analysis.changedUpper[0]} / {analysis.changedLower[0]}</small></div></div><blockquote><b>{analysis.lot[1]}</b><br/>{analysis.lot[2]}</blockquote><button onClick={()=>setDraw(v=>v+1)}>重新起卦</button><small className="seed-note">同一股票、周期与日期保持稳定；重新起卦用于查看另一文化叙事。</small></article>
+      <article className="tech forecast-card"><header><div><small>未来走势</small><h2>{trend}</h2></div><strong>{analysis.score}<i>/100</i></strong></header><div className="meter"><i style={{width:`${analysis.score}%`}}/></div><h3>{futureTitle}</h3><p className="future-path">{futurePath}</p><dl><div><dt>预测周期</dt><dd>未来 {horizon} 个交易日</dd></div><div><dt>风险等级</dt><dd>{riskLevel}</dd></div><div><dt>转强确认</dt><dd>突破 ¥{analysis.resistance.toFixed(2)}</dd></div><div><dt>转弱警戒</dt><dd>跌破 ¥{analysis.support.toFixed(2)}</dd></div></dl><p>均线、强弱、动量及成交量已由模型内部计算。</p></article>
+    </section>
+    <section className="five-elements"><header><div><small>五行审势</small><h2>金木水火土 · 旺衰分布</h2></div><p>由六爻元素分布生成，仅作文化展示。</p></header><div>{(["金","木","水","火","土"] as const).map(element=>{const count=analysis.lines.filter(line=>line.element===element).length;return <article className="element" key={element}><strong>{element}</strong><i><u style={{height:`${24+count*22}%`}}/></i><span><b>{count>=2?"旺":count===1?"平":"弱"}</b><small>{element==="金"?"纪律 / 收敛":element==="木"?"生长 / 趋势":element==="水"?"流动 / 资金":element==="火"?"热度 / 动能":"承载 / 支撑"}</small></span><em>{count}/6</em></article>})}</div></section>
+    <section className="rabbit-oracle"><img src="/rabbit-brand-gold.png" alt="小兔解签官"/><div><small>小兔解签官</small><h2>{futureTitle}</h2><p>{spokenReport}</p></div><button type="button" onClick={speak}>🔊 语音播报</button></section>
+    <section className="east-west"><header><small>EAST × WEST</small><h2>东方六爻 · 西方星象</h2><p>两套文化象征共同参与叙事，技术模型独立决定走势评分。</p></header><div><article><span>东方</span><strong>{analysis.upper[1]}{analysis.lower[1]}</strong><h3>{analysis.upper[0]}上{analysis.lower[0]}下</h3><p>{lineNames[analysis.moving]}动，变为{analysis.changedUpper[0]}上{analysis.changedLower[0]}下。</p></article><i>合参</i><article><span>西方</span><strong>✦</strong><h3>{zodiac[0]} · {zodiac[1]}象</h3><p>以上市日期 {listingDate} 作为象征性诞生日期，主题为“{zodiac[2]}”，{astroTone}。</p></article><article className="combined"><span>东西方合盘</span><h3>{agreement} · {futureTitle}</h3><p>东方卦象用于解释变化阶段，西方四元素用于描述市场性格；最终方向仍由真实行情模型给出。</p></article></div></section>
+    <section className="interpretation"><header><small>卦象解签</small><h2>传统卦意与未来走势</h2><p>科学技术模型在后台参与判断。</p></header><div className="interpretation-grid">
+      <article className="traditional-reading"><span>传统卦象解释</span><h3>{analysis.upper[0]}上{analysis.lower[0]}下，{lineNames[analysis.moving]}动</h3><dl><div><dt>上卦 · 外部环境</dt><dd>{trigramMeanings[analysis.upper[0]]}</dd></div><div><dt>下卦 · 内部结构</dt><dd>{trigramMeanings[analysis.lower[0]]}</dd></div><div><dt>动爻 · 变化位置</dt><dd>{analysis.moving<2?"动在下位，故事指向行情初起或基础尚未稳定。":analysis.moving<4?"动在中位，故事指向多空正在交换、进入关键验证阶段。":"动在上位，故事指向趋势后段或情绪释放，宜防盛极转折。"}</dd></div><div><dt>变卦 · 后续叙事</dt><dd>变为{analysis.changedUpper[0]}上{analysis.changedLower[0]}下。{trigramMeanings[analysis.changedUpper[0]]}</dd></div><div><dt>五行 · 主要气象</dt><dd>{analysis.dominantElement.count?`${analysis.dominantElement.element}出现 ${analysis.dominantElement.count} 次，文化象征偏向${analysis.dominantElement.element==="金"?"收敛与纪律":analysis.dominantElement.element==="木"?"生长与延续":analysis.dominantElement.element==="水"?"流动与资金":analysis.dominantElement.element==="火"?"热度与动能":"承载与支撑"}。`:"五行分布较弱，不作额外推断。"}</dd></div></dl></article>
+      <article className="evidence-reading"><span>未来走势判断</span><h3>{futureTitle}</h3><div className="plain-forecast"><b>{futurePath}</b><p>上行观察位：¥{analysis.resistance.toFixed(2)}</p><p>下行警戒位：¥{analysis.support.toFixed(2)}</p><p>波动风险：{riskLevel}</p></div><div className={`verdict ${agreement==="卦势相合"?"agree":"neutral"}`}><small>综合判读 · {agreement}</small><b>{trend==="偏多"?"整体偏强，适合等待回踩或突破确认，不宜盲目追高。":trend==="偏空"?"整体偏弱，先观察止跌信号，反弹暂按修复看待。":"整体以震荡看待，在突破前不提前押注方向。"}</b><p>这是基于当前行情结构的概率判断，不是确定性预言。</p></div></article>
+    </div></section>
+    <section className="paths"><header><div><small>三路演算</small><h2>未来并非一条线</h2></div><p>结构化情景权重，不代表真实概率。</p></header><div>{paths.map((p,i)=>{const percent=Math.round(p[1]/total*100);return <article key={p[0]}><em>0{i+1}</em><span><b>{p[0]}</b><p>{p[2]}</p><i><u style={{width:`${percent}%`}}/></i></span><strong>{percent}%</strong></article>})}</div></section>
+    <section className="levels"><article><small>守 · 近期支撑</small><b>¥{analysis.support.toFixed(2)}</b><p>有效跌破时，签文再吉也应重新评估。</p></article><article><small>望 · 近期压力</small><b>¥{analysis.resistance.toFixed(2)}</b><p>放量突破后，才算趋势给出确认。</p></article><article className="warning"><small>卦外之言</small><b>不据此下单</b><p>仅供娱乐与研究参考，不构成投资建议。真实交易请结合仓位、成本与止损纪律。</p></article></section>
+  </main>
+}

@@ -2415,6 +2415,7 @@ export default function Home() {
         </div>
         <nav className="main-nav" aria-label="主导航">
           {['首页','操盘台','单股智研','多股监控','策略市场','持仓对账','模拟回测','智能训练','邀请中心'].map((item) => <button onClick={() => setActiveView(item)} className={activeView === item ? 'active' : ''} key={item}>{item}</button>)}
+          <button onClick={()=>window.location.assign('/fortune')}>股票算命</button>
         </nav>
         <div className="top-actions">
           <span className={`market-open ${marketSession.tone}`} title={`${marketSession.label}：${marketSession.detail}；法定节假日以交易所公告为准`} aria-label={`${marketSession.label}：${marketSession.detail}`}><i /><span className="market-open-label">{marketSession.live?"监控中":marketSession.label}</span></span>
