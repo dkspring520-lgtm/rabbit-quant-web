@@ -31,6 +31,8 @@ import { buildZijinPreopenPricePlan } from "@/lib/zijin-preopen-price-plan.mjs";
 import { buildZijinMainForceTrack } from "@/lib/zijin-main-force-track.mjs";
 import { evaluateZijinFundResponse } from "@/lib/zijin-fund-response.mjs";
 import { analyzeZijinAhLinkage } from "@/lib/zijin-ah-linkage.mjs";
+import { evaluateWeb4Microstructure } from "@/lib/web4-microstructure.mjs";
+import { evaluateWeb4RealtimeMonitor } from "@/lib/web4-realtime-monitor.mjs";
 import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminder.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
@@ -661,6 +663,9 @@ export default function Home() {
   const [signalLayerVisible,setSignalLayerVisible]=useState(true);
   const [pricePlanLayerVisible,setPricePlanLayerVisible]=useState(true);
   const [volumeLayerVisible,setVolumeLayerVisible]=useState(true);
+  const [rabbitTrackerVisible,setRabbitTrackerVisible]=useState(()=>{
+    try{return localStorage.getItem("rabbit-chart-tracker-visible")!=="false"}catch{return true}
+  });
   const [tEntryPrice,setTEntryPrice]=useState("");
   const [tExitPrice,setTExitPrice]=useState("");
   const [tQuantity,setTQuantity]=useState("1000");
@@ -673,6 +678,9 @@ export default function Home() {
   const workspaceRef = useRef<HTMLElement | null>(null);
   const intradayChartRef = useRef<SVGSVGElement | null>(null);
   const [intradayCursorTime,setIntradayCursorTime]=useState<string|null>(null);
+  useEffect(()=>{
+    try{localStorage.setItem("rabbit-chart-tracker-visible",String(rabbitTrackerVisible))}catch{}
+  },[rabbitTrackerVisible]);
   const stock = stockList[activeStock] || stockList[0];
   const activeProfitMode=preferences.profitMode;
   const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
@@ -1621,6 +1629,63 @@ export default function Home() {
     };
   },[stockAgent,visibleStockAgentEvaluation,autoDecision]);
   const signalMode:"正T"|"反T"=decisionModel.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
+  const web4Microstructure=useMemo(()=>evaluateWeb4Microstructure({
+    points:isZijinStock?minutePoints:[],
+    historicalSessions:isZijinStock?(currentMarket?.intradaySessions??[]):[],
+    liveL2:isZijinStock?liveL2Status:null,
+    asOfDate:currentTrial?.sampleDate??currentMarket?.sampleDate??null,
+    stale:!isZijinStock||liveL2Stale||!liveL2HasTicks,
+  }),[isZijinStock,minutePoints,currentMarket?.intradaySessions,currentMarket?.sampleDate,currentTrial?.sampleDate,liveL2Status,liveL2Stale,liveL2HasTicks]);
+  const web4L2Evidence=useMemo(()=>{
+    if(zijinRepair?.status==="candidate")return {
+      state:"repair",
+      score:Math.max(72,web4Microstructure.score),
+      label:web4Microstructure.absorption.side==="buy"?"卖压被承接 · 修复候选":"资金承接修复",
+    };
+    if(web4Microstructure.state!=="waiting")return {
+      state:web4Microstructure.state,
+      score:web4Microstructure.score,
+      label:web4Microstructure.label,
+    };
+    return {
+      state:zijinFundResponse.state,
+      score:Math.max(zijinFundResponse.score,web4Microstructure.score),
+      label:web4Microstructure.available?`${zijinFundResponse.label} · 微观待持续`:zijinFundResponse.label,
+    };
+  },[zijinRepair?.status,web4Microstructure.score,web4Microstructure.state,web4Microstructure.label,web4Microstructure.available,web4Microstructure.absorption.side,zijinFundResponse.state,zijinFundResponse.score,zijinFundResponse.label]);
+  const web4Monitor=useMemo(()=>evaluateWeb4RealtimeMonitor({
+    symbol:stock?.code,
+    now:clockNow?.toISOString()??null,
+    technical:{
+      candidate:decisionModel.status==="ready"||Boolean(decisionModel.mode&&decisionModel.confirmed>=2),
+      ready:decisionModel.status==="ready",
+      direction:signalMode,
+      confirmed:decisionModel.confirmed,
+    },
+    l2:{
+      available:isZijinStock&&Boolean(liveL2Status),
+      stale:!isZijinStock||liveL2Stale||!liveL2HasTicks,
+      state:web4L2Evidence.state,
+      score:web4L2Evidence.score,
+      label:web4L2Evidence.label,
+    },
+    linkage:{
+      available:isZijinStock&&zijinAhLinkage.available,
+      bias:zijinAhLinkage.bias,
+      weight:zijinAhLinkage.weight,
+      label:isZijinStock?zijinAhLinkage.label:"关联品种待接入",
+    },
+    market:{
+      level:currentContext?.gate.level??"degraded",
+      hardLock:currentContext?.gate.hardLock??false,
+      label:currentContext?.gate.label??"外部环境加载中",
+    },
+    events:{
+      level:currentEvents?.gate.level??"normal",
+      hardLock:currentEvents?.gate.hardLock??false,
+      label:currentEvents?.gate.label??"事件正常",
+    },
+  }),[stock?.code,clockNow,decisionModel.status,decisionModel.mode,decisionModel.confirmed,signalMode,isZijinStock,liveL2Status,liveL2Stale,liveL2HasTicks,web4L2Evidence.state,web4L2Evidence.score,web4L2Evidence.label,zijinAhLinkage.available,zijinAhLinkage.bias,zijinAhLinkage.weight,zijinAhLinkage.label,currentContext?.gate.level,currentContext?.gate.hardLock,currentContext?.gate.label,currentEvents?.gate.level,currentEvents?.gate.hardLock,currentEvents?.gate.label]);
   const decisionConditions=useMemo(()=>{
     const reverse=signalMode==="反T";
     const l2Confirmed=decisionModel.status==="ready"
@@ -2421,7 +2486,7 @@ export default function Home() {
         <div className="desk-core-reason"><span>当前依据</span><b>{marketSession.live?decisionModel.reason:"复盘模式"}</b></div>
       </section>
 
-      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'}`} ref={workspaceRef}>
+      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'} ${rabbitTrackerVisible?'':'hide-rabbit-tracker'}`} ref={workspaceRef}>
         <div className="chart-zone">
           <div className="chart-tools">
             <div className="legend primary-chart-legend">
@@ -2432,7 +2497,7 @@ export default function Home() {
                 <div>
                   {indicatorsVisible&&<span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span>}
                   {stock?.code==="601899"&&<span className={`hk-linkage-legend ${zijinAhLinkage.bias}`} title={zijinAhLinkage.reason}><i/>港股紫金 <b>{zijinAhLinkage.available?`${zijinAhLinkage.hkReturnPercent!>=0?"+":""}${zijinAhLinkage.hkReturnPercent!.toFixed(2)}%`:"--"}</b></span>}
-                  <small>观察点不是买卖指令</small>
+                  <small>中文提示常驻 · 前低/前高确认不是买卖点</small>
                 </div>
               </details>
             </div>
@@ -2440,7 +2505,7 @@ export default function Home() {
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
-            <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="中文提示常驻 · 前低/前高确认不是买卖点；同时显示或隐藏跟线兔兔" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button></div><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
+            <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏中文信号提示" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔动画" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
           <div className="chart-wrap">
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
@@ -2691,6 +2756,17 @@ export default function Home() {
               <p>{stockState.summary}</p><ul>{stockState.details.map(detail=><li key={detail}>{detail}</li>)}</ul><em>{stockState.action}</em>
             </div>
           </details>
+          <section className={`web4-monitor ${web4Monitor.status}`} aria-label="WEB 4.0 多源实时监控">
+            <header>
+              <div><span>WEB 4.0 · 多源监控</span><b>{web4Monitor.label}</b></div>
+              <strong>{web4Monitor.confidence}<small>/100</small></strong>
+            </header>
+            <div className="web4-monitor-meter" role="meter" aria-label={`WEB 4.0 多源置信度 ${web4Monitor.confidence} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={web4Monitor.confidence}><i style={{width:`${web4Monitor.confidence}%`}}/></div>
+            <div className="web4-monitor-votes">
+              {web4Monitor.votes.map(vote=><span key={vote.id} className={vote.state} title={vote.detail}><i/>{vote.label}<small>{vote.detail}</small></span>)}
+            </div>
+            <footer><b>{web4Monitor.formalEligible?"多源已确认":"技术面不能单独升级正式信号"}</b><span>{web4Monitor.summary}</span></footer>
+          </section>
           <div className={`context-radar ${currentContext?.gate.level ?? "loading"} event-${currentEvents?.gate.level ?? "loading"}`}>
             <div className="context-radar-head"><span>全市场风险雷达 · {currentContext?.profile ?? "加载中"}</span><b>{Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)||"--"}<small>/100</small></b></div>
             <div className="context-radar-meter" role="meter" aria-label={`全市场风险评分 ${Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)}><i style={{width:`${Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)}%`}}/></div>
