@@ -34,7 +34,8 @@ test("Zijin crosshair synchronizes price, volume and main-force evidence by minu
 });
 
 test("price and main-force SVGs share the same horizontal gutter",()=>{
-  assert.match(styles,/\.chart-wrap\{padding:8px 12px 6px\}/);
-  assert.match(styles,/\.main-force-track\{[^}]*padding:5px 12px 4px/);
-  assert.match(styles,/\.main-force-track\{height:135px;flex-basis:135px;padding:7px 12px\}/);
+  assert.match(source,/const \[mainForceProjection,setMainForceProjection\]=useState\(\{scale:1,offset:0\}\)/);
+  assert.match(source,/const mainForceX=\(x:number\)=>mainForceProjection\.offset\+mainForceProjection\.scale\*x/);
+  assert.match(source,/x=\{mainForceX\(liveChartX\(bar\.time\)\)-1\.45\}/);
+  assert.match(source,/x1=\{mainForceX\(liveChartSlotX\(tick\.slot\)\)\}/);
 });
