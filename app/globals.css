@@ -875,6 +875,7 @@
     padding:9px 12px 8px
   }
   :root:not([data-theme="light"]) .minimal-ui .chart-wrap{padding:18px 22px 28px 58px}
+  :root:not([data-theme="light"]) .minimal-ui .main-force-track{padding-left:58px;padding-right:22px}
 }
 
 @media(min-width:1101px){
