@@ -324,7 +324,16 @@ function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinut
 }
 
 function observationConfirmationLabel(observation: ReplayObservation) {
-  return observation.confirmationLabel ?? (observation.direction==="正T"?"反弹观察":"回落观察");
+  const rawLabel=observation.confirmationLabel ?? (observation.direction==="正T"?"反弹观察":"回落观察");
+  const clearerLabels:Record<string,string>={
+    "低位参考":"前低确认",
+    "高位参考":"前高确认",
+    "覆盖候选·低位参考":"前低确认",
+    "覆盖候选·高位参考":"前高确认",
+    "反弹参考":"反弹确认",
+    "回落参考":"回落确认",
+  };
+  return clearerLabels[rawLabel]??rawLabel;
 }
 
 function observationDirectionNote(observation: ReplayObservation) {
@@ -1377,7 +1386,7 @@ export default function Home() {
       const qualified=observation.stage!=="watch";
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
-      const rawLabel=observation.confirmationLabel??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
+      const rawLabel=observationConfirmationLabel(observation)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const currentLabel=!isSell&&rawLabel==="反弹观察"&&observation.time<="1000"?"修复观察":rawLabel;
       const labelWidth=currentLabel.length*8+14;
       // Candidate dots are actionable observations, not decorative markers.
@@ -2317,7 +2326,7 @@ export default function Home() {
       <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'}`} ref={workspaceRef}>
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<><span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span><span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS <sup>ⓘ</sup> {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span></>}<span className="causal-marker-legend"><i/>提醒按确认分钟实时落点 · 不回填峰谷</span></div>
+            <div className="legend"><span><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>{indicatorsVisible&&<><span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span><span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS <sup>ⓘ</sup> {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span></>}<span className="causal-marker-legend" title="前低/前高确认表示系统到该分钟才确认此前的转折，只是观察记录，不是买卖指令"><i/>中文提示常驻 · 前低/前高确认不是买卖点</span></div>
             <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? "1 秒轮询试用 · 实时行情源" : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):"复盘模式"}</span>
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
