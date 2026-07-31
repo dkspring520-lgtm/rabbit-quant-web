@@ -106,7 +106,7 @@ function tradeAlertLabel(alert:TradeAlertToast){
 }
 function tradeAlertGuide(alert:TradeAlertToast){
   if(alert.level==="risk"||alert.rabbit==="both")return "先暂停操作，查看风险依据";
-  if(alert.level==="candidate")return "仅观察，尚未形成买卖点";
+  if(alert.level==="candidate")return "仅观察，尚未形成买卖点；同一点只提醒一次";
   return alert.rabbit==="buy"?"确认价格与仓位后再买":"确认价格与仓位后再卖";
 }
 type MonitorScanLog = { id:string|number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"|null; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
@@ -302,10 +302,11 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
 type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string };
 type L2ReplayState = { available:boolean; source:string; minuteCount:number; observations:ReplayObservation[]; reason:string };
-type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; favorable:boolean; status:string };
+type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; holdingMinutes:number; mfePct:number; maePct:number; bestTime:string; worstTime:string; outcomeMode:"post-replay-causal"; favorable:boolean; status:string };
+type CandidateOutcome = { direction:"正T"|"反T"; time:string; price:number; outcomeMode:"post-replay-fixed-horizon"; horizons:{minutes:number;complete:boolean;endTime?:string;returnPct?:number;mfePct?:number;maePct?:number;bestTime?:string;worstTime?:string}[] };
 type OpenCandidateObservation = { direction:"正T"|"反T"; time:string; price:number; label:string; status:"候补未闭环" };
 type DeskHistoryRow = { time:string; direction:string; price:string; quantity:string; spread:string; status:string; tone?:"buy"|"sell"|"candidate" };
-type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; candidateCycles?:CandidateObservationCycle[]; openCandidate?:OpenCandidateObservation|null; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
+type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; candidateCycles?:CandidateObservationCycle[]; candidateOutcomes?:CandidateOutcome[]; openCandidate?:OpenCandidateObservation|null; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
 type ReplayMinute = { time:string; price:number; volume:number };
 type PersonalTrainingAction = { id:string; time:string; minuteIndex:number; side:"buy"|"sell"; quantity:number; marketPrice:number; executionPrice:number; gross:number; fee:number };
@@ -1474,13 +1475,6 @@ export default function Home() {
       const placed=reserveLabel(point.x,isSell?point.y-13:point.y+22,labelWidth,18,isSell?-1:1);
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
-    const recentQualifiedLabelKeys=new Set(
-      visibleChartObservations
-        .filter(observation=>observation.stage!=="watch")
-        .slice(-3)
-        .map(observation=>`${observation.time}-${observation.direction}`)
-    );
-    const latestWatchObservation=[...visibleChartObservations].reverse().find(observation=>observation.stage==="watch")??null;
     const observations=visibleChartObservations.flatMap((observation,index)=>{
       const point=pointPosition(observation.time,observation.price);
       if(!point)return [];
@@ -1494,12 +1488,10 @@ export default function Home() {
       // Candidate dots are actionable observations, not decorative markers.
       // Keep their short labels on mobile as well; reserveLabel() already
       // spreads overlapping labels without changing their confirmation time.
-      // Keep every causal marker as a dot, but only label the latest watch and
-      // the three newest promoted signals. Formal actions remain fully labelled.
-      // This prevents dense history from covering the live price structure.
-      const labelVisible=qualified
-        ? recentQualifiedLabelKeys.has(`${observation.time}-${observation.direction}`)
-        : observation===latestWatchObservation;
+      // Every recorded causal point keeps a short Chinese label in both themes.
+      // reserveLabel() moves only the label box (never the signal point/time), so
+      // dense sessions remain readable without silently dropping history.
+      const labelVisible=true;
       const placed=labelVisible
         ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
         : {labelX:point.x,labelY:point.y};
@@ -4484,23 +4476,27 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           <div className="candidate-cycle-summary">
             <div className="candidate-cycle-heading"><span><b>候补观察闭环</b><small>只复盘方向是否接续，不计入正式胜率与收益</small></span><em>{result.candidateCycles?.length ?? 0} 个已闭环{result.openCandidate?" · 1 个未闭环":""}</em></div>
             {result.candidateCycles?.length?<div className="candidate-cycle-list">{result.candidateCycles.map(cycle=><article className={cycle.favorable?"favorable":"unfavorable"} key={`${cycle.id}-${cycle.entryTime}-${cycle.exitTime}`}>
-              <span><b>{cycle.direction} 候补 #{cycle.id}</b><small>{formatTime(cycle.entryTime)} {cycle.entryLabel} ¥{cycle.entryPrice.toFixed(2)} → {formatTime(cycle.exitTime)} {cycle.exitLabel} ¥{cycle.exitPrice.toFixed(2)}</small></span>
-              <em>{cycle.status} · {cycle.grossPct>=0?"+":""}{cycle.grossPct.toFixed(2)}%</em>
+              <span><b>{cycle.direction} 候补 #{cycle.id}</b><small>{formatTime(cycle.entryTime)} {cycle.entryLabel} ¥{cycle.entryPrice.toFixed(2)} → {formatTime(cycle.exitTime)} {cycle.exitLabel} ¥{cycle.exitPrice.toFixed(2)}</small><small>持有 {cycle.holdingMinutes} 分钟 · MFE {cycle.mfePct>=0?"+":""}{cycle.mfePct.toFixed(2)}%（{formatTime(cycle.bestTime)}） · MAE {cycle.maePct.toFixed(2)}%（{formatTime(cycle.worstTime)}）</small></span>
+              <em>{cycle.status} · 闭环 {cycle.grossPct>=0?"+":""}{cycle.grossPct.toFixed(2)}%</em>
             </article>)}</div>:<p className="candidate-cycle-empty">尚未出现方向相反、可配对的后续候补点。</p>}
             {result.openCandidate&&<div className="candidate-cycle-open"><span><b>{result.openCandidate.status}</b><small>{formatTime(result.openCandidate.time)} · {result.openCandidate.label} · ¥{result.openCandidate.price.toFixed(2)}</small></span><em>等待后续独立候补点，不用收盘价补造结果</em></div>}
           </div>
           {visibleBacktestObservations.length>0?<div className="candidate-audit-list">{visibleBacktestObservations.map((observation,index)=>{
             const pivotState=observation.pivotAssessment==="strong"?"强确认":observation.pivotAssessment==="confirmed"?"已确认":"未确认";
+            const fixedOutcome=result.candidateOutcomes?.find(item=>item.time===observation.time&&item.direction===observation.direction);
+            const closedHorizons=fixedOutcome?.horizons.filter(item=>item.complete)??[];
             return <article key={`${observation.direction}-${observation.time}-${index}`} className={observation.executable?"passed":observation.stage==="candidate"?"candidate":"watch"}>
               <header><span><i>{observation.l2Strict?"L2严格":observation.coverageOnly&&source?.quote.code==="601899"?"紫金候选":observation.coverageOnly?"覆盖":observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation)}</b></span><em>{observation.l2Strict?`${observation.score}/${observation.threshold} 分 · 历史L2因果确认`:observation.coverageOnly?"研究候选 · 不计胜率":`${observation.score}/${observation.threshold} 分 · 预估价差 ${observation.edge.toFixed(2)}%`}</em></header>
               <p>{observationDirectionNote(observation)}；{observation.reason}</p>
               {observation.scoreBreakdown&&<small>三分离证据：方向 {observation.scoreBreakdown.direction}/{observation.scoreBreakdown.thresholds.direction} · 位置 {observation.scoreBreakdown.location}/{observation.scoreBreakdown.thresholds.location} · 触发 {observation.scoreBreakdown.trigger}/{observation.scoreBreakdown.thresholds.trigger}</small>}
               {observation.similarity&&<small>历史相似：{observation.similarity.ready?`${observation.similarity.samples} 个已完成样本 · 10分钟达标 ${(observation.similarity.hitRate??0).toFixed(0)}% · 平均有利 ${(observation.similarity.averageFavorablePct??0).toFixed(2)}%`:`样本 ${observation.similarity.samples} 个，未达最小样本量，仅作观察`}</small>}
               {observation.pivotTime&&<small>此前参考：{formatTime(observation.pivotTime)} ¥{observation.pivotPrice?.toFixed(2) ?? "—"} · {observation.pivotLabel ?? pivotState}；提示只在 {formatTime(observation.time)} 确认</small>}
+              {closedHorizons.length>0&&<small>研究闭环（未扣费）：{closedHorizons.map(item=>`${item.minutes}分 ${Number(item.returnPct??0)>=0?"+":""}${Number(item.returnPct??0).toFixed(2)}%（MFE +${Number(item.mfePct??0).toFixed(2)}% / MAE ${Number(item.maePct??0).toFixed(2)}%）`).join(" · ")}</small>}
+              {fixedOutcome&&closedHorizons.length<fixedOutcome.horizons.length&&<small>尾盘未满时窗保留为“未闭环”，不使用收盘价补结果。</small>}
               <div className="candidate-audit-blockers">{observation.executable?<span className="passed">已通过正式过滤</span>:observation.blockers.map((blocker,blockerIndex)=><span key={`${blocker}-${blockerIndex}`}>{blocker}</span>)}</div>
             </article>;
           })}</div>:<p className="candidate-audit-empty">本交易日没有形成达到展示门槛的观察点；不是按钮失效，也不会虚构信号。</p>}
-          <p className="candidate-audit-foot">“候选判定次数”按触发条件的分钟累计，不等于独立信号。自动补充的低位/反弹与高位/回落标记只是因果复盘参考；只有引擎真实产生的候补买卖点，才可能在同时通过趋势、成本、仓位和风控后升级为正式买卖点。</p>
+          <p className="candidate-audit-foot">“候选判定次数”按触发条件的分钟累计，不等于独立信号。闭环、MFE 与 MAE 只在后续独立反向候补出现后做事后复盘，不参与信号生成，也不会回写或移动原提示点。</p>
         </details>}
         <div className="result-bottom"><div className="metric-table"><div><span>交易日</span><b>{result?.days ?? "—"}</b></div><div><span>模拟循环</span><b>{result?.trades ?? "—"}</b></div><div><span>胜出循环</span><b>{result?.wins ?? "—"}</b></div><div><span>循环胜率</span><b className="teal">{result?.trades ? `${(result.wins/result.trades*100).toFixed(2)}%` : "—"}</b></div><div><span>底仓设定</span><b>{baseShares.toLocaleString()} 股</b></div><div><span>数据源</span><b>{source?.provider ?? "—"}</b></div></div><div className="failure-panel"><h3>计算说明</h3><p><span>样本证券</span><b>{source ? `${source.quote.code} ${source.quote.name}` : "未运行"}</b></p><p><span>样本交易日</span><b>{source?.sampleDate ?? "—"}</b></p><p><span>样本规模</span><b>{source ? `${source.minutes?.length ?? 0} 个分钟点` : "—"}</b></p><p><span>执行规则</span><b>逐点揭示，不看未来</b></p><p><span>费用模型</span><b>佣金 + 滑点 + 印花税</b></p><p><span>计算状态</span><b className="failure-alert">{result?.status ?? "等待运行"}</b></p></div></div>
       </div>

@@ -5,6 +5,7 @@ import {
   PROFILES,
   buildHistoricalSimilarityArchive,
   buildCandidateObservationCycles,
+  buildCandidateOutcomeLedger,
   causalCyclePreference,
   causalBrokerAtrScale,
   causalPersistentDirection,
@@ -519,7 +520,14 @@ test("candidate observations form a separate causal pair without fabricating a m
   const buy = { time: "0948", price: 10, direction: "正T", stage: "candidate" };
   const laterBuy = { time: "0956", price: 9.96, direction: "正T", stage: "candidate" };
   const sell = { time: "1012", price: 10.08, direction: "反T", stage: "candidate" };
-  const closed = buildCandidateObservationCycles([buy, laterBuy, sell]);
+  const path = [
+    { time: "0948", price: 10, volume: 1_000 },
+    { time: "0949", price: 9.95, volume: 1_000 },
+    { time: "0952", price: 10.12, volume: 1_000 },
+    { time: "1012", price: 10.08, volume: 1_000 },
+    { time: "1013", price: 99, volume: 1_000 },
+  ];
+  const closed = buildCandidateObservationCycles([buy, laterBuy, sell], path);
 
   assert.equal(closed.cycles.length, 1);
   assert.equal(closed.cycles[0].entryTime, "0948");
@@ -527,12 +535,54 @@ test("candidate observations form a separate causal pair without fabricating a m
   assert.equal(closed.cycles[0].entryLabel, "候补买入");
   assert.equal(closed.cycles[0].exitLabel, "候补卖出");
   assert.ok(closed.cycles[0].grossPct > 0);
+  assert.equal(closed.cycles[0].holdingMinutes, 24);
+  assert.ok(Math.abs(closed.cycles[0].mfePct - 1.2) < 1e-9);
+  assert.ok(Math.abs(closed.cycles[0].maePct + 0.5) < 1e-9);
+  assert.equal(closed.cycles[0].bestTime, "0952");
+  assert.equal(closed.cycles[0].worstTime, "0949");
+  assert.equal(closed.cycles[0].outcomeMode, "post-replay-causal");
   assert.equal(closed.open, null);
+
+  const sameClosedCycleWithMoreFuture = buildCandidateObservationCycles([buy, laterBuy, sell], [
+    ...path,
+    { time: "1020", price: 1, volume: 1_000 },
+  ]);
+  assert.deepEqual(sameClosedCycleWithMoreFuture.cycles, closed.cycles, "prices after the independent exit cannot rewrite a closed candidate result");
 
   const stillOpen = buildCandidateObservationCycles([buy, laterBuy]);
   assert.equal(stillOpen.cycles.length, 0);
   assert.equal(stillOpen.open?.status, "候补未闭环");
   assert.equal(stillOpen.open?.time, "0948");
+});
+
+test("fixed candidate outcomes close every horizon without rewriting the original signal", () => {
+  const candidate = { time: "0931", price: 10, direction: "正T", stage: "candidate" };
+  const points = [
+    { time: "0931", price: 10, volume: 1_000 },
+    { time: "0932", price: 9.9, volume: 1_000 },
+    { time: "0933", price: 10.1, volume: 1_000 },
+    { time: "0934", price: 10.2, volume: 1_000 },
+    { time: "0935", price: 10.15, volume: 1_000 },
+    { time: "0936", price: 10.05, volume: 1_000 },
+    { time: "0937", price: 99, volume: 1_000 },
+  ];
+  const closed = buildCandidateOutcomeLedger([candidate], points, [3, 5]);
+
+  assert.equal(closed[0].time, "0931");
+  assert.equal(closed[0].horizons[0].complete, true);
+  assert.ok(Math.abs(closed[0].horizons[0].returnPct - 2) < 1e-9);
+  assert.ok(Math.abs(closed[0].horizons[0].mfePct - 2) < 1e-9);
+  assert.ok(Math.abs(closed[0].horizons[0].maePct + 1) < 1e-9);
+  assert.ok(Math.abs(closed[0].horizons[1].returnPct - 0.5) < 1e-9);
+
+  const sameClosedHorizons = buildCandidateOutcomeLedger([candidate], [
+    ...points,
+    { time: "0938", price: 1, volume: 1_000 },
+  ], [3, 5]);
+  assert.deepEqual(sameClosedHorizons[0], closed[0], "future prices after a fixed horizon cannot rewrite its result");
+
+  const incomplete = buildCandidateOutcomeLedger([candidate], points.slice(0, 4), [5]);
+  assert.deepEqual(incomplete[0].horizons[0], { minutes: 5, complete: false });
 });
 
 test("an opposite candidate cannot silently flip into a formal entry", () => {
