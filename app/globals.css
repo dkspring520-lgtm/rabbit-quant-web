@@ -941,6 +941,80 @@
   }
 }
 
+/* 2026-07 unified cockpit grid: day and night share one compact hierarchy. */
+@media(min-width:1101px){
+  .minimal-ui .topbar{
+    height:50px;
+    min-height:50px;
+    gap:18px;
+    padding-inline:14px
+  }
+  .minimal-ui .brand{padding-right:14px}
+  .minimal-ui .brand-primary-logo{max-height:42px}
+  .minimal-ui .main-nav button{padding-inline:8px;font-size:11px}
+  .minimal-ui .top-actions{gap:7px}
+  .minimal-ui .strategy-help,
+  .minimal-ui .auto-off{display:none}
+  .minimal-ui .ticker{height:32px;min-height:32px}
+  .minimal-ui .ticker-item{min-height:32px}
+  .minimal-ui .stock-head{
+    height:70px;
+    min-height:70px;
+    padding:5px 18px;
+    gap:14px;
+    grid-template-columns:minmax(170px,195px) minmax(350px,1fr) max-content minmax(185px,220px)
+  }
+  .minimal-ui .stock-identity h1{font-size:20px}
+  .minimal-ui .quote strong{font-size:28px}
+  .minimal-ui .quote-focus{gap:12px}
+  .minimal-ui .quote-metrics{gap:10px!important}
+  .minimal-ui .workspace,
+  :root[data-theme="light"] .minimal-ui .workspace,
+  :root:not([data-theme="light"]) .minimal-ui .workspace{
+    grid-template-columns:minmax(0,1fr) clamp(350px,23vw,410px);
+    height:calc(100vh - 152px);
+    min-height:610px;
+    max-height:780px
+  }
+  .minimal-ui .decision-zone{padding:10px}
+  .minimal-ui .decision-zone-tabs{
+    top:-10px;
+    margin:-10px -10px 2px;
+    padding:7px 10px 6px
+  }
+  .minimal-ui .decision-primary-card{order:1}
+  .minimal-ui .zijin-price-plan{order:2}
+  .minimal-ui .decision-position-card{order:3}
+  .minimal-ui .alert-channel{order:4}
+  .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.zijin-price-plan):not(.decision-position-card):not(.alert-channel){order:10}
+  .minimal-ui .rabbit-decision-header{display:none}
+  .minimal-ui .decision-zone.focus-mode .decision-position-card{
+    padding:5px 0 7px;
+    border:0;
+    border-top:1px solid var(--line-soft);
+    border-bottom:1px solid var(--line-soft);
+    border-radius:0;
+    background:transparent
+  }
+  .minimal-ui .decision-zone.focus-mode .decision-position-card>header{display:none}
+  .minimal-ui .decision-zone.focus-mode .decision-position-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:0
+  }
+  .minimal-ui .decision-zone.focus-mode .decision-position-grid p{
+    padding:5px 8px;
+    border:0;
+    border-right:1px solid var(--line-soft);
+    border-radius:0;
+    background:transparent
+  }
+  .minimal-ui .decision-zone.focus-mode .decision-position-grid p:last-child{border-right:0}
+  .minimal-ui .decision-zone.focus-mode .decision-position-grid p>b{font-size:13px}
+  .minimal-ui .decision-zone.focus-mode .decision-condition-grid{margin-bottom:7px}
+  .minimal-ui .decision-zone.focus-mode .decision-primary-card>b{font-size:18px;margin-bottom:8px}
+  .minimal-ui .decision-zone.focus-mode .alert-channel{padding:6px 0;border-top:0}
+}
+
 /* Desktop density: remove the duplicated strip, compress chrome, return height to the chart. */
 @media(min-width:1101px){
   :root:not([data-theme="light"]) .minimal-ui .topbar{height:54px;min-height:54px}

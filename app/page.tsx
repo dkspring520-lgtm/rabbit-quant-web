@@ -1474,6 +1474,13 @@ export default function Home() {
       const placed=reserveLabel(point.x,isSell?point.y-13:point.y+22,labelWidth,18,isSell?-1:1);
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
+    const recentQualifiedLabelKeys=new Set(
+      visibleChartObservations
+        .filter(observation=>observation.stage!=="watch")
+        .slice(-3)
+        .map(observation=>`${observation.time}-${observation.direction}`)
+    );
+    const latestWatchObservation=[...visibleChartObservations].reverse().find(observation=>observation.stage==="watch")??null;
     const observations=visibleChartObservations.flatMap((observation,index)=>{
       const point=pointPosition(observation.time,observation.price);
       if(!point)return [];
@@ -1487,7 +1494,12 @@ export default function Home() {
       // Candidate dots are actionable observations, not decorative markers.
       // Keep their short labels on mobile as well; reserveLabel() already
       // spreads overlapping labels without changing their confirmation time.
-      const labelVisible=true;
+      // Keep every causal marker as a dot, but only label the latest watch and
+      // the three newest promoted signals. Formal actions remain fully labelled.
+      // This prevents dense history from covering the live price structure.
+      const labelVisible=qualified
+        ? recentQualifiedLabelKeys.has(`${observation.time}-${observation.direction}`)
+        : observation===latestWatchObservation;
       const placed=labelVisible
         ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
         : {labelX:point.x,labelY:point.y};
