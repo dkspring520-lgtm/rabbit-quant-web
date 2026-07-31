@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 type BillingCycle = "monthly" | "yearly";
 
 const memberFeatures = [
-  "紫金矿业 L2 十档与逐笔订单流",
+  "实时行情增强与秒级状态确认",
   "9:25 盘前预判与实时买卖关注区",
   "秒级候选—确认—失效状态机",
   "语音、弹窗与手机后台提醒",
@@ -19,9 +19,9 @@ const compareRows = [
   ["监控股票", "2 只", "5 只", "5 只"],
   ["基础分时、VWAP 与量价观察", "支持", "支持", "支持"],
   ["普通候选观察点", "支持", "支持", "支持"],
-  ["紫金 L2 主力追踪", "—", "支持", "支持"],
+  ["实时行情增强", "—", "支持", "支持"],
   ["9:25 盘前预判", "—", "支持", "支持"],
-  ["秒级订单流状态机", "—", "支持", "支持"],
+  ["秒级行情状态机", "—", "支持", "支持"],
   ["精确正T / 反T关注区", "—", "支持", "支持"],
   ["提醒历史与手机后台推送", "—", "支持", "支持"],
   ["个人回放训练", "—", "支持", "支持"],
@@ -30,7 +30,7 @@ const compareRows = [
 
 const faqs = [
   ["会员会自动下单吗？", "不会。当前系统只做行情研究、提醒和复盘，券商下单接口保持关闭。"],
-  ["L2 是否覆盖所有股票？", "当前 L2 深度体系只对紫金矿业 601899 开放；其他股票使用公开行情与通用 Smart-T 逻辑。"],
+  ["实时行情增强是否覆盖所有股票？", "高级实时行情增强优先支持核心研究标的；其他股票继续使用公开行情与通用 Smart-T 逻辑。"],
   ["是否保证胜率或收益？", "不保证。会员购买的是数据整理、因果判断与研究工具，不是收益承诺。"],
   ["邀请奖励还能使用吗？", "可以。每位有效邀请增加 7 天会员权益，与付费获得的有效期顺延累计。"],
   ["是否自动续费？", "当前不自动续费。支付接口尚未接入，不会产生静默扣款。"],
@@ -79,7 +79,7 @@ export default function PricingPage() {
     <section className="pricing-hero">
       <span>RABBIT QUANT MEMBERSHIP</span>
       <h1>先免费验证，<br/><strong>需要更快、更深时再升级。</strong></h1>
-      <p>基础行情与候选观察永久免费。会员增加紫金矿业 L2、秒级订单流确认、盘前预判、提醒历史和个人训练。</p>
+      <p>基础行情与候选观察永久免费。会员增加实时行情增强、秒级状态确认、盘前预判、提醒历史和个人训练。</p>
       <div className="pricing-trust"><span>不自动续费</span><span>不连接券商下单</span><span>不承诺收益</span></div>
     </section>
 
@@ -111,7 +111,7 @@ export default function PricingPage() {
           <span>短期体验</span><h2>24 小时体验票</h2>
           <div className="pricing-value"><b>¥4.9</b><small>/24小时</small></div>
           <p>适合完整测试一个交易日，不自动转成月费。</p>
-          <ul><li>24 小时会员研究能力</li><li>紫金 L2 与秒级候选确认</li><li>提醒历史和回放复盘</li><li>到期自动恢复免费版</li></ul>
+          <ul><li>24 小时会员研究能力</li><li>实时行情增强与秒级候选确认</li><li>提醒历史和回放复盘</li><li>到期自动恢复免费版</li></ul>
           <Link href="/?view=membership">申请体验</Link>
         </article>
       </div>
@@ -135,7 +135,7 @@ export default function PricingPage() {
     </section>
 
     <section className="pricing-cta">
-      <div><span>先看懂，再决定</span><h2>免费版足够验证界面与基础逻辑。</h2><p>确认 L2、提醒和个人训练确实适合你，再申请开通会员。</p></div>
+      <div><span>先看懂，再决定</span><h2>免费版足够验证界面与基础逻辑。</h2><p>确认实时行情增强、提醒和个人训练确实适合你，再申请开通会员。</p></div>
       <div><Link href="/">进入免费版</Link><Link href="/?view=membership">登录查看权益</Link></div>
     </section>
 
