@@ -752,15 +752,18 @@ class Collector:
                 connection = None
                 connected_at = time.time()
                 try:
-                    connection = await nats.connect(
-                        servers=[self.url],
-                        user=self.user,
-                        password=self.password,
-                        error_cb=error_callback,
-                        disconnected_cb=disconnected_callback,
-                        reconnect_time_wait=1,
-                        max_reconnect_attempts=0,
-                        connect_timeout=3,
+                    connection = await asyncio.wait_for(
+                        nats.connect(
+                            servers=[self.url],
+                            user=self.user,
+                            password=self.password,
+                            error_cb=error_callback,
+                            disconnected_cb=disconnected_callback,
+                            reconnect_time_wait=1,
+                            max_reconnect_attempts=0,
+                            connect_timeout=3,
+                        ),
+                        timeout=5,
                     )
                     self.connected = True
                     self.authorization_error = False
