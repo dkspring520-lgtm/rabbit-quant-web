@@ -45,7 +45,8 @@ services:
     env_file:
       - /opt/rabbit-quant-secrets/l2.env
     environment:
-      L2_NATS_URL: nats://quote5.base32.cn:4222
+      L2_NATS_URL: nats://quote6.base32.cn:4222
+      L2_NATS_URLS: nats://quote6.base32.cn:4222,nats://quote2.base32.cn:4222,nats://quote1.base32.cn:4222,nats://quote5.base32.cn:4222
       L2_SYMBOL: "601899"
       L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
       L2_FORWARD_PATH: /training-state/zijin-l2-forward.jsonl

@@ -1407,6 +1407,9 @@ export default function Home() {
         key:`action-${recentAction.time}-${recentAction.side}`,
         label:sell?"卖点提醒":"买点提醒",
         tone:sell?"sell":"buy",
+        source:"action" as const,
+        time:recentAction.time,
+        price:recentAction.price,
       };
     }
     const displacement=isZijinStock?evaluateZijinDisplacementWatch(minutePoints):null;
@@ -1415,6 +1418,9 @@ export default function Home() {
         key:`displacement-${displacement.id}`,
         label:displacement.label,
         tone:displacement.direction==="反T"?"sell":"buy",
+        source:"displacement" as const,
+        time:displacement.time,
+        price:displacement.price,
       };
     }
     const recentObservation=[...currentObservations].reverse().find(observation=>isRecentCausalEvent(latestTime,observation.time,2));
@@ -1425,10 +1431,13 @@ export default function Home() {
       key:`observation-${recentObservation.time}-${rawLabel}`,
       label:rawLabel.length>8?`${rawLabel.slice(0,7)}…`:rawLabel,
       tone:"watch",
+      source:"observation" as const,
+      time:recentObservation.time,
+      price:recentObservation.price,
     };
   },[currentObservations,isZijinStock,liveEngine.actions,minutePoints]);
   const intradayMarkerLayout=useMemo(()=>{
-    if(!chartModel)return {observations:[],actions:[]};
+    if(!chartModel)return {observations:[],actions:[],rabbitCandidates:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
     const occupied:LabelBox[]=[];
     const pointPosition=(time:string,price?:number)=>{
@@ -1483,8 +1492,28 @@ export default function Home() {
         : {labelX:point.x,labelY:point.y};
       return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,labelVisible,observation}];
     });
-    return {observations,actions};
-  },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions]);
+    // The rabbit can surface the faster displacement candidate before the
+    // minute engine promotes it into replay.observations. Keep that causal
+    // point on the chart at the exact signal minute/price after the rabbit
+    // moves on, instead of leaving the only evidence in a transient bubble.
+    const rabbitCandidates=rabbitTrackerSignal?.source==="displacement"
+      ?(()=>{
+          const point=pointPosition(rabbitTrackerSignal.time,rabbitTrackerSignal.price);
+          if(!point)return [];
+          const duplicate=observations.some(marker=>
+            marker.observation.time===rabbitTrackerSignal.time
+            && marker.currentLabel===rabbitTrackerSignal.label
+          );
+          if(duplicate)return [];
+          const isSell=rabbitTrackerSignal.tone==="sell";
+          const label=rabbitTrackerSignal.label;
+          const labelWidth=label.length*8+16;
+          const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
+          return [{...point,...placed,isSell,label,labelWidth,key:rabbitTrackerSignal.key}];
+        })()
+      :[];
+    return {observations,actions,rabbitCandidates};
+  },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -2555,6 +2584,7 @@ export default function Home() {
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
+              {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} with-label`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text><circle cx={marker.x} cy={marker.y} r="5"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
                 <image className="rabbit-brand-reference" href="/rabbit-daylight-pair.webp" width="0" height="0" opacity="0" aria-hidden="true"/>
