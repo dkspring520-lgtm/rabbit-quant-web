@@ -200,6 +200,55 @@
 :root[data-theme="light"] .yao-line i{background:#9e8759}
 :root[data-theme="light"] .tech dl div{border-bottom-color:#e4e6e8}
 :root[data-theme="light"] .meter{background:#e8eceb}
+:root[data-theme="light"] .forecast-card{
+  background:
+    radial-gradient(circle at 92% 4%,rgba(217,155,53,.07),transparent 30%),
+    linear-gradient(145deg,#fff,#fbfcfb)!important
+}
+:root[data-theme="light"] .forecast-card:before{
+  border-color:rgba(168,117,33,.1);
+  box-shadow:0 0 0 34px rgba(168,117,33,.018),0 0 0 68px rgba(168,117,33,.012)
+}
+:root[data-theme="light"] .forecast-card header h2{color:#20202a}
+:root[data-theme="light"] .forecast-card header strong{color:#5f8f7d}
+:root[data-theme="light"] .forecast-card header strong i{color:#858d89}
+:root[data-theme="light"] .forecast-card .meter i{
+  background:linear-gradient(90deg,#4d927e 0 58%,#c69a48 82%,#d7c48f 100%)
+}
+:root[data-theme="light"] .forecast-card dl{
+  gap:0;
+  border:1px solid #dde4e1;
+  background:#dde4e1
+}
+:root[data-theme="light"] .forecast-card dl div{
+  min-height:92px;
+  padding:17px 20px;
+  border:0;
+  background:#f8faf9
+}
+:root[data-theme="light"] .forecast-card dl div:nth-child(1),
+:root[data-theme="light"] .forecast-card dl div:nth-child(4),
+:root[data-theme="light"] .forecast-card dl div:nth-child(5){background:#f3f7f5}
+:root[data-theme="light"] .forecast-card dt{
+  color:#77837e;
+  font-weight:600
+}
+:root[data-theme="light"] .forecast-card dd{
+  color:#8f6928;
+  font-weight:650
+}
+:root[data-theme="light"] .forecast-card .future-path{color:#6e6b78}
+:root[data-theme="light"] .forecast-card footer button{
+  border-color:#d9c69f;
+  background:#fffdf8;
+  color:#896321
+}
+:root[data-theme="light"] .forecast-card footer .share-trigger{
+  border-color:#c9aa68;
+  background:linear-gradient(135deg,#d4b267,#b88d3c);
+  color:#242016
+}
+:root[data-theme="light"] .result-seal{color:#74827c}
 :root[data-theme="light"] .forecast-chart{
   background:
     radial-gradient(circle at 88% 0,rgba(217,155,53,.045),transparent 28%),
