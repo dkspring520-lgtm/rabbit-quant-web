@@ -1062,3 +1062,14 @@
 .second-level-state.watch{border-color:color-mix(in srgb,var(--amber) 38%,var(--line-soft))}
 .second-level-state.watch>b{color:var(--amber)}
 .second-level-state.invalid,.second-level-state.expired,.second-level-state.cooldown{opacity:.72}
+.quant-tools-page{min-height:calc(100vh - 64px);padding:42px clamp(20px,4vw,68px);background:var(--bg)}
+.quant-tools-head{margin-bottom:24px}
+.quant-tools-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:920px}
+.quant-tools-grid button{min-height:116px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--text);padding:22px;display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:16px;text-align:left;cursor:pointer;transition:border-color .18s ease,transform .18s ease,background .18s ease}
+.quant-tools-grid button:hover{border-color:rgba(40,215,196,.5);background:var(--surface-2);transform:translateY(-2px)}
+.quant-tools-grid button>i{width:44px;height:44px;border-radius:12px;background:rgba(40,215,196,.09);color:var(--teal);display:grid;place-items:center;font-size:20px;font-style:normal}
+.quant-tools-grid button span{display:grid;gap:7px}
+.quant-tools-grid button b{font-size:18px}
+.quant-tools-grid button small{color:var(--muted);font-size:13px}
+.quant-tools-grid button em{font-style:normal;color:var(--teal);font-size:12px}
+@media(max-width:700px){.quant-tools-page{padding:24px 14px 88px}.quant-tools-grid{grid-template-columns:1fr;gap:10px}.quant-tools-grid button{min-height:88px;padding:16px}}

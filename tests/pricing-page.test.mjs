@@ -16,7 +16,8 @@ test("pricing states the current commercial and execution boundaries", () => {
   assert.match(pricing, /支付接口尚未接入，暂由管理员人工开通/);
   assert.match(pricing, /不自动续费/);
   assert.match(pricing, /自动下单不在任何套餐内/);
-  assert.match(pricing, /当前 L2 深度体系只对紫金矿业 601899 开放/);
+  assert.match(pricing, /高级实时行情增强优先支持核心研究标的/);
+  assert.doesNotMatch(pricing, /紫金(?:矿业)? L2|L2 十档与逐笔订单流/);
 });
 
 test("public landing links to the membership pricing page", () => {
