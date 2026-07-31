@@ -54,7 +54,7 @@ export default function PricingPage() {
     localStorage.setItem("rabbit-ui-theme", next);
   };
 
-  const memberPrice = cycle === "yearly" ? "365" : "39";
+  const memberPrice = cycle === "yearly" ? "99" : "19";
   const memberUnit = cycle === "yearly" ? "年" : "月";
 
   return <main className="pricing-page">
@@ -86,7 +86,7 @@ export default function PricingPage() {
     <section className="pricing-plans" id="plans">
       <div className="billing-toggle" aria-label="计费周期">
         <button className={cycle === "monthly" ? "active" : ""} onClick={() => setCycle("monthly")}>按月</button>
-        <button className={cycle === "yearly" ? "active" : ""} onClick={() => setCycle("yearly")}>按年 <em>省 22%</em></button>
+        <button className={cycle === "yearly" ? "active" : ""} onClick={() => setCycle("yearly")}>按年 <em>省 57%</em></button>
       </div>
 
       <div className="pricing-grid">
@@ -102,7 +102,7 @@ export default function PricingPage() {
           <div className="pricing-badge">推荐</div>
           <span>完整研究能力</span><h2>Smart-T 会员</h2>
           <div className="pricing-value"><b>¥{memberPrice}</b><small>/{memberUnit}</small></div>
-          <p>{cycle === "yearly" ? "约 ¥1/天，适合持续盯盘、复盘和积累个人样本。" : "灵活按月开通，适合先完整体验一轮实盘监控。"}</p>
+          <p>{cycle === "yearly" ? "一年不到百元，适合持续盯盘、复盘和积累个人样本。" : "一杯奶茶钱，完整体验实时监控与复盘。"}</p>
           <ul>{memberFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
           <Link href="/?view=membership">登录后申请开通</Link>
         </article>
