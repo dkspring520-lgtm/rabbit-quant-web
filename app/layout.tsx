@@ -16,6 +16,7 @@ import "./minimal.css";
 import "./theme.css";
 import "./bunny-light.css";
 import "./brand-cute.css";
+import "./pricing.css";
 
 export const viewport: Viewport = {
   width: "device-width",
