@@ -68,7 +68,7 @@
 @media(max-width:760px){.after-hours-strip{padding:0 12px;overflow-x:auto;white-space:nowrap}.after-hours-strip small{margin-left:0}}
 
 /* Branded formal-signal alerts: left rabbit buys, right rabbit sells. */
-.alert-channel{display:grid;grid-template-columns:1fr repeat(3,auto);align-items:center;gap:7px;margin:10px 0;padding:9px 10px;border:1px solid var(--line);background:rgba(255,255,255,.018)}.alert-channel>div{display:grid;gap:3px;min-width:0}.alert-channel span{font-size:10px;color:var(--text);font-weight:700}.alert-channel small{font-size:8px;color:var(--dim);line-height:1.45}.alert-channel button{border:1px solid var(--line);background:#090c0b;color:var(--muted);border-radius:4px;padding:6px 8px;font-size:8px;cursor:pointer;white-space:nowrap}.alert-channel button.active{border-color:rgba(40,215,196,.48);background:rgba(40,215,196,.1);color:var(--teal)}
+.alert-channel{display:grid;grid-template-columns:1fr repeat(3,auto);align-items:center;gap:7px;margin:10px 0;padding:9px 10px;border:1px solid var(--line);background:rgba(255,255,255,.018)}.alert-channel>div{display:grid;gap:3px;min-width:0}.alert-channel span{font-size:10px;color:var(--text);font-weight:700}.alert-channel small{font-size:8px;color:var(--dim);line-height:1.45}.alert-channel button{border:1px solid var(--line);background:#090c0b;color:var(--muted);border-radius:4px;padding:6px 8px;font-size:8px;cursor:pointer;white-space:nowrap}.alert-channel button.active{border-color:rgba(40,215,196,.48);background:rgba(40,215,196,.1);color:var(--teal)}.mobile-push-guide{grid-column:1/-1;width:100%;border-top:1px solid var(--line-soft);padding-top:8px;color:var(--muted)}.mobile-push-guide summary{cursor:pointer;font-size:9px;color:var(--teal);list-style-position:inside}.mobile-push-guide>div{display:grid;gap:8px;margin-top:9px;padding:10px;border:1px solid var(--line-soft);background:rgba(255,255,255,.018)}.mobile-push-guide p{display:grid;gap:3px;margin:0}.mobile-push-guide p b{font-size:10px;color:var(--text)}.mobile-push-guide p span,.mobile-push-guide>div>small{font-size:9px;line-height:1.65;color:var(--muted)}
 .trade-alert-stack{display:grid;gap:6px;margin:0 0 10px}.trade-alert-toast{position:relative;display:grid;flex:0 0 auto;min-height:62px;grid-template-columns:46px minmax(0,1fr) 18px;align-items:center;gap:9px;margin:0;padding:8px 8px 8px 6px;border:1px solid rgba(40,215,196,.42);border-radius:10px;background:linear-gradient(110deg,rgba(40,215,196,.1),rgba(7,12,11,.98) 58%);box-shadow:0 9px 22px rgba(0,0,0,.28);overflow:hidden}.trade-alert-toast.risk{border-color:rgba(255,100,100,.58);background:linear-gradient(110deg,rgba(255,100,100,.12),rgba(15,8,8,.98) 58%)}.rabbit-speaker{width:46px;height:46px;background-image:url('/rabbit-logo-compact.png');background-repeat:no-repeat;background-size:92px auto;background-position:left center;filter:drop-shadow(0 3px 5px rgba(0,0,0,.4))}.rabbit-speaker.sell{background-position:right center}.rabbit-speaker.both{background-size:contain;background-position:center}.rabbit-speech{display:grid;gap:2px;min-width:0}.rabbit-speech small{font-size:8px;color:var(--teal);font-weight:800;letter-spacing:.08em}.trade-alert-toast.risk .rabbit-speech small{color:var(--coral)}.rabbit-speech b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.3}.rabbit-speech>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px;color:var(--muted);line-height:1.4}.trade-alert-detail{margin-top:1px;color:var(--dim);font-size:8px}.trade-alert-detail summary{width:max-content;color:var(--muted);cursor:pointer;list-style:none}.trade-alert-detail summary::-webkit-details-marker{display:none}.trade-alert-detail summary:after{content:" ›"}.trade-alert-detail[open] summary:after{content:" ⌄"}.trade-alert-detail p{margin:5px 0 1px;padding:6px 7px;border-left:2px solid rgba(40,215,196,.32);background:rgba(255,255,255,.025);color:var(--muted);line-height:1.45}.trade-alert-toast.risk .trade-alert-detail p{border-left-color:rgba(255,100,100,.4)}.trade-alert-toast>button{align-self:start;border:0;background:transparent;color:var(--dim);font-size:15px;cursor:pointer;padding:0}.trade-alert-toast>button:hover{color:var(--text)}
 .trade-alert-toast.candidate{border-color:rgba(240,184,74,.58);background:linear-gradient(110deg,rgba(240,184,74,.14),rgba(14,11,6,.98) 62%)}.trade-alert-toast.candidate .rabbit-speech small{color:var(--amber)}
 .candidate-signal-marker.watch{opacity:.58}.candidate-signal-marker.watch circle{stroke:var(--amber);stroke-width:1.5}.candidate-signal-marker.watch text{fill:var(--amber);font-size:6.5px;font-weight:650}
@@ -180,7 +180,7 @@
 .member-admin-error{margin:14px 20px 0;padding:10px 12px;border:1px solid rgba(255,98,93,.42);color:#ff8883;background:rgba(255,98,93,.07);font-size:10px}
 .member-reset-token{position:relative;display:grid;gap:7px;margin:14px 20px 0;padding:13px 145px 13px 14px;border:1px solid rgba(242,184,75,.35);background:rgba(242,184,75,.06)}.member-reset-token span{font-size:9px;color:var(--amber)}.member-reset-token code{font:700 15px var(--font-geist-mono);color:var(--text);overflow-wrap:anywhere}.member-reset-token small{color:var(--muted);font-size:8px}.member-reset-token button{position:absolute;right:13px;top:50%;transform:translateY(-50%);border:1px solid rgba(242,184,75,.45);background:#0b0e0d;color:var(--amber);padding:8px 11px;cursor:pointer}
 .member-admin-summary{display:flex;align-items:center;gap:1px;margin:14px 20px;background:var(--line)}.member-admin-summary span{flex:1;padding:12px 14px;background:var(--surface);font-size:9px;color:var(--muted)}.member-admin-summary b{display:block;margin-top:5px;color:var(--text);font-size:16px}.member-admin-summary button{align-self:stretch;border:0;background:var(--teal);color:#03100e;padding:0 18px;font-weight:750;cursor:pointer}
-.member-table{margin:0 20px 22px;border:1px solid var(--line)}.member-row{display:grid;grid-template-columns:1.5fr .55fr .7fr 1fr 1fr;align-items:center;min-height:58px;border-bottom:1px solid var(--line-soft)}.member-row:last-child{border-bottom:0}.member-row>span{min-width:0;padding:10px 12px;font-size:9px;color:var(--muted)}.member-row>span:first-child{display:grid;gap:4px}.member-row b{color:var(--text);font-size:10px}.member-row small{color:var(--dim);font-size:8px}.member-row em{display:inline-block;font-style:normal;padding:3px 7px;border:1px solid var(--line);border-radius:20px}.member-row em.active{color:var(--teal);border-color:rgba(40,215,196,.3)}.member-row em.paused{color:var(--amber);border-color:rgba(242,184,75,.3)}.member-row>span:last-child{display:flex;gap:6px}.member-row button{border:1px solid var(--line);background:#0b0e0d;color:var(--muted);padding:6px 9px;cursor:pointer}.member-row button:hover{border-color:var(--teal);color:var(--teal)}.member-row button:disabled{opacity:.45}.member-head{min-height:34px;background:var(--surface)}.member-head>span{font-size:8px;color:var(--dim);letter-spacing:.06em}
+.member-table{margin:0 20px 22px;border:1px solid var(--line)}.member-row{display:grid;grid-template-columns:1.35fr .6fr .55fr .9fr 1.45fr;align-items:center;min-height:58px;border-bottom:1px solid var(--line-soft)}.member-row:last-child{border-bottom:0}.member-row>span{min-width:0;padding:10px 12px;font-size:9px;color:var(--muted)}.member-row>span:first-child{display:grid;gap:4px}.member-row b{color:var(--text);font-size:10px}.member-row small{color:var(--dim);font-size:8px}.member-row em{display:inline-block;font-style:normal;padding:3px 7px;border:1px solid var(--line);border-radius:20px}.member-row em.active{color:var(--teal);border-color:rgba(40,215,196,.3)}.member-row em.paused{color:var(--amber);border-color:rgba(242,184,75,.3)}.member-row>span:last-child{display:flex;flex-wrap:wrap;gap:6px}.member-row button{border:1px solid var(--line);background:#0b0e0d;color:var(--muted);padding:6px 9px;cursor:pointer}.member-row button:hover{border-color:var(--teal);color:var(--teal)}.member-row button:disabled{opacity:.45}.member-head{min-height:34px;background:var(--surface)}.member-head>span{font-size:8px;color:var(--dim);letter-spacing:.06em}
 @media(max-width:760px){.member-admin-overlay{padding:0;place-items:stretch}.member-admin-panel{width:100%;max-height:100vh}.member-admin-summary{display:grid;grid-template-columns:1fr 1fr}.member-admin-summary button{min-height:42px}.member-row{grid-template-columns:1fr 1fr}.member-head{display:none}.member-row>span:first-child,.member-row>span:last-child{grid-column:1/-1}.member-reset-token{padding-right:14px}.member-reset-token button{position:static;transform:none;justify-self:start}}
 .stock-agent-switch{margin:0 0 9px;padding:9px 10px;border:1px solid rgba(46,207,192,.2);background:rgba(46,207,192,.035);display:flex;align-items:center;justify-content:space-between;gap:10px}.stock-agent-switch>div:first-child{min-width:0;display:grid;gap:2px}.stock-agent-switch span{font-size:8px;letter-spacing:.1em;color:var(--dim)}.stock-agent-switch b{font-size:11px;color:var(--teal)}.stock-agent-switch small{font-size:8px;line-height:1.4;color:var(--muted)}.stock-agent-switch-actions{display:flex;flex:0 0 auto;gap:5px}.stock-agent-switch-actions button{border:1px solid var(--line);background:#0a0d0c;color:var(--muted);padding:6px 8px;font-size:8px;cursor:pointer}.stock-agent-switch-actions button.active{border-color:rgba(46,207,192,.55);background:rgba(46,207,192,.12);color:var(--teal)}.stock-agent-switch-actions button.research.active{border-color:rgba(221,169,53,.55);background:rgba(221,169,53,.1);color:var(--amber)}
 @media(max-width:760px){.stock-agent-switch{align-items:flex-start;flex-direction:column}.stock-agent-switch-actions{width:100%}.stock-agent-switch-actions button{flex:1}}
@@ -660,30 +660,26 @@
 :root:not([data-theme="light"]) .minimal-ui .alert-channel>div:first-child span{font-size:9px}
 :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions{
   display:grid!important;
-  grid-template-columns:repeat(5,minmax(34px,auto));
+  grid-template-columns:repeat(3,minmax(74px,auto));
   justify-content:end;
   gap:5px
 }
 :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions button{
-  min-width:34px;
-  height:30px;
-  padding:0 7px;
+  min-width:74px;
+  height:32px;
+  padding:0 9px;
   border:1px solid rgba(154,164,161,.18);
   border-left-width:1px;
   background:#090d0c;
-  color:#7e8885;
-  opacity:.72
+  color:#a5afac;
+  opacity:.86;
+  font-size:9px
 }
 :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel{
-  width:34px;
-  padding:0;
-  overflow:hidden;
-  font-size:0
+  width:auto;
+  overflow:visible;
+  font-size:9px
 }
-:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel::before{font-size:13px}
-:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.sound::before{content:"🔊"}
-:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.system::before{content:"🔔"}
-:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.mobile::before{content:"▣"}
 :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.sound,
 :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.system,
 :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .channel.mobile{border-left-color:rgba(154,164,161,.18)}
@@ -843,13 +839,107 @@
 /* Low-frequency controls stay in one quiet row. */
 :root:not([data-theme="light"]) .minimal-ui .alert-channel>div:first-child small{display:none}
 :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .utility{
-  width:34px;
-  min-width:34px;
-  overflow:hidden;
-  font-size:0
+  width:auto;
+  min-width:74px;
+  overflow:visible;
+  font-size:9px
 }
-:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .utility:first-child::before{content:"◉";font-size:12px}
-:root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .utility:nth-child(2)::before{content:"≡";font-size:14px}
+
+@media(max-width:760px){
+  :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions{
+    width:100%;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    justify-content:stretch;
+    gap:8px
+  }
+  :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions button,
+  :root:not([data-theme="light"]) .minimal-ui .alert-channel-actions .utility{
+    width:100%;
+    min-width:0;
+    height:38px;
+    font-size:11px
+  }
+}
+
+/* Portrait phones use a compact monitoring chart instead of squeezing the
+   desktop terminal into a narrow column. Landscape and desktop are unchanged. */
+@media(max-width:760px) and (orientation:portrait){
+  .minimal-ui .chart-zone,
+  .minimal-ui .workspace.with-main-force .chart-zone{
+    height:auto;
+    min-height:0
+  }
+  .minimal-ui .chart-tools{
+    min-height:42px;
+    height:auto;
+    flex-basis:auto;
+    padding:7px 9px;
+    gap:6px;
+    flex-wrap:wrap
+  }
+  .minimal-ui .chart-tools .auxiliary-indicators,
+  .minimal-ui .chart-tools .live-scan,
+  .minimal-ui .chart-tools .intraday-only{
+    display:none
+  }
+  .minimal-ui .chart-wrap{
+    flex:0 0 auto;
+    min-height:0;
+    padding:6px 0 4px
+  }
+  .minimal-ui .chart-wrap svg{
+    display:block;
+    width:100%;
+    height:auto;
+    aspect-ratio:920/330
+  }
+  .minimal-ui .intraday-percent-label,
+  .minimal-ui .grid-line.vertical,
+  .minimal-ui .zijin-chart-price-overlay text,
+  .minimal-ui .peak-volume-marker text,
+  .minimal-ui .peak-volume-marker line,
+  .minimal-ui .bias-path,
+  .minimal-ui .hk-zijin-path,
+  .minimal-ui .future-session-boundary{
+    display:none
+  }
+  .minimal-ui .grid-line:not(.previous-close-line){opacity:.42}
+  .minimal-ui .price-plan-band{opacity:.45}
+  .minimal-ui .intraday-hud{
+    top:8px;
+    right:8px;
+    max-width:132px;
+    padding:5px 7px
+  }
+  .minimal-ui .intraday-hud small{display:none}
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.watch>rect,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.watch>text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.watch>.marker-label-leader{
+    display:none
+  }
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.rabbit-candidate-marker>rect,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.rabbit-candidate-marker>text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.rabbit-candidate-marker>.marker-label-leader,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.buy>rect,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.buy>text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.buy>.marker-label-leader,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.sell>rect,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.sell>text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.sell>.marker-label-leader{
+    display:block;
+    opacity:1
+  }
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.rabbit-candidate-marker text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.buy text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.sell text{
+    font-size:12px;
+    font-weight:800
+  }
+  .minimal-ui .main-force-track{
+    height:112px;
+    flex-basis:112px
+  }
+}
 
 /* Desktop density: remove the duplicated strip, compress chrome, return height to the chart. */
 @media(min-width:1101px){
@@ -1087,3 +1177,63 @@
 .home-pricing article.recommended{border-color:rgba(40,215,196,.45)}
 .home-pricing article>em{position:absolute;top:12px;right:12px;padding:3px 7px;border-radius:999px;background:rgba(40,215,196,.1);color:var(--teal);font-size:9px;font-style:normal}
 @media(max-width:700px){.home-pricing{margin:12px;padding:16px}.home-pricing>header{align-items:flex-start}.home-pricing>header h2{font-size:18px}.home-pricing>div{grid-template-columns:1fr}.home-pricing article{padding:14px}}
+
+/* Final portrait override: the desktop SVG keeps a wide viewBox, so mobile
+   candidate text must be deliberately enlarged and the non-action layers
+   must stay suppressed after all theme rules have been applied. */
+@media(max-width:760px) and (orientation:portrait){
+  .minimal-ui .chart-tools{
+    min-height:42px;
+    height:auto;
+    flex-basis:auto;
+    padding:7px 9px
+  }
+  .minimal-ui .chart-wrap{
+    overflow:hidden
+  }
+  .minimal-ui .chart-wrap svg{
+    width:100%;
+    height:auto;
+    aspect-ratio:920/360
+  }
+  .minimal-ui .intraday-percent-label,
+  .minimal-ui .grid-line.vertical,
+  .minimal-ui .zijin-chart-price-overlay text,
+  .minimal-ui .peak-volume-marker text,
+  .minimal-ui .peak-volume-marker line,
+  .minimal-ui .bias-path,
+  .minimal-ui .hk-zijin-path,
+  .minimal-ui .future-session-boundary{
+    display:none!important
+  }
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.watch>rect,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.watch>text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.watch>.marker-label-leader{
+    display:none!important
+  }
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.rabbit-candidate-marker>rect,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.buy>rect,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.sell>rect,
+  .minimal-ui .interactive-intraday-chart .live-signal-marker>rect,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.rabbit-candidate-marker>.marker-label-leader,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.buy>.marker-label-leader,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.sell>.marker-label-leader,
+  .minimal-ui .interactive-intraday-chart .live-signal-marker>.marker-label-leader{
+    display:none!important
+  }
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.rabbit-candidate-marker>text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.buy>text,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.sell>text,
+  .minimal-ui .interactive-intraday-chart .live-signal-marker>text{
+    display:block!important;
+    opacity:1!important;
+    font-size:20px!important;
+    font-weight:850!important;
+    letter-spacing:0!important;
+    stroke-width:3px!important
+  }
+  .minimal-ui .main-force-track{
+    height:96px;
+    flex-basis:96px
+  }
+}

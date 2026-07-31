@@ -64,6 +64,26 @@ test("normalization clamps invalid inventory and never allows sellable above ope
   });
 });
 
+test("optional T limits are rounded and clamped to the confirmed position", () => {
+  assert.deepEqual(normalizeStockPosition({
+    plannedBase: 5000,
+    openingShares: 5000,
+    sellable: 5000,
+    tradeShares: 1888,
+    maxDailyTrades: 99,
+  }, "601899"), {
+    v: 1,
+    code: "601899",
+    plannedBase: 5000,
+    openingShares: 5000,
+    sellable: 5000,
+    tradeShares: 1800,
+    maxDailyTrades: 10,
+    needsConfirmation: false,
+    updatedAt: null,
+  });
+});
+
 test("legacy global shares require trusted provenance and migrate only as a plan", () => {
   const legacy = { stock: "601899 紫金矿业", baseShares: 6000 };
 
