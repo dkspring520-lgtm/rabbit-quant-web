@@ -80,8 +80,30 @@ export type SmartTReplayResult = {
     exitPrice: number;
     exitLabel: string;
     grossPct: number;
+    holdingMinutes: number;
+    mfePct: number;
+    maePct: number;
+    bestTime: string;
+    worstTime: string;
+    outcomeMode: "post-replay-causal";
     favorable: boolean;
     status: string;
+  }>;
+  candidateOutcomes: Array<{
+    direction: "正T" | "反T";
+    time: string;
+    price: number;
+    outcomeMode: "post-replay-fixed-horizon";
+    horizons: Array<{
+      minutes: number;
+      complete: boolean;
+      endTime?: string;
+      returnPct?: number;
+      mfePct?: number;
+      maePct?: number;
+      bestTime?: string;
+      worstTime?: string;
+    }>;
   }>;
   openCandidate: null | {
     direction: "正T" | "反T";
@@ -195,10 +217,11 @@ export function causalBrokerAtrScale(
   source: string;
   available: boolean;
 };
-export function buildCandidateObservationCycles(observations: SmartTObservation[]): {
+export function buildCandidateObservationCycles(observations: SmartTObservation[], points?: SmartTMinute[]): {
   cycles: SmartTReplayResult["candidateCycles"];
   open: SmartTReplayResult["openCandidate"];
 };
+export function buildCandidateOutcomeLedger(observations: SmartTObservation[], points: SmartTMinute[], horizons?: number[]): SmartTReplayResult["candidateOutcomes"];
 export function confirmCandidateDirectionFlip(input: {
   oppositeCandidate?: null | { minute: number };
   pairEconomicallyDistinct: boolean;

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-31",
+  "stock": {
+    "code": "601899",
+    "name": "紫金矿业"
+  },
+  "methodology": {
+    "causal": true,
+    "futureMinutesReadBySignal": false,
+    "selection": "2022-2025",
+    "holdout": "2026 through 2026-04-17",
+    "formalCosts": "佣金0.025%、最低5元、印花税、双边滑点0.02%",
+    "candidateLedger": "信号发生后固定5/15/30分钟结算；尾盘不足窗口保持未闭环；只用于研究，不计正式胜率"
+  },
+  "formal": {
+    "selection": {
+      "days": 969,
+      "cycles": 9,
+      "wins": 6,
+      "winRate": 0.6667,
+      "net": 1.36
+    },
+    "holdout": {
+      "days": 68,
+      "cycles": 1,
+      "wins": 0,
+      "winRate": 0,
+      "net": -267.21
+    },
+    "overall": {
+      "days": 1037,
+      "cycles": 10,
+      "wins": 6,
+      "winRate": 0.6,
+      "tradeDayCoverage": 0.009643,
+      "net": -265.84
+    }
+  },
+  "holdoutCandidateOutcomes": {
+    "正T": {
+      "5": { "samples": 53, "positiveRate": 0.3774, "averageReturnPct": -0.06, "averageMfePct": 0.18, "averageMaePct": -0.21 },
+      "15": { "samples": 53, "positiveRate": 0.3396, "averageReturnPct": -0.12, "averageMfePct": 0.31, "averageMaePct": -0.46 },
+      "30": { "samples": 53, "positiveRate": 0.3962, "averageReturnPct": -0.07, "averageMfePct": 0.48, "averageMaePct": -0.61 }
+    },
+    "反T": {
+      "5": { "samples": 42, "positiveRate": 0.5238, "averageReturnPct": 0.01, "averageMfePct": 0.23, "averageMaePct": -0.21 },
+      "15": { "samples": 42, "positiveRate": 0.5, "averageReturnPct": -0.01, "averageMfePct": 0.37, "averageMaePct": -0.36 },
+      "30": { "samples": 42, "positiveRate": 0.4286, "averageReturnPct": -0.04, "averageMfePct": 0.54, "averageMaePct": -0.52 }
+    }
+  },
+  "conclusion": "正式闭环触发率极低且样本外净收益为负；候选固定时窗中正T明显拖累，反T只有短窗略有优势。当前版本不能宣称达到可实盘胜率，应先校准正T承接确认与正式触发覆盖率。"
+}
