@@ -202,23 +202,20 @@
 
 @media (max-width: 760px) {
   .app-shell {
-    padding-bottom: 0;
+    padding-bottom: calc(58px + env(safe-area-inset-bottom));
   }
 
   .topbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: 56px 50px;
+    display: flex;
     align-items: center;
-    height: 106px;
-    min-height: 106px;
+    height: 56px;
+    min-height: 56px;
     padding: 0 9px;
-    gap: 0 6px;
+    gap: 6px;
   }
 
   :root[data-theme] .topbar .brand-lockup {
-    grid-column: 1;
-    grid-row: 1;
+    flex: 1 1 auto;
     min-width: 174px !important;
     padding: 5px 8px;
     gap: 8px;
@@ -227,32 +224,30 @@
   .topbar .top-actions {
     position: relative;
     z-index: 3;
-    grid-column: 2;
-    grid-row: 1;
+    flex: 0 0 auto;
     align-self: center;
   }
 
   .topbar .main-nav {
-    position: static;
-    z-index: 1;
-    grid-column: 1 / -1;
-    grid-row: 2;
-    width: calc(100% + 18px);
-    height: 50px;
-    margin-left: -9px;
-    padding: 0 4px;
+    position: fixed;
+    z-index: 90;
+    inset: auto 0 0;
+    width: 100%;
+    height: calc(58px + env(safe-area-inset-bottom));
+    margin: 0;
+    padding: 0 4px env(safe-area-inset-bottom);
     border-top: 1px solid var(--line);
-    box-shadow: none;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, .28);
   }
 
   .topbar .main-nav button {
-    flex-basis: 70px;
-    height: 50px;
+    flex-basis: 66px;
+    height: 58px;
   }
 
   .topbar .main-nav button.active::after {
-    top: auto;
-    bottom: 0;
+    top: 0;
+    bottom: auto;
   }
 
   .topbar .brand-primary-logo {

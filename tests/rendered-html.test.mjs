@@ -368,12 +368,12 @@ test("public beta has an honest no-registration entry and legal disclosure", asy
   assert.doesNotMatch(layout, /next\/font\/google/);
 });
 
-test("strategy research library does not advertise fabricated rankings or paid subscriptions", async () => {
+test("strategy research library does not advertise fabricated rankings or paid strategy following", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
   assert.match(source, /策略研究与观察库/);
-  assert.match(source, /当前不展示未经审计的用户排行榜、虚拟业绩和收费订阅/);
-  assert.match(source, /收费订阅和真实资金交易保持关闭/);
+  assert.match(source, /当前不展示未经审计的用户策略排行、虚拟业绩或跟单订阅/);
+  assert.match(source, /策略跟单收费和真实资金交易保持关闭/);
   assert.match(source, /研究草稿已保存；当前不会公开、收费或自动执行/);
   assert.doesNotMatch(source, /author:'A客户'/);
   assert.doesNotMatch(source, /订阅并模拟跟随/);
