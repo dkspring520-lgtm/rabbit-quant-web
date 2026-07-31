@@ -2467,7 +2467,7 @@ export default function Home() {
             const active=item==='量化工具' ? groupedToolViews.includes(activeView) : activeView===item;
             return <button onClick={() => setActiveView(item)} className={active ? 'active' : ''} key={item}>{item}</button>;
           })}
-          <button onClick={()=>window.location.assign('/fortune')}>股票算命</button>
+          <button onClick={()=>window.location.assign('/fortune')}>股票占卜</button>
         </nav>
         <div className="top-actions">
           <span className={`market-open ${marketSession.tone}`} title={`${marketSession.label}：${marketSession.detail}；法定节假日以交易所公告为准`} aria-label={`${marketSession.label}：${marketSession.detail}`}><i /><span className="market-open-label">{marketSession.live?"监控中":marketSession.label}</span></span>
