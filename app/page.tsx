@@ -805,6 +805,13 @@ export default function Home() {
     return()=>window.clearTimeout(timer);
   },[authReady,localAuth,stockList]);
   useEffect(()=>{
+    if(!authReady||typeof window==="undefined")return;
+    const requested=new URLSearchParams(window.location.search).get("view");
+    if(requested!=="membership")return;
+    if(localAuth)setAccountOpen(true);
+    else setAuthScreen("account");
+  },[authReady,localAuth]);
+  useEffect(()=>{
     if(activeView!=='单股智研'||stock?.code!=='601899'||typeof window==='undefined')return;
     const params=new URLSearchParams(window.location.search);
     if(params.get('view')!=='zijin-lab')return;
@@ -2862,7 +2869,7 @@ export default function Home() {
       {accountOpen && <div className="account-overlay" role="dialog" aria-modal="true" aria-label="账户中心" onMouseDown={e=>{if(e.target===e.currentTarget)setAccountOpen(false)}}><div className="account-dialog">
         <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>{demoMode?'免注册演示已进入':'服务器账户已登录'}</span><h2>{accountName}</h2><p>{demoMode?'临时演示会话':accountRole==='admin'?'管理员账户':'会员账户 · 跨设备同步'}</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
         <div className="account-plan"><div><span>当前状态</span><b>{demoMode?'免注册演示':accountRole==='admin'?'运营管理员':accountMembership?.active?'内测会员':'内测权益已到期'}</b><small>{demoMode?'不跨设备同步，刷新后可能丢失':accountRole==='admin'?'管理员权益长期有效':accountMembership?.expiresAt?`有效至 ${membershipExpiry}`:'监控清单、持仓设置和提醒偏好已保存到服务器'}</small></div><em>{demoMode?'演示中':accountMembership?.active||accountRole==='admin'?'有效':'已到期'}</em></div>
-        <div className={`account-premium-features ${premiumEnabled?"enabled":"locked"}`}><div><span>高级会员能力</span><b>{premiumEnabled?"已全部开启":"购买会员后开启"}</b></div><ul><li>9:25盘前预判</li><li>L2精确价区间</li><li>提醒历史复盘</li><li>个人回放训练</li></ul></div>
+        <div className={`account-premium-features ${premiumEnabled?"enabled":"locked"}`}><div><span>高级会员能力</span><b>{premiumEnabled?"已全部开启":"购买会员后开启"}</b></div><ul><li>9:25盘前预判</li><li>L2精确价区间</li><li>提醒历史复盘</li><li>个人回放训练</li></ul><a href="/pricing">查看方案与收费标准 →</a></div>
         {!demoMode&&accountRole!=='admin'&&accountMembership?.referralCode&&<div className="account-referral"><div><span>邀请好友</span><b>有效注册 1 人，+7 天权益</b><small>邀请码 {accountMembership.referralCode} · 已奖励 {accountMembership.referralCredits} 人{accountMembership.referralReviews?` · 待审核 ${accountMembership.referralReviews} 人`:''}</small></div><button onClick={()=>void copyReferralLink()}>复制邀请链接</button>{inviteMessage&&<em>{inviteMessage}</em>}</div>}
         <div className="account-stats"><div><span>监控股票</span><b>{stockList.length} / {monitorLimit}</b></div><div><span>后台监控</span><b>{demoMode?'关闭':'已连接'}</b></div><div><span>策略版本</span><b>V4</b></div></div>
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>当前股票计划底仓<small>{stock.code} · 用于当日闭环校验</small></span><b>{activePosition.plannedBase.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
@@ -3631,10 +3638,10 @@ function StrategyMarketView({accountName}:{accountName:string}){
     try{localStorage.setItem(`${storageKey}:draft`,JSON.stringify({name,summary,savedAt:new Date().toISOString()}));setDraftMessage('研究草稿已保存；当前不会公开、收费或自动执行。');}catch{setDraftMessage('草稿保存失败，请检查浏览器存储权限。');}
   };
   return <section className="market-view">
-    <div className="market-hero"><div><span className="eyebrow">RABBIT RESEARCH PLAYBOOKS</span><h1>策略研究与观察库</h1><p>选择透明规则进入本机模拟观察，或保存自己的研究草稿。当前不展示未经审计的用户排行榜、虚拟业绩和收费订阅。</p></div></div>
-    <div className="market-guard"><b>公开测试边界</b><span>内置规则仅用于模拟观察</span><span>用户策略发布与排行榜尚未开放</span><span>收费订阅和真实资金交易保持关闭</span></div>
+    <div className="market-hero"><div><span className="eyebrow">RABBIT RESEARCH PLAYBOOKS</span><h1>策略研究与观察库</h1><p>选择透明规则进入本机模拟观察，或保存自己的研究草稿。当前不展示未经审计的用户策略排行、虚拟业绩或跟单订阅。</p></div></div>
+    <div className="market-guard"><b>公开测试边界</b><span>内置规则仅用于模拟观察</span><span>用户策略发布与排行榜尚未开放</span><span>策略跟单收费和真实资金交易保持关闭</span></div>
     <section className="builtin-strategies"><div className="builtin-head"><div><span className="eyebrow">BUILT-IN PLAYBOOKS</span><h2>内置策略库</h2><p>这些是透明的研究规则，不是收益承诺。启用后只进入模拟观察和记录，不会自动下单。</p></div><b>已启用 {enabledBuiltIns.length} / {builtInStrategies.length}</b></div><div className="builtin-grid">{builtInStrategies.map(item=>{const enabled=enabledBuiltIns.includes(item.id);return <article className={enabled?'enabled':'disabled'} key={item.id}><div><span>{item.tag}</span><em>{enabled?'运行中':'未启用'}</em></div><h3>{item.name}</h3><p>{item.fit}</p><ul>{item.rules.map(rule=><li key={rule}>{rule}</li>)}</ul><small>风控：{item.risk}</small><button onClick={()=>toggleBuiltIn(item.id)}>{enabled?'取消观察 · 运行中':'启用模拟观察'}</button></article>})}</div></section>
-    <div className="market-stats"><div><span>透明研究规则</span><b>{builtInStrategies.length}</b><small>全部公开触发与风控条件</small></div><div><span>当前启用观察</span><b>{enabledBuiltIns.length}</b><small>只记录模拟观察结果</small></div><div><span>用户公开排行</span><b>未开放</b><small>完成真实性审计后再上线</small></div><div><span>收费订阅</span><b className="amber-text">关闭</b><small>当前不会产生任何费用</small></div></div>
+    <div className="market-stats"><div><span>透明研究规则</span><b>{builtInStrategies.length}</b><small>全部公开触发与风控条件</small></div><div><span>当前启用观察</span><b>{enabledBuiltIns.length}</b><small>只记录模拟观察结果</small></div><div><span>用户公开排行</span><b>未开放</b><small>完成真实性审计后再上线</small></div><div><span>策略跟单订阅</span><b className="amber-text">关闭</b><small>会员仅解锁平台研究工具</small></div></div>
     <div className="market-toolbar"><div><span>研究草稿仅保存在当前账户，不会冒充已验证策略。</span></div><div className="market-toolbar-actions"><button className="market-publish" onClick={()=>setPublishing(true)}>＋ 新建研究草稿</button></div></div>
     {draftName&&<div className="market-list"><div className="market-row market-title"><span>我的研究草稿</span><span>状态</span><span/><span/><span/><span/><span/><span/></div><div className="market-row"><span className="market-name"><i>DRAFT</i><b>{draftName}</b><small>{draftSummary||'尚未填写说明'}</small></span><span><em className="backtested">仅草稿</em><small>未回测 · 未发布</small></span><span/><span/><span/><span/><span/><button onClick={()=>setPublishing(true)}>继续编辑 →</button></div></div>}
     {publishing&&<div className="market-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPublishing(false)}}><div className="publish-card"><button className="detail-close" onClick={()=>setPublishing(false)}>×</button><span className="eyebrow">PRIVATE RESEARCH DRAFT</span><h2>记录我的策略想法</h2><p>这里只保存研究草稿，不会公开发布、生成收费订阅或连接真实交易。</p><label>策略名称<input value={draftName} onChange={e=>{setDraftName(e.target.value);setDraftMessage('')}} placeholder="例如：我的稳健反T观察"/></label><label>策略说明<textarea value={draftSummary} onChange={e=>{setDraftSummary(e.target.value);setDraftMessage('')}} placeholder="用直白语言说明买入、卖出、仓位和停止条件"/></label><div><label>当前阶段<select disabled><option>研究草稿</option></select></label><label>执行权限<select disabled><option>不可执行</option></select></label></div><button onClick={saveDraft}>保存研究草稿</button><small>{draftMessage||'后续只有通过真实回测、样本外验证和人工审核，才考虑开放分享。'}</small></div></div>}
