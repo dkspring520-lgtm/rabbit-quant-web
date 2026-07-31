@@ -3088,6 +3088,14 @@ function HomeView({onNavigate,onOpenZijin,stockCount,canInvite,referralCredits,o
       <div><span>会员邀请奖励</span><h2>邀请好友注册，双方一起研究做T</h2><p>{canInvite?`每有效注册 1 人，会员权益自动增加 7 天。你已获得 ${referralCredits} 次奖励。`:'有效注册 1 人即可获得 7 天会员权益；登录会员账户后可生成专属邀请链接。'}</p></div>
       <div className="home-referral-actions">{canInvite?<button onClick={onCopyInvite}>复制我的邀请链接</button>:<button onClick={()=>onNavigate('邀请中心')}>查看邀请规则</button>}<button className="home-referral-link" onClick={()=>onNavigate('邀请中心')}>进入邀请中心 →</button>{inviteMessage&&<em>{inviteMessage}</em>}</div>
     </section>
+    <section className="home-pricing" aria-label="会员收费">
+      <header><div><span>MEMBERSHIP</span><h2>先免费使用，需要时再升级</h2></div><a href="/pricing">查看完整权益 →</a></header>
+      <div>
+        <article><span>免费版</span><b>¥0</b><small>长期使用 · 基础行情与候选观察</small></article>
+        <article className="recommended"><em>推荐</em><span>Smart-T 会员</span><b>¥39<small>/月</small></b><small>年付 ¥365 · 实时行情增强与提醒复盘</small></article>
+        <article><span>24小时体验票</span><b>¥4.9</b><small>完整体验一个交易日 · 不自动续费</small></article>
+      </div>
+    </section>
     <div className="home-strip"><button className="home-widget" onClick={()=>onNavigate('持仓对账')}><span>今日闭环</span><b>查看账本</b><small>只统计已录入且完成配对的成交 →</small></button><button className="home-widget" onClick={()=>onNavigate('多股监控')}><span>监控股票</span><b>{stockCount} 只</b><small>盘中持续扫描 · 打开看板 →</small></button><button className="home-widget profit-widget" onClick={()=>onNavigate('持仓对账')}><span>已确认净收益</span><b>按流水计算</b><small>没有真实成交记录时不展示演示收益 →</small></button><button className="home-widget" onClick={()=>onNavigate('智能训练')}><span>四兔研究</span><b>查看证据</b><small>真实样本覆盖 · 不显示假训练进度 →</small></button></div>
     <div className="home-workflow"><div className="workflow-head"><div><span className="eyebrow">DAILY WORKFLOW</span><h2>每天只看四件事</h2></div><p>减少指标堆叠，把操作顺序固定下来。</p></div><div className="workflow-grid">{[{n:'01',title:'先看市场',copy:'集合竞价与市场雷达先决定今天能不能做、优先正T还是反T。',action:'多股监控',icon:'⌁'},{n:'02',title:'再等信号',copy:'价格、VWAP、量能和确认分同时满足，才显示可执行机会。',action:'操盘台',icon:'⌗'},{n:'03',title:'当天闭环',copy:'首笔成交后冻结同向信号，等量反向成交并恢复原底仓。',action:'持仓对账',icon:'⇄'},{n:'04',title:'收盘复盘',copy:'使用真实费用和可卖数量回放，训练参数只进入候选区。',action:'智能训练',icon:'◇'}].map(item=><button key={item.n} onClick={()=>onNavigate(item.action)}><span>{item.n}</span><i>{item.icon}</i><h3>{item.title}</h3><p>{item.copy}</p><em>{item.action} →</em></button>)}</div></div>
     <div className="home-risk"><span>重要提示</span><p>做T不保证盈利。所有信号仅用于策略研究和提醒；自动交易接口保持关闭，候选策略必须人工晋升。</p><button onClick={()=>onNavigate('模拟回测')}>查看可信回测</button></div>

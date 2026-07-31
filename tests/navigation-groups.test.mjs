@@ -14,3 +14,11 @@ test("lower-frequency product pages share one simplified navigation category", (
   assert.match(page, /activeView === "量化工具"/);
 });
 
+test("signed-in home presents a compact pricing entry", () => {
+  assert.match(page, /className="home-pricing"/);
+  assert.match(page, /Smart-T 会员/);
+  assert.match(page, /¥39/);
+  assert.match(page, /年付 ¥365/);
+  assert.match(page, /24小时体验票/);
+  assert.match(page, /href="\/pricing"/);
+});
