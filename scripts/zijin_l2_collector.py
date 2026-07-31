@@ -14,6 +14,7 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import nats
 import numpy as np
@@ -93,6 +94,17 @@ def is_a_share_cash_session(minute):
         or "1300" <= clock <= "1459"
     )
 
+def is_live_a_share_session():
+    observed = datetime.now(ZoneInfo("Asia/Shanghai"))
+    if observed.weekday() >= 5:
+        return False
+    clock = observed.strftime("%H%M")
+    return (
+        "0915" <= clock <= "0925"
+        or "0930" <= clock <= "1129"
+        or "1300" <= clock <= "1459"
+    )
+
 def market_phase(minute):
     """Classify causal Zijin observations for the early-morning study."""
     if not is_a_share_cash_session(minute):
@@ -124,7 +136,22 @@ def trailing_big_sweep_streak(transactions, side, threshold):
 class Collector:
     def __init__(self):
         self.symbol = os.getenv("L2_SYMBOL", "601899")
-        self.url = os.getenv("L2_NATS_URL", "nats://quote5.base32.cn:4222")
+        primary_url = os.getenv("L2_NATS_URL", "nats://quote6.base32.cn:4222")
+        configured_urls = os.getenv(
+            "L2_NATS_URLS",
+            ",".join((
+                primary_url,
+                "nats://quote2.base32.cn:4222",
+                "nats://quote1.base32.cn:4222",
+                "nats://quote5.base32.cn:4222",
+            )),
+        )
+        self.urls = list(dict.fromkeys(
+            url.strip() for url in configured_urls.split(",") if url.strip()
+        ))
+        if not self.urls:
+            self.urls = [primary_url]
+        self.url = self.urls[0]
         self.user = os.environ["L2_NATS_USER"]
         self.password = os.environ["L2_NATS_PASSWORD"]
         self.state_path = os.getenv("L2_STATE_PATH", "/training-state/zijin-l2-orderflow.json")
@@ -148,6 +175,8 @@ class Collector:
         self.snapshot = self.last_message_at = self.last_exchange_time = None
         self.connected = self.authorization_error = False
         self.parse_errors = self.reconnects = 0
+        self.failovers = 0
+        self.failover_reason = None
         self.message_counts = {"snapshot": 0, "transaction": 0, "order": 0}
         self.forward_minutes = set()
         self.forward_days = set()
@@ -603,7 +632,9 @@ class Collector:
             "lastExchangeTime": self.last_exchange_time,
             "status": {"connected": self.connected, "authorized": not self.authorization_error,
                        "stale": age is None or age > self.stale_seconds, "ageSeconds": None if age is None else round(age, 3),
-                       "parseErrors": self.parse_errors, "reconnects": self.reconnects},
+                       "parseErrors": self.parse_errors, "reconnects": self.reconnects,
+                       "failovers": self.failovers, "failoverReason": self.failover_reason,
+                       "nodePoolSize": len(self.urls)},
             "flow": {"activeBuyNotional60s": round(buy, 2), "activeSellNotional60s": round(sell, 2),
                      "activeBuyVolume60s": buy_volume, "activeSellVolume60s": sell_volume,
                      "tradeVolume60s": buy_volume + sell_volume,
@@ -713,19 +744,60 @@ class Collector:
         async def error_callback(error):
             if "authorization" in str(error).lower(): self.authorization_error = True
         async def disconnected_callback(): self.connected = False
-        async def reconnected_callback():
-            self.connected = True
-            self.reconnects += 1
         writer = asyncio.create_task(self.publish_state())
+        node_index = 0
         try:
-            connection = await nats.connect(servers=[self.url], user=self.user, password=self.password,
-                error_cb=error_callback, disconnected_cb=disconnected_callback, reconnected_cb=reconnected_callback,
-                reconnect_time_wait=2, max_reconnect_attempts=-1)
-            self.connected = True
-            await connection.subscribe(f"stk.l2.{self.symbol}", cb=self.on_snapshot)
-            await connection.subscribe(f"stk.trans.{self.symbol}", cb=self.on_transaction)
-            await connection.subscribe(f"stk.order.{self.symbol}", cb=self.on_order)
-            while True: await asyncio.sleep(30)
+            while True:
+                self.url = self.urls[node_index]
+                connection = None
+                connected_at = time.time()
+                try:
+                    connection = await nats.connect(
+                        servers=[self.url],
+                        user=self.user,
+                        password=self.password,
+                        error_cb=error_callback,
+                        disconnected_cb=disconnected_callback,
+                        reconnect_time_wait=1,
+                        max_reconnect_attempts=0,
+                        connect_timeout=3,
+                    )
+                    self.connected = True
+                    self.authorization_error = False
+                    self.failover_reason = None
+                    connected_at = time.time()
+                    await connection.subscribe(f"stk.l2.{self.symbol}", cb=self.on_snapshot)
+                    await connection.subscribe(f"stk.trans.{self.symbol}", cb=self.on_transaction)
+                    await connection.subscribe(f"stk.order.{self.symbol}", cb=self.on_order)
+                    while not connection.is_closed:
+                        await asyncio.sleep(0.5)
+                        if not self.connected:
+                            self.failover_reason = "connection-lost"
+                            break
+                        if not is_live_a_share_session():
+                            continue
+                        age = None if self.last_message_at is None else time.time() - self.last_message_at
+                        if time.time() - connected_at >= self.stale_seconds and (
+                            age is None or age > self.stale_seconds
+                        ):
+                            self.failover_reason = "stale-feed"
+                            break
+                except asyncio.CancelledError:
+                    raise
+                except Exception as error:
+                    if "authorization" in str(error).lower():
+                        self.authorization_error = True
+                        self.failover_reason = "authorization"
+                    else:
+                        self.failover_reason = "connection-error"
+                finally:
+                    self.connected = False
+                    if connection is not None and not connection.is_closed:
+                        await connection.close()
+                self.failovers += 1
+                self.reconnects += 1
+                node_index = (node_index + 1) % len(self.urls)
+                await asyncio.sleep(0.35 if is_live_a_share_session() else 2)
         finally:
             writer.cancel()
 
