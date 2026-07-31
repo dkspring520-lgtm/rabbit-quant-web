@@ -43,3 +43,188 @@
 
 .forecast-chart{max-width:1280px;margin:22px auto 0;padding:30px 34px 22px;border:1px solid rgba(205,168,96,.24);background:radial-gradient(circle at 88% 0,rgba(182,140,56,.08),transparent 28%),linear-gradient(145deg,rgba(13,31,25,.98),rgba(5,15,12,.98));box-shadow:0 34px 90px rgba(0,0,0,.28)}.forecast-chart>header{display:flex;align-items:end;justify-content:space-between;gap:20px}.forecast-chart header small{color:#aa8b50;font-size:10px;letter-spacing:.18em}.forecast-chart h2{margin:5px 0 0;font:500 clamp(21px,2.3vw,32px) "Songti SC","Noto Serif SC",serif}.forecast-chart canvas{display:block;width:100%;height:430px;margin-top:18px}.chart-legend{display:flex;gap:20px;color:#70877d;font-size:11px}.chart-legend span{display:flex;align-items:center;gap:7px}.chart-legend i{width:18px;height:2px;background:#739789}.chart-legend .chan-line i{height:1px;background:#cfbf96;transform:rotate(-12deg)}.chart-legend .chan-center i{height:8px;border:1px dashed #a98a4f;background:rgba(199,158,76,.12)}.chart-legend .projected i{border-top:2px dashed #c5a35d;background:transparent}.forecast-chart>footer{display:flex;gap:1px;background:rgba(199,163,92,.12)}.forecast-chart>footer span{flex:1;padding:13px 16px;background:#081611;color:#83988f;font-size:11px;text-align:center}.forecast-chart>footer span:nth-child(2){color:#d0b574}
 @media(max-width:560px){.forecast-chart{padding:24px 14px 16px}.forecast-chart>header{align-items:flex-start;flex-direction:column}.forecast-chart canvas{height:360px}.forecast-chart>footer{display:grid;grid-template-columns:1fr}.chart-legend{gap:12px}}
+
+/* Stock divination shares the product design system while retaining its
+   restrained Chinese stone-and-seal identity. */
+.oracle{
+  --oracle-page:#080d0c;
+  --oracle-layer:#0e1513;
+  --oracle-card:#131c1a;
+  --oracle-float:#192421;
+  --oracle-border:#26322f;
+  --oracle-text:#f1f4f3;
+  --oracle-muted:#a2ada9;
+  --oracle-dim:#727f7a;
+  background:
+    radial-gradient(circle at 12% 4%,rgba(198,158,87,.1),transparent 24%),
+    radial-gradient(circle at 88% 18%,rgba(40,215,196,.06),transparent 22%),
+    var(--oracle-page);
+  color:var(--oracle-text)
+}
+.oracle>nav{
+  position:relative;
+  height:64px;
+  max-width:1280px;
+  margin:auto;
+  border-bottom-color:var(--oracle-border);
+  color:var(--oracle-muted)
+}
+.oracle>nav a{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:#d7bd80;
+  font-weight:750;
+  letter-spacing:.04em
+}
+.oracle>nav a::before{
+  content:"";
+  width:36px;
+  height:36px;
+  flex:0 0 36px;
+  border-radius:10px;
+  background:url("/rabbit-logo-compact.png") center/cover no-repeat;
+  box-shadow:0 0 0 1px rgba(213,183,121,.22),0 7px 20px rgba(0,0,0,.2)
+}
+.oracle-theme-toggle{
+  position:absolute;
+  z-index:20;
+  top:14px;
+  right:clamp(18px,5vw,78px);
+  width:38px;
+  height:38px;
+  padding:0;
+  display:grid;
+  place-items:center;
+  border:1px solid var(--oracle-border);
+  border-radius:8px;
+  background:var(--oracle-card);
+  color:var(--oracle-text);
+  font-size:17px;
+  box-shadow:0 8px 24px rgba(0,0,0,.18)
+}
+.oracle>nav b{margin-right:54px;border-color:rgba(198,158,87,.32)}
+.oracle>header{padding-top:48px}
+.oracle form,
+.result article,
+.forecast-chart,
+.reading-ritual,
+.share-modal>section{
+  border-color:var(--oracle-border)!important;
+  background:var(--oracle-card)!important
+}
+.oracle input,.oracle select,.oracle textarea{
+  border-color:var(--oracle-border);
+  background:var(--oracle-layer);
+  color:var(--oracle-text)
+}
+.oracle>header p,
+.gua-heading p,
+.forecast-card .future-path,
+.tech dt,
+.tech>p,
+.forecast-chart header small,
+.chart-legend,
+.share-modal>section>small{color:var(--oracle-muted)}
+.forecast-chart{
+  background:
+    radial-gradient(circle at 88% 0,rgba(182,140,56,.06),transparent 28%),
+    var(--oracle-layer)!important;
+  box-shadow:0 24px 64px rgba(0,0,0,.22)
+}
+.forecast-chart>footer span{background:var(--oracle-card);color:var(--oracle-muted)}
+.share-modal{background:rgba(3,8,7,.8)}
+.share-modal>section{box-shadow:0 42px 120px rgba(0,0,0,.42)}
+
+:root[data-theme="light"] .oracle{
+  --oracle-page:#f7f7f9;
+  --oracle-layer:#fcfcfd;
+  --oracle-card:#ffffff;
+  --oracle-float:#ffffff;
+  --oracle-border:#d9dde0;
+  --oracle-text:#20202a;
+  --oracle-muted:#6e6b78;
+  --oracle-dim:#9995a2;
+  background:
+    radial-gradient(circle at 12% 4%,rgba(217,155,53,.07),transparent 24%),
+    radial-gradient(circle at 88% 18%,rgba(43,177,158,.055),transparent 22%),
+    var(--oracle-page);
+  color:var(--oracle-text)
+}
+:root[data-theme="light"] .oracle>nav{
+  border-bottom-color:var(--oracle-border);
+  background:rgba(255,255,255,.7)
+}
+:root[data-theme="light"] .oracle>nav a{color:#84612a}
+:root[data-theme="light"] .oracle>nav span{color:var(--oracle-muted)}
+:root[data-theme="light"] .oracle>nav b{
+  border-color:#dfc58f;
+  color:#91671d;
+  background:#fffaf0
+}
+:root[data-theme="light"] .oracle-theme-toggle{
+  border-color:var(--oracle-border);
+  background:#fff;
+  color:#3c4143;
+  box-shadow:0 7px 22px rgba(31,49,57,.1)
+}
+:root[data-theme="light"] .oracle h1,
+:root[data-theme="light"] .oracle h2,
+:root[data-theme="light"] .oracle h3,
+:root[data-theme="light"] .forecast-card h3{color:var(--oracle-text)}
+:root[data-theme="light"] .oracle h1 span{color:#a87521}
+:root[data-theme="light"] .oracle form,
+:root[data-theme="light"] .result article,
+:root[data-theme="light"] .forecast-chart,
+:root[data-theme="light"] .reading-ritual,
+:root[data-theme="light"] .share-modal>section{
+  border-color:var(--oracle-border)!important;
+  background:var(--oracle-card)!important;
+  box-shadow:0 16px 48px rgba(31,49,57,.07)
+}
+:root[data-theme="light"] .oracle input,
+:root[data-theme="light"] .oracle select,
+:root[data-theme="light"] .oracle textarea{
+  border-color:var(--oracle-border);
+  background:#fff;
+  color:var(--oracle-text)
+}
+:root[data-theme="light"] .oracle label,
+:root[data-theme="light"] .market-fetch,
+:root[data-theme="light"] .gua-heading p,
+:root[data-theme="light"] .forecast-card .future-path,
+:root[data-theme="light"] .tech dt,
+:root[data-theme="light"] .chart-legend,
+:root[data-theme="light"] .forecast-chart header small{color:var(--oracle-muted)}
+:root[data-theme="light"] .gua-card blockquote{color:#3f4b47}
+:root[data-theme="light"] .yao-line i{background:#9e8759}
+:root[data-theme="light"] .tech dl div{border-bottom-color:#e4e6e8}
+:root[data-theme="light"] .meter{background:#e8eceb}
+:root[data-theme="light"] .forecast-chart{
+  background:
+    radial-gradient(circle at 88% 0,rgba(217,155,53,.045),transparent 28%),
+    var(--oracle-layer)!important
+}
+:root[data-theme="light"] .forecast-chart>footer{background:#edf0ef}
+:root[data-theme="light"] .forecast-chart>footer span{background:#fff;color:var(--oracle-muted)}
+:root[data-theme="light"] .reading-ritual{
+  background:
+    radial-gradient(circle at 82% 38%,rgba(217,155,53,.08),transparent 25%),
+    linear-gradient(125deg,#fffdf8,#f8fbfa)!important
+}
+:root[data-theme="light"] .share-modal{background:rgba(38,47,44,.45)}
+:root[data-theme="light"] .share-modal header button{
+  border-color:var(--oracle-border);
+  color:var(--oracle-muted)
+}
+:root[data-theme="light"] .share-actions button{
+  border-color:#cbd4d1;
+  color:#384540
+}
+
+@media(max-width:560px){
+  .oracle-theme-toggle{position:absolute;top:14px;right:12px}
+  .oracle>nav{padding-right:48px}
+  .oracle>nav b{display:none}
+  .oracle>nav a::before{width:32px;height:32px;flex-basis:32px}
+}

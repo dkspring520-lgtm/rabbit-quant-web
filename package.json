@@ -16,8 +16,10 @@
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },
   "dependencies": {
+    "@types/qrcode": "^1.5.6",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
+    "qrcode": "^1.5.4",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
@@ -40,5 +42,5 @@
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "\u505aT\u795e\u5668"
+  "displayName": "做T神器"
 }

@@ -4,6 +4,8 @@ export type StockPosition = {
   plannedBase: number;
   openingShares: number;
   sellable: number;
+  tradeShares?: number;
+  maxDailyTrades?: number;
   needsConfirmation: boolean;
   updatedAt: string | null;
   migratedFrom?: string;

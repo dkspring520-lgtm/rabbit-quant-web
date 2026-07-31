@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
 import "./fortune.css";
 import "./traditional.css";
 import "./interpretation.css";
@@ -60,8 +61,22 @@ export default function FortunePage(){
   const [shareImage,setShareImage]=useState("");
   const [shareBusy,setShareBusy]=useState(false);
   const [shareMessage,setShareMessage]=useState("");
+  const [uiTheme,setUiTheme]=useState<"dark"|"light">("dark");
   const readingRun=useRef(0);
   const chartRef=useRef<HTMLCanvasElement>(null);
+  useEffect(()=>{
+    setUiTheme(document.documentElement.dataset.theme==="light"?"light":"dark");
+  },[]);
+  const toggleUiTheme=()=>{
+    const next=uiTheme==="dark"?"light":"dark";
+    setUiTheme(next);
+    document.documentElement.dataset.theme=next;
+    try{localStorage.setItem("rabbit-ui-theme",next)}catch{}
+  };
+  useEffect(()=>{
+    const sharedCode=new URLSearchParams(window.location.search).get("stock");
+    if(sharedCode&&/^\d{6}$/.test(sharedCode))setCode(sharedCode);
+  },[]);
   useEffect(()=>{
     if(!/^\d{6}$/.test(code)){setMarketStatus("idle");setMarketMessage("请输入 6 位股票代码");return}
     const controller=new AbortController();
@@ -221,6 +236,9 @@ export default function FortunePage(){
   const shareCopy=`${name||code}（${code}）股票推演签\n未来 ${horizon} 个交易日：${trend} · ${analysis.score}/100\n${futureTitle}\n上行确认 ¥${analysis.resistance.toFixed(2)}｜下行警戒 ¥${analysis.support.toFixed(2)}\n卦象：${analysis.upper[0]}上${analysis.lower[0]}下，${lineNames[analysis.moving]}动\n#股票推演 #传统文化 #行情观察\n仅供文化娱乐，不构成投资建议。`;
   const generateShareCard=async()=>{
     setShareBusy(true);setShareMessage("");
+    const shareUrl=`${window.location.origin}/fortune?stock=${encodeURIComponent(code)}&from=share`;
+    const qrSource=await QRCode.toDataURL(shareUrl,{width:400,margin:3,errorCorrectionLevel:"H",color:{dark:"#10231d",light:"#fffdf5"}});
+    const qrImage=await new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=qrSource});
     const canvas=document.createElement("canvas");canvas.width=1080;canvas.height=1440;
     const ctx=canvas.getContext("2d");if(!ctx){setShareBusy(false);return}
     const wrap=(text:string,x:number,y:number,maxWidth:number,lineHeight:number,maxLines=3)=>{let line="",lineNo=0;for(const char of text){const test=line+char;if(ctx.measureText(test).width>maxWidth&&line){ctx.fillText(line,x,y+lineNo*lineHeight);line=char;lineNo++;if(lineNo>=maxLines)return}else line=test}if(lineNo<maxLines)ctx.fillText(line,x,y+lineNo*lineHeight)};
@@ -229,10 +247,12 @@ export default function FortunePage(){
     ctx.strokeStyle="rgba(219,181,105,.42)";ctx.lineWidth=2;ctx.strokeRect(40,40,1000,1360);ctx.strokeStyle="rgba(219,181,105,.12)";ctx.strokeRect(58,58,964,1324);
     ctx.beginPath();ctx.arc(866,270,190,0,Math.PI*2);ctx.strokeStyle="rgba(206,170,98,.09)";ctx.lineWidth=1;ctx.stroke();ctx.beginPath();ctx.arc(866,270,150,0,Math.PI*2);ctx.stroke();
     analysis.lines.forEach((line,i)=>{const y=178+i*35,x=770;ctx.strokeStyle="rgba(210,177,106,.13)";ctx.lineWidth=8;ctx.beginPath();if(line.yang){ctx.moveTo(x,y);ctx.lineTo(x+190,y)}else{ctx.moveTo(x,y);ctx.lineTo(x+78,y);ctx.moveTo(x+112,y);ctx.lineTo(x+190,y)}ctx.stroke()});
+    ctx.fillStyle="#fffdf5";ctx.fillRect(786,78,206,206);ctx.strokeStyle="#b99756";ctx.lineWidth=2;ctx.strokeRect(776,68,226,226);ctx.drawImage(qrImage,794,86,190,190);
+    ctx.textAlign="center";ctx.fillStyle="#d5bd84";ctx.font='17px "Songti SC",serif';ctx.fillText("扫码载入此股票",889,320);ctx.textAlign="left";
     ctx.fillStyle="#b79656";ctx.font='25px "Songti SC","Noto Serif SC",serif';ctx.fillText("股票推演局",88,116);
     ctx.fillStyle="#536e62";ctx.font="18px Georgia,serif";ctx.fillText("ORIENTAL MARKET ORACLE",88,153);
-    ctx.textAlign="right";ctx.fillStyle="#6f8a7e";ctx.font="21px Georgia,serif";ctx.fillText(`${code}  ·  ${horizon}D`,982,124);ctx.textAlign="left";
-    ctx.fillStyle="#e9d7ac";ctx.font='700 86px "Songti SC","Noto Serif SC",serif';wrap(name||code,84,318,760,102,2);
+    ctx.textAlign="right";ctx.fillStyle="#6f8a7e";ctx.font="21px Georgia,serif";ctx.fillText(`${code}  ·  ${horizon}D`,746,124);ctx.textAlign="left";
+    ctx.fillStyle="#e9d7ac";ctx.font='700 86px "Songti SC","Noto Serif SC",serif';wrap(name||code,84,318,650,102,2);
     ctx.fillStyle="#6e8b7e";ctx.font='24px "Songti SC",serif';ctx.fillText(`证券代码 ${code}  ·  推演周期 ${horizon} 个交易日`,88,470);
     ctx.strokeStyle="rgba(213,176,100,.25)";ctx.beginPath();ctx.moveTo(88,520);ctx.lineTo(992,520);ctx.stroke();
     ctx.fillStyle="#78968a";ctx.font='22px "Songti SC",serif';ctx.fillText("未来定势",88,590);
@@ -242,9 +262,9 @@ export default function FortunePage(){
     ctx.fillStyle="#82978e";ctx.font='25px "Songti SC","Noto Serif SC",serif';wrap(futurePath,88,945,900,42,2);
     ctx.strokeStyle="rgba(210,173,99,.18)";ctx.beginPath();ctx.moveTo(88,1055);ctx.lineTo(992,1055);ctx.stroke();
     const facts=[["上行确认",`¥${analysis.resistance.toFixed(2)}`],["下行警戒",`¥${analysis.support.toFixed(2)}`],["风险等级",riskLevel],["缠论状态",analysis.chanState]];
-    facts.forEach(([label,value],i)=>{const x=88+(i%2)*455,y=1110+Math.floor(i/2)*108;ctx.fillStyle="#60796e";ctx.font='20px "Songti SC",serif';ctx.fillText(label,x,y);ctx.fillStyle="#d8c18a";ctx.font='29px "Songti SC",serif';ctx.fillText(value,x,y+40)});
-    ctx.fillStyle="#b89655";ctx.font='24px "Songti SC",serif';ctx.fillText(`${analysis.upper[1]} ${analysis.upper[0]}上 · ${analysis.lower[1]} ${analysis.lower[0]}下 · ${lineNames[analysis.moving]}动`,88,1327);
-    ctx.strokeStyle="#a84c38";ctx.fillStyle="rgba(168,76,56,.07)";ctx.lineWidth=3;ctx.strokeRect(862,1255,106,106);ctx.fillRect(862,1255,106,106);ctx.fillStyle="#c1644d";ctx.font='30px "Songti SC",serif';ctx.fillText("定 势",872,1318);
+    facts.forEach(([label,value],i)=>{const x=88,y=1098+i*61;ctx.fillStyle="#60796e";ctx.font='18px "Songti SC",serif';ctx.fillText(label,x,y);ctx.fillStyle="#d8c18a";ctx.font='25px "Songti SC",serif';ctx.fillText(value,x+128,y)});
+    ctx.fillStyle="#b89655";ctx.font='22px "Songti SC",serif';ctx.fillText(`${analysis.upper[1]} ${analysis.upper[0]}上 · ${analysis.lower[1]} ${analysis.lower[0]}下 · ${lineNames[analysis.moving]}动`,88,1332);
+    ctx.strokeStyle="#a84c38";ctx.fillStyle="rgba(168,76,56,.07)";ctx.lineWidth=2;ctx.strokeRect(610,1268,72,72);ctx.fillRect(610,1268,72,72);ctx.fillStyle="#c1644d";ctx.font='22px "Songti SC",serif';ctx.fillText("定势",624,1312);
     ctx.fillStyle="#4f685d";ctx.font='18px "Songti SC",serif';ctx.fillText("传统文化娱乐推演 · 不构成投资建议",88,1370);
     setShareImage(canvas.toDataURL("image/png"));setShareBusy(false);
   };
@@ -252,6 +272,7 @@ export default function FortunePage(){
   const copyShare=async()=>{await navigator.clipboard.writeText(shareCopy);setShareMessage("分享文案已复制")};
   const systemShare=async()=>{if(!shareImage)return;try{const blob=await(await fetch(shareImage)).blob();const file=new File([blob],`${name||code}-股票推演签.png`,{type:"image/png"});if(navigator.share&&navigator.canShare?.({files:[file]})){await navigator.share({title:`${name||code} 股票推演签`,text:shareCopy,files:[file]})}else{downloadShare();await copyShare();setShareMessage("图片已保存，文案已复制")}}catch(error){if((error as Error).name!=="AbortError")setShareMessage("分享未完成，请先保存图片")}};
   return <main className="oracle">
+    <button className="oracle-theme-toggle" type="button" onClick={toggleUiTheme} aria-label={uiTheme==="dark"?"切换到白天模式":"切换到黑金模式"} title={uiTheme==="dark"?"白天模式":"黑金模式"}>{uiTheme==="dark"?"☀":"☾"}</button>
     <nav><a href="/">← 返回做T神器</a><span>股票占卜 · STOCK ORACLE</span><b>娱乐推演</b></nav>
     <header><div><small>东方术数 × 西方星象 × 行情技术</small><h1>股票<br/><span>推演局</span></h1><p>输入代码，查看未来走势、卦象与关键价位。</p></div>
       <form onSubmit={e=>{e.preventDefault();void runReading(false)}}><label>股票代码<input value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="例如 601899"/></label><label>股票名称<input value={name} readOnly placeholder="行情自动识别"/></label><label>问卦周期<select value={horizon} onChange={e=>setHorizon(e.target.value)}><option value="5">短线 · 未来 5 个交易日</option><option value="20">波段 · 未来 20 个交易日</option><option value="60">中期 · 未来 3 个月（约 60 个交易日）</option></select></label><label>上市日期 · {listingDateAuto?"自动识别":"可手动补充"}<input type="date" value={listingDate} onChange={e=>{setListingDate(e.target.value);setListingDateAuto(false)}}/></label><div className={`market-fetch ${marketStatus}`}><i/>{marketMessage}{marketStatus==="ready"&&listingDateAuto?` · 上市 ${listingDate}`:""}</div><button disabled={marketStatus==="loading"||readingStatus==="reading"}>{marketStatus==="loading"?"正在观盘…":readingStatus==="reading"?"正在推演…":`为 ${name||code} 起卦 →`}</button></form>
