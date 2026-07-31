@@ -248,7 +248,7 @@ export default function FortunePage(){
     ctx.beginPath();ctx.arc(866,270,190,0,Math.PI*2);ctx.strokeStyle="rgba(206,170,98,.09)";ctx.lineWidth=1;ctx.stroke();ctx.beginPath();ctx.arc(866,270,150,0,Math.PI*2);ctx.stroke();
     analysis.lines.forEach((line,i)=>{const y=178+i*35,x=770;ctx.strokeStyle="rgba(210,177,106,.13)";ctx.lineWidth=8;ctx.beginPath();if(line.yang){ctx.moveTo(x,y);ctx.lineTo(x+190,y)}else{ctx.moveTo(x,y);ctx.lineTo(x+78,y);ctx.moveTo(x+112,y);ctx.lineTo(x+190,y)}ctx.stroke()});
     ctx.fillStyle="#fffdf5";ctx.fillRect(786,78,206,206);ctx.strokeStyle="#b99756";ctx.lineWidth=2;ctx.strokeRect(776,68,226,226);ctx.drawImage(qrImage,794,86,190,190);
-    ctx.textAlign="center";ctx.fillStyle="#d5bd84";ctx.font='17px "Songti SC",serif';ctx.fillText("扫码载入此股票",889,320);ctx.textAlign="left";
+    ctx.textAlign="center";ctx.fillStyle="#d5bd84";ctx.font='17px "Songti SC",serif';ctx.fillText("扫描占卜您的股票",889,320);ctx.textAlign="left";
     ctx.fillStyle="#b79656";ctx.font='25px "Songti SC","Noto Serif SC",serif';ctx.fillText("股票推演局",88,116);
     ctx.fillStyle="#536e62";ctx.font="18px Georgia,serif";ctx.fillText("ORIENTAL MARKET ORACLE",88,153);
     ctx.textAlign="right";ctx.fillStyle="#6f8a7e";ctx.font="21px Georgia,serif";ctx.fillText(`${code}  ·  ${horizon}D`,746,124);ctx.textAlign="left";
