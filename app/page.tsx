@@ -3092,7 +3092,7 @@ function HomeView({onNavigate,onOpenZijin,stockCount,canInvite,referralCredits,o
       <header><div><span>MEMBERSHIP</span><h2>先免费使用，需要时再升级</h2></div><a href="/pricing">查看完整权益 →</a></header>
       <div>
         <article><span>免费版</span><b>¥0</b><small>长期使用 · 基础行情与候选观察</small></article>
-        <article className="recommended"><em>推荐</em><span>Smart-T 会员</span><b>¥39<small>/月</small></b><small>年付 ¥365 · 实时行情增强与提醒复盘</small></article>
+        <article className="recommended"><em>推荐</em><span>Smart-T 会员</span><b>¥19<small>/月</small></b><small>年付 ¥99 · 实时行情增强与提醒复盘</small></article>
         <article><span>24小时体验票</span><b>¥4.9</b><small>完整体验一个交易日 · 不自动续费</small></article>
       </div>
     </section>
