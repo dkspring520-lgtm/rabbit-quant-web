@@ -43,8 +43,9 @@ function fortuneButton(button: HTMLButtonElement) {
   if (window.location.pathname !== "/fortune") return false;
   if (button.disabled || button.dataset.fortuneTransition === "off") return false;
   if (button.closest("[data-fortune-transition-ignore='true']")) return false;
+  if (button.dataset.fortuneTrigger === "true") return true;
   const label = clean(button.textContent);
-  return button.dataset.fortuneTrigger === "true" || /开始.*推演|起卦/.test(label);
+  return label === "起卦" || label === "重新起卦" || /^开始.*推演$/.test(label) || /^为.+起卦$/.test(label);
 }
 
 function readContext(button?: HTMLButtonElement | null, compact = false): FortuneContext {
@@ -89,6 +90,7 @@ export default function FortuneCosmicTransition() {
   const timers = useRef<number[]>([]);
   const active = useRef(false);
   const currentContext = useRef(context);
+  const skipButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     currentContext.current = context;
@@ -161,12 +163,20 @@ export default function FortuneCosmicTransition() {
 
   useEffect(() => {
     if (!visible) return;
-    const previous = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
-    return () => {
-      document.documentElement.style.overflow = previous;
+    const previousOverflow = document.documentElement.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") finish("skipped");
     };
-  }, [visible]);
+    document.documentElement.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    window.requestAnimationFrame(() => skipButton.current?.focus({ preventScroll: true }));
+    return () => {
+      document.documentElement.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus({ preventScroll: true });
+    };
+  }, [finish, visible]);
 
   if (!visible) return null;
 
@@ -222,10 +232,10 @@ export default function FortuneCosmicTransition() {
           <div className="fortune-oracle-core"><span>双兔</span><b>推演</b></div>
         </div>
 
-        <div className="fortune-oracle-copy" aria-live="polite"><span>{copy.eyebrow}</span><h2>{copy.title}</h2><p>{context.name} · {context.code} · {copy.detail}</p></div>
+        <div key={stage} className="fortune-oracle-copy" aria-live="polite"><span>{copy.eyebrow}</span><h2>{copy.title}</h2><p>{context.name} · {context.code} · {copy.detail}</p></div>
         <div className="fortune-oracle-status" aria-hidden="true">{[0,1,2,3,4].map((item)=><i key={item} className={item <= stage ? "active" : ""} />)}</div>
         <div className="fortune-oracle-progress" aria-hidden="true"><i /></div>
-        <button className="fortune-oracle-skip" type="button" data-fortune-transition-ignore="true" onClick={(event) => { event.stopPropagation(); finish("skipped"); }}>跳过动画</button>
+        <button ref={skipButton} className="fortune-oracle-skip" type="button" data-fortune-transition-ignore="true" onClick={(event) => { event.stopPropagation(); finish("skipped"); }}>跳过动画</button>
       </div>
     </div>
   );
