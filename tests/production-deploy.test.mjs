@@ -95,7 +95,7 @@ test("systemd timer and installer enable recurring safe deploys", () => {
   assert.match(service, /Type=oneshot/);
   assert.match(service, /EnvironmentFile=-\/etc\/default\/rabbit-quant-ops/);
   assert.match(service, /\/usr\/local\/sbin\/rabbit-quant-deploy/);
-  assert.match(timer, /OnUnitActiveSec=1min/);
+  assert.match(timer, /OnUnitActiveSec=15s/);
   assert.match(timer, /Persistent=true/);
   assert.match(installer, /systemctl enable --now rabbit-quant-deploy\.timer/);
   assert.match(installer, /systemctl enable --now rabbit-quant-backup\.timer/);

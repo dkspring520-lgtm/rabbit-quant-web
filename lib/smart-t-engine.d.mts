@@ -168,6 +168,12 @@ export type SmartTOptions = {
   }>;
 };
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
+export function shouldEnforceObviousDirectionalMemory(options?: {
+  completedCycles?: number;
+  latestCycleNet?: number | null;
+  cycleConflict?: boolean;
+  persistentDirectionConflict?: boolean;
+}): boolean;
 export function resolveReplayPositionSize(
   plannedQuantity: number,
   mode?: "fixed" | "quality-tiered" | "liquidity-risk-tiered",
@@ -246,6 +252,24 @@ export function confirmCandidateDirectionFlip(input: {
   structuralConfirmation: boolean;
   executionMomentumConfirmed: boolean;
 }): boolean;
+export function evaluateSameDirectionWaveLock(input: {
+  direction: "BUY_FIRST" | "SELL_FIRST";
+  currentPrice: number;
+  currentMinute: number;
+  lastCycle?: null | {
+    direction: "BUY_FIRST" | "SELL_FIRST";
+    entryPrice: number;
+    exitMinute: number;
+  };
+  minGapMinutes?: number;
+  resetPct?: number;
+}): {
+  blocked: boolean;
+  elapsedMinutes: number | null;
+  distinctExtreme: boolean;
+  distancePct?: number;
+  reason?: string;
+};
 export function evaluateStructuralStop(input: {
   direction: "BUY_FIRST" | "SELL_FIRST";
   currentPrice: number;
@@ -309,6 +333,9 @@ export function evaluateAdaptiveTimeExit(input: {
   maxHoldMinutes?: number;
   pivotBufferPct?: number;
   momentumPct?: number;
+  minSupportVotes?: number;
+  projectedNetPct?: number | null;
+  protectIntactLoss?: boolean;
 }): {
   exit: boolean;
   reviewing: boolean;
@@ -317,6 +344,8 @@ export function evaluateAdaptiveTimeExit(input: {
   maxHoldReached?: boolean;
   pivotIntact?: boolean;
   supportVotes?: number;
+  requiredSupportVotes?: number;
+  lossProtected?: boolean;
   momentum3?: number;
   momentum8?: number;
 };
@@ -355,4 +384,7 @@ export const PROFILES: Record<string, {
   maxBuyTrendRiskVotes?: number;
   maxSellTrendRiskVotes?: number;
   matureSellReversalMinPivotAge?: number;
+  sameDirectionWaveLock?: number;
+  sameDirectionWaveMinGapMinutes?: number;
+  sameDirectionWaveResetPct?: number;
 }>;

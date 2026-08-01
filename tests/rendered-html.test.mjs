@@ -113,7 +113,7 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /const \[zijinResearchEnabled,setZijinResearchEnabled\]=useState\(false\)/);
   assert.match(source, /正式信号引擎/);
   assert.match(source, /V4 正式/);
-  assert.match(source, /紫金研究叠加/);
+  assert.match(source, /紫金研究仅叠加解释/);
   assert.match(source, /正式买卖点、风控和提醒仍由 V4 运行/);
   assert.doesNotMatch(source, /601899 自动切换专属智能体/);
   assert.match(source, /const isRisk=!formalFresh&&Boolean\(riskMessage\)/);

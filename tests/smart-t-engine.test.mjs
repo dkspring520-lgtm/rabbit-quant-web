@@ -19,6 +19,7 @@ import {
   detectRisingKnifeConflict,
   describeVwapConfirmation,
   evaluateAdaptiveTimeExit,
+  evaluateSameDirectionWaveLock,
   evaluateStructuralStop,
   evaluateTripleScoreEvidence,
   isHardDirectionalTrendConflict,
@@ -29,6 +30,43 @@ import {
   runSmartTReplay,
   summarizeHistoricalSimilarity,
 } from "../lib/smart-t-engine.mjs";
+
+test("same-direction cycles merge inside one wave and reopen for a distinct wave", () => {
+  const lastCycle = {
+    direction: "SELL_FIRST",
+    entryPrice: 32.70,
+    exitMinute: 610,
+  };
+  const repeated = evaluateSameDirectionWaveLock({
+    direction: "SELL_FIRST",
+    currentPrice: 32.72,
+    currentMinute: 615,
+    lastCycle,
+    minGapMinutes: 10,
+    resetPct: 0.35,
+  });
+  const distinct = evaluateSameDirectionWaveLock({
+    direction: "SELL_FIRST",
+    currentPrice: 32.85,
+    currentMinute: 615,
+    lastCycle,
+    minGapMinutes: 10,
+    resetPct: 0.35,
+  });
+  const cooled = evaluateSameDirectionWaveLock({
+    direction: "SELL_FIRST",
+    currentPrice: 32.71,
+    currentMinute: 621,
+    lastCycle,
+    minGapMinutes: 10,
+    resetPct: 0.35,
+  });
+
+  assert.equal(repeated.blocked, true);
+  assert.equal(distinct.blocked, false);
+  assert.equal(distinct.distinctExtreme, true);
+  assert.equal(cooled.blocked, false);
+});
 
 test("adaptive exit extends only when current causal structure still supports the trade", () => {
   const points = [100, 99.9, 99.8, 99.85, 99.9, 99.95, 100.0, 100.05, 100.1].map((price) => ({ price }));
@@ -72,6 +110,41 @@ test("adaptive exit closes a structurally broken trade and enforces a causal max
   assert.equal(broken.pivotIntact, false);
   assert.equal(expired.exit, true);
   assert.equal(expired.maxHoldReached, true);
+});
+
+test("closure review protects only an intact losing trade from a mechanical clock exit", () => {
+  const points = [100, 99.95, 99.9, 99.92, 99.94, 99.96, 99.98, 100.0, 100.02].map((price) => ({ price }));
+  const vwaps = points.map(() => 99.80);
+  const decision = evaluateAdaptiveTimeExit({
+    direction: "SELL_FIRST",
+    points,
+    index: points.length - 1,
+    vwaps,
+    entryPivotPrice: 100.2,
+    holdMinutes: 18,
+    minSupportVotes: 2,
+    projectedNetPct: -0.12,
+    protectIntactLoss: true,
+  });
+
+  const recovered = evaluateAdaptiveTimeExit({
+    direction: "SELL_FIRST",
+    points,
+    index: points.length - 1,
+    vwaps,
+    entryPivotPrice: 100.2,
+    holdMinutes: 18,
+    minSupportVotes: 2,
+    projectedNetPct: 0.02,
+    protectIntactLoss: true,
+  });
+
+  assert.equal(decision.pivotIntact, true);
+  assert.equal(decision.lossProtected, true);
+  assert.equal(decision.extended, true);
+  assert.equal(decision.exit, false);
+  assert.equal(recovered.lossProtected, false);
+  assert.equal(recovered.exit, true, "after break-even, weak structure must release inventory");
 });
 
 test("three independent scores do not let a strong tape hide a weak location", () => {
