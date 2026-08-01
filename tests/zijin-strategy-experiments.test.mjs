@@ -26,7 +26,8 @@ test("closure mode audits obvious errors instead of optimizing win rate", () => 
   assert.equal(zijin.errorAuditPriority, true);
   assert.equal(zijin.reference, null);
   assert.equal(zijin.positionSizeMode, "fixed");
-  assert.equal(zijin.profileOverrides.hardTrendContinuationGate, 1);
+  assert.equal(zijin.profileOverrides.hardTrendContinuationGate, 0);
+  assert.equal(zijin.profileOverrides.obviousDirectionalErrorGate, 1);
   assert.equal(zijin.profileOverrides.adaptiveTimeExit, 1);
   assert.equal(zijin.profileOverrides.timeExitMinutes, 18);
   assert.equal(zijin.profileOverrides.adaptiveMaxHoldMinutes, 48);

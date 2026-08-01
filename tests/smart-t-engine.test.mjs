@@ -21,6 +21,8 @@ import {
   evaluateAdaptiveTimeExit,
   evaluateStructuralStop,
   evaluateTripleScoreEvidence,
+  isHardDirectionalTrendConflict,
+  isObviousDirectionalEntryError,
   isWithinSellEntryTimeWindow,
   minutesFromOpen,
   qualifiesMatureSellReversalRiskOverride,
@@ -288,6 +290,91 @@ test("falling-knife guard blocks a buy during a still-declining structure", () =
   assert.equal(weakSession.weakSessionDecline, true);
   assert.equal(earlyBounce.blocked, true);
   assert.equal(earlyBounce.rapidDeclineUnconfirmed, true);
+});
+
+test("an old VWAP cross does not excuse a buy after price falls back into a persistent decline", () => {
+  const risk = detectFallingKnifeConflict({
+    direction: "BUY_FIRST",
+    currentDeviation: -0.80,
+    crossedVwap: true,
+    vwapMomentum15: -0.04,
+    vwapMomentum30: -0.04,
+    sessionMove: -0.40,
+    prePivotMove10: -0.40,
+    pivotAge: 3,
+    pivotReversal: 0.20,
+    priceMomentum30: -1.20,
+    priceMomentum60: -0.70,
+    priceMomentum90: -0.90,
+    longPriceMeanBias: -0.45,
+    broadPricePoints: 75,
+  });
+
+  assert.equal(risk.blocked, true);
+  assert.equal(risk.midPersistentDecline, true);
+  assert.equal(isHardDirectionalTrendConflict("BUY_FIRST", risk), true);
+});
+
+test("the hard trend gate blocks persistent adverse paths but not a single noisy risk flag", () => {
+  assert.equal(isHardDirectionalTrendConflict("BUY_FIRST", {
+    blocked: true,
+    rapidDeclineUnconfirmed: true,
+  }), false);
+  assert.equal(isHardDirectionalTrendConflict("BUY_FIRST", {
+    blocked: true,
+    persistentPriceDecline: true,
+  }), true);
+  assert.equal(isHardDirectionalTrendConflict("SELL_FIRST", {
+    blocked: true,
+    rapidRiseUnconfirmed: true,
+  }), false);
+  assert.equal(isHardDirectionalTrendConflict("SELL_FIRST", {
+    blocked: true,
+    midPersistentRise: true,
+  }), true);
+});
+
+test("closure audit vetoes only an obvious unfinished or persistent adverse first leg", () => {
+  const profile = { obviousDirectionalErrorGate: 1 };
+  assert.equal(isObviousDirectionalEntryError({
+    direction: "BUY_FIRST",
+    risk: { rapidDeclineUnconfirmed: true },
+    executionMomentumConfirmed: true,
+    currentDeviation: -0.7,
+    profile,
+  }), true);
+  assert.equal(isObviousDirectionalEntryError({
+    direction: "BUY_FIRST",
+    risk: {},
+    executionMomentumConfirmed: true,
+    currentDeviation: -0.7,
+    priceMomentum30: -0.2,
+    longPriceMeanBias: -0.1,
+    pivotReversal: 0.3,
+    profile,
+  }), false);
+  assert.equal(isObviousDirectionalEntryError({
+    direction: "SELL_FIRST",
+    risk: { broadVwapRise: true, strongSessionRise: true },
+    executionMomentumConfirmed: true,
+    currentDeviation: 0.88,
+    crossedVwap: false,
+    priceMomentum30: 0.56,
+    longPriceMeanBias: 0.90,
+    pivotReversal: 0.11,
+    profile,
+  }), true);
+  assert.equal(isObviousDirectionalEntryError({
+    direction: "SELL_FIRST",
+    risk: {},
+    executionMomentumConfirmed: true,
+    currentDeviation: 0.8,
+    crossedVwap: false,
+    priceMomentum30: 1.2,
+    longPriceMeanBias: 0.9,
+    pivotReversal: 0.2,
+    profile,
+  }), true);
 });
 
 test("a flat cumulative VWAP cannot hide a persistent long price decline", () => {
