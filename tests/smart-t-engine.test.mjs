@@ -18,6 +18,7 @@ import {
   detectFallingKnifeConflict,
   detectRisingKnifeConflict,
   describeVwapConfirmation,
+  evaluateAdaptiveTimeExit,
   evaluateStructuralStop,
   evaluateTripleScoreEvidence,
   isWithinSellEntryTimeWindow,
@@ -26,6 +27,50 @@ import {
   runSmartTReplay,
   summarizeHistoricalSimilarity,
 } from "../lib/smart-t-engine.mjs";
+
+test("adaptive exit extends only when current causal structure still supports the trade", () => {
+  const points = [100, 99.9, 99.8, 99.85, 99.9, 99.95, 100.0, 100.05, 100.1].map((price) => ({ price }));
+  const vwaps = points.map(() => 99.95);
+  const decision = evaluateAdaptiveTimeExit({
+    direction: "BUY_FIRST",
+    points,
+    index: points.length - 1,
+    vwaps,
+    entryPivotPrice: 99.8,
+    holdMinutes: 18,
+  });
+
+  assert.equal(decision.reviewing, true);
+  assert.equal(decision.extended, true);
+  assert.equal(decision.exit, false);
+  assert.ok(decision.supportVotes >= 2);
+});
+
+test("adaptive exit closes a structurally broken trade and enforces a causal maximum", () => {
+  const points = [100, 99.9, 99.8, 99.7, 99.6, 99.5, 99.4, 99.3, 99.2].map((price) => ({ price }));
+  const vwaps = points.map(() => 99.8);
+  const broken = evaluateAdaptiveTimeExit({
+    direction: "BUY_FIRST",
+    points,
+    index: points.length - 1,
+    vwaps,
+    entryPivotPrice: 99.8,
+    holdMinutes: 18,
+  });
+  const expired = evaluateAdaptiveTimeExit({
+    direction: "BUY_FIRST",
+    points,
+    index: points.length - 1,
+    vwaps,
+    entryPivotPrice: 99.2,
+    holdMinutes: 48,
+  });
+
+  assert.equal(broken.exit, true);
+  assert.equal(broken.pivotIntact, false);
+  assert.equal(expired.exit, true);
+  assert.equal(expired.maxHoldReached, true);
+});
 
 test("three independent scores do not let a strong tape hide a weak location", () => {
   const weakLocation = evaluateTripleScoreEvidence({
