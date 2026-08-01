@@ -270,6 +270,16 @@
   border-color:#cbd4d1;
   color:#384540
 }
+.share-actions .douyin-share{
+  border-color:#fe2c55;
+  background:linear-gradient(135deg,#fe2c55,#d51d45);
+  color:#fff;
+  box-shadow:0 8px 24px rgba(254,44,85,.18)
+}
+:root[data-theme="light"] .share-actions .douyin-share{
+  border-color:#fe2c55;
+  color:#fff
+}
 
 @media(max-width:560px){
   .oracle-theme-toggle{position:absolute;top:14px;right:12px}

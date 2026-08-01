@@ -14,7 +14,30 @@ import {
   causalTrendImpulseConflict,
   causalWeakRecoveryConflict,
   causalVwapDirectionConflict,
+  shouldEnforceObviousDirectionalMemory,
 } from "../lib/smart-t-engine.mjs";
+
+test("later cycles inherit direction risk without blocking clean range closures", () => {
+  assert.equal(shouldEnforceObviousDirectionalMemory({ completedCycles: 0 }), true);
+  assert.equal(shouldEnforceObviousDirectionalMemory({
+    completedCycles: 1,
+    latestCycleNet: 120,
+  }), false, "a profitable range cycle should not add a new global veto");
+  assert.equal(shouldEnforceObviousDirectionalMemory({
+    completedCycles: 1,
+    latestCycleNet: 120,
+    cycleConflict: true,
+  }), true, "a later counter-cycle leg must retain broad direction memory");
+  assert.equal(shouldEnforceObviousDirectionalMemory({
+    completedCycles: 2,
+    latestCycleNet: 80,
+    persistentDirectionConflict: true,
+  }), true, "persistent one-way movement must survive a cycle reset");
+  assert.equal(shouldEnforceObviousDirectionalMemory({
+    completedCycles: 1,
+    latestCycleNet: -15,
+  }), true, "a losing cycle cannot immediately clear the error audit");
+});
 
 test("broad downtrend gate blocks a slow falling-knife buy missed by range classification", () => {
   const fallingBuy = {
