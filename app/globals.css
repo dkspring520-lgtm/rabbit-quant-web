@@ -1312,3 +1312,68 @@
     flex-basis:96px
   }
 }
+
+/* Decision rail: keep alert controls inside the focus panel and make Zijin experiment modes discoverable. */
+@media(min-width:761px){
+  .minimal-ui .decision-zone.focus-mode .stock-agent-switch{
+    order:3;
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    gap:6px;
+    margin:0;
+    padding:7px 8px;
+    border-radius:8px
+  }
+  .minimal-ui .decision-zone.focus-mode .stock-agent-switch>div:first-child small{display:none}
+  .minimal-ui .decision-zone.focus-mode .stock-agent-switch-actions{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    width:100%
+  }
+  .minimal-ui .decision-zone.focus-mode .stock-agent-switch-actions button{
+    min-width:0;
+    padding:6px 4px;
+    white-space:nowrap
+  }
+  .minimal-ui .decision-zone.focus-mode .decision-position-card{order:4}
+  .minimal-ui .decision-zone.focus-mode .alert-channel{
+    order:5;
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr);
+    align-items:center;
+    gap:7px 9px;
+    width:100%;
+    min-width:0
+  }
+  .minimal-ui .decision-zone.focus-mode .alert-channel>div:first-child{
+    grid-column:1;
+    grid-row:1;
+    min-width:0
+  }
+  .minimal-ui .decision-zone.focus-mode .alert-channel-actions{
+    grid-column:2;
+    grid-row:1;
+    display:grid!important;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    justify-content:stretch;
+    width:100%;
+    min-width:0;
+    gap:5px
+  }
+  .minimal-ui .decision-zone.focus-mode .alert-channel-actions button,
+  .minimal-ui .decision-zone.focus-mode .alert-channel-actions .utility{
+    width:100%;
+    min-width:0;
+    padding:6px 4px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap
+  }
+  .minimal-ui .decision-zone.focus-mode .mobile-push-guide{
+    grid-column:1/-1;
+    grid-row:2;
+    width:100%;
+    min-width:0;
+    margin:0
+  }
+}
