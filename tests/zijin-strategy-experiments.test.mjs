@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   resolveBacktestStrategyExperiment,
@@ -34,4 +35,15 @@ test("closure mode audits obvious errors instead of optimizing win rate", () => 
   assert.equal(generic.scope, "general-a-share");
   assert.equal(generic.reference, null);
   assert.equal(generic.volatilityMode, "causal-realized");
+});
+
+test("production replay, live desk, and background scanner stay on closure-first", () => {
+  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const controlPlane = readFileSync(new URL("../server/control-plane.mjs", import.meta.url), "utf8");
+
+  assert.match(page, /useState<ZijinStrategyExperiment>\("closure-first"\)/);
+  assert.match(page, /resolveBacktestStrategyExperiment\(stock\?\.code,zijinExperimentMode\)/);
+  assert.match(page, /resolveBacktestStrategyExperiment\(item\.code,"closure-first"\)/);
+  assert.match(controlPlane, /resolveBacktestStrategyExperiment\(monitor\.code, "closure-first"\)/);
+  assert.match(controlPlane, /profileOverrides: experiment\.profileOverrides/);
 });
