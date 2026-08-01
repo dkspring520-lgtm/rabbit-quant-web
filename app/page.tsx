@@ -262,7 +262,7 @@ function FourRabbitAutomationDashboard({progress}:{progress:ZijinTrainingProgres
 
 type StrategyProfile = "稳健档" | "平衡档" | "灵敏档";
 type ProfitMode = "standard" | "zijin-small-spread";
-type ZijinStrategyExperiment = "formal-v4" | "high-coverage" | "dynamic-sizing";
+type ZijinStrategyExperiment = "formal-v4" | "high-coverage" | "dynamic-sizing" | "closure-first";
 type ReplayProfitOptions = {
   profileOverrides?: Record<string, number>;
   minimumNetProfitAmount?: number;
@@ -604,7 +604,7 @@ const agents = [
   { id: "official", avatar: "/agents/official.png", name: "正式兔", role: "管理影子观察资格" },
 ];
 const strategyProfiles = STRATEGY_PROFILES;
-const zijinStrategyExperimentIds: ZijinStrategyExperiment[] = ["formal-v4", "high-coverage", "dynamic-sizing"];
+const zijinStrategyExperimentIds: ZijinStrategyExperiment[] = ["formal-v4", "high-coverage", "dynamic-sizing", "closure-first"];
 type UiTheme = "dark" | "light";
 
 function ReleaseVersion() {
@@ -4491,7 +4491,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           <small className="config-inline-help">首次运行会读取可用的完整交易日；随后可选择历史日期重新逐分钟回放。</small>
         </label>
         <label>V4 策略档位<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item as StrategyProfile)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；同一套 Smart-T 融合策略 V4，仅调整确认门槛与信号频率。</small></label>
-        <label>实验回测版本<div className="profile-picker experiment-picker">{zijinStrategyExperimentIds.map(id=>{const item=ZIJIN_STRATEGY_EXPERIMENTS[id];return <button type="button" className={`${zijinReplayExperiment===id?'active':''} ${item.experimental?'experimental':''}`} onClick={()=>setZijinReplayExperiment(id)} key={id}>{item.shortLabel}</button>})}</div><small className={`config-inline-help experiment-warning ${zijinReplayExperiment!=="formal-v4"?"active":""}`}>{zijinReplayExperiment==="formal-v4"?"正式 V4.1 基线。":stock.code==="601899"?`${ZIJIN_STRATEGY_EXPERIMENTS[zijinReplayExperiment].description} 紫金研究参考：约 41.94 次/100日、胜率 58.96%；尚未通过扣费净收益门槛。`:`通用自适应实验：按本股因果波动、历史同时间量能、流动性与交易成本运行，不套用紫金参数或胜率。随机10股时，601899自动用专属参数，其余股票使用通用参数。`}</small></label>
+        <label>实验回测版本<div className="profile-picker experiment-picker">{zijinStrategyExperimentIds.map(id=>{const item=ZIJIN_STRATEGY_EXPERIMENTS[id];return <button type="button" className={`${zijinReplayExperiment===id?'active':''} ${item.experimental?'experimental':''}`} onClick={()=>setZijinReplayExperiment(id)} key={id}>{item.shortLabel}</button>})}</div><small className={`config-inline-help experiment-warning ${zijinReplayExperiment!=="formal-v4"?"active":""}`}>{zijinReplayExperiment==="formal-v4"?"正式 V4.1 基线。":zijinReplayExperiment==="closure-first"?`${ZIJIN_STRATEGY_EXPERIMENTS[zijinReplayExperiment].description} 只看闭环覆盖，胜率与收益暂不作为通过条件。`:stock.code==="601899"?`${ZIJIN_STRATEGY_EXPERIMENTS[zijinReplayExperiment].description} 紫金历史研究参考：约 41.94 次/100日、胜率 58.96%；不是本次实际结果，且尚未通过扣费净收益门槛。`:`通用自适应实验：按本股因果波动、历史同时间量能、流动性与交易成本运行，不套用紫金参数或胜率。随机10股时，601899自动用专属参数，其余股票使用通用参数。`}</small></label>
         {stock.code==="601899"&&<label>紫金利润模式<div className="profile-picker profit-picker"><button type="button" className={profitMode==="standard"?'active':''} onClick={()=>setProfitMode("standard")}>标准价差</button><button type="button" className={profitMode==="zijin-small-spread"?'active':''} onClick={()=>setProfitMode("zijin-small-spread")}>小价差</button></div><small className="config-inline-help">小价差档要求每股至少 ¥0.10、扣费净利至少 ¥30；趋势、VWAP、量价和硬风控不放宽。</small></label>}
         <div className="broker-account-box">
           <div className="broker-account-head"><b>模拟证券账户</b><span>仅用于回测撮合，不连接真实券商</span></div>
@@ -4505,7 +4505,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}<span>→</span></button>
         <div className="multi-day-controls"><label>连续交易日<select value={multiDayCount} onChange={event=>setMultiDayCount(Number(event.target.value))} disabled={running}>{[10,20,60,100].map(value=><option value={value} key={value}>最近 {value} 日</option>)}</select></label><button type="button" onClick={()=>void runMultiDay()} disabled={running}>{runMode==='multi'?`正在连续回放 ${multiDayCount} 日…`:`连续回放最近 ${multiDayCount} 日`}</button></div>
-        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:`全A股随机10股 · ${zijinReplayExperiment==="formal-v4"?"正式":zijinReplayExperiment==="high-coverage"?"通用覆盖":"通用动态"}`}</button></div>
+        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:`全A股随机10股 · ${zijinReplayExperiment==="formal-v4"?"正式":zijinReplayExperiment==="high-coverage"?"通用覆盖":zijinReplayExperiment==="dynamic-sizing"?"通用动态":"闭环优先"}`}</button></div>
         <RabbitProgressMeter
           label={runMode==='batch'?'全 A 股随机批次测试':runMode==='multi'?`单股连续 ${multiDayCount} 日回测`:'单股完整交易日回测'}
           detail={replayProgress.detail}

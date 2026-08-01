@@ -20,6 +20,18 @@ test("backtests can apply coverage and dynamic sizing to non-Zijin stocks withou
   assert.equal(dynamic.reference, null);
 });
 
+test("closure-first is an isolated coverage study and never claims win rate", () => {
+  const zijin = resolveZijinStrategyExperiment("601899", "closure-first");
+  const generic = resolveBacktestStrategyExperiment("300750", "closure-first");
+  assert.equal(zijin.coveragePriority, true);
+  assert.equal(zijin.reference, null);
+  assert.equal(zijin.profileOverrides.minExecutionConfirmationVotes, 1);
+  assert.equal(zijin.profileOverrides.maxCycles, 3);
+  assert.equal(generic.scope, "general-a-share");
+  assert.equal(generic.reference, null);
+  assert.equal(generic.volatilityMode, "causal-realized");
+});
+
 test("Zijin experiment profiles preserve hard labels and never claim after-cost graduation", () => {
   const coverage = resolveZijinStrategyExperiment("601899", "high-coverage");
   const dynamic = resolveZijinStrategyExperiment("601899", "dynamic-sizing");
