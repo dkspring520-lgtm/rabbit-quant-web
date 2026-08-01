@@ -58,7 +58,14 @@ services:
       L2_FORWARD_MIN_SAMPLES: "1200"
       L2_FORWARD_MIN_DAYS: "10"
       L2_FORWARD_MIN_OPENING_LABELS: "200"
-      L2_FORWARD_COST_PCT: "0.46"
+      L2_FORWARD_QUANTITY: "1600"
+      L2_FORWARD_COMMISSION_PCT_PER_SIDE: "0.025"
+      L2_FORWARD_STAMP_TAX_PCT: "0.05"
+      L2_FORWARD_SLIPPAGE_PCT_PER_SIDE: "0.02"
+      L2_FORWARD_MIN_COMMISSION_YUAN: "5"
+      L2_FORWARD_MIN_NET_PCT: "0.12"
+      L2_FORWARD_MIN_NET_YUAN: "30"
+      L2_FORWARD_MIN_GROSS_SPREAD_YUAN: "0.10"
     volumes:
       - /opt/rabbit-quant-state:/training-state
     healthcheck:
@@ -156,7 +163,14 @@ services:
       ZIJIN_L2_REPLAY_ARCHIVE_DIR: /training-state/zijin-l2-replay
       ZIJIN_L2_AUDIT_POLL_MS: "15000"
       ZIJIN_L2_AUDIT_IDLE_POLL_MS: "60000"
-      ZIJIN_L2_AUDIT_COST_PCT: "0.46"
+      ZIJIN_L2_AUDIT_QUANTITY: "1600"
+      ZIJIN_L2_AUDIT_COMMISSION_PCT_PER_SIDE: "0.025"
+      ZIJIN_L2_AUDIT_STAMP_TAX_PCT: "0.05"
+      ZIJIN_L2_AUDIT_SLIPPAGE_PCT_PER_SIDE: "0.02"
+      ZIJIN_L2_AUDIT_MIN_COMMISSION_YUAN: "5"
+      ZIJIN_L2_AUDIT_MIN_NET_PCT: "0.12"
+      ZIJIN_L2_AUDIT_MIN_NET_YUAN: "30"
+      ZIJIN_L2_AUDIT_MIN_GROSS_SPREAD_YUAN: "0.10"
     volumes:
       - /opt/rabbit-quant-state:/training-state
     depends_on:

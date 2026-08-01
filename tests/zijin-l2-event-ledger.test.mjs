@@ -69,6 +69,17 @@ test("labels are delayed, horizon-specific, and never use future data early", ()
   const labels = buildMatureZijinL2Labels({ observations: [observation], minutes: mature });
   assert.deepEqual(labels.map(item => item.horizonMinutes), [5, 15, 30]);
   assert.ok(labels.every(item => item.causal));
+  assert.ok(labels.every(item => item.costModel?.mode === "account-dynamic"));
+  assert.ok(labels.every(item => item.costPct > 0.30 && item.costPct < 0.34));
+});
+
+test("dynamic L2 economic threshold rises when a small lot hits minimum commissions", async () => {
+  const { calculateZijinEconomicThreshold } = await import("../lib/zijin-transaction-cost.mjs");
+  const normal = calculateZijinEconomicThreshold(32, { quantity: 1600 });
+  const small = calculateZijinEconomicThreshold(32, { quantity: 300 });
+  assert.ok(Math.abs(normal.requiredGrossMovePct - 0.3125) < 1e-9);
+  assert.ok(small.requiredGrossMovePct > normal.requiredGrossMovePct);
+  assert.ok(small.roundTripCostPct > normal.roundTripCostPct);
 });
 
 test("thresholds stay frozen before evidence gate", () => {

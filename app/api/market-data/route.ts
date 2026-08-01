@@ -168,6 +168,17 @@ async function fromTencentDailyBars(code: string) {
   return bars;
 }
 
+async function fromEastmoneyListingDate(code: string) {
+  const secid = `${code.startsWith("6") ? "1" : "0"}.${code}`;
+  const response = await fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56&klt=101&fqt=0&beg=0&end=20500101&lmt=10000`, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" },
+  });
+  const payload = await response.json() as { data?: { klines?: string[] } };
+  const firstDate = payload.data?.klines?.[0]?.split(",")[0] ?? "";
+  if (!response.ok || !/^\d{4}-\d{2}-\d{2}$/.test(firstDate)) throw new Error("上市日期不可用");
+  return firstDate;
+}
+
 async function fromSina(code: string): Promise<{ provider: string; quote: Quote; sourceTimestamp: string | null }> {
   const response = await fetch(`https://hq.sinajs.cn/list=${marketPrefix(code)}${code}`, { cache: "no-store", headers: { Referer: "https://finance.sina.com.cn/" } });
   if (!response.ok) throw new Error("新浪行情不可用");
@@ -227,11 +238,12 @@ export async function GET(request: Request) {
       const quality = assessMarketDataQuality({ provider: data.provider, sourceTimestamp: data.sourceTimestamp, fetchedAt, minutes: minuteResult.minutes, requestedRealtime: true, quoteFailures: data.failures, minuteFailures: minuteResult.failures });
       return Response.json({ ...data, minuteProvider: minuteResult.provider, minutes: minuteResult.minutes, quality, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt, bars: [] }, { headers: realtimeHeaders });
     }
-    const [bars, quoteResult, minutes, intradaySessions] = await Promise.all([
+    const [bars, quoteResult, minutes, intradaySessions, listingDate] = await Promise.all([
       fromTencentDailyBars(code).catch(() => []),
       fromTencent(code).catch(() => fromSina(code).catch(() => fromEastmoneyQuote(code).catch(() => null))),
       fromPublicMinutes(code).catch(() => ({ provider: null, minutes: [], failures: ["公开分时源暂不可用"] })),
       fromTencentIntradaySessions(code).then(sessions => sessions.length ? sessions : fromEastmoneyIntradaySessions(code)).catch(() => fromEastmoneyIntradaySessions(code).catch(() => [])),
+      fromEastmoneyListingDate(code).catch(() => null),
     ]);
     const latest = bars.at(-1);
     if (!quoteResult && !latest) throw new Error("所有公开行情源暂不可用");
@@ -240,6 +252,6 @@ export async function GET(request: Request) {
     const fetchedAt = new Date().toISOString();
     const provider = quoteResult?.provider ?? "tencent-public";
     const quality = assessMarketDataQuality({ provider, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, fetchedAt, minutes: minutes.minutes, requestedRealtime: mode === "realtime", minuteFailures: minutes.failures });
-    return Response.json({ provider, quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minuteProvider: minutes.provider, minutes: minutes.minutes, quality, intradaySessions, delayed: true, fetchedAt, bars }, { headers });
+    return Response.json({ provider, quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minuteProvider: minutes.provider, minutes: minutes.minutes, quality, intradaySessions, listingDate, delayed: true, fetchedAt, bars }, { headers });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502, headers: realtimeHeaders }); }
 }

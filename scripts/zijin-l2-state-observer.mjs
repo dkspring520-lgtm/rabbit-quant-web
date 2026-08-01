@@ -19,7 +19,18 @@ const labelPath = process.env.ZIJIN_L2_AUDIT_LABEL_PATH || "/training-state/ziji
 const replayArchiveDir = process.env.ZIJIN_L2_REPLAY_ARCHIVE_DIR || "/training-state/zijin-l2-replay";
 const pollMs = Math.max(10_000, Number(process.env.ZIJIN_L2_AUDIT_POLL_MS) || 15_000);
 const idlePollMs = Math.max(30_000, Number(process.env.ZIJIN_L2_AUDIT_IDLE_POLL_MS) || 60_000);
-const costPct = Math.max(0, Number(process.env.ZIJIN_L2_AUDIT_COST_PCT) || 0.46);
+const configuredCostPct = String(process.env.ZIJIN_L2_AUDIT_COST_PCT ?? "").trim();
+const costPct = configuredCostPct === "" ? null : Math.max(0, Number(configuredCostPct));
+const costOptions = {
+  quantity: Number(process.env.ZIJIN_L2_AUDIT_QUANTITY) || 1600,
+  commissionPctPerSide: Number(process.env.ZIJIN_L2_AUDIT_COMMISSION_PCT_PER_SIDE) || 0.025,
+  stampTaxPct: Number(process.env.ZIJIN_L2_AUDIT_STAMP_TAX_PCT) || 0.05,
+  slippagePctPerSide: Number(process.env.ZIJIN_L2_AUDIT_SLIPPAGE_PCT_PER_SIDE) || 0.02,
+  minimumCommissionYuan: Number(process.env.ZIJIN_L2_AUDIT_MIN_COMMISSION_YUAN) || 5,
+  minimumNetPct: Number(process.env.ZIJIN_L2_AUDIT_MIN_NET_PCT) || 0.12,
+  minimumNetYuan: Number(process.env.ZIJIN_L2_AUDIT_MIN_NET_YUAN) || 30,
+  minimumGrossSpreadYuan: Number(process.env.ZIJIN_L2_AUDIT_MIN_GROSS_SPREAD_YUAN) || 0.10,
+};
 
 function shanghaiClockParts(at = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -198,6 +209,7 @@ export async function runOnce() {
     existingLabels,
     minutes,
     costPct,
+    costOptions,
     labeledAt: now,
   });
   await appendJsonLines(labelPath, newLabels);

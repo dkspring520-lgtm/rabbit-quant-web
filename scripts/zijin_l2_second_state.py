@@ -8,7 +8,7 @@ rolling transaction/book evidence into a small, auditable state:
 NORMAL -> WATCH -> READY -> TRIGGER -> COOLDOWN
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 def clamp(value, low, high):
@@ -87,6 +87,97 @@ def book_persistence(samples, now, seconds=3):
         "obiPositiveRatio": None if not obi_values else round(sum(value > 0 for value in obi_values) / len(obi_values), 4),
         "micropriceEdgeMeanBps": None if not edge_values else round(sum(edge_values) / len(edge_values), 4),
     }
+
+
+def freeze_microstructure_features(second_state, flow, book, messages=None):
+    """Flatten the already-observed L2 state into an immutable training row.
+
+    The forward ledger used to retain these values only inside the UI-oriented
+    ``secondState`` object.  A dedicated feature block gives training code a
+    stable schema and, importantly, makes unavailable cancellation/replenish
+    data explicit instead of silently fabricating it.
+    """
+    second_state = second_state or {}
+    flow = flow or {}
+    book = book or {}
+    messages = messages or {}
+    windows = second_state.get("windows") or {}
+    evidence = second_state.get("evidence") or {}
+    persistent_book = ((second_state.get("book") or {}).get("persistence3s") or {})
+
+    features = {
+        "featureSchemaId": "zijin-l2-microstructure-v1",
+        "state": second_state.get("state"),
+        "direction": second_state.get("direction"),
+        "stateScore": second_state.get("score"),
+        "formalSignal": bool(second_state.get("formalSignal")),
+        "positionBiasPct": (second_state.get("position") or {}).get("biasPct"),
+        "positionThresholdPct": (second_state.get("position") or {}).get("thresholdPct"),
+        "nearSessionLow": bool((second_state.get("position") or {}).get("nearSessionLow")),
+        "nearSessionHigh": bool((second_state.get("position") or {}).get("nearSessionHigh")),
+        "absorption": bool(evidence.get("absorption")),
+        "flowReversal": bool(evidence.get("flowReversal")),
+        "bookAligned": bool(evidence.get("bookAligned")),
+        "activeBuyRatio60s": flow.get("activeBuyRatio60s"),
+        "netActiveNotional60s": flow.get("netActiveNotional60s"),
+        "bigOrderNetNotional60s": flow.get("bigOrderNetNotional60s"),
+        "nearTouchImbalance": book.get("nearTouchImbalance"),
+        "spreadBps": book.get("spreadBps"),
+        "micropriceEdgeBps": book.get("micropriceEdgeBps"),
+        "obiMean3s": persistent_book.get("obiMean"),
+        "obiPositiveRatio3s": persistent_book.get("obiPositiveRatio"),
+        "micropriceEdgeMean3sBps": persistent_book.get("micropriceEdgeMeanBps"),
+        "bookSamples3s": persistent_book.get("samples"),
+        "snapshotMessages": messages.get("snapshot", 0),
+        "transactionMessages": messages.get("transaction", 0),
+        "orderMessages": messages.get("order", 0),
+        # The vendor stream currently exposes order events, but the precise
+        # cancel/replenish semantics have not been verified from authoritative
+        # metadata. Keep them unavailable until that audit is complete.
+        "cancellationFeaturesAvailable": False,
+        "replenishmentFeaturesAvailable": False,
+    }
+    for seconds in (1, 3, 10, 30, 60):
+        row = windows.get(f"{seconds}s") or {}
+        prefix = f"flow{seconds}s"
+        features.update({
+            f"{prefix}Transactions": row.get("transactions"),
+            f"{prefix}BuyNotional": row.get("buyNotional"),
+            f"{prefix}SellNotional": row.get("sellNotional"),
+            f"{prefix}GrossNotional": row.get("grossNotional"),
+            f"{prefix}NetNotional": row.get("netNotional"),
+            f"{prefix}Tfi": row.get("tfi"),
+            f"{prefix}PriceRange": row.get("priceRange"),
+        })
+        first_price = row.get("firstPrice")
+        last_price = row.get("lastPrice")
+        features[f"{prefix}PriceChangeBps"] = (
+            None
+            if not first_price or last_price is None
+            else round((last_price - first_price) / first_price * 10000, 6)
+        )
+    return features
+
+
+@dataclass
+class ForwardMinuteBuffer:
+    """Keep only the latest causal snapshot until its minute has ended."""
+
+    pending: dict | None = field(default=None)
+
+    def push(self, record):
+        minute = (record or {}).get("exchangeMinute")
+        if not minute:
+            return None
+        if self.pending is None:
+            self.pending = record
+            return None
+        if self.pending.get("exchangeMinute") == minute:
+            self.pending = record
+            return None
+        completed = self.pending
+        self.pending = record
+        return completed
 
 
 @dataclass
