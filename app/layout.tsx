@@ -16,6 +16,8 @@ import "./minimal.css";
 import "./theme.css";
 import "./bunny-light.css";
 import "./brand-cute.css";
+import "./fortune-cosmic-transition.css";
+import FortuneCosmicTransition from "./fortune-cosmic-transition";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -46,7 +48,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <FortuneCosmicTransition />
+      </body>
     </html>
   );
 }
