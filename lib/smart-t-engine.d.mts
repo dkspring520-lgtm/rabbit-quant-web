@@ -298,6 +298,28 @@ export function isWithinSellEntryTimeWindow(input: {
   time?: string;
   maxSellEntryTime?: string | null;
 }): boolean;
+export function evaluateAdaptiveTimeExit(input: {
+  direction: "BUY_FIRST" | "SELL_FIRST";
+  points: Array<{ price: number }>;
+  index: number;
+  vwaps: number[];
+  entryPivotPrice: number;
+  holdMinutes: number;
+  reviewMinutes?: number;
+  maxHoldMinutes?: number;
+  pivotBufferPct?: number;
+  momentumPct?: number;
+}): {
+  exit: boolean;
+  reviewing: boolean;
+  extended: boolean;
+  reason: string;
+  maxHoldReached?: boolean;
+  pivotIntact?: boolean;
+  supportVotes?: number;
+  momentum3?: number;
+  momentum8?: number;
+};
 export const PROFILES: Record<string, {
   score: number;
   cooldown: number;
@@ -315,6 +337,10 @@ export const PROFILES: Record<string, {
   softStopPct?: number;
   softStopMinutes?: number;
   timeExitMinutes?: number;
+  adaptiveTimeExit?: number;
+  adaptiveMaxHoldMinutes?: number;
+  adaptiveExitPivotBufferPct?: number;
+  adaptiveExitMomentumPct?: number;
   trailActivationPct?: number;
   trailRetracePct?: number;
   trailMinNetPct?: number;
