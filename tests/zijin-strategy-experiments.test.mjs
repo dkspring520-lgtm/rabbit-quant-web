@@ -2,11 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { resolveReplayPositionSize } from "../lib/smart-t-engine.mjs";
-import { resolveZijinStrategyExperiment, ZIJIN_STRATEGY_EXPERIMENTS } from "../lib/zijin-strategy-experiments.mjs";
+import { resolveBacktestStrategyExperiment, resolveZijinStrategyExperiment, ZIJIN_STRATEGY_EXPERIMENTS } from "../lib/zijin-strategy-experiments.mjs";
 
 test("non-Zijin stocks always remain on formal V4", () => {
   assert.equal(resolveZijinStrategyExperiment("601012", "high-coverage").id, "formal-v4");
   assert.equal(resolveZijinStrategyExperiment("300750", "dynamic-sizing").experimental, false);
+});
+
+test("backtests can apply coverage and dynamic sizing to non-Zijin stocks without borrowing Zijin statistics", () => {
+  const coverage = resolveBacktestStrategyExperiment("601012", "high-coverage");
+  const dynamic = resolveBacktestStrategyExperiment("300750", "dynamic-sizing");
+  assert.equal(coverage.id, "high-coverage");
+  assert.equal(coverage.scope, "general-a-share");
+  assert.equal(coverage.reference, null);
+  assert.equal(coverage.volatilityMode, "causal-realized");
+  assert.equal(dynamic.positionSizeMode, "liquidity-risk-tiered");
+  assert.equal(dynamic.reference, null);
 });
 
 test("Zijin experiment profiles preserve hard labels and never claim after-cost graduation", () => {
@@ -30,4 +41,28 @@ test("quality-tiered sizing only reduces a causal planned quantity", () => {
   assert.equal(strong, 800);
   assert.equal(resolveReplayPositionSize(1600, "fixed", {}), 1600);
   assert.ok(weak <= medium && medium <= strong && strong <= 1600);
+});
+
+test("generic dynamic sizing also respects observed liquidity and causal risk", () => {
+  const liquid = resolveReplayPositionSize(1600, "liquidity-risk-tiered", {
+    score: 4,
+    threshold: 2,
+    volumeRatio: 1.2,
+    minuteVolume: 20000,
+    volatilityScale: 0.95,
+    structuralConfirmation: true,
+    executionMomentumConfirmed: true,
+  });
+  const thinAndVolatile = resolveReplayPositionSize(1600, "liquidity-risk-tiered", {
+    score: 4,
+    threshold: 2,
+    volumeRatio: 1.2,
+    minuteVolume: 3000,
+    volatilityScale: 1.25,
+    structuralConfirmation: true,
+    executionMomentumConfirmed: true,
+  });
+  assert.equal(liquid, 800);
+  assert.equal(thinAndVolatile, 100);
+  assert.ok(thinAndVolatile < liquid);
 });

@@ -1931,6 +1931,7 @@
   .profit-mode-panel,
   .position-logic-help,
   .batch-report,
+  .multi-day-report,
   .stock-feedback,
   .batch-mini-chart,
   .batch-mini-empty,
@@ -1943,6 +1944,28 @@
   border-color: #eee0e7;
   background: #fff;
   color: #3c3747;
+}
+
+:root[data-theme="light"] .multi-day-report {
+  overflow: hidden;
+  border-color: #dceeea;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fffd, #fff 58%);
+  box-shadow: 0 8px 24px rgba(82, 118, 108, .07);
+}
+
+:root[data-theme="light"] .multi-day-report > div {
+  border-color: #e7efed;
+}
+
+:root[data-theme="light"] .multi-day-report strong {
+  color: #34313f;
+}
+
+:root[data-theme="light"] .multi-day-controls button {
+  border-color: #bfe8df;
+  background: #f2fbf9;
+  color: #268f80;
 }
 
 :root[data-theme="light"] .batch-report {

@@ -127,9 +127,10 @@ async function fromEastmoneyMinutes(code: string): Promise<MinutePoint[]> {
   return points;
 }
 
-async function fromEastmoneyIntradaySessions(code: string): Promise<IntradaySession[]> {
+async function fromEastmoneyIntradaySessions(code: string, historyDays = 6): Promise<IntradaySession[]> {
   const secid = `${code.startsWith("6") ? "1" : "0"}.${code}`;
-  const response = await fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56&klt=1&fqt=0&beg=0&end=20500101&lmt=1500`);
+  const minuteLimit = Math.min(30_000, Math.max(1_500, Math.ceil(historyDays) * 250));
+  const response = await fetch(`https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56&klt=1&fqt=0&beg=0&end=20500101&lmt=${minuteLimit}`);
   const payload = await response.json() as { data?: { klines?: string[] } };
   if (!response.ok) throw new Error("东方财富多日分时不可用");
   const grouped = new Map<string, MinutePoint[]>();
@@ -148,6 +149,14 @@ async function fromEastmoneyIntradaySessions(code: string): Promise<IntradaySess
     const previousClose = previousDate ? grouped.get(previousDate)?.at(-1)?.price ?? null : null;
     return [{ date: date.replaceAll("-", ""), previousClose, minutes }];
   });
+}
+
+async function fromExtendedIntradaySessions(code: string, historyDays: number): Promise<IntradaySession[]> {
+  const [eastmoney, tencent] = await Promise.all([
+    fromEastmoneyIntradaySessions(code, historyDays).catch(() => []),
+    fromTencentIntradaySessions(code).catch(() => []),
+  ]);
+  return eastmoney.length >= tencent.length ? eastmoney : tencent;
 }
 
 async function fromPublicMinutes(code: string) {
@@ -214,6 +223,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code")?.trim() ?? "";
   const mode = searchParams.get("mode");
+  const requestedHistoryDays = Math.min(100, Math.max(1, Number(searchParams.get("historyDays")) || 6));
   try {
     validCode(code);
     if (mode === "trial-quote") {
@@ -242,7 +252,9 @@ export async function GET(request: Request) {
       fromTencentDailyBars(code).catch(() => []),
       fromTencent(code).catch(() => fromSina(code).catch(() => fromEastmoneyQuote(code).catch(() => null))),
       fromPublicMinutes(code).catch(() => ({ provider: null, minutes: [], failures: ["公开分时源暂不可用"] })),
-      fromTencentIntradaySessions(code).then(sessions => sessions.length ? sessions : fromEastmoneyIntradaySessions(code)).catch(() => fromEastmoneyIntradaySessions(code).catch(() => [])),
+      requestedHistoryDays > 6
+        ? fromExtendedIntradaySessions(code, requestedHistoryDays)
+        : fromTencentIntradaySessions(code).then(sessions => sessions.length ? sessions : fromEastmoneyIntradaySessions(code, requestedHistoryDays)).catch(() => fromEastmoneyIntradaySessions(code, requestedHistoryDays).catch(() => [])),
       fromEastmoneyListingDate(code).catch(() => null),
     ]);
     const latest = bars.at(-1);

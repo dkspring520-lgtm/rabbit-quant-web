@@ -170,11 +170,13 @@ export type SmartTOptions = {
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
 export function resolveReplayPositionSize(
   plannedQuantity: number,
-  mode?: "fixed" | "quality-tiered",
+  mode?: "fixed" | "quality-tiered" | "liquidity-risk-tiered",
   evidence?: {
     score?: number;
     threshold?: number;
     volumeRatio?: number;
+    minuteVolume?: number;
+    volatilityScale?: number;
     structuralConfirmation?: boolean;
     executionMomentumConfirmed?: boolean;
   },

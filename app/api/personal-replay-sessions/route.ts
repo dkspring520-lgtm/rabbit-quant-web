@@ -57,6 +57,15 @@ export async function GET(request: Request) {
   try {
     const candidates = fiveYearSessions(await loadArchive());
     if (!candidates.length) throw new Error("近五年没有完整训练交易日");
+    const requestedLimit = Math.min(140, Math.max(0, Number(url.searchParams.get("limit")) || 0));
+    if (requestedLimit > 0) {
+      const sessions = candidates.slice(-requestedLimit);
+      return Response.json({
+        sessions,
+        source: "zijin-five-year-minute-archive",
+        coverage: { sessions: candidates.length, firstDate: candidates[0].date, lastDate: candidates.at(-1)?.date ?? null },
+      }, { headers: { "Cache-Control": "no-store" } });
+    }
     const excluded = url.searchParams.get("exclude");
     const pool = candidates.length > 1 && excluded ? candidates.filter(session => session.date !== excluded) : candidates;
     const session = pool[Math.floor(Math.random() * pool.length)];
