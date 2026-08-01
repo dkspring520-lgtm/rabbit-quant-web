@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 
 type Stage = 0 | 1 | 2 | 3 | 4;
 type FortuneContext = { code: string; name: string; cycle: string; compact: boolean };
-
 type StartDetail = Partial<Omit<FortuneContext, "compact">> & { compact?: boolean };
 
 const FULL_TIMELINE: ReadonlyArray<readonly [number, Stage]> = [
@@ -42,7 +41,7 @@ function clean(value: string | null | undefined) {
 
 function fortuneButton(button: HTMLButtonElement) {
   if (window.location.pathname !== "/fortune") return false;
-  if (button.dataset.fortuneTransition === "off") return false;
+  if (button.disabled || button.dataset.fortuneTransition === "off") return false;
   if (button.closest("[data-fortune-transition-ignore='true']")) return false;
   const label = clean(button.textContent);
   return button.dataset.fortuneTrigger === "true" || /开始.*推演|起卦/.test(label);
@@ -214,7 +213,7 @@ export default function FortuneCosmicTransition() {
 
         <div className="fortune-oracle-earth" aria-hidden="true"><div className="fortune-oracle-earth-grid" /><div className="fortune-oracle-earth-land" /><div className="fortune-oracle-earth-node" /><div className="fortune-oracle-earth-ring a" /><div className="fortune-oracle-earth-ring b" /></div>
         <div className="fortune-oracle-command" aria-hidden="true"><span>ORACLE REQUEST</span><b>{context.code}</b><em>{context.cycle}</em></div>
-        <div className="fortune-oracle-particle-stream" aria-hidden="true">{PARTICLES.map((x,index)=><i key={x} style={{ "--particle-x": `${x}px`, "--particle-delay": `${index * 135}ms` } as CSSProperties} />)}</div>
+        <div className="fortune-oracle-particle-stream" aria-hidden="true">{PARTICLES.map((x,index)=><i key={x} style={{ "--particle-x": `${x}px`, "--particle-end-x": `${Math.round(x * .28)}px`, "--particle-delay": `${index * 135}ms` } as CSSProperties} />)}</div>
 
         <div className="fortune-oracle-resonance" aria-hidden="true">
           <div className="fortune-oracle-orbit outer">{[0,1,2,3].map((index)=><i key={index} style={{ "--star-angle": `${index * 90}deg` } as CSSProperties} />)}</div>
