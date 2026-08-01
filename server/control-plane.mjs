@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { createCipheriv, createHash, createPrivateKey, createPublicKey, createSign, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes } from "node:crypto";
 import { createControlStore } from "./control-store.mjs";
 import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import { resolveBacktestStrategyExperiment } from "../lib/zijin-strategy-experiments.mjs";
 import { selectLatestAlertableObservation } from "../lib/live-monitor-alerts.mjs";
 import { resolveAlertDelivery } from "../lib/alert-delivery-policy.mjs";
 import { evaluateScannerHealth } from "../lib/server-monitor-health.mjs";
@@ -177,10 +178,15 @@ function monitorOptions(monitor, quote) {
   const plannedBase = Math.max(0, Number(position.plannedBase ?? position.openingShares ?? 0) || 0);
   const openingShares = Math.max(0, Number(position.openingShares ?? plannedBase) || 0);
   const sellable = Math.min(openingShares, Math.max(0, Number(position.sellable ?? openingShares) || 0));
+  const experiment = resolveBacktestStrategyExperiment(monitor.code, "closure-first");
   return {
     capital: 200_000, baseShares: openingShares, sellable, feeRate: .025, slippage: .02,
-    minCommission: true, slippageMode: "percent", forceCloseTime: "1450", profile: monitor.profile || "平衡",
+    minCommission: true, slippageMode: "percent", forceCloseTime: "1450", profile: experiment.profile || monitor.profile || "平衡",
     previousClose: quote?.previousClose ?? null, randomValue: 0,
+    profileOverrides: experiment.profileOverrides,
+    positionSizeMode: experiment.positionSizeMode,
+    volatilityMode: experiment.volatilityMode,
+    strategyVersion: experiment.label,
   };
 }
 

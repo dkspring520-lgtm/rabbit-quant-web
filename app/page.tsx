@@ -37,7 +37,7 @@ import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminde
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
-import { resolveBacktestStrategyExperiment, resolveZijinStrategyExperiment, ZIJIN_STRATEGY_EXPERIMENTS } from "@/lib/zijin-strategy-experiments.mjs";
+import { resolveBacktestStrategyExperiment, ZIJIN_STRATEGY_EXPERIMENTS } from "@/lib/zijin-strategy-experiments.mjs";
 import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
 import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining } from "@/lib/personal-replay-training.mjs";
 import PublicLanding from "./public-landing";
@@ -604,7 +604,10 @@ const agents = [
   { id: "official", avatar: "/agents/official.png", name: "正式兔", role: "管理影子观察资格" },
 ];
 const strategyProfiles = STRATEGY_PROFILES;
-const zijinStrategyExperimentIds: ZijinStrategyExperiment[] = ["formal-v4", "closure-first"];
+// The production UI exposes a single closure-first path. Keep the formal V4
+// definition available internally as a benchmark, but do not let a page reload
+// silently switch live monitoring or replay back to the sparse baseline.
+const zijinStrategyExperimentIds: ZijinStrategyExperiment[] = ["closure-first"];
 type UiTheme = "dark" | "light";
 
 function ReleaseVersion() {
@@ -655,9 +658,9 @@ export default function Home() {
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
   const [alertLogOpen,setAlertLogOpen]=useState(false);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
-  // Experimental modes are deliberately session-only. A reload always returns
-  // the live desk to the production V4.1 baseline.
-  const [zijinExperimentMode,setZijinExperimentMode]=useState<ZijinStrategyExperiment>("formal-v4");
+  // Live Zijin monitoring and replay intentionally share the closure-first path.
+  // A reload must not silently fall back to the sparse formal benchmark.
+  const [zijinExperimentMode,setZijinExperimentMode]=useState<ZijinStrategyExperiment>("closure-first");
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,background:false,...JSON.parse(saved)}:{sound:false,system:false,background:false};}catch{return {sound:false,system:false,background:false};}});
   const [backgroundPushState,setBackgroundPushState]=useState<"idle"|"ready"|"unsupported"|"error">("idle");
   const [backgroundPushTesting,setBackgroundPushTesting]=useState(false);
@@ -1399,7 +1402,7 @@ export default function Home() {
     ()=>buildHistoricalSimilarityArchive(currentMarket?.intradaySessions ?? [],{asOfDate:currentMarket?.sampleDate ?? null}),
     [currentMarket?.intradaySessions,currentMarket?.sampleDate],
   );
-  const liveStrategyExperiment=resolveZijinStrategyExperiment(stock?.code,zijinExperimentMode);
+  const liveStrategyExperiment=resolveBacktestStrategyExperiment(stock?.code,zijinExperimentMode);
   const liveEngine = useMemo(() => {
     const profitOptions=smartTProfitModeOptions(stock?.code,preferences.profitMode) as ReplayProfitOptions;
     return runSmartTReplay(minutePoints, {
@@ -1575,9 +1578,15 @@ export default function Home() {
       const snapshot=item.code===stock?.code ? (currentTrial ?? currentMarket ?? marketSnapshots[item.code]) : marketSnapshots[item.code];
       if(!snapshot?.minutes?.length)return [];
       const itemPosition=resolveStockPosition(stockPositions,preferences,item.code);
+      const itemExperiment=resolveBacktestStrategyExperiment(item.code,"closure-first");
+      const itemProfitOptions=smartTProfitModeOptions(item.code,preferences.profitMode) as ReplayProfitOptions;
       const replay=item.code===stock?.code ? liveEngine : runSmartTReplay(snapshot.minutes,{
-        capital:200_000,baseShares:itemPosition.plannedBase,sellable:itemPosition.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:snapshot.quote.previousClose??null,randomValue:0,
-        ...smartTProfitModeOptions(item.code,preferences.profitMode),
+        capital:200_000,baseShares:itemPosition.plannedBase,sellable:itemPosition.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile:itemExperiment.profile??profile,previousClose:snapshot.quote.previousClose??null,randomValue:0,
+        ...itemProfitOptions,
+        profileOverrides:{...(itemProfitOptions.profileOverrides??{}),...itemExperiment.profileOverrides},
+        positionSizeMode:itemExperiment.positionSizeMode,
+        volatilityMode:itemExperiment.volatilityMode,
+        strategyVersion:itemExperiment.label,
       });
       const observations=item.code===stock?.code
         ? currentObservations
@@ -1609,6 +1618,8 @@ export default function Home() {
       .filter(session=>session.minutes.length>=180)
       .sort((left,right)=>right.date.localeCompare(left.date))
       .slice(0,20);
+    const experiment=resolveBacktestStrategyExperiment(stock?.code,"closure-first");
+    const profitOptions=smartTProfitModeOptions(stock?.code,preferences.profitMode) as ReplayProfitOptions;
     const results=sessions.map(session=>runSmartTReplay(session.minutes,{
       capital:200_000,
       baseShares:activePosition.plannedBase,
@@ -1618,10 +1629,14 @@ export default function Home() {
       minCommission:true,
       slippageMode:"percent",
       forceCloseTime:"1450",
-      profile,
+      profile:experiment.profile??profile,
       previousClose:session.previousClose,
       randomValue:0,
-      ...smartTProfitModeOptions(stock?.code,preferences.profitMode),
+      ...profitOptions,
+      profileOverrides:{...(profitOptions.profileOverrides??{}),...experiment.profileOverrides},
+      positionSizeMode:experiment.positionSizeMode,
+      volatilityMode:experiment.volatilityMode,
+      strategyVersion:experiment.label,
     }));
     const cycles=results.reduce((sum,item)=>sum+item.trades,0);
     const wins=results.reduce((sum,item)=>sum+item.wins,0);
@@ -2080,9 +2095,15 @@ export default function Home() {
       const points=(active?minutePoints:(snapshot?.minutes??[]).filter(point=>isAShareRegularTradingMinute(point.time)));
       if(!points.length)continue;
       const itemPosition=active?effectiveLivePosition:resolveStockPosition(stockPositions,preferences,item.code);
+      const itemExperiment=resolveBacktestStrategyExperiment(item.code,"closure-first");
+      const itemProfitOptions=smartTProfitModeOptions(item.code,preferences.profitMode) as ReplayProfitOptions;
       const replay=active?liveEngine:runSmartTReplay(points,{
-        capital:200_000,baseShares:itemPosition.openingShares,sellable:itemPosition.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:snapshot?.quote.previousClose??null,randomValue:0,
-        ...smartTProfitModeOptions(item.code,preferences.profitMode),
+        capital:200_000,baseShares:itemPosition.openingShares,sellable:itemPosition.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile:itemExperiment.profile??profile,previousClose:snapshot?.quote.previousClose??null,randomValue:0,
+        ...itemProfitOptions,
+        profileOverrides:{...(itemProfitOptions.profileOverrides??{}),...itemExperiment.profileOverrides},
+        positionSizeMode:itemExperiment.positionSizeMode,
+        volatilityMode:itemExperiment.volatilityMode,
+        strategyVersion:itemExperiment.label,
       });
       const observations=(replay.observations??[]) as ReplayObservation[];
       const latest=replay.actions.at(-1);
@@ -3495,7 +3516,9 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
   const autoSampleDayCount=researchSessions.length;
   const autoSamples=useMemo<AutoResearchSample[]>(()=>researchExpanded?researchSessions
     .map(session=>{
-      const result=runSmartTReplay(session.minutes,{capital:200_000,baseShares:position.plannedBase,sellable:position.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile,previousClose:session.previousClose,randomValue:0,...smartTProfitModeOptions(stock.code,profitMode)});
+      const experiment=resolveBacktestStrategyExperiment(stock.code,"closure-first");
+      const profitOptions=smartTProfitModeOptions(stock.code,profitMode) as ReplayProfitOptions;
+      const result=runSmartTReplay(session.minutes,{capital:200_000,baseShares:position.plannedBase,sellable:position.sellable,feeRate:.025,slippage:.02,minCommission:true,slippageMode:"percent",forceCloseTime:"1450",profile:experiment.profile??profile,previousClose:session.previousClose,randomValue:0,...profitOptions,profileOverrides:{...(profitOptions.profileOverrides??{}),...experiment.profileOverrides},positionSizeMode:experiment.positionSizeMode,volatilityMode:experiment.volatilityMode,strategyVersion:experiment.label});
       return {date:session.date,cycles:result.trades,wins:result.wins,net:result.net,status:result.trades?`${result.trades} 个闭环 · ${money(result.net)}`:"无正式信号"};
     }):[],[researchExpanded,researchSessions,position.plannedBase,position.sellable,profile,stock.code,profitMode]);
   const autoCycles=autoSamples.reduce((sum,item)=>sum+item.cycles,0);
@@ -4061,7 +4084,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [batchFetchProgress, setBatchFetchProgress] = useState({ready:0,attempted:0});
   const [replayProgress, setReplayProgress] = useState({value:0,detail:"等待选择测试"});
   const [lastAction, setLastAction] = useState<"idle"|"single"|"multi"|"batch">("idle");
-  const [zijinReplayExperiment,setZijinReplayExperiment]=useState<ZijinStrategyExperiment>("formal-v4");
+  const [zijinReplayExperiment,setZijinReplayExperiment]=useState<ZijinStrategyExperiment>("closure-first");
   const batchRunSequence = useRef(0);
   const recentBatchCodes = useRef<string[]>([]);
   const selectBacktestStock=(index:number)=>{
