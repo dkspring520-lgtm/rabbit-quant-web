@@ -20,8 +20,10 @@ import nats
 import numpy as np
 from zijin_l2_forward_labels import refresh_labels_and_state
 from zijin_l2_second_state import (
+    ForwardMinuteBuffer,
     SecondLevelSignalMachine,
     book_persistence,
+    freeze_microstructure_features,
     flow_window,
     weighted_book,
 )
@@ -162,7 +164,18 @@ class Collector:
         self.forward_min_samples = int(os.getenv("L2_FORWARD_MIN_SAMPLES", "1200"))
         self.forward_min_days = int(os.getenv("L2_FORWARD_MIN_DAYS", "10"))
         self.forward_min_opening_labels = int(os.getenv("L2_FORWARD_MIN_OPENING_LABELS", "200"))
-        self.forward_cost_pct = float(os.getenv("L2_FORWARD_COST_PCT", "0.46"))
+        fixed_cost_pct = os.getenv("L2_FORWARD_COST_PCT", "").strip()
+        self.forward_cost_pct = float(fixed_cost_pct) if fixed_cost_pct else None
+        self.forward_cost_options = {
+            "quantity": int(os.getenv("L2_FORWARD_QUANTITY", "1600")),
+            "commission_pct_per_side": float(os.getenv("L2_FORWARD_COMMISSION_PCT_PER_SIDE", "0.025")),
+            "stamp_tax_pct": float(os.getenv("L2_FORWARD_STAMP_TAX_PCT", "0.05")),
+            "slippage_pct_per_side": float(os.getenv("L2_FORWARD_SLIPPAGE_PCT_PER_SIDE", "0.02")),
+            "minimum_commission_yuan": float(os.getenv("L2_FORWARD_MIN_COMMISSION_YUAN", "5")),
+            "minimum_net_pct": float(os.getenv("L2_FORWARD_MIN_NET_PCT", "0.12")),
+            "minimum_net_yuan": float(os.getenv("L2_FORWARD_MIN_NET_YUAN", "30")),
+            "minimum_gross_spread_yuan": float(os.getenv("L2_FORWARD_MIN_GROSS_SPREAD_YUAN", "0.10")),
+        }
         self.stale_seconds = float(os.getenv("L2_STALE_SECONDS", "8"))
         self.big_order = float(os.getenv("L2_BIG_ORDER_NOTIONAL", "200000"))
         # The UI reads the atomically-published state file.  Keep this short enough
@@ -191,6 +204,7 @@ class Collector:
         self.restored_minute_rows = {}
         self.forward_label_count = 0
         self.forward_research_status = "collecting-forward-evidence"
+        self.forward_minute_buffer = ForwardMinuteBuffer()
         self.load_intraday_flow_state()
         self.load_intraday_flow_forward_fallback()
         self.load_forward_index()
@@ -326,7 +340,7 @@ class Collector:
             study = refresh_labels_and_state(
                 self.forward_path, self.forward_label_path, self.forward_research_state_path,
                 self.forward_cost_pct, self.forward_min_samples, self.forward_min_days,
-                self.forward_min_opening_labels,
+                self.forward_min_opening_labels, **self.forward_cost_options,
             )
             self.forward_label_count = study.get("coverage", {}).get("labeledObservations", 0)
             self.forward_research_status = study.get("status", "collecting-forward-evidence")
@@ -667,6 +681,21 @@ class Collector:
             },
         }
 
+    def write_forward_record(self, record):
+        minute = record.get("exchangeMinute")
+        if not minute or minute in self.forward_minutes:
+            return
+        target = Path(self.forward_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        self.forward_minutes.add(minute)
+        self.forward_days.add(minute[:8])
+        self.last_forward_minute = minute
+        self.refresh_forward_research()
+
     def append_forward_sample(self, state):
         minute = exchange_minute(state.get("lastExchangeTime"))
         phase = market_phase(minute)
@@ -681,7 +710,7 @@ class Collector:
         if not eligible:
             return
         record = {
-            "schemaVersion": 2, "symbol": self.symbol, "source": state["source"], "node": state["node"],
+            "schemaVersion": 3, "symbol": self.symbol, "source": state["source"], "node": state["node"],
             "observedAt": state["updatedAt"], "exchangeMinute": minute, "marketPhase": phase,
             "lastPrice": state["book"].get("lastPrice"), "flow": state["flow"], "volatility": state["volatility"], "book": {
                 key: state["book"].get(key) for key in (
@@ -691,17 +720,13 @@ class Collector:
             },
             "messages": dict(messages), "target": None,
             "secondState": state.get("secondState"),
+            "microstructure": freeze_microstructure_features(
+                state.get("secondState"), state.get("flow"), state.get("book"), messages
+            ),
         }
-        target = Path(self.forward_path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("a", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        self.forward_minutes.add(minute)
-        self.forward_days.add(minute[:8])
-        self.last_forward_minute = minute
-        self.refresh_forward_research()
+        completed = self.forward_minute_buffer.push(record)
+        if completed is not None:
+            self.write_forward_record(completed)
 
     def append_second_event(self, state):
         signal = state.get("secondState") or {}
@@ -711,16 +736,23 @@ class Collector:
         self.last_second_sequence = sequence
         if signal.get("state") == "normal":
             return
+        minute = exchange_minute(state.get("lastExchangeTime"))
         record = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
+            "observationId": f"{self.symbol}:{state.get('lastExchangeTime')}:seq-{sequence}",
             "symbol": self.symbol,
             "source": state.get("source"),
             "node": state.get("node"),
             "observedAt": state.get("updatedAt"),
             "lastExchangeTime": state.get("lastExchangeTime"),
+            "exchangeMinute": minute,
+            "marketPhase": market_phase(minute),
             "lastPrice": (state.get("book") or {}).get("lastPrice"),
             "status": state.get("status"),
             "secondState": signal,
+            "microstructure": freeze_microstructure_features(
+                signal, state.get("flow"), state.get("book"), state.get("messages")
+            ),
             "target": None,
         }
         target = Path(self.second_event_path)

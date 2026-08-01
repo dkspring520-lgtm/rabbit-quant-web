@@ -6,7 +6,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from zijin_l2_second_state import (  # noqa: E402
+    ForwardMinuteBuffer,
     SecondLevelSignalMachine,
+    freeze_microstructure_features,
     flow_window,
 )
 
@@ -32,6 +34,47 @@ BOOK3 = {
 
 
 class SecondLevelStateMachineTest(unittest.TestCase):
+    def test_forward_minute_buffer_freezes_last_snapshot_only_after_minute_change(self):
+        buffer = ForwardMinuteBuffer()
+        self.assertIsNone(buffer.push({"exchangeMinute": "20260803-0930", "lastPrice": 31.00}))
+        self.assertIsNone(buffer.push({"exchangeMinute": "20260803-0930", "lastPrice": 31.08}))
+        frozen = buffer.push({"exchangeMinute": "20260803-0931", "lastPrice": 31.10})
+        self.assertEqual(frozen["exchangeMinute"], "20260803-0930")
+        self.assertEqual(frozen["lastPrice"], 31.08)
+        self.assertEqual(buffer.pending["exchangeMinute"], "20260803-0931")
+
+    def test_forward_microstructure_features_are_frozen_without_future_or_fake_cancel_data(self):
+        now = 100.0
+        rows = [
+            (99.1, "S", 10_000, 320_000, 31.00),
+            (99.8, "B", 12_000, 390_000, 31.01),
+            (105.0, "B", 90_000, 9_000_000, 31.50),
+        ]
+        state = {
+            "state": "ready",
+            "direction": "buy",
+            "score": 72,
+            "formalSignal": False,
+            "position": {"biasPct": -.42, "thresholdPct": .28, "nearSessionLow": True},
+            "evidence": {"absorption": True, "flowReversal": True, "bookAligned": True},
+            "windows": windows(rows, now),
+            "book": {"persistence3s": BOOK3},
+        }
+        frozen = freeze_microstructure_features(
+            state,
+            {"activeBuyRatio60s": .55, "netActiveNotional60s": 70_000},
+            {"nearTouchImbalance": .18, "spreadBps": 3.2, "micropriceEdgeBps": .4},
+            {"snapshot": 5, "transaction": 2, "order": 3},
+        )
+        self.assertEqual(frozen["featureSchemaId"], "zijin-l2-microstructure-v1")
+        self.assertEqual(frozen["flow10sGrossNotional"], 710_000)
+        self.assertLess(frozen["flow10sGrossNotional"], 9_000_000)
+        self.assertAlmostEqual(frozen["obiMean3s"], .22)
+        self.assertTrue(frozen["absorption"])
+        self.assertFalse(frozen["formalSignal"])
+        self.assertFalse(frozen["cancellationFeaturesAvailable"])
+        self.assertFalse(frozen["replenishmentFeaturesAvailable"])
+
     def test_buy_state_advances_watch_ready_trigger_without_future_rows(self):
         now = 100.0
         rows = [

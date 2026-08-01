@@ -146,6 +146,9 @@ export type SmartTOptions = {
   forceCloseTime: string;
   profile?: string;
   profileOverrides?: Record<string, number>;
+  positionSizeMode?: "fixed" | "quality-tiered";
+  minimumNetProfitAmount?: number;
+  minimumGrossSpreadAmount?: number;
   previousClose?: number | null;
   randomValue?: number;
   strategyVersion?: string;
@@ -165,6 +168,17 @@ export type SmartTOptions = {
   }>;
 };
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
+export function resolveReplayPositionSize(
+  plannedQuantity: number,
+  mode?: "fixed" | "quality-tiered",
+  evidence?: {
+    score?: number;
+    threshold?: number;
+    volumeRatio?: number;
+    structuralConfirmation?: boolean;
+    executionMomentumConfirmed?: boolean;
+  },
+): number;
 export function evaluateTripleScoreEvidence(input: {
   rawScore?: number;
   rawThreshold?: number;

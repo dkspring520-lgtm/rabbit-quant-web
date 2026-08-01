@@ -37,6 +37,7 @@ import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminde
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
+import { resolveZijinStrategyExperiment, ZIJIN_STRATEGY_EXPERIMENTS } from "@/lib/zijin-strategy-experiments.mjs";
 import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
 import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining } from "@/lib/personal-replay-training.mjs";
 import PublicLanding from "./public-landing";
@@ -260,6 +261,12 @@ function FourRabbitAutomationDashboard({progress}:{progress:ZijinTrainingProgres
 
 type StrategyProfile = "稳健档" | "平衡档" | "灵敏档";
 type ProfitMode = "standard" | "zijin-small-spread";
+type ZijinStrategyExperiment = "formal-v4" | "high-coverage" | "dynamic-sizing";
+type ReplayProfitOptions = {
+  profileOverrides?: Record<string, number>;
+  minimumNetProfitAmount?: number;
+  minimumGrossSpreadAmount?: number;
+};
 type AccountPreferences = { stock:string; baseShares:number; risk:string; strategyProfile:StrategyProfile; profitMode:ProfitMode };
 type StockPositionMap = Record<string, StockPosition>;
 const DEFAULT_PREFERENCES:AccountPreferences={stock:"601899 紫金矿业",baseShares:0,risk:"稳健",strategyProfile:"平衡档",profitMode:"standard"};
@@ -571,6 +578,7 @@ const agents = [
   { id: "official", avatar: "/agents/official.png", name: "正式兔", role: "管理影子观察资格" },
 ];
 const strategyProfiles = STRATEGY_PROFILES;
+const zijinStrategyExperimentIds: ZijinStrategyExperiment[] = ["formal-v4", "high-coverage", "dynamic-sizing"];
 type UiTheme = "dark" | "light";
 
 function ReleaseVersion() {
@@ -621,6 +629,9 @@ export default function Home() {
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
   const [alertLogOpen,setAlertLogOpen]=useState(false);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
+  // Experimental modes are deliberately session-only. A reload always returns
+  // the live desk to the production V4.1 baseline.
+  const [zijinExperimentMode,setZijinExperimentMode]=useState<ZijinStrategyExperiment>("formal-v4");
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,background:false,...JSON.parse(saved)}:{sound:false,system:false,background:false};}catch{return {sound:false,system:false,background:false};}});
   const [backgroundPushState,setBackgroundPushState]=useState<"idle"|"ready"|"unsupported"|"error">("idle");
   const [backgroundPushTesting,setBackgroundPushTesting]=useState(false);
@@ -1362,22 +1373,29 @@ export default function Home() {
     ()=>buildHistoricalSimilarityArchive(currentMarket?.intradaySessions ?? [],{asOfDate:currentMarket?.sampleDate ?? null}),
     [currentMarket?.intradaySessions,currentMarket?.sampleDate],
   );
-  const liveEngine = useMemo(() => runSmartTReplay(minutePoints, {
-    capital:200_000,
-    baseShares:Math.max(0,effectiveLivePosition.openingShares),
-    sellable:effectiveLivePosition.sellable,
-    feeRate:.025,
-    slippage:.02,
-    minCommission:true,
-    slippageMode:"percent",
-    forceCloseTime:"1450",
-    profile,
-    volatilityMode:"causal-hybrid",
-    previousClose:activeQuote?.previousClose ?? null,
-    similarityArchive,
-    randomValue:0,
-    ...smartTProfitModeOptions(stock?.code,preferences.profitMode),
-  }),[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose,stock?.code,preferences.profitMode,similarityArchive]);
+  const liveStrategyExperiment=resolveZijinStrategyExperiment(stock?.code,zijinExperimentMode);
+  const liveEngine = useMemo(() => {
+    const profitOptions=smartTProfitModeOptions(stock?.code,preferences.profitMode) as ReplayProfitOptions;
+    return runSmartTReplay(minutePoints, {
+      capital:200_000,
+      baseShares:Math.max(0,effectiveLivePosition.openingShares),
+      sellable:effectiveLivePosition.sellable,
+      feeRate:.025,
+      slippage:.02,
+      minCommission:true,
+      slippageMode:"percent",
+      forceCloseTime:"1450",
+      profile:liveStrategyExperiment.profile ?? profile,
+      volatilityMode:"causal-hybrid",
+      previousClose:activeQuote?.previousClose ?? null,
+      similarityArchive,
+      randomValue:0,
+      ...profitOptions,
+      profileOverrides:{...(profitOptions.profileOverrides??{}),...liveStrategyExperiment.profileOverrides},
+      positionSizeMode:liveStrategyExperiment.positionSizeMode,
+      strategyVersion:liveStrategyExperiment.experimental?"V4.1-experiment":"V4.1",
+    });
+  },[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose,stock?.code,preferences.profitMode,similarityArchive,liveStrategyExperiment]);
   const zijinRepairHistory=useMemo(
     ()=>(isZijinStock?buildZijinL2CausalReplayObservations(minutePoints):[]) as ReplayObservation[],
     [isZijinStock,minutePoints],
@@ -2768,9 +2786,9 @@ export default function Home() {
             <em>陪你盯盘</em>
           </div>}
           {alertQueue.length>0&&<div className="trade-alert-stack" aria-label="股票提醒列表">{alertQueue.slice(0,3).map((item,index)=><div key={item.id??`${item.title}-${index}`} className={`trade-alert-toast ${item.level} rabbit-${item.rabbit}`} role="alert"><span className={`rabbit-speaker ${item.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{tradeAlertLabel(item)}</small><b>{item.title}</b><span>{tradeAlertGuide(item)}</span><details className="trade-alert-detail"><summary>查看依据</summary><p>{item.message}</p></details></div>{index===2&&alertQueue.length>3&&<em className="alert-queue-count">+{alertQueue.length-3}</em>}<button onClick={()=>setAlertQueue(current=>current.filter(alert=>alert.id!==item.id))} aria-label={`关闭${item.title}提醒`}>×</button></div>)}</div>}
-          {isZijinStock&&<div className="stock-agent-switch" aria-label="紫金矿业信号引擎选择">
-            <div><span>正式信号引擎 · 三分离过滤</span><b>Smart-T V4.1</b><small>紫金外因与相对强弱仅进入因果研究层；未通过前瞻毕业门槛前不能接管正式执行</small></div>
-            <div className="stock-agent-switch-actions"><button className={!zijinResearchEnabled?"active":""} onClick={()=>setZijinResearchEnabled(false)} aria-pressed={!zijinResearchEnabled}>V4 正式</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(true)} aria-pressed={zijinResearchEnabled}>紫金研究叠加</button></div>
+          {isZijinStock&&<div className={`stock-agent-switch ${liveStrategyExperiment.experimental?"experiment-active":""}`} aria-label="紫金矿业信号引擎选择">
+            <div><span>{liveStrategyExperiment.experimental?"紫金实盘观察实验 · 不自动下单":"正式信号引擎 · 三分离过滤"}</span><b>{liveStrategyExperiment.label}</b><small>{liveStrategyExperiment.experimental?`${liveStrategyExperiment.description} 未通过扣费净收益门槛，仅供手动观察。`:"正式 V4.1 保持默认；实验档必须主动切换。"}</small></div>
+            <div className="stock-agent-switch-actions experiment-actions">{zijinStrategyExperimentIds.map(id=>{const item=ZIJIN_STRATEGY_EXPERIMENTS[id];return <button key={id} className={`${zijinExperimentMode===id?"active":""} ${item.experimental?"experimental":""}`} onClick={()=>setZijinExperimentMode(id)} aria-pressed={zijinExperimentMode===id} title={item.description}>{item.shortLabel}</button>})}<button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
           </div>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
             <div className="signal-layer candidate"><span>本股实时观察</span><b>{visibleStockAgentEvaluation?Number(visibleStockAgentEvaluation.status==="candidate"):signalFunnel.currentObservations}<small> 个</small></b><em>{visibleStockAgentEvaluation?`${STOCK_AGENTS.zijin.name} · ${visibleStockAgentEvaluation.title}`:`条件候补 ${signalFunnel.currentCandidates} · 全自选观察 ${signalFunnel.observations}`}</em></div>
@@ -4015,6 +4033,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [batchFetchProgress, setBatchFetchProgress] = useState({ready:0,attempted:0});
   const [replayProgress, setReplayProgress] = useState({value:0,detail:"等待选择测试"});
   const [lastAction, setLastAction] = useState<"idle"|"single"|"batch">("idle");
+  const [zijinReplayExperiment,setZijinReplayExperiment]=useState<ZijinStrategyExperiment>("formal-v4");
   const batchRunSequence = useRef(0);
   const recentBatchCodes = useRef<string[]>([]);
   const selectBacktestStock=(index:number)=>{
@@ -4031,12 +4050,21 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
     setLastAction("idle");
     onSelectStock(index);
   };
-  const replay=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number}):BacktestResult=>runSmartTReplay(data.minutes ?? [],{
-    capital:account?.capital ?? capital,baseShares:account?.baseShares ?? baseShares,sellable:account?.sellable ?? sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,profile,
-    previousClose:data.quote.previousClose ?? null,
-    randomValue:0,
-    ...smartTProfitModeOptions(data.quote.code??stock.code,profitMode),
-  });
+  const replay=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number}):BacktestResult=>{
+    const code=data.quote.code??stock.code;
+    const experiment=resolveZijinStrategyExperiment(code,zijinReplayExperiment);
+    const profitOptions=smartTProfitModeOptions(code,profitMode) as ReplayProfitOptions;
+    return runSmartTReplay(data.minutes ?? [],{
+      capital:account?.capital ?? capital,baseShares:account?.baseShares ?? baseShares,sellable:account?.sellable ?? sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,
+      profile:experiment.profile ?? profile,
+      previousClose:data.quote.previousClose ?? null,
+      randomValue:0,
+      ...profitOptions,
+      profileOverrides:{...(profitOptions.profileOverrides??{}),...experiment.profileOverrides},
+      positionSizeMode:experiment.positionSizeMode,
+      strategyVersion:experiment.experimental?"V4.1-experiment":"V4.1",
+    });
+  };
   const replayLegacy=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number})=>runIntradayBlindReplayLegacy(data.minutes ?? [],account?.capital ?? capital,account?.baseShares ?? baseShares,account?.sellable ?? sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,0);
   const fetchStock=async (code:string) => {
     const response=await fetch(`/api/market-data?code=${encodeURIComponent(code)}`, { cache:"no-store" });
@@ -4368,6 +4396,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           <small className="config-inline-help">首次运行会读取可用的完整交易日；随后可选择历史日期重新逐分钟回放。</small>
         </label>
         <label>V4 策略档位<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item as StrategyProfile)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；同一套 Smart-T 融合策略 V4，仅调整确认门槛与信号频率。</small></label>
+        {stock.code==="601899"&&<label>紫金实验版本<div className="profile-picker experiment-picker">{zijinStrategyExperimentIds.map(id=>{const item=ZIJIN_STRATEGY_EXPERIMENTS[id];return <button type="button" className={`${zijinReplayExperiment===id?'active':''} ${item.experimental?'experimental':''}`} onClick={()=>setZijinReplayExperiment(id)} key={id}>{item.shortLabel}</button>})}</div><small className={`config-inline-help experiment-warning ${zijinReplayExperiment!=="formal-v4"?"active":""}`}>{zijinReplayExperiment==="formal-v4"?"正式 V4.1 基线。":`${ZIJIN_STRATEGY_EXPERIMENTS[zijinReplayExperiment].description} 研究参考：约 41.94 次/100日、胜率 58.96%；尚未通过扣费净收益门槛。`}</small></label>}
         {stock.code==="601899"&&<label>紫金利润模式<div className="profile-picker profit-picker"><button type="button" className={profitMode==="standard"?'active':''} onClick={()=>setProfitMode("standard")}>标准价差</button><button type="button" className={profitMode==="zijin-small-spread"?'active':''} onClick={()=>setProfitMode("zijin-small-spread")}>小价差</button></div><small className="config-inline-help">小价差档要求每股至少 ¥0.10、扣费净利至少 ¥30；趋势、VWAP、量价和硬风控不放宽。</small></label>}
         <div className="broker-account-box">
           <div className="broker-account-head"><b>模拟证券账户</b><span>仅用于回测撮合，不连接真实券商</span></div>

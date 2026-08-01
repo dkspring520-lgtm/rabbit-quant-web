@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
-import { runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import { pathToFileURL } from "node:url";
+
+const engineUrl = process.env.SMART_T_ENGINE_PATH
+  ? pathToFileURL(process.env.SMART_T_ENGINE_PATH)
+  : new URL("../lib/smart-t-engine.mjs", import.meta.url);
+const { PROFILES, runSmartTReplay } = await import(engineUrl.href);
 
 const [inputPath, profile = "灵敏档", volatilityMode = "fixed", profileOverridesArg = "{}"] = process.argv.slice(2);
 if (!inputPath) throw new Error("usage: node benchmark-zijin-smart-t.mjs SESSIONS.jsonl [PROFILE] [VOLATILITY_MODE] [PROFILE_OVERRIDES_JSON]");
@@ -12,6 +17,13 @@ const profileOverrides = profileOverridesArg.startsWith("{")
     const numericValue = Number(rawValue);
     return [key, Number.isFinite(numericValue) ? numericValue : rawValue];
   }));
+const maximumYear = Number.parseInt(process.env.SMART_T_MAX_YEAR ?? "", 10);
+const selectedProfile = PROFILES?.[profile];
+if (!selectedProfile) throw new Error(`unknown profile: ${profile}`);
+const unknownOverrideKeys = Object.keys(profileOverrides).filter((key) => !(key in selectedProfile));
+if (unknownOverrideKeys.length > 0) {
+  throw new Error(`unknown profile override(s): ${unknownOverrideKeys.join(", ")}`);
+}
 
 function emptyMetrics() {
   const horizonBuckets = () => Object.fromEntries([5, 15, 30].map((minutes) => [minutes, {
@@ -150,6 +162,8 @@ const reader = createInterface({ input: createReadStream(inputPath, "utf8"), crl
 for await (const line of reader) {
   if (!line.trim()) continue;
   const session = JSON.parse(line);
+  const year = String(session.date).slice(0, 4);
+  if (Number.isFinite(maximumYear) && Number(year) > maximumYear) continue;
   const referencePrice = Number(session.previousClose) || Number(session.minutes?.[0]?.price) || 10;
   const shares = Math.max(300, Math.floor((90_000 / referencePrice) / 100) * 100);
   const result = runSmartTReplay(session.minutes, {
@@ -167,7 +181,6 @@ for await (const line of reader) {
     previousClose: session.previousClose,
     randomValue: 0.5,
   });
-  const year = String(session.date).slice(0, 4);
   byYear[year] ??= emptyMetrics();
   addSession(overall, result);
   addSession(byYear[year], result);
@@ -178,12 +191,13 @@ console.log(JSON.stringify({
   profile,
   profileOverrides,
   volatilityMode,
+  engineUrl: engineUrl.href,
   methodology: {
     causal: true,
     futureMinutesRead: false,
     execution: "signal minute t uses only t and earlier; fills follow engine execution rules",
     costs: "commission 0.025%, minimum ¥5, stamp tax, 0.02% two-sided slippage",
-    maxFormalCyclesPerStockDay: 1,
+    maxFormalCyclesPerStockDay: profileOverrides.maxCycles ?? selectedProfile.maxCycles,
     candidateOutcome: "research-only fixed 5/15/30-minute endpoints plus MFE/MAE; incomplete tail windows stay open and outcomes never feed the signal",
   },
   selection2022To2025: finalize(selection),
