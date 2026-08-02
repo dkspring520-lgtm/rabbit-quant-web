@@ -9,6 +9,8 @@ import {
   causalCyclePreference,
   causalBrokerAtrScale,
   causalPersistentDirection,
+  advanceCausalTrendMemory,
+  causalPostCycleTrendAnchor,
   resolveCausalTrendDirection,
   causalRangeEvidence,
   causalVolatilityScale,
@@ -768,6 +770,105 @@ test("causal trend correction is symmetric and leaves mixed regimes unchanged", 
   });
   assert.equal(mixed.direction, "SELL_FIRST");
   assert.equal(mixed.consensus, "range");
+});
+
+test("causal trend memory survives a brief pullback and flips only after persistent evidence", () => {
+  let state = advanceCausalTrendMemory({
+    enabled: true,
+    regime: "uptrend",
+    cyclePreference: "uptrend",
+    persistentDirection: "range",
+    nowMinute: 45,
+    flipMinutes: 5,
+  });
+  assert.equal(state.direction, "uptrend");
+
+  for (let minute = 46; minute < 50; minute += 1) {
+    state = advanceCausalTrendMemory({
+      state,
+      enabled: true,
+      regime: "downtrend",
+      cyclePreference: "downtrend",
+      persistentDirection: "downtrend",
+      nowMinute: minute,
+      flipMinutes: 5,
+      unanimousFlip: false,
+    });
+    assert.equal(state.direction, "uptrend");
+  }
+
+  state = advanceCausalTrendMemory({
+    state,
+    enabled: true,
+    regime: "downtrend",
+    cyclePreference: "downtrend",
+    persistentDirection: "downtrend",
+    nowMinute: 50,
+    flipMinutes: 5,
+    unanimousFlip: false,
+  });
+  assert.equal(state.direction, "downtrend");
+  assert.equal(state.flipped, true);
+});
+
+test("causal trend memory ignores a long local pullback while broad structure stays intact", () => {
+  let state = { direction: "uptrend", pendingDirection: "range", pendingMinutes: 0 };
+  for (let minute = 60; minute < 72; minute += 1) {
+    state = advanceCausalTrendMemory({
+      state,
+      enabled: true,
+      regime: "downtrend",
+      cyclePreference: "downtrend",
+      persistentDirection: "uptrend",
+      nowMinute: minute,
+      flipMinutes: 5,
+      requirePersistentFlip: true,
+    });
+  }
+  assert.equal(state.direction, "uptrend");
+  assert.equal(state.pendingMinutes, 0);
+  assert.equal(state.flipped, false);
+});
+
+test("causal trend memory flips immediately when all three causal directions agree", () => {
+  const state = advanceCausalTrendMemory({
+    state: { direction: "uptrend", pendingDirection: "range", pendingMinutes: 0 },
+    enabled: true,
+    regime: "downtrend",
+    cyclePreference: "downtrend",
+    persistentDirection: "downtrend",
+    nowMinute: 80,
+    flipMinutes: 5,
+    unanimousFlip: true,
+  });
+  assert.equal(state.direction, "downtrend");
+  assert.equal(state.flipped, true);
+});
+
+test("a closed uptrend cycle keeps a locally noisy second cycle buy-first", () => {
+  const result = resolveCausalTrendDirection({
+    enabled: true,
+    rawDirection: "SELL_FIRST",
+    regime: "range",
+    cyclePreference: "range",
+    persistentDirection: "range",
+    rememberedTrend: "uptrend",
+    recovered: 0.02,
+    faded: 0.10,
+    localMomentum3: -0.04,
+    deviation: 0.35,
+    effectiveReversal: 0.08,
+  });
+  assert.equal(result.direction, "BUY_FIRST");
+  assert.equal(result.corrected, true);
+  assert.equal(result.memoryApplied, true);
+});
+
+test("only a profitable direction-aligned cycle anchors the next cycle", () => {
+  assert.equal(causalPostCycleTrendAnchor({ direction: "BUY_FIRST", net: 35 }, "uptrend"), "uptrend");
+  assert.equal(causalPostCycleTrendAnchor({ direction: "SELL_FIRST", net: 28 }, "downtrend"), "downtrend");
+  assert.equal(causalPostCycleTrendAnchor({ direction: "BUY_FIRST", net: -1 }, "uptrend"), "range");
+  assert.equal(causalPostCycleTrendAnchor({ direction: "SELL_FIRST", net: 28 }, "uptrend"), "range");
 });
 
 test("V4.1 range evidence requires an already-observed two-sided VWAP history", () => {
