@@ -17,3 +17,9 @@ test("操盘台快照允许部分数据源失败", () => {
   assert.match(route, /marketResult\.payload \|\| contextResult\.payload \|\| radarResult\.payload/);
   assert.match(route, /errors/);
 });
+
+test("操盘台可跳过已经由分时接口取得的重复实时行情", () => {
+  assert.match(route, /incoming\.searchParams\.get\("market"\) !== "0"/);
+  assert.match(route, /includeMarket \? getMarketData/);
+  assert.match(route, /suppliedChangeValue === null \? Number\.NaN/);
+});

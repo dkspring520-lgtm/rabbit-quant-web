@@ -21,24 +21,29 @@ export async function GET(request: Request) {
   const marketUrl = new URL("/api/market-data", incoming.origin);
   marketUrl.searchParams.set("code", code);
   marketUrl.searchParams.set("mode", "trial-realtime");
+  const includeMarket = incoming.searchParams.get("market") !== "0";
   const radarUrl = new URL("/api/event-radar", incoming.origin);
   radarUrl.searchParams.set("codes", incoming.searchParams.get("codes") ?? code);
   radarUrl.searchParams.set("names", incoming.searchParams.get("names") ?? code);
 
   const [marketResponse, radarResponse, hkResponse] = await Promise.all([
-    getMarketData(new Request(marketUrl)),
+    includeMarket ? getMarketData(new Request(marketUrl)) : Promise.resolve(null),
     getEventRadar(new Request(radarUrl)),
     code === "601899" ? getZijinHkMinute() : Promise.resolve(null),
   ]);
   const [marketResult, radarResult, hkResult] = await Promise.all([
-    readPayload(marketResponse),
+    marketResponse ? readPayload(marketResponse) : Promise.resolve({ payload:null, error:null }),
     readPayload(radarResponse),
     hkResponse ? readPayload(hkResponse) : Promise.resolve({ payload:null, error:null }),
   ]);
 
   const contextUrl = new URL("/api/market-context", incoming.origin);
   contextUrl.searchParams.set("code", code);
-  const change = Number(marketResult.payload?.quote?.changePercent);
+  const suppliedChangeValue = incoming.searchParams.get("change");
+  const suppliedChange = suppliedChangeValue === null ? Number.NaN : Number(suppliedChangeValue);
+  const change = Number.isFinite(suppliedChange)
+    ? suppliedChange
+    : Number(marketResult.payload?.quote?.changePercent);
   if (Number.isFinite(change)) contextUrl.searchParams.set("change", change.toFixed(4));
   const contextResult = await readPayload(await getMarketContext(new Request(contextUrl)));
   const errors = [

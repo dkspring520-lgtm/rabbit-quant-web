@@ -18,6 +18,7 @@ L2_CONTAINER="rabbit-quant-zijin-l2"
 L2_AUDIT_CONTAINER="rabbit-quant-zijin-l2-audit"
 NGINX_UPSTREAM_FILE="${RABBIT_QUANT_NGINX_UPSTREAM_FILE:-/etc/nginx/conf.d/rabbit-quant-active-upstream.conf}"
 NGINX_SITE_FILE="${RABBIT_QUANT_NGINX_SITE_FILE:-/etc/nginx/sites-available/rabbit-quant}"
+NGINX_COMPRESSION_FILE="${RABBIT_QUANT_NGINX_COMPRESSION_FILE:-/etc/nginx/conf.d/rabbit-quant-compression.conf}"
 
 [[ "$IMAGE_RETENTION" =~ ^[0-9]+$ ]] || IMAGE_RETENTION=5
 (( IMAGE_RETENTION >= 2 )) || IMAGE_RETENTION=2
@@ -202,6 +203,33 @@ write_nginx_upstream() {
   systemctl reload nginx
 }
 
+ensure_nginx_compression() {
+  local temp previous
+  if nginx -T 2>/dev/null | grep -Eq '^[[:space:]]*gzip[[:space:]]+on;'; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$NGINX_COMPRESSION_FILE")"
+  previous="$(cat "$NGINX_COMPRESSION_FILE" 2>/dev/null || true)"
+  temp="${NGINX_COMPRESSION_FILE}.tmp"
+  cat > "$temp" <<'EOF'
+gzip on;
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 5;
+gzip_min_length 1024;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss image/svg+xml;
+EOF
+  mv "$temp" "$NGINX_COMPRESSION_FILE"
+  if ! nginx -t >/dev/null 2>&1; then
+    if [[ -n "$previous" ]]; then printf '%s\n' "$previous" > "$NGINX_COMPRESSION_FILE"; else rm -f "$NGINX_COMPRESSION_FILE"; fi
+    nginx -t >/dev/null 2>&1 || true
+    log "Nginx 压缩配置校验失败，已撤销本次修改。"
+    return 1
+  fi
+  systemctl reload nginx
+  log "已启用 Nginx 静态资源 gzip 压缩。"
+}
+
 ensure_nginx_zero_downtime() {
   local active_slot="$1" active_port site backup
   active_port="$(slot_port "$active_slot")"
@@ -323,6 +351,7 @@ active_container="$(slot_container "$active_slot")"
 
 current_stage="configure zero-downtime entry"
 ensure_nginx_zero_downtime "$active_slot"
+ensure_nginx_compression || log "保留现有 Nginx 压缩设置，继续部署。"
 
 if [[ "$target_sha" == "$deployed_sha" ]] \
   && curl --fail --silent --max-time 5 "http://127.0.0.1:${active_port}/api/control/version" | grep -Fq "$target_sha"; then
