@@ -21,7 +21,7 @@ import { compactChartObservations, compactRepairChartMarkers, fulfilledWatchlist
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
-import { clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "@/lib/client-polling-policy.mjs";
+import { REFERENCE_DATA_BOOTSTRAP_DELAY_MS, clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "@/lib/client-polling-policy.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-reminder.mjs";
 import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-policy.mjs";
@@ -668,6 +668,7 @@ export default function Home() {
   const [alertHistory,setAlertHistory]=useState<TradeAlertToast[]>([]);
   const alertToast=alertQueue[0]??null;
   const alertSequence=useRef(0);
+  const latestActiveChange=useRef<number|null>(null);
   const deliveredAlertByCode=useRef<Record<string,TradeAlertToast>>({});
   const speechQueue=useRef<{spoken:string;risk:boolean}[]>([]);
   const speechBusy=useRef(false);
@@ -1026,6 +1027,7 @@ export default function Home() {
       changePercent,
     };
   },[baseActiveQuote,liveL2PriceUsable,liveL2LastPrice,liveL2Status?.session,stock?.name]);
+  latestActiveChange.current=activeQuote?.changePercent??null;
   // Connection payloads may include an endpoint or a broker-provided error.  Keep
   // those transport details out of the console UI; this card is a service-status
   // indicator, not a connection diagnostic.
@@ -2343,6 +2345,8 @@ export default function Home() {
   useEffect(() => {
     if (!localAuth || !stock?.code || activeView!=="操盘台") return;
     let cancelled = false;
+    let started = false;
+    let intervalTimer: number | undefined;
     const load = async () => {
       if (!shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       try {
@@ -2354,11 +2358,24 @@ export default function Home() {
         if (!cancelled) { setMarketData(null); setMarketError("行情服务暂不可用，页面不会使用示例价格代替。"); }
       }
     };
-    void load();
-    const timer = window.setInterval(load, clientPollingInterval("referenceData", marketDataActive));
-    const onVisibility=()=>{if(shouldRunTradingDeskPolling(activeView,document.visibilityState))void load()};
+    const start=()=>{
+      if(cancelled||started)return;
+      started=true;
+      void load();
+      intervalTimer=window.setInterval(load,clientPollingInterval("referenceData",marketDataActive));
+    };
+    const bootstrapTimer=window.setTimeout(start,REFERENCE_DATA_BOOTSTRAP_DELAY_MS);
+    const onVisibility=()=>{
+      if(!shouldRunTradingDeskPolling(activeView,document.visibilityState))return;
+      if(!started)start();else void load();
+    };
     document.addEventListener("visibilitychange",onVisibility);
-    return () => { cancelled = true; window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisibility); };
+    return () => {
+      cancelled=true;
+      window.clearTimeout(bootstrapTimer);
+      if(intervalTimer!==undefined)window.clearInterval(intervalTimer);
+      document.removeEventListener("visibilitychange",onVisibility);
+    };
   }, [localAuth, activeView, stock?.code, marketDataActive]);
   useEffect(() => {
     if (!localAuth || activeView!=="操盘台" || !stockList.length) return;
@@ -2400,9 +2417,12 @@ export default function Home() {
       try {
         const params = new URLSearchParams({
           code: stock.code,
+          market: "0",
           codes: stockList.slice(0,10).map(item => item.code).join(","),
           names: stockList.slice(0,10).map(item => item.name).join(","),
         });
+        const latestChange=latestActiveChange.current;
+        if(latestChange!==null&&Number.isFinite(latestChange))params.set("change",String(latestChange));
         const response = await fetch(`/api/trading-desk-snapshot?${params.toString()}`, { cache:"no-store" });
         if (!response.ok) throw new Error("desk snapshot unavailable");
         const data = await response.json() as TradingDeskSnapshot;

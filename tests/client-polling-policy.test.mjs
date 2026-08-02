@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "../lib/client-polling-policy.mjs";
+import { REFERENCE_DATA_BOOTSTRAP_DELAY_MS, clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "../lib/client-polling-policy.mjs";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
@@ -33,10 +33,14 @@ test("closed market data refreshes slowly without pretending to be realtime", ()
 });
 
 test("historical reference payload is not downloaded at the live quote frequency", () => {
+  assert.equal(REFERENCE_DATA_BOOTSTRAP_DELAY_MS, 1_500);
   assert.equal(clientPollingInterval("referenceData", true), 300_000);
   assert.equal(clientPollingInterval("deskSnapshot", true), 60_000);
-  assert.match(page, /clientPollingInterval\("referenceData", marketDataActive\)/);
+  assert.match(page, /window\.setTimeout\(start,REFERENCE_DATA_BOOTSTRAP_DELAY_MS\)/);
+  assert.match(page, /clientPollingInterval\("referenceData",marketDataActive\)/);
   assert.match(page, /clientPollingInterval\("deskSnapshot",marketDataActive\)/);
+  assert.match(page, /market: "0"/);
+  assert.match(page, /params\.set\("change",String\(latestChange\)\)/);
   assert.doesNotMatch(page, /fetch\(`\/api\/market-context/);
   assert.doesNotMatch(page, /fetch\(`\/api\/event-radar/);
 });

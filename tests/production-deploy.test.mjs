@@ -72,6 +72,18 @@ test("production deploy uses blue-green Web slots and switches traffic only afte
   assert.ok(trafficSwitch > candidateHealth);
 });
 
+test("production deploy safely enables static asset compression when nginx has none", () => {
+  const script = read("scripts/deploy-production.sh");
+
+  assert.match(script, /NGINX_COMPRESSION_FILE/);
+  assert.match(script, /nginx -T 2>\/dev\/null \| grep -Eq/);
+  assert.match(script, /gzip on;/);
+  assert.match(script, /gzip_types text\/plain text\/css application\/json application\/javascript/);
+  assert.match(script, /if ! nginx -t >\/dev\/null 2>&1; then/);
+  assert.match(script, /previous="\$\(cat "\$NGINX_COMPRESSION_FILE"/);
+  assert.match(script, /ensure_nginx_compression \|\| log/);
+});
+
 test("production deploy replaces only the inactive Web slot", () => {
   const script = read("scripts/deploy-production.sh");
   const prepareDefinition = script.indexOf("prepare_candidate_slot() {");
