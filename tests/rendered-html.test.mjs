@@ -65,7 +65,7 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /卖出 \/ 减仓/);
   assert.match(source, /仅观察，尚未形成买卖点/);
   assert.match(source, /className="trade-alert-detail"/);
-  assert.match(source, /提醒控制/);
+  assert.match(source, /<span>提醒(?:控制)?<\/span>/);
   assert.match(source, /同一点只提醒一次/);
   assert.match(source, /className="alert-channel-actions"/);
   assert.match(source, /function observationConfirmationLabel/);
