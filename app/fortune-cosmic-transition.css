@@ -1,0 +1,139 @@
+.fortune-oracle-overlay{
+  --oracle-cyan:#7ee7ff;
+  --oracle-gold:#f0c675;
+  --oracle-violet:#d7b2ff;
+  position:fixed;
+  inset:0;
+  z-index:2147483000;
+  isolation:isolate;
+  overflow:hidden;
+  overscroll-behavior:contain;
+  touch-action:none;
+  color:#f8fbff;
+  background:radial-gradient(circle at 50% 56%,rgba(31,48,91,.48),transparent 31%),radial-gradient(circle at 23% 18%,rgba(102,61,153,.24),transparent 28%),linear-gradient(180deg,#040714 0%,#071128 48%,#071019 100%);
+  font-family:var(--font-geist-sans),"Microsoft YaHei",system-ui,sans-serif;
+  animation:fortuneOverlayIn .35s ease-out both;
+}
+.fortune-oracle-space{position:absolute;inset:0;overflow:hidden;transform-origin:center}
+.fortune-oracle-space::before{content:"";position:absolute;inset:-30%;opacity:.22;background:conic-gradient(from 90deg at 50% 50%,transparent 0 10%,rgba(126,231,255,.12) 14%,transparent 20% 42%,rgba(240,198,117,.1) 48%,transparent 55% 75%,rgba(215,178,255,.11) 82%,transparent 90%);filter:blur(28px);animation:fortuneSpaceTurn 18s linear infinite}
+.fortune-oracle-nebula{position:absolute;border-radius:50%;filter:blur(55px);mix-blend-mode:screen;opacity:.35;pointer-events:none}
+.fortune-oracle-nebula-a{width:44vw;height:38vw;left:-10vw;top:5vh;background:rgba(96,78,177,.4);animation:fortuneNebulaA 8s ease-in-out infinite alternate}
+.fortune-oracle-nebula-b{width:42vw;height:34vw;right:-11vw;top:26vh;background:rgba(39,148,170,.3);animation:fortuneNebulaB 9s ease-in-out infinite alternate}
+.fortune-oracle-stars{position:absolute;inset:-20%;pointer-events:none;background-repeat:repeat;transform-origin:center}
+.fortune-oracle-stars-far{opacity:.52;background-image:radial-gradient(circle,rgba(255,255,255,.82) 0 1px,transparent 1.4px),radial-gradient(circle,rgba(126,231,255,.65) 0 1px,transparent 1.5px),radial-gradient(circle,rgba(240,198,117,.65) 0 .8px,transparent 1.3px);background-size:83px 83px,127px 127px,171px 171px;background-position:0 0,33px 57px,91px 23px;animation:fortuneStarDrift 22s linear infinite}
+.fortune-oracle-stars-near{opacity:.72;background-image:radial-gradient(circle,rgba(255,255,255,.94) 0 1.4px,transparent 1.8px),radial-gradient(circle,rgba(215,178,255,.78) 0 1.1px,transparent 1.7px);background-size:211px 211px,287px 287px;background-position:17px 42px,121px 83px;animation:fortuneStarDrift 13s linear infinite reverse}
+.fortune-oracle-streaks{position:absolute;inset:-20%;opacity:0;background:repeating-conic-gradient(from 0deg at 50% 54%,rgba(255,255,255,.42) 0 .12deg,transparent .18deg 5deg);-webkit-mask-image:radial-gradient(circle at 50% 54%,transparent 0 8%,#000 18% 72%,transparent 84%);mask-image:radial-gradient(circle at 50% 54%,transparent 0 8%,#000 18% 72%,transparent 84%);transform:scale(.42)}
+.fortune-oracle-stage-2 .fortune-oracle-streaks,.fortune-oracle-stage-3 .fortune-oracle-streaks{animation:fortuneStreakFlight 1.25s ease-out both}
+.fortune-oracle-beam-field{position:absolute;inset:0;width:100%;height:100%;z-index:2;overflow:visible;pointer-events:none}
+.fortune-oracle-beam{fill:none;stroke:url(#fortuneBeam);stroke-linecap:round;stroke-width:2.1;opacity:0;stroke-dasharray:1100;stroke-dashoffset:1100;filter:url(#fortuneGlow)}
+.fortune-oracle-beam.left,.fortune-oracle-beam.right{stroke-width:1}
+.fortune-oracle-stage-1 .fortune-oracle-beam,.fortune-oracle-stage-2 .fortune-oracle-beam,.fortune-oracle-stage-3 .fortune-oracle-beam{animation:fortuneBeamLaunch 1.25s cubic-bezier(.2,.75,.25,1) both}
+.fortune-oracle-stage-1 .fortune-oracle-beam.left,.fortune-oracle-stage-1 .fortune-oracle-beam.right,.fortune-oracle-stage-2 .fortune-oracle-beam.left,.fortune-oracle-stage-2 .fortune-oracle-beam.right,.fortune-oracle-stage-3 .fortune-oracle-beam.left,.fortune-oracle-stage-3 .fortune-oracle-beam.right{animation-delay:.15s;animation-duration:1.5s}
+.fortune-oracle-constellation{fill:rgba(255,255,255,.86);stroke:rgba(126,231,255,.68);stroke-width:1.1;opacity:0;transform-origin:800px 245px;transform:scale(.75)}
+.fortune-oracle-constellation path{fill:none;stroke-dasharray:820;stroke-dashoffset:820}
+.fortune-oracle-stage-3 .fortune-oracle-constellation,.fortune-oracle-stage-4 .fortune-oracle-constellation{animation:fortuneConstellationIn .9s ease-out both}
+.fortune-oracle-stage-3 .fortune-oracle-constellation path,.fortune-oracle-stage-4 .fortune-oracle-constellation path{animation:fortuneDrawLine .9s ease-out both}
+.fortune-oracle-market-trace{fill:none;stroke:url(#fortuneChart);stroke-linecap:round;stroke-linejoin:round;stroke-width:2.2;opacity:0;transform:translateY(10px)}
+.fortune-oracle-market-trace path{stroke-dasharray:700;stroke-dashoffset:700}
+.fortune-oracle-market-trace line{stroke:rgba(255,255,255,.16);stroke-width:1;stroke-dasharray:4 7}
+.fortune-oracle-stage-3 .fortune-oracle-market-trace,.fortune-oracle-stage-4 .fortune-oracle-market-trace{animation:fortuneMarketIn .85s .18s ease-out both}
+.fortune-oracle-stage-3 .fortune-oracle-market-trace path,.fortune-oracle-stage-4 .fortune-oracle-market-trace path{animation:fortuneDrawLine .95s .18s ease-out both}
+.fortune-oracle-earth{position:absolute;z-index:3;left:50%;bottom:-330px;width:min(620px,62vw);aspect-ratio:1;border-radius:50%;opacity:0;background:radial-gradient(circle at 36% 30%,rgba(146,239,255,.42),transparent 16%),radial-gradient(circle at 62% 42%,rgba(63,143,162,.26),transparent 24%),radial-gradient(circle at 50% 50%,#12334d 0 48%,#071a2b 72%,#040b14 100%);border:1px solid rgba(156,232,255,.4);box-shadow:0 0 45px rgba(67,207,233,.25),0 0 130px rgba(30,119,178,.24),inset -35px -38px 75px rgba(0,0,0,.52),inset 18px 20px 55px rgba(113,224,255,.14);animation:fortuneEarthArrive .72s cubic-bezier(.16,.86,.25,1) both}
+.fortune-oracle-earth::after{content:"";position:absolute;inset:-8%;border-radius:50%;border:1px solid rgba(126,231,255,.18);box-shadow:0 0 70px rgba(126,231,255,.16)}
+.fortune-oracle-earth-grid{position:absolute;inset:4%;border-radius:50%;opacity:.22;background:repeating-radial-gradient(ellipse at 50% 50%,transparent 0 32px,rgba(157,234,255,.34) 33px 34px,transparent 35px 68px);-webkit-mask-image:radial-gradient(circle,#000 0 64%,transparent 72%);mask-image:radial-gradient(circle,#000 0 64%,transparent 72%)}
+.fortune-oracle-earth-grid::before{content:"";position:absolute;inset:0;border-radius:50%;background:repeating-linear-gradient(90deg,transparent 0 55px,rgba(157,234,255,.23) 56px 57px,transparent 58px 112px);-webkit-mask-image:radial-gradient(circle,#000 0 62%,transparent 70%);mask-image:radial-gradient(circle,#000 0 62%,transparent 70%)}
+.fortune-oracle-earth-land{position:absolute;inset:12%;border-radius:50%;opacity:.72;background:radial-gradient(ellipse at 35% 34%,rgba(130,191,151,.72) 0 9%,transparent 10%),radial-gradient(ellipse at 43% 41%,rgba(130,191,151,.68) 0 7%,transparent 8%),radial-gradient(ellipse at 64% 46%,rgba(130,191,151,.62) 0 11%,transparent 12%),radial-gradient(ellipse at 58% 30%,rgba(130,191,151,.42) 0 6%,transparent 7%),radial-gradient(ellipse at 67% 62%,rgba(130,191,151,.52) 0 7%,transparent 8%)}
+.fortune-oracle-earth-node{position:absolute;left:50%;top:23%;width:9px;height:9px;border-radius:50%;background:#fff;box-shadow:0 0 0 5px rgba(126,231,255,.14),0 0 24px 8px rgba(126,231,255,.72);animation:fortuneNodePulse 1.3s ease-in-out infinite}
+.fortune-oracle-earth-ring{position:absolute;left:50%;top:23%;width:34px;height:34px;border:1px solid rgba(126,231,255,.48);border-radius:50%;transform:translate(-50%,-50%);opacity:0}
+.fortune-oracle-stage-1 .fortune-oracle-earth-ring.a{animation:fortuneRingWave 1.15s ease-out infinite}
+.fortune-oracle-stage-1 .fortune-oracle-earth-ring.b{animation:fortuneRingWave 1.15s .4s ease-out infinite}
+.fortune-oracle-command{position:absolute;z-index:5;left:50%;bottom:27%;display:grid;grid-template-columns:auto auto;gap:2px 12px;min-width:180px;padding:10px 13px;border:1px solid rgba(126,231,255,.3);border-radius:12px;color:rgba(222,231,244,.7);background:rgba(6,16,32,.68);box-shadow:0 12px 35px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.06);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);transform:translate(-50%,18px) scale(.92);opacity:0}
+.fortune-oracle-command span{grid-column:1/-1;font-size:9px;letter-spacing:.18em;color:var(--oracle-cyan)}
+.fortune-oracle-command b{font:750 18px/1.1 var(--font-geist-mono),ui-monospace,monospace;color:#fff}
+.fortune-oracle-command em{align-self:end;font-size:10px;font-style:normal;color:var(--oracle-gold)}
+.fortune-oracle-stage-1 .fortune-oracle-command{animation:fortuneCommandFlight 1.08s cubic-bezier(.18,.82,.2,1) both}
+.fortune-oracle-stage-2 .fortune-oracle-command{animation:fortuneCommandAway .45s ease-in both}
+.fortune-oracle-particle-stream{position:absolute;z-index:4;left:50%;bottom:22%;width:1px;height:1px;pointer-events:none}
+.fortune-oracle-particle-stream i{position:absolute;width:3px;height:16px;border-radius:99px;background:linear-gradient(180deg,rgba(255,255,255,0),var(--oracle-cyan),rgba(255,255,255,0));box-shadow:0 0 12px var(--oracle-cyan);opacity:0;transform:translateX(var(--particle-x))}
+.fortune-oracle-stage-1 .fortune-oracle-particle-stream i,.fortune-oracle-stage-2 .fortune-oracle-particle-stream i{animation:fortuneParticleUp 1.45s var(--particle-delay) cubic-bezier(.18,.7,.18,1) infinite}
+.fortune-oracle-resonance{position:absolute;z-index:6;left:50%;top:49%;width:min(350px,58vw);aspect-ratio:1;transform:translate(-50%,-50%) scale(.55);opacity:0;pointer-events:none}
+.fortune-oracle-stage-3 .fortune-oracle-resonance,.fortune-oracle-stage-4 .fortune-oracle-resonance{animation:fortuneResonanceIn .72s cubic-bezier(.16,.85,.22,1) both}
+.fortune-oracle-orbit{position:absolute;inset:0;border:1px solid rgba(126,231,255,.28);border-radius:50%;box-shadow:inset 0 0 30px rgba(126,231,255,.05);animation:fortuneOrbitSpin 8s linear infinite}
+.fortune-oracle-orbit::before,.fortune-oracle-orbit::after{content:"";position:absolute;left:50%;top:50%;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.17),transparent);transform:translate(-50%,-50%)}
+.fortune-oracle-orbit::after{transform:translate(-50%,-50%) rotate(90deg)}
+.fortune-oracle-orbit.inner{inset:13%;border-color:rgba(240,198,117,.28);animation-duration:6.5s;animation-direction:reverse;transform:rotate(34deg)}
+.fortune-oracle-orbit i{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff;box-shadow:0 0 13px 4px rgba(126,231,255,.52);transform:rotate(var(--star-angle)) translateX(min(175px,29vw))}
+.fortune-oracle-orbit.inner i{background:var(--oracle-gold);box-shadow:0 0 13px 4px rgba(240,198,117,.44);transform:rotate(var(--star-angle)) translateX(min(130px,21.5vw))}
+.fortune-oracle-bagua{position:absolute;inset:24%;border:1px solid rgba(215,178,255,.2);border-radius:22%;transform:rotate(45deg);box-shadow:0 0 45px rgba(215,178,255,.08)}
+.fortune-oracle-bagua span{position:absolute;left:50%;top:50%;display:grid;gap:4px;width:45px;transform-origin:center}
+.fortune-oracle-bagua i{display:block;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--oracle-gold),rgba(255,255,255,.86));box-shadow:0 0 8px rgba(240,198,117,.28)}
+.fortune-oracle-bagua .top{transform:translate(-50%,-72px) rotate(-45deg)}
+.fortune-oracle-bagua .right{transform:translate(27px,-50%) rotate(45deg)}
+.fortune-oracle-bagua .bottom{transform:translate(-50%,67px) rotate(135deg)}
+.fortune-oracle-bagua .left{transform:translate(-72px,-50%) rotate(-135deg)}
+.fortune-oracle-core{position:absolute;left:50%;top:50%;display:grid;place-items:center;width:112px;aspect-ratio:1;border:1px solid rgba(255,255,255,.25);border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.14),rgba(126,231,255,.11) 32%,rgba(9,18,37,.78) 68%);box-shadow:0 0 36px rgba(126,231,255,.18),0 0 85px rgba(215,178,255,.14),inset 0 0 26px rgba(255,255,255,.08);transform:translate(-50%,-50%)}
+.fortune-oracle-core::before,.fortune-oracle-core::after{content:"";position:absolute;inset:-16px;border:1px solid rgba(126,231,255,.15);border-radius:50%;animation:fortuneCorePulse 1.8s ease-out infinite}
+.fortune-oracle-core::after{animation-delay:.65s}
+.fortune-oracle-core span{margin-top:20px;font-size:11px;letter-spacing:.16em;color:var(--oracle-cyan)}
+.fortune-oracle-core b{margin-top:-22px;font-size:21px;letter-spacing:.08em}
+.fortune-oracle-stage-4 .fortune-oracle-core{animation:fortuneCoreRelease .72s ease-in both}
+.fortune-oracle-copy{position:absolute;z-index:10;left:50%;top:9vh;width:min(720px,86vw);text-align:center;transform:translateX(-50%)}
+.fortune-oracle-copy span{display:block;margin-bottom:12px;font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--oracle-cyan)}
+.fortune-oracle-copy h2{margin:0;font-size:clamp(24px,3.3vw,46px);font-weight:680;letter-spacing:-.045em;text-shadow:0 8px 38px rgba(0,0,0,.34)}
+.fortune-oracle-copy p{margin:12px 0 0;color:rgba(222,231,244,.68);font-size:12px;line-height:1.6}
+.fortune-oracle-copy>*{animation:fortuneCopyIn .44s ease-out both}
+.fortune-oracle-copy h2{animation-delay:.04s}.fortune-oracle-copy p{animation-delay:.08s}
+.fortune-oracle-status{position:absolute;z-index:12;left:50%;bottom:42px;display:flex;gap:8px;transform:translateX(-50%)}
+.fortune-oracle-status i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.2);transition:width .25s ease,background .25s ease,box-shadow .25s ease}
+.fortune-oracle-status i.active{width:22px;border-radius:99px;background:linear-gradient(90deg,var(--oracle-cyan),var(--oracle-gold));box-shadow:0 0 12px rgba(126,231,255,.28)}
+.fortune-oracle-progress{position:absolute;z-index:12;left:50%;bottom:26px;width:min(420px,68vw);height:1px;overflow:hidden;background:rgba(255,255,255,.12);transform:translateX(-50%)}
+.fortune-oracle-progress i{display:block;width:100%;height:100%;background:linear-gradient(90deg,var(--oracle-cyan),var(--oracle-violet),var(--oracle-gold));transform-origin:left;animation:fortuneProgress var(--oracle-duration) linear both}
+.fortune-oracle-skip{position:absolute;z-index:20;right:max(22px,env(safe-area-inset-right));top:max(20px,env(safe-area-inset-top));padding:7px 11px;border:1px solid rgba(255,255,255,.18);border-radius:99px;color:rgba(255,255,255,.68);background:rgba(5,12,25,.36);font-size:11px;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:border-color .18s ease,color .18s ease,background .18s ease}
+.fortune-oracle-skip:hover{border-color:rgba(126,231,255,.48);color:#fff;background:rgba(13,30,50,.7)}
+.fortune-oracle-stage-2 .fortune-oracle-space{animation:fortuneSpaceZoom .95s ease-out both}
+.fortune-oracle-stage-4{animation:fortuneOverlayRelease .8s .03s ease-in both}
+.fortune-oracle-overlay.is-compact .fortune-oracle-earth,.fortune-oracle-overlay.is-compact .fortune-oracle-command{display:none}
+.fortune-oracle-overlay.is-compact .fortune-oracle-copy{top:12vh}
+@keyframes fortuneOverlayIn{from{opacity:0}to{opacity:1}}
+@keyframes fortuneOverlayRelease{0%,58%{opacity:1}100%{opacity:0}}
+@keyframes fortuneSpaceTurn{to{transform:rotate(360deg)}}
+@keyframes fortuneNebulaA{to{transform:translate(8vw,4vh) scale(1.12)}}
+@keyframes fortuneNebulaB{to{transform:translate(-7vw,-3vh) scale(.92)}}
+@keyframes fortuneStarDrift{to{transform:translate3d(-4%,8%,0) rotate(.2deg)}}
+@keyframes fortuneStreakFlight{0%{opacity:0;transform:scale(.35)}35%{opacity:.38}100%{opacity:0;transform:scale(1.12)}}
+@keyframes fortuneBeamLaunch{0%{opacity:0;stroke-dashoffset:1100}22%{opacity:1}78%{opacity:.88}100%{opacity:.18;stroke-dashoffset:0}}
+@keyframes fortuneConstellationIn{to{opacity:.82;transform:scale(1)}}
+@keyframes fortuneDrawLine{to{stroke-dashoffset:0}}
+@keyframes fortuneMarketIn{to{opacity:.72;transform:translateY(0)}}
+@keyframes fortuneEarthArrive{0%{opacity:0;transform:translateX(-50%) translateY(70px) scale(.72)}100%{opacity:1;transform:translateX(-50%) translateY(0) scale(.86)}}
+@keyframes fortuneNodePulse{50%{box-shadow:0 0 0 8px rgba(126,231,255,.07),0 0 34px 12px rgba(126,231,255,.82)}}
+@keyframes fortuneRingWave{0%{opacity:.75;transform:translate(-50%,-50%) scale(.2)}100%{opacity:0;transform:translate(-50%,-50%) scale(5)}}
+@keyframes fortuneCommandFlight{0%{opacity:0;transform:translate(-50%,28px) scale(.88)}30%{opacity:1}100%{opacity:.92;transform:translate(-50%,-36vh) scale(1)}}
+@keyframes fortuneCommandAway{to{opacity:0;transform:translate(-50%,-50vh) scale(.72)}}
+@keyframes fortuneParticleUp{0%{opacity:0;transform:translate(var(--particle-x),0) scaleY(.4)}18%{opacity:.9}100%{opacity:0;transform:translate(var(--particle-end-x),-68vh) scaleY(1.8)}}
+@keyframes fortuneSpaceZoom{0%{transform:scale(1)}45%{transform:scale(1.035)}100%{transform:scale(1)}}
+@keyframes fortuneResonanceIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.45) rotate(-18deg)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}}
+@keyframes fortuneOrbitSpin{to{transform:rotate(360deg)}}
+@keyframes fortuneCorePulse{0%{opacity:.72;transform:scale(.72)}100%{opacity:0;transform:scale(1.45)}}
+@keyframes fortuneCoreRelease{0%{transform:translate(-50%,-50%) scale(1);opacity:1}62%{transform:translate(-50%,-50%) scale(1.55);opacity:.75}100%{transform:translate(-50%,-50%) scale(4.2);opacity:0}}
+@keyframes fortuneCopyIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fortuneProgress{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(max-width:720px){
+  .fortune-oracle-copy{top:8.5vh;width:88vw}
+  .fortune-oracle-copy span{margin-bottom:9px;font-size:8px;letter-spacing:.18em}
+  .fortune-oracle-copy h2{font-size:clamp(23px,8vw,34px)}
+  .fortune-oracle-copy p{max-width:86vw;margin:9px auto 0;font-size:10px}
+  .fortune-oracle-earth{bottom:-210px;width:420px}
+  .fortune-oracle-command{bottom:30%;min-width:156px;padding:8px 10px}
+  .fortune-oracle-resonance{top:51%;width:min(310px,76vw)}
+  .fortune-oracle-orbit i{transform:rotate(var(--star-angle)) translateX(min(155px,38vw))}
+  .fortune-oracle-orbit.inner i{transform:rotate(var(--star-angle)) translateX(min(115px,28vw))}
+  .fortune-oracle-skip{right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top));font-size:10px}
+  .fortune-oracle-status{bottom:34px}
+  .fortune-oracle-progress{bottom:20px;width:72vw}
+}
+@media(prefers-reduced-motion:reduce){
+  .fortune-oracle-overlay,.fortune-oracle-overlay *,.fortune-oracle-overlay *::before,.fortune-oracle-overlay *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .fortune-oracle-earth,.fortune-oracle-resonance{opacity:1}
+  .fortune-oracle-progress i{transform:scaleX(1)}
+}
