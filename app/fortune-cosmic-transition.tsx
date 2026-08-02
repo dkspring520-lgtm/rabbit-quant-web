@@ -40,12 +40,13 @@ function clean(value: string | null | undefined) {
 }
 
 function fortuneButton(button: HTMLButtonElement) {
-  if (window.location.pathname !== "/fortune") return false;
+  const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+  if (pathname !== "/fortune") return false;
   if (button.disabled || button.dataset.fortuneTransition === "off") return false;
   if (button.closest("[data-fortune-transition-ignore='true']")) return false;
   if (button.dataset.fortuneTrigger === "true") return true;
-  const label = clean(button.textContent);
-  return label === "起卦" || label === "重新起卦" || /^开始.*推演$/.test(label) || /^为.+起卦$/.test(label);
+  const label = clean(button.textContent).replace(/[→›»]+$/g, "");
+  return label === "起卦" || label.includes("重新起卦") || /^开始.*推演$/.test(label) || /^为.+(?:起卦|推演)$/.test(label);
 }
 
 function readContext(button?: HTMLButtonElement | null, compact = false): FortuneContext {
