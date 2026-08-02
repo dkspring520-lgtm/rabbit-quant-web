@@ -624,7 +624,7 @@ function ReleaseVersion() {
   },[]);
   const shortCommit=!release?"检测中":release.shortCommit&&release.shortCommit!=="development"?release.shortCommit.slice(0,8):"本地";
   const title=release?.buildTime?`构建时间 ${new Date(release.buildTime).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai"})}`:"正在核对服务器版本";
-  return <span className="release-version" title={title}><a href="/terms">用户协议</a> · <a href="/privacy">隐私政策</a> · <b>版本 V4-{shortCommit}</b></span>;
+  return <span className="release-version" title={title}><b>版本 V4-{shortCommit}</b><span><a href="/terms">协议</a> · <a href="/privacy">隐私</a></span></span>;
 }
 
 
@@ -650,6 +650,7 @@ export default function Home() {
   const validatedWatchlistSignature = useRef("");
   const [profile, setProfile] = useState<StrategyProfile>(DEFAULT_PREFERENCES.strategyProfile);
   const [panel, setPanel] = useState("今日T循环");
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [agentOpen, setAgentOpen] = useState(false);
   const [activeView, setActiveView] = useState("操盘台");
@@ -2830,13 +2831,14 @@ export default function Home() {
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>盯盘重点</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>全部证据</button>
           </div>
-          <section className={`decision-primary-card ${decisionModel.status}`} aria-label="当前主要信号">
-            <header><span>主要信号</span><em>{decisionModel.confirmed}/4 条件</em></header>
-            <b>{signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</b>
-            <div className="decision-condition-grid" aria-label="主要信号条件进度">
+          <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${signalMode === "反T" ? "reverse" : "positive"}`} aria-label="全局决策状态">
+            <header><span>全局决策 <small className="decision-engine-badge">V4 正式</small></span><em>{decisionModel.confirmed}/4 条件</em></header>
+            <b className="global-decision-status">{decisionModel.status==="locked"?"🔴 风控已锁定":decisionModel.status==="ready"?`🟢 ${signalMode}信号已确认`:"🟡 信号观察中"}</b>
+            <small className="global-decision-summary">{signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
+            <div className="decision-condition-grid" aria-label="全局决策条件进度">
               {decisionConditions.map(item=><span key={item.label} className={item.met?"met":""}><i>{item.met?"✓":"×"}</i>{item.label}</span>)}
             </div>
-            <div className="decision-primary-meta"><span>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</span><strong>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"实时监控"):"研究观察"}</strong></div>
+            <div className="decision-primary-meta"><span>{decisionModel.status==="ready"?(decisionModel.mode??signalMode):decisionModel.status==="locked"?"禁止开T":"等待条件补齐"}</span><strong>{stockAgent.canExecute?(decisionModel.status==="ready"?"可进入执行":decisionModel.status==="locked"?"风险优先":"实时监控"):"研究观察"}</strong></div>
           </section>
           <section className="decision-position-card" aria-label="持仓与本次做T">
             <header><span>持仓与试算</span><em>{marketSession.live?"实时":"复盘"}</em></header>
@@ -2893,7 +2895,6 @@ export default function Home() {
             <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
           <div className="alert-channel"><div><span>提醒</span><small>语音、弹窗与手机后台通知</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时播放简短语音">🔊 {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试"}</button>}</div><details className="mobile-push-guide"><summary>ⓘ 帮助</summary><div><p><b>安卓 Chrome</b><span>菜单 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><p><b>苹果 Safari</b><span>分享 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><small>锁屏通知音由手机系统控制；详细说明可在设置中查看。</small></div></details></div>
-          <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div>{marketSession.live&&<small>{decisionModel.reason}</small>}<em>{decisionModel.confirmed}/4 条件</em></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <section className="t-calculator" aria-label="日内做T试算">
             <header><div><span>日内做T试算</span><b>实时估算收益与成本变化</b></div><small>空格快速定位</small></header>
@@ -2936,19 +2937,22 @@ export default function Home() {
             <div className="context-radar-foot"><span>{currentContext?.gate.reasons.join(" · ") || "公开行情仅供人工研判"}</span><em>{eventRadar?.sources.join(" + ") || eventRadarError || "多源事件扫描加载中"}</em></div>
           </div>
           <div className="opening-causal"><span>09:30 起实时扫描</span><b>仅使用已出现数据 · 无需手动切换</b><small>最早 09:33 显示候选，09:36–09:44 经连续走势与 VWAP 确认后才允许小仓正式信号；09:45 后恢复完整过滤。</small></div>
-          <h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2>
-          <p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p>
+          {decisionZoneMode==="all"&&<><h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2><p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p></>}
           <button disabled={!stockAgent.canExecute||cycleQuantity<100||(cycleStage==='ready'&&decisionModel.status!=="ready")} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
-            <span>{!stockAgent.canExecute?'紫金智能体观察中 · 未开放执行':cycleLimitReached?`今日已完成 ${completedCycleCount}/${maxDailyTrades} 次做T`:cycleQuantity<100?'先设置本股持仓与单次做T数量':cycleStage === 'ready' ? decisionModel.status==="locked"?'风控锁定 · 暂停做T':decisionModel.status!=="ready"?'等待自动信号':(signalMode === '反T' ? `反T信号 · 卖出 ${cycleQuantity.toLocaleString()} 股` : `正T信号 · 买入 ${cycleQuantity.toLocaleString()} 股`) : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
-            <small>{cycleStage === 'ready' ? '记录首笔成交' : cycleStage === 'opened' ? '完成反向成交' : '开始下一次循环'} →</small>
+            <span>{!stockAgent.canExecute?'紫金智能体观察中 · 未开放执行':cycleLimitReached?`今日已完成 ${completedCycleCount}/${maxDailyTrades} 次做T`:cycleQuantity<100?'先设置本股持仓与单次做T数量':cycleStage === 'ready' ? decisionModel.status==="locked"?'风控锁定 · 暂停做T':decisionModel.status!=="ready"?'条件未完成 · 暂不可执行':(signalMode === '反T' ? `反T信号 · 卖出 ${cycleQuantity.toLocaleString()} 股` : `正T信号 · 买入 ${cycleQuantity.toLocaleString()} 股`) : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
+            <small>{cycleStage === 'ready' ? decisionModel.status==="ready"?'记录首笔成交':'完成条件后解锁' : cycleStage === 'opened' ? '完成反向成交' : '开始下一次循环'} →</small>
           </button>
           <div className={`closure-guard ${cycleStage}`}>
             <div><span>当日闭环控制</span><b><i/>{cycleStage === 'ready' ? '允许开T' : cycleStage === 'opened' ? '等待闭环' : '已恢复底仓'}</b></div>
             <div className="cycle-progress"><i className="done"/><span/><i className={cycleStage !== 'ready' ? 'done' : ''}/><span/><i className={cycleStage === 'closed' ? 'done' : ''}/></div>
             <div className="cycle-labels"><span>校验通过</span><span>首笔成交</span><span>等量闭环</span></div>
+            <div className="closure-metrics" aria-label="闭环风控与绩效">
+              <div><span>今日剩余可卖</span><b>{Math.max(0,effectiveLivePosition.sellable).toLocaleString()}<small> 股</small></b><em>账户可卖</em></div>
+              <div><span>历史胜率</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b><em>{personalStrategyStats.wins}/{personalStrategyStats.cycles} 个闭环</em></div>
+              <div><span>历史净收益</span><b className={personalStrategyStats.net>0?'positive':personalStrategyStats.net<0?'negative':''}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b><em>扣费后</em></div>
+            </div>
             <small>{tradeLedgerSummary.oversold?'本机流水显示卖出超过昨日可卖或当前持仓为负，请立即核对券商成交。':cycleLimitReached?`已达到你设置的每日 ${maxDailyTrades} 次上限，今天不再新增执行信号。`:cycleQuantity<100?'当前股票未设置足够的现有持仓与单次做T数量，请重新设置。':cycleStage === 'ready' ? (signalMode === '正T' ? `本股今日剩余可卖 ${effectiveLivePosition.sellable.toLocaleString()} 股；买入后需卖出等量旧仓。` : '卖出后需在 14:50 前买回等量股份。') : cycleStage === 'opened' ? `尚有 ${cycleQuantity.toLocaleString()} 股未配对，新的${signalMode}信号已冻结。` : '买卖数量相等，实际持仓已恢复计划底仓。'}</small>
           </div>
-          <div className="decision-stats live-performance"><div title="使用当前股票最近完整交易日的真实分时，按当前V4档位、费用和滑点计算"><span>本股历史胜率</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b><small>{personalStrategyStats.wins}/{personalStrategyStats.cycles} 个闭环</small></div><div><span>有效样本</span><b>{personalStrategyStats.sessions}<small> 日</small></b><small>可信度：{personalStrategyStats.confidence}</small></div><div><span>历史扣费净收益</span><b className={personalStrategyStats.net>0?'positive':personalStrategyStats.net<0?'negative':''}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b><small>随当前股票与档位更新</small></div></div>
           <div className="risk-box"><div><span>当前利润模式</span><b>{activeProfitSummary.label}</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>{activeProfitSummary.id==="zijin-small-spread"?"每股毛价差至少 ¥0.10，并且扣除佣金、印花税和双向滑点后至少盈利 ¥30 才启动保护；继续上涨则持有，回吐后退出，0.30% 净收益直接锁定。":"扣费净收益达到 0.64% 后启动利润保护；走势继续有利则持有，出现连续反向动能或明显回吐才退出，达到 1.00% 上限直接锁定。"}</p></div>
           <button className="automation-reserved" disabled><span><i />自动交易接口</span><b>已预留 · 当前关闭</b></button>
           <div className="position-row"><span>计划仓位</span><div className="position-dots"><i className="on"/><i/><i/></div><b>1 / 3</b></div>
@@ -2956,10 +2960,10 @@ export default function Home() {
       </section>
 
       <section className="lower-panel">
-        <div className="history">
-          <div className="lower-tabs">{['今日T循环','历史信号','模拟记录'].map(item=><button key={item} onClick={()=>setPanel(item)} className={panel===item?'active':''}>{item}</button>)}</div>
-          <div className="history-head"><span>时间</span><span>方向</span><span>价格</span><span>数量</span><span>价差</span><span>状态</span></div>
-          {deskHistoryRows.length?deskHistoryRows.map((row,index)=><div className="history-row" key={`${row.time}-${row.direction}-${index}`}><span>{row.time}</span><span className={row.tone??""}>{row.direction}</span><span>{row.price}</span><span>{row.quantity}</span><span className={row.spread.startsWith("+")?"accent":""}>{row.spread}</span><span>{row.status}</span></div>):<div className="history-empty"><b>{panel==="今日T循环"?"暂无已确认闭环":panel==="历史信号"?"当前尚无候选或正式信号":"当前尚无正式模拟动作"}</b><span>{panel==="今日T循环"?"这里只读取“持仓对账”中本机已补录并能等量配对的真实成交，不再展示固定演示流水。":panel==="历史信号"?"反弹/回落观察会保留原因；通过趋势、量价、成本与风控后才升级为正式动作。":"只有 Smart‑T V4 正式过滤通过的模拟动作才会出现在这里。"}</span></div>}
+        <div className={`history ${historyCollapsed?'collapsed':''}`}>
+          <div className="lower-tabs">{['今日T循环','历史信号','模拟记录'].map(item=><button key={item} onClick={()=>{setPanel(item);setHistoryCollapsed(false)}} className={panel===item?'active':''}>{item}</button>)}<button type="button" className="history-collapse-toggle" onClick={()=>setHistoryCollapsed(current=>!current)} aria-expanded={!historyCollapsed}>{historyCollapsed?'展开':'收起'} <span aria-hidden="true">{historyCollapsed?'▾':'▴'}</span></button></div>
+          {!historyCollapsed&&<><div className="history-head"><span>时间</span><span>方向</span><span>价格</span><span>数量</span><span>价差</span><span>状态</span></div>
+          {deskHistoryRows.length?deskHistoryRows.map((row,index)=><div className="history-row" key={`${row.time}-${row.direction}-${index}`}><span>{row.time}</span><span className={row.tone??""}>{row.direction}</span><span>{row.price}</span><span>{row.quantity}</span><span className={row.spread.startsWith("+")?"accent":""}>{row.spread}</span><span>{row.status}</span></div>):<div className="history-empty"><b>{panel==="今日T循环"?"暂无已确认闭环":panel==="历史信号"?"当前尚无候选或正式信号":"当前尚无正式模拟动作"}</b><span>{panel==="今日T循环"?"真实成交等量配对后显示":panel==="历史信号"?"候选或正式信号出现后显示":"正式模拟动作出现后显示"}</span></div>}</>}
         </div>
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
           <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四兔研究证据</span><small>当前股票 · {personalStrategyStats.sessions} 日 / {personalStrategyStats.cycles} 闭环</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
@@ -3006,7 +3010,7 @@ export default function Home() {
       {alertLogOpen&&premiumEnabled&&<AlertLogView stocks={stockList} activeCode={stock.code} localHistory={alertHistory} onClose={()=>setAlertLogOpen(false)}/>}
       {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
 
-      <footer><span><i className="online"/>公开行情试用 · 操盘台 1 秒请求 · 非交易级</span><span>仅用于策略研究与提醒，不构成投资建议</span><ReleaseVersion/></footer>
+      <footer className="trade-footer"><span><i className="online"/>策略研究工具 · 非交易级</span><ReleaseVersion/></footer>
     </main>
   );
 }
