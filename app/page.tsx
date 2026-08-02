@@ -35,11 +35,11 @@ import { evaluateWeb4Microstructure } from "@/lib/web4-microstructure.mjs";
 import { evaluateWeb4RealtimeMonitor } from "@/lib/web4-realtime-monitor.mjs";
 import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminder.mjs";
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
-import { normalizeStrategyProfile, STRATEGY_PROFILES } from "@/lib/strategy-profile.mjs";
+import { normalizeStrategyProfile, STRATEGY_PROFILES, STRATEGY_PROFILE_META } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
 import { resolveBacktestStrategyExperiment, ZIJIN_STRATEGY_EXPERIMENTS } from "@/lib/zijin-strategy-experiments.mjs";
 import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
-import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining } from "@/lib/personal-replay-training.mjs";
+import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining, summarizeTrainingCycles } from "@/lib/personal-replay-training.mjs";
 import PublicLanding from "./public-landing";
 
 const LIVE_CHART = Object.freeze({
@@ -318,7 +318,7 @@ type BacktestResult = { net:number; gross:number; fees:number; executionCost:num
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
 type ReplayMinute = { time:string; price:number; volume:number };
 type PersonalTrainingAction = { id:string; time:string; minuteIndex:number; side:"buy"|"sell"; quantity:number; marketPrice:number; executionPrice:number; gross:number; fee:number };
-type PersonalTrainingRecord = { id:string; completedAt:string; code:string; name:string; date:string; actions:PersonalTrainingAction[]; net:number; fees:number; accuracy:number|null };
+type PersonalTrainingRecord = { id:string; completedAt:string; code:string; name:string; date:string; actions:PersonalTrainingAction[]; net:number; totalNet?:number; closedQuantity?:number; fees:number; accuracy:number|null };
 type PersonalTrainingExecution = { ok:true; cash:number; shares:number; action:Omit<PersonalTrainingAction,"id"|"time"|"minuteIndex"> } | { ok:false; error:string };
 
 function formatTime(value:string|undefined) {
@@ -2635,7 +2635,7 @@ export default function Home() {
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
-            <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏中文信号提示" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔动画" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
+            <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏中文信号提示" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔动画" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button><button title="一键隐藏均价、信号、区间和成交量辅助层" className={!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible?"active minimal-layer-toggle":"minimal-layer-toggle"} onClick={()=>{const restore=!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible;setIndicatorsVisible(restore);setSignalLayerVisible(restore);setPricePlanLayerVisible(restore);setVolumeLayerVisible(restore)}}>简洁</button></div><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
           <div className="chart-wrap">
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
@@ -2872,7 +2872,7 @@ export default function Home() {
             {zijinStructure&&<small className="zijin-structure-summary">多周期 {zijinStructure.direction} {zijinStructure.directionScore>=0?"+":""}{zijinStructure.directionScore} · 缠论 {zijinStructure.chan.location} · 威科夫 {zijinStructure.wyckoff.phase} · 成交密集区 ¥{zijinStructure.volumeProfile.valueAreaLow.toFixed(2)}–{zijinStructure.volumeProfile.valueAreaHigh.toFixed(2)}</small>}
             <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
-          <div className="alert-channel"><div><span>提醒控制</span><small>前台语音与弹窗、锁屏后台通知分开设置</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览提醒</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>提醒记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时播放简短语音">🔊 语音 {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 弹窗 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 手机后台 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试通知"}</button>}</div><details className="mobile-push-guide"><summary>手机桌面与后台提醒设置</summary><div><p><b>安卓 Chrome</b><span>右上角「⋮」→「添加到主屏幕」或「安装应用」→ 从桌面打开并登录 → 开启「手机后台」→ 允许通知 → 点击「测试通知」。</span></p><p><b>苹果 Safari</b><span>底部「分享」→「添加到主屏幕」→ 从桌面打开并登录 → 开启「手机后台」→ 允许通知 → 点击「测试通知」。建议 iOS 16.4 以上。</span></p><small>网页打开时可播放兔兔语音；锁屏或切到后台后使用手机系统通知音。请在系统「设置 → 通知」里允许声音。</small></div></details></div>
+          <div className="alert-channel"><div><span>提醒</span><small>语音、弹窗与手机后台通知</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时播放简短语音">🔊 {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试"}</button>}</div><details className="mobile-push-guide"><summary>ⓘ 帮助</summary><div><p><b>安卓 Chrome</b><span>菜单 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><p><b>苹果 Safari</b><span>分享 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><small>锁屏通知音由手机系统控制；详细说明可在设置中查看。</small></div></details></div>
           <div className={`auto-direction ${decisionModel.status}`}><div><span>{stockAgent.canExecute?"自动方向":"专属研究方向"}</span><b>{decisionModel.status==="locked"?"风控锁定":decisionModel.mode??"等待确认"}</b></div>{marketSession.live&&<small>{decisionModel.reason}</small>}<em>{decisionModel.confirmed}/4 条件</em></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <section className="t-calculator" aria-label="日内做T试算">
@@ -2924,7 +2924,6 @@ export default function Home() {
           </button>
           <div className={`closure-guard ${cycleStage}`}>
             <div><span>当日闭环控制</span><b><i/>{cycleStage === 'ready' ? '允许开T' : cycleStage === 'opened' ? '等待闭环' : '已恢复底仓'}</b></div>
-            <p><span>计划数量</span><strong>{cycleQuantity.toLocaleString()} 股</strong></p><p><span>当前持仓</span><strong>{displayedShares.toLocaleString()} 股</strong></p><p><span>收盘目标</span><strong>{effectiveLivePosition.plannedBase.toLocaleString()} 股</strong></p>
             <div className="cycle-progress"><i className="done"/><span/><i className={cycleStage !== 'ready' ? 'done' : ''}/><span/><i className={cycleStage === 'closed' ? 'done' : ''}/></div>
             <div className="cycle-labels"><span>校验通过</span><span>首笔成交</span><span>等量闭环</span></div>
             <small>{tradeLedgerSummary.oversold?'本机流水显示卖出超过昨日可卖或当前持仓为负，请立即核对券商成交。':cycleLimitReached?`已达到你设置的每日 ${maxDailyTrades} 次上限，今天不再新增执行信号。`:cycleQuantity<100?'当前股票未设置足够的现有持仓与单次做T数量，请重新设置。':cycleStage === 'ready' ? (signalMode === '正T' ? `本股今日剩余可卖 ${effectiveLivePosition.sellable.toLocaleString()} 股；买入后需卖出等量旧仓。` : '卖出后需在 14:50 前买回等量股份。') : cycleStage === 'opened' ? `尚有 ${cycleQuantity.toLocaleString()} 股未配对，新的${signalMode}信号已冻结。` : '买卖数量相等，实际持仓已恢复计划底仓。'}</small>
@@ -2959,11 +2958,7 @@ export default function Home() {
         <div className="strategy-dialog">
           <div className="strategy-dialog-head"><div><span>SMART‑T FUSION V4</span><h2>同一套 V4，三个清晰档位</h2><p>稳健、平衡、灵敏只调整 Smart‑T 融合策略 V4 的确认门槛与信号频率，不是三套互不相干的策略；四兔训练只产生候选参数，不作为手动档位。</p></div><button onClick={()=>setStrategyOpen(false)} aria-label="关闭策略说明">×</button></div>
           <div className="strategy-cards">
-            {[
-              {name:'稳健档',tag:'少做，只做最确定',fit:'震荡市、新手、重视回撤',score:'至少 6/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 5 分钟',risk:'候补点照常显示，正式点可能为空'},
-              {name:'平衡档',tag:'确认与机会兼顾',fit:'大多数正常交易日',score:'至少 4/6',cycles:'每日最多 2 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 4 分钟',risk:'默认推荐'},
-              {name:'灵敏档',tag:'更早发现拐点',fit:'活跃行情、熟练用户',score:'至少 4/6',cycles:'每日最多 1 个正式闭环',spread:'0.64% 保护 / 1.00% 止盈 · 最短 3 分钟',risk:'候补更多；第二轮只观察，避免重复交易稀释胜率'},
-            ].map(item=><button key={item.name} onClick={()=>setProfile(normalizeStrategyProfile(item.name) as StrategyProfile)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分：{item.score}</li><li>{item.cycles}</li><li>{item.spread}</li></ul><em>{item.risk}</em></button>)}
+            {STRATEGY_PROFILES.map(name=>({name,...STRATEGY_PROFILE_META[name]})).map(item=><button key={item.name} onClick={()=>setProfile(normalizeStrategyProfile(item.name) as StrategyProfile)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分 ≥ {item.score} · 偏离 ≥ {item.deviationPct.toFixed(2)}%</li><li>候选净空间 ≥ {item.candidateNetPct.toFixed(2)}% · 盈亏比 ≥ {item.minRewardRisk.toFixed(2)}</li><li>买/卖量比 ≥ {item.minBuyVolumeRatio.toFixed(2)} / {item.minSellVolumeRatio.toFixed(2)}</li><li>最短持有 {item.minHoldMinutes} 分钟 · 冷却 {item.cooldownMinutes} 分钟</li><li>每日最多 {item.maxCycles} 个正式闭环</li></ul><em>{item.risk}</em></button>)}
           </div>
           <div className="profit-mode-panel">
             <div><span>利润模式</span><h3>{stock.code==="601899"?"紫金矿业可选择小价差":"当前股票使用标准价差"}</h3><p>只改变费用后的盈利门槛，不降低趋势、VWAP、量价、仓位和风控条件。</p></div>
@@ -3829,7 +3824,11 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
     const timer=window.setTimeout(()=>{
       try {
         const saved=JSON.parse(localStorage.getItem(storageKey)||"[]");
-        setHistory(Array.isArray(saved)?saved.slice(0,20):[]);
+        const migrated=Array.isArray(saved)?saved.slice(0,20).map((record:PersonalTrainingRecord)=>{
+          const cycle=summarizeTrainingCycles(record.actions ?? []);
+          return {...record,totalNet:record.totalNet ?? record.net,net:cycle.closedQuantity>0?cycle.net:record.net,closedQuantity:record.closedQuantity ?? cycle.closedQuantity};
+        }):[];
+        setHistory(migrated);
       } catch { setHistory([]); }
     },0);
     return ()=>window.clearTimeout(timer);
@@ -3941,7 +3940,7 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
     const scored=scorePersonalTrainingActions(actions as unknown as [],minutes,10) as Array<{evaluated:boolean;directionCorrect:boolean|null}>;
     const evaluated=scored.filter(item=>item.evaluated);
     const accuracy=evaluated.length?evaluated.filter(item=>item.directionCorrect).length/evaluated.length:null;
-    const record:PersonalTrainingRecord={id:globalThis.crypto?.randomUUID?.()??`${Date.now()}-${Math.random()}`,completedAt:new Date().toISOString(),code:stock.code,name:stock.name,date:session.date,actions,net:finalSummary.net,fees:finalSummary.fees,accuracy};
+    const record:PersonalTrainingRecord={id:globalThis.crypto?.randomUUID?.()??`${Date.now()}-${Math.random()}`,completedAt:new Date().toISOString(),code:stock.code,name:stock.name,date:session.date,actions,net:finalSummary.tradeNet,totalNet:finalSummary.net,closedQuantity:finalSummary.closedQuantity,fees:finalSummary.fees,accuracy};
     const next=[record,...history].slice(0,20);
     setHistory(next); try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{}
     setRevealIndex(minutes.length-1); setFinished(true);
@@ -3967,10 +3966,10 @@ function PersonalReplayTraining({accountName,stock,position}:{accountName:string
         <div className="training-order"><span>模拟下单</span><div className="training-quantity-presets" aria-label="常用做T数量"><button onClick={()=>setQuantityFraction(.25)} disabled={finished}>1/4</button><button onClick={()=>setQuantityFraction(.5)} disabled={finished}>1/2</button><button onClick={()=>setQuantityFraction(1)} disabled={finished}>全T</button></div><label>数量<input type="number" min="100" step="100" value={quantity} onChange={event=>setQuantity(Math.max(100,Math.floor((Number(event.target.value)||100)/100)*100))}/></label><button className="manual-buy" onClick={()=>trade("buy")} disabled={finished}>买入</button><button className="manual-sell" onClick={()=>trade("sell")} disabled={finished}>卖出</button></div>
       </div>
       <p className="personal-training-message">{message}</p>
-      <div className="personal-training-summary"><span className="training-net">相对开局 <b className={(summary?.net??0)>=0?"positive":"negative"}>{(summary?.net??0)>=0?"+":""}¥{summary?.net.toFixed(2)}</b><small>已按当前价计算浮动权益</small></span><span>当前模拟权益 <b>¥{summary?.equity.toFixed(2)}</b></span><span>已计费用 <b>¥{summary?.fees.toFixed(2)}</b></span><span>手动操作 <b>{actions.length} 笔</b></span></div>
+      <div className="personal-training-summary"><span className="training-net">本次做T净收益 <b className={(summary?.tradeNet??0)>=0?"positive":"negative"}>{(summary?.tradeNet??0)>=0?"+":""}¥{summary?.tradeNet.toFixed(2)}</b><small>{summary?.closedQuantity?`已闭环 ${summary.closedQuantity.toLocaleString()} 股，已扣匹配交易费用`:"尚未形成买卖闭环"}</small></span><span>持仓总权益变化 <b className={(summary?.net??0)>=0?"positive":"negative"}>{(summary?.net??0)>=0?"+":""}¥{summary?.net.toFixed(2)}</b><small>含原有底仓随收盘价的浮盈亏</small></span><span>全部已计费用 <b>¥{summary?.fees.toFixed(2)}</b></span><span>手动操作 <b>{actions.length} 笔</b></span></div>
       <div className="personal-training-ledger"><b>本局操作</b>{actions.length?actions.map(action=><span key={action.id}><em className={action.side}>{action.side==="buy"?"买入":"卖出"}</em>{formatTime(action.time)} · ¥{action.executionPrice.toFixed(3)} · {action.quantity.toLocaleString()} 股 · 费 ¥{action.fee.toFixed(2)}</span>):<small>尚未操作。请基于当前已揭示价格自行判断。</small>}</div>
     </div>}
-    {history.length>0&&<div className="personal-training-history"><div><b>最近个人训练</b><small>仅本机保存，最多保留 20 局。</small></div><p className="personal-training-history-head"><span>交易日 / 标的</span><span>操作</span><span>净结果</span><span>10分钟方向</span></p>{history.slice(0,5).map(record=><p key={record.id}><span>{record.date} · {record.code} {record.name}</span><span>{record.actions.length} 笔</span><span className={record.net>=0?"positive":"negative"}>{record.net>=0?"+":""}¥{record.net.toFixed(2)}</span><span>{record.accuracy===null?"待评":`${(record.accuracy*100).toFixed(0)}%`}</span></p>)}</div>}
+    {history.length>0&&<div className="personal-training-history"><div><b>最近个人训练</b><small>仅本机保存，最多保留 20 局。</small></div><p className="personal-training-history-head"><span>交易日 / 标的</span><span>操作</span><span>做T净收益</span><span>10分钟方向</span></p>{history.slice(0,5).map(record=><p key={record.id}><span>{record.date} · {record.code} {record.name}</span><span>{record.actions.length} 笔</span><span className={record.net>=0?"positive":"negative"}>{record.net>=0?"+":""}¥{record.net.toFixed(2)}</span><span>{record.accuracy===null?"待评":`${(record.accuracy*100).toFixed(0)}%`}</span></p>)}</div>}
   </section>;
 }
 
