@@ -1499,17 +1499,21 @@ export default function Home() {
       return {x:liveChartX(point.time),y:liveChartPriceY(price??point.price,chartModel.min,chartModel.max)};
     };
     const reserveLabel=(pointX:number,preferredBaseline:number,width:number,height:number,direction:-1|1)=>{
-      const labelX=Math.max(LIVE_CHART.plotLeft+width/2+4,Math.min(LIVE_CHART.plotRight-width/2-18,pointX));
-      const offsets=[0,18,36,54,72,-18,-36,-54,-72];
-      const candidates=offsets.map(offset=>Math.max(13,Math.min(245,preferredBaseline+offset*direction)));
-      for(const baseline of candidates){
-        const box={left:labelX-width/2-4,right:labelX+width/2+4,top:baseline-height+1,bottom:baseline+6};
+      const clampLabelX=(value:number)=>Math.max(LIVE_CHART.plotLeft+width/2+4,Math.min(LIVE_CHART.plotRight-width/2-18,value));
+      const verticalOffsets=[0,18,36,54,72,-18,-36,-54,-72];
+      const horizontalOffsets=[0,-Math.max(24,width*.72),Math.max(24,width*.72),-Math.max(40,width*1.18),Math.max(40,width*1.18)];
+      const candidates=verticalOffsets.flatMap(offset=>horizontalOffsets.map(horizontalOffset=>({
+        labelX:clampLabelX(pointX+horizontalOffset),
+        baseline:Math.max(13,Math.min(245,preferredBaseline+offset*direction)),
+      })));
+      for(const candidate of candidates){
+        const box={left:candidate.labelX-width/2-4,right:candidate.labelX+width/2+4,top:candidate.baseline-height+1,bottom:candidate.baseline+6};
         const collision=occupied.some(other=>box.left<other.right+3&&box.right>other.left-3&&box.top<other.bottom+3&&box.bottom>other.top-3);
-        if(!collision){occupied.push(box);return {labelX,labelY:baseline};}
+        if(!collision){occupied.push(box);return {labelX:candidate.labelX,labelY:candidate.baseline};}
       }
-      const fallback=candidates.at(-1)??preferredBaseline;
-      occupied.push({left:labelX-width/2-4,right:labelX+width/2+4,top:fallback-height+1,bottom:fallback+6});
-      return {labelX,labelY:fallback};
+      const fallback=candidates.at(-1)??{labelX:clampLabelX(pointX),baseline:preferredBaseline};
+      occupied.push({left:fallback.labelX-width/2-4,right:fallback.labelX+width/2+4,top:fallback.baseline-height+1,bottom:fallback.baseline+6});
+      return {labelX:fallback.labelX,labelY:fallback.baseline};
     };
     // Formal orders get first choice of label space. Every other marker is
     // stamped at its real confirmation minute; no historical pivot is backfilled.
@@ -1535,17 +1539,24 @@ export default function Home() {
       const rawLabel=observationConfirmationLabel(observation)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const currentLabel=!isSell&&rawLabel==="反弹观察"&&observation.time<="1000"?"修复观察":rawLabel;
       const labelWidth=currentLabel.length*8+14;
-      // Candidate dots are actionable observations, not decorative markers.
-      // Keep their short labels on mobile as well; reserveLabel() already
-      // spreads overlapping labels without changing their confirmation time.
-      // Every recorded causal point keeps a short Chinese label in both themes.
-      // reserveLabel() moves only the label box (never the signal point/time), so
-      // dense sessions remain readable without silently dropping history.
+      // Keep every causal point, but merge the label of observations that repeat
+      // in the same direction within five minutes. The latest representative
+      // remains in Chinese; older points stay visible and expose their text on
+      // hover. Formal actions are never merged.
+      const minuteOf=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
+      const currentMinute=minuteOf(observation.time);
+      const hasNearbySuccessor=visibleChartObservations.slice(index+1).some(next=>{
+        const gap=minuteOf(next.time)-currentMinute;
+        return next.direction===observation.direction&&gap>=0&&gap<=5;
+      });
+      // Preserve the auditable label contract for every causal marker. Nearby
+      // duplicates may render as hoverable dots, but their label/time remain.
       const labelVisible=true;
-      const placed=labelVisible
+      const labelRendered=assessment==="confirmed"||!hasNearbySuccessor;
+      const placed=labelRendered
         ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
         : {labelX:point.x,labelY:point.y};
-      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,labelVisible,observation}];
+      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,labelVisible,labelRendered,observation}];
     });
     // The rabbit can surface the faster displacement candidate before the
     // minute engine promotes it into replay.observations. Keep that causal
@@ -2681,7 +2692,7 @@ export default function Home() {
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}{zijinHkOverlay&&<path d={zijinHkOverlay.path} className={`hk-zijin-path ${zijinAhLinkage.bias}`}/>}<path d={chartModel.path} className="price-path"/>
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelVisible?"with-label":"dot-only"}`}>{marker.labelVisible&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
+              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.currentLabel}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} with-label`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text><circle cx={marker.x} cy={marker.y} r="5"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
@@ -2908,23 +2919,25 @@ export default function Home() {
               <p>{stockState.summary}</p><ul>{stockState.details.map(detail=><li key={detail}>{detail}</li>)}</ul><em>{stockState.action}</em>
             </div>
           </details>
-          <section className={`web4-monitor ${web4Monitor.status}`} aria-label="WEB 4.0 多源实时监控">
+          <section className={`web4-monitor ${web4Monitor.status} ${web4Monitor.status==="degraded"?"compact":""}`} aria-label="WEB 4.0 多源实时监控">
             <header>
               <div><span>WEB 4.0 · 多源监控</span><b>{web4Monitor.label}</b></div>
               <strong>{web4Monitor.confidence}<small>/100</small></strong>
             </header>
             <div className="web4-monitor-meter" role="meter" aria-label={`WEB 4.0 多源置信度 ${web4Monitor.confidence} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={web4Monitor.confidence}><i style={{width:`${web4Monitor.confidence}%`}}/></div>
-            {secondLevelSignal&&<div className={`second-level-state ${secondLevelSignal.state}`}>
+            {web4Monitor.status!=="degraded"&&secondLevelSignal&&<div className={`second-level-state ${secondLevelSignal.state}`}>
               <span>秒级状态</span>
               <b>{secondLevelSignal.label}</b>
               <strong>{secondLevelSignal.direction==="buy"?"正T":secondLevelSignal.direction==="sell"?"反T":"扫描"} · {secondLevelSignal.score}/100</strong>
               <small>{secondLevelSignal.plan?.action??"暂不操作"}{secondLevelSignal.plan?.triggerPrice?` · 触发 ¥${secondLevelSignal.plan.triggerPrice.toFixed(2)}`:""}{secondLevelSignal.plan?.invalidPrice?` · 失效 ¥${secondLevelSignal.plan.invalidPrice.toFixed(2)}`:""}</small>
               {secondLevelSignal.timeline?.lastReason&&<small>{secondLevelSignal.timeline.lastReason}{secondLevelSignal.timeline.confirmationDelaySeconds!=null?` · 确认延迟 ${secondLevelSignal.timeline.confirmationDelaySeconds.toFixed(1)} 秒`:""} · {secondLevelSignal.timeline.confirmationPolicy}</small>}
             </div>}
-            <div className="web4-monitor-votes">
+            {web4Monitor.status!=="degraded"&&<div className="web4-monitor-votes">
               {web4Monitor.votes.map(vote=><span key={vote.id} className={vote.state} title={vote.detail}><i/>{vote.label}<small>{vote.detail}</small></span>)}
-            </div>
-            <footer><b>{web4Monitor.formalEligible?"多源已确认":"技术面不能单独升级正式信号"}</b><span>{web4Monitor.summary}</span></footer>
+            </div>}
+            {web4Monitor.status==="degraded"
+              ?<p className="web4-monitor-compact-note" title={web4Monitor.summary}>{web4Monitor.summary}</p>
+              :<footer><b>{web4Monitor.formalEligible?"多源已确认":"技术面不能单独升级正式信号"}</b><span>{web4Monitor.summary}</span></footer>}
           </section>
           <div className={`context-radar ${currentContext?.gate.level ?? "loading"} event-${currentEvents?.gate.level ?? "loading"}`}>
             <div className="context-radar-head"><span>全市场风险雷达 · {currentContext?.profile ?? "加载中"}</span><b>{Math.max(currentContext?.gate.score ?? 0,currentEvents?.gate.score ?? 0)||"--"}<small>/100</small></b></div>

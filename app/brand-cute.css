@@ -292,3 +292,75 @@
   stroke: none !important;
   stroke-width: 0 !important;
 }
+
+/* Desktop desk density: the ticker already carries the full quote, so the
+   second quote row stays deliberately compact and gives the chart its height. */
+@media (min-width:1101px) {
+  :root[data-theme] .minimal-ui .topbar {
+    height: 50px !important;
+    min-height: 50px !important;
+  }
+
+  :root[data-theme] .minimal-ui .ticker,
+  :root[data-theme] .minimal-ui .ticker-item {
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+  :root[data-theme] .minimal-ui .stock-head {
+    height: 58px !important;
+    min-height: 58px !important;
+    padding: 4px 18px !important;
+    gap: 14px !important;
+    grid-template-columns: minmax(145px,170px) minmax(310px,1fr) max-content minmax(165px,210px) !important;
+  }
+
+  :root[data-theme] .minimal-ui .stock-identity .stock-code {
+    display: none;
+  }
+
+  :root[data-theme] .minimal-ui .stock-identity h1 {
+    font-size: 17px;
+  }
+
+  :root[data-theme] .minimal-ui .quote {
+    padding-left: 12px;
+  }
+
+  :root[data-theme] .minimal-ui .quote strong {
+    font-size: 25px;
+  }
+
+  :root[data-theme] .minimal-ui .quote-focus {
+    grid-template-columns: max-content minmax(170px,1fr);
+    gap: 12px;
+  }
+
+  :root[data-theme] .minimal-ui .quote-focus .opening-assessment {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  :root[data-theme] .minimal-ui .quote-focus .opening-assessment b {
+    font-size: 12px;
+  }
+
+  :root[data-theme] .minimal-ui .quote-focus .opening-assessment small {
+    font-size: 8px;
+  }
+
+  :root[data-theme] .minimal-ui .l2-console-status {
+    min-height: 40px !important;
+    padding: 5px 9px !important;
+  }
+
+  :root:not([data-theme="light"]) .minimal-ui .workspace {
+    height: calc(100vh - 140px) !important;
+    max-height: 800px;
+  }
+
+  :root[data-theme="light"] .minimal-ui .workspace {
+    height: calc(100vh - 164px) !important;
+    max-height: 800px;
+  }
+}
