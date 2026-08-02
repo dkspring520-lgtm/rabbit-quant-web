@@ -9,6 +9,7 @@ import {
   causalCyclePreference,
   causalBrokerAtrScale,
   causalPersistentDirection,
+  resolveCausalTrendDirection,
   causalRangeEvidence,
   causalVolatilityScale,
   confirmsRapidRiseSellReversal,
@@ -702,6 +703,71 @@ test("a persistent decline creates a causal buy-first veto", () => {
     volume: 10_000,
   }));
   assert.equal(causalPersistentDirection(rows, 94), "downtrend");
+});
+
+test("causal trend correction directly inverts a counter-trend raw cycle", () => {
+  const up = resolveCausalTrendDirection({
+    enabled: true,
+    rawDirection: "SELL_FIRST",
+    regime: "uptrend",
+    cyclePreference: "uptrend",
+    persistentDirection: "range",
+    recovered: 0.12,
+    faded: 0.10,
+    localMomentum3: 0.05,
+    deviation: 0.40,
+    effectiveReversal: 0.08,
+  });
+  assert.equal(up.direction, "BUY_FIRST");
+  assert.equal(up.corrected, true);
+
+  const earlyFade = resolveCausalTrendDirection({
+    enabled: true,
+    rawDirection: "SELL_FIRST",
+    regime: "uptrend",
+    cyclePreference: "uptrend",
+    persistentDirection: "range",
+    recovered: 0.01,
+    faded: 0.10,
+    localMomentum3: -0.05,
+    deviation: 0.40,
+    effectiveReversal: 0.08,
+  });
+  assert.equal(earlyFade.direction, "BUY_FIRST");
+  assert.equal(earlyFade.corrected, true);
+  assert.equal(earlyFade.blockedCounterTrend, false);
+});
+
+test("causal trend correction is symmetric and leaves mixed regimes unchanged", () => {
+  const down = resolveCausalTrendDirection({
+    enabled: true,
+    rawDirection: "BUY_FIRST",
+    regime: "downtrend",
+    cyclePreference: "downtrend",
+    persistentDirection: "range",
+    recovered: 0.10,
+    faded: 0.12,
+    localMomentum3: -0.05,
+    deviation: -0.40,
+    effectiveReversal: 0.08,
+  });
+  assert.equal(down.direction, "SELL_FIRST");
+  assert.equal(down.corrected, true);
+
+  const mixed = resolveCausalTrendDirection({
+    enabled: true,
+    rawDirection: "SELL_FIRST",
+    regime: "uptrend",
+    cyclePreference: "downtrend",
+    persistentDirection: "range",
+    recovered: 0.12,
+    faded: 0.12,
+    localMomentum3: 0.05,
+    deviation: 0.40,
+    effectiveReversal: 0.08,
+  });
+  assert.equal(mixed.direction, "SELL_FIRST");
+  assert.equal(mixed.consensus, "range");
 });
 
 test("V4.1 range evidence requires an already-observed two-sided VWAP history", () => {
