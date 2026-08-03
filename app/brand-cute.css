@@ -364,3 +364,79 @@
     max-height: 800px;
   }
 }
+
+/* Final header containment fix.
+   Keep the rabbit lockup in the same vertical box as the desktop topbar and
+   remove the decorative active underline that was painting across the brand
+   boundary.  The selected stock tab remains identifiable by its text/colour,
+   without an extra cyan rule competing with the logo. */
+@media (min-width: 1101px) {
+  :root[data-theme] .minimal-ui .topbar {
+    height: 64px !important;
+    min-height: 64px !important;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 40;
+    isolation: isolate;
+    overflow: visible !important;
+  }
+
+  :root[data-theme] .minimal-ui .topbar .brand-lockup {
+    height: 64px !important;
+    min-height: 64px !important;
+    align-self: stretch;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 5;
+    isolation: isolate;
+    overflow: visible !important;
+  }
+
+  :root[data-theme] .minimal-ui .topbar .brand-primary-logo {
+    width: 60px !important;
+    height: 48px !important;
+    max-height: none !important;
+    flex: 0 0 60px;
+    align-self: center;
+  }
+
+  :root[data-theme] .minimal-ui .topbar .brand-type-fallback {
+    position: relative;
+    z-index: 6;
+    line-height: 1;
+  }
+
+  :root[data-theme] .minimal-ui .topbar .main-nav {
+    height: 64px !important;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* The old active underline was the cyan bar visible at the logo/ticker
+     boundary.  Hide it in the compact desk shell; active text still carries
+     the selected state. */
+  :root[data-theme] .minimal-ui .topbar .main-nav button.active::before,
+  :root[data-theme] .minimal-ui .topbar .main-nav button.active::after,
+  :root[data-theme] .minimal-ui .topbar .main-nav button.active:before,
+  :root[data-theme] .minimal-ui .topbar .main-nav button.active:after {
+    content: none !important;
+    display: none !important;
+  }
+
+  /* No selected-tab underline should leak into the logo row either. */
+  :root[data-theme] .minimal-ui .ticker .ticker-item.drag-over,
+  :root[data-theme] .minimal-ui .ticker .ticker-item.selected,
+  :root[data-theme] .minimal-ui .ticker .ticker-item.selected > button,
+  :root[data-theme] .minimal-ui .ticker button.selected {
+    box-shadow: none !important;
+    border-bottom: 0 !important;
+  }
+
+  :root[data-theme] .minimal-ui .ticker .ticker-item.selected::before,
+  :root[data-theme] .minimal-ui .ticker .ticker-item.selected::after,
+  :root[data-theme] .minimal-ui .ticker button.selected::before,
+  :root[data-theme] .minimal-ui .ticker button.selected::after {
+    content: none !important;
+    display: none !important;
+  }
+}
