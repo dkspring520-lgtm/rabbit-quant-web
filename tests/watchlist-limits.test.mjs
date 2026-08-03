@@ -4,9 +4,14 @@ import { enforceWatchlistLimit, watchlistLimitForRole } from "../lib/watchlist-l
 
 const rows=Array.from({length:8},(_,index)=>({code:String(600000+index)}));
 
-test("ordinary members can monitor at most five stocks",()=>{
-  assert.equal(watchlistLimitForRole("member"),5);
-  assert.equal(enforceWatchlistLimit(rows,"member").length,5);
+test("free members can monitor at most two stocks",()=>{
+  assert.equal(watchlistLimitForRole("member"),2);
+  assert.equal(enforceWatchlistLimit(rows,"member").length,2);
+});
+
+test("active members can monitor at most five stocks",()=>{
+  assert.equal(watchlistLimitForRole("member",true),5);
+  assert.equal(enforceWatchlistLimit(rows,"member",true).length,5);
 });
 
 test("administrators keep the higher operational limit",()=>{
