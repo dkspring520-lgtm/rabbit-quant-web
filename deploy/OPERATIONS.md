@@ -26,6 +26,20 @@ sha256sum -c /opt/rabbit-quant-backups/rabbit-quant-*.tar.gz.sha256
 
 Backups are mode `0600` and kept for 14 days by default. Historical market datasets under `/opt/rabbit-quant-research` are intentionally excluded from daily archives because they are immutable and large; they should have a separate offline copy.
 
+Before accepting paid users, a backup is considered verified only when the service exits successfully, a new archive exists, and its checksum passes. If the unit is marked failed, run the following on the VPS and keep the journal output for diagnosis:
+
+```bash
+systemctl reset-failed rabbit-quant-backup.service
+docker inspect rabbit-quant-control --format '{{.State.Status}}'
+docker exec rabbit-quant-control test -r /data/rabbit-control.sqlite
+systemctl start rabbit-quant-backup.service
+journalctl -u rabbit-quant-backup.service -n 120 --no-pager
+ls -lt /opt/rabbit-quant-backups/rabbit-quant-*.tar.gz | head -n 1
+sha256sum -c "$(ls -t /opt/rabbit-quant-backups/rabbit-quant-*.tar.gz.sha256 | head -n 1)"
+```
+
+The deployment script synchronizes the backup script and systemd unit whenever the production commit changes. A failed verification must be resolved before treating the release as commercially ready.
+
 ## Optional operations webhook
 
 Edit `/etc/default/rabbit-quant-ops` and set a generic JSON webhook endpoint:

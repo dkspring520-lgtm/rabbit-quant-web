@@ -47,7 +47,7 @@ export default function PublicLanding({onDemo,onAccount,theme,onToggleTheme}:Pub
 
     <section className="public-workflow" id="workflow"><div><span>DAILY WORKFLOW</span><h2>每天只走四步</h2><p>先设置股票与底仓，再看候选，等待正式过滤，最后复盘扣费结果。</p></div><ol><li><b>01</b><span><strong>设置监控</strong><small>股票与底仓独立保存</small></span></li><li><b>02</b><span><strong>观察候选</strong><small>候选不是买卖指令</small></span></li><li><b>03</b><span><strong>确认闭环</strong><small>费用与风控同时通过</small></span></li><li><b>04</b><span><strong>盘后复盘</strong><small>记录净收益与失败原因</small></span></li></ol></section>
 
-    <section className="public-safety" id="safety"><div><span>COMMERCIAL READINESS</span><h2>会员只解锁研究能力，不伪装成券商终端</h2></div><div><p><b>已经上线</b><span>服务器账户、跨设备监控清单、持仓参数同步、会员有效期与邀请奖励已经开放。</span></p><p><b>当前开通</b><span>会员暂由管理员人工开通，不自动扣款、不自动续费；价格与真实权益公开展示。</span></p><p><b>安全边界</b><span>券商下单、自动交易与收益承诺均未开放；行情来源和时效会在界面中明确标识。</span></p></div></section>
+    <section className="public-safety" id="safety"><div><span>COMMERCIAL READINESS</span><h2>会员只解锁研究能力，不伪装成券商终端</h2></div><div><p><b>已经上线</b><span>服务器账户、跨设备监控清单、持仓参数同步、会员有效期与邀请奖励已经开放。</span></p><p><b>当前商业阶段</b><span>公开测试 + 人工激活码灰度；暂不提供面向公众的自助支付、自动扣款或自动续费。正式收费前会公开运营主体、固定客服、退款规则及账户数据处理流程。</span></p><p><b>行情与服务</b><span>实时增强依赖公开第三方行情源；页面会标注更新时间和可用状态，延迟、中断或缺失时不保证连续可用，也不属于交易级行情。</span></p><p><b>安全边界</b><span>券商下单、自动交易与收益承诺均未开放；会员只解锁研究工具，不代表行情质量或收益结果。</span></p></div></section>
 
     <footer className="public-footer"><div><b>双兔助手 · 做T神器</b><span>Rabbit Quant · A 股日内策略研究工具</span></div><nav><Link href="/pricing">会员方案</Link><a href="/terms">用户协议</a><a href="/privacy">隐私政策</a><button onClick={onAccount}>登录 / 注册</button></nav><small>© 2026 Rabbit Quant · 公开测试版 · 不构成投资建议</small></footer>
   </main>;
