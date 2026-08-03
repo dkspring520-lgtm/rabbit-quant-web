@@ -13,7 +13,7 @@ test("pricing publishes one real membership tier that matches the boolean member
 });
 
 test("pricing states the current commercial and execution boundaries", () => {
-  assert.match(pricing, /联系客服购买或获取激活码/);
+  assert.match(pricing, /管理员人工确认的测试激活码/);
   assert.match(pricing, /登录后可自行兑换/);
   assert.match(pricing, /不自动续费/);
   assert.match(pricing, /自动下单不在任何套餐内/);

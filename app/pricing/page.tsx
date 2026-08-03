@@ -43,6 +43,7 @@ const faqs = [
   ["是否保证胜率或收益？", "不保证。会员购买的是数据整理、因果判断与研究工具，不是收益承诺。"],
   ["邀请奖励还能使用吗？", "可以。每位有效邀请增加 7 天会员权益，与付费获得的有效期顺延累计。"],
   ["激活码怎样使用？", "登录后打开账户中心，在“激活码兑换”输入并确认；未到期会员会在原到期日基础上自动顺延。"],
+  ["如何获得客服支持？", "当前处于公开测试与人工激活码灰度阶段，账户、激活码和重置问题由站点管理员人工处理；固定客服渠道、退款规则与账户注销/导出流程完成公示后，才会开放正式收费。"],
   ["是否自动续费？", "当前使用一次性激活码开通，不自动续费，也不会产生静默扣款。"],
   ["体验票到期后会怎样？", "自动恢复免费版；监控清单和历史数据保留，会员功能停止更新。"],
 ];
@@ -112,7 +113,7 @@ export default function PricingPage() {
           <div className="pricing-badge">推荐</div>
           <span>完整研究能力</span><h2>Smart-T 会员</h2>
           <div className="pricing-value"><b>¥{memberPrice}</b><small>/{memberUnit}</small></div>
-          <p>{cycle === "yearly" ? "折合约 ¥0.82/天，适合持续盯盘、复盘和积累个人样本。" : "按月开通，适合先完整体验实时监控与复盘。"}</p>
+          <p>{cycle === "yearly" ? "折合约 ¥0.82/天，适合持续盯盘、复盘和积累个人样本。当前仍按人工激活码灰度开通。" : "按月开通，适合先完整体验实时监控与复盘；当前仍按人工激活码灰度开通。"}</p>
           <ul>{memberFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
           <Link href="/?view=membership">登录后兑换激活码</Link>
         </article>
@@ -126,7 +127,7 @@ export default function PricingPage() {
         </article>
       </div>
 
-      <div className="pricing-opening-note"><b>当前开通方式</b><span>联系客服购买或获取激活码，登录后可自行兑换，权益即时到账；页面不会自动扣款，也不会静默续费。</span></div>
+      <div className="pricing-opening-note"><b>当前开通方式</b><span>目前仅接受管理员人工确认的测试激活码，登录后可自行兑换；不提供面向公众的自助支付、自动扣款或自动续费。固定客服渠道、退款规则、账户注销与数据导出流程完成公示前，不开放正式收费。</span></div>
     </section>
 
     <section className="pricing-compare" id="compare">
@@ -145,7 +146,7 @@ export default function PricingPage() {
     </section>
 
     <section className="pricing-cta">
-      <div><span>先看懂，再决定</span><h2>免费版足够验证界面与基础逻辑。</h2><p>确认实时行情增强、提醒和个人训练确实适合你，再购买激活码自行兑换。</p></div>
+      <div><span>先看懂，再决定</span><h2>免费版足够验证界面与基础逻辑。</h2><p>确认实时行情增强、提醒和个人训练确实适合你，再申请测试激活码自行兑换。</p></div>
       <div><Link href="/">进入免费版</Link><Link href="/?view=membership">登录查看权益</Link></div>
     </section>
 

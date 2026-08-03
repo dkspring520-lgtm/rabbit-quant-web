@@ -4,6 +4,7 @@ set -Eeuo pipefail
 BACKUP_DIR="${RABBIT_QUANT_BACKUP_DIR:-/opt/rabbit-quant-backups}"
 RETENTION_DAYS="${RABBIT_QUANT_BACKUP_RETENTION_DAYS:-14}"
 CONTROL_CONTAINER="${RABBIT_QUANT_CONTROL_CONTAINER:-rabbit-quant-control}"
+CONTROL_DB_PATH="${RABBIT_QUANT_CONTROL_DB_PATH:-/data/rabbit-control.sqlite}"
 STATE_DIR="${RABBIT_QUANT_DEPLOY_STATE:-/var/lib/rabbit-quant-deploy}"
 LOG_DIR="${RABBIT_QUANT_DEPLOY_LOG_DIR:-/var/log/rabbit-quant-deploy}"
 LOCK_FILE="${RABBIT_QUANT_BACKUP_LOCK:-/run/lock/rabbit-quant-backup.lock}"
@@ -32,6 +33,17 @@ archive="$BACKUP_DIR/rabbit-quant-$timestamp.tar.gz"
 current_stage="初始化"
 
 log() { printf '[%s] %s\n' "$(date --iso-8601=seconds)" "$*"; }
+
+current_stage="备份前置检查"
+control_running="$(docker inspect "$CONTROL_CONTAINER" --format '{{.State.Running}}' 2>/dev/null || true)"
+if [[ "$control_running" != "true" ]]; then
+  log "控制容器不可用：$CONTROL_CONTAINER；请先检查 docker ps 和 rabbit-quant-control 日志。"
+  exit 1
+fi
+if ! docker exec "$CONTROL_CONTAINER" test -r "$CONTROL_DB_PATH"; then
+  log "控制数据库不可读：$CONTROL_CONTAINER:$CONTROL_DB_PATH；未创建不完整归档。"
+  exit 1
+fi
 
 notify_ops() {
   local status="$1" message="$2" payload escaped_message escaped_stage
@@ -102,8 +114,8 @@ trap on_error ERR
 current_stage="账户数据库快照"
 log "创建一致性 SQLite 快照。"
 docker exec "$CONTROL_CONTAINER" rm -f /data/.rabbit-control-backup.sqlite
-docker exec -e BACKUP_OUTPUT=/data/.rabbit-control-backup.sqlite "$CONTROL_CONTAINER" \
-  node --input-type=module -e 'import { DatabaseSync } from "node:sqlite"; const db=new DatabaseSync(process.env.CONTROL_DB_PATH||"/data/rabbit-control.sqlite"); const output=process.env.BACKUP_OUTPUT.replaceAll("\u0027","\u0027\u0027"); db.exec(`VACUUM INTO \u0027${output}\u0027`); db.close();'
+docker exec -e CONTROL_DB_PATH="$CONTROL_DB_PATH" -e BACKUP_OUTPUT=/data/.rabbit-control-backup.sqlite "$CONTROL_CONTAINER" \
+  node --input-type=module -e 'import { DatabaseSync } from "node:sqlite"; const db=new DatabaseSync(process.env.CONTROL_DB_PATH); const output=process.env.BACKUP_OUTPUT.replaceAll("\u0027","\u0027\u0027"); db.exec(`VACUUM INTO \u0027${output}\u0027`); db.close();'
 docker exec -e BACKUP_INPUT=/data/.rabbit-control-backup.sqlite "$CONTROL_CONTAINER" \
   node --input-type=module -e 'import { DatabaseSync } from "node:sqlite"; const db=new DatabaseSync(process.env.BACKUP_INPUT,{readOnly:true}); const result=db.prepare("PRAGMA integrity_check").get(); db.close(); if(Object.values(result)[0]!=="ok") process.exit(1);'
 docker cp "$CONTROL_CONTAINER:/data/.rabbit-control-backup.sqlite" "$work_dir/rabbit-control.sqlite" >/dev/null
