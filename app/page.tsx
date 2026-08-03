@@ -312,8 +312,10 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
 const normalizeFormalTime=(value:unknown)=>String(value??"").replace(/\D/g,"").slice(0,4);
 const formalActionSide=(value:unknown):"buy"|"sell"=>String(value??"").includes("卖")?"sell":"buy";
-const formalExecutionLabel=(direction:"正T"|"反T",side:"buy"|"sell")=>
-  side==="sell"?`${direction}卖出`:direction==="反T"?"反T买回":"正T买入";
+const formalExecutionLabel=(direction:"正T"|"反T"|undefined,side:"buy"|"sell")=>
+  direction==="反T"
+    ? side==="sell"?"反T先卖":"反T买回"
+    : side==="sell"?"正T卖出":"正T买入";
 const formalActionEventKey=(code:unknown,action:Pick<ReplayAction,"time"|"side">)=>
   `${String(code??"").replace(/\D/g,"").slice(0,6)}:formal:${normalizeFormalTime(action.time)}:${formalActionSide(action.side)}`;
 type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string };
@@ -1552,7 +1554,7 @@ export default function Home() {
       const point=pointPosition(action.time,action.price);
       if(!point)return [];
       const isSell=action.side==="卖出";
-      const label=action.direction==="反T"?(isSell?"反T卖":"反T回"):(isSell?"正T卖":"正T买");
+      const label=formalExecutionLabel(action.direction,isSell?"sell":"buy");
       const labelWidth=label.length*9+16;
       const placed=reserveLabel(point.x,isSell?point.y-13:point.y+22,labelWidth,18,isSell?-1:1);
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
@@ -4821,9 +4823,9 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
               {result?.actions.map((action,index)=>{
                 const minuteIndex=fullDayMinutes.findIndex(point=>point.time===action.time);
                 if(minuteIndex<0)return null;
-                const point=chartPoint(fullDayMinutes[minuteIndex].price,minuteIndex);
+                const point=chartPoint(action.price,minuteIndex);
                 const isSell=action.side==="卖出";
-                const label=action.direction==="反T"?(isSell?"反T先卖":"反T买回"):(action.side==="买入"?"正T买入":"正T卖出");
+                const label=formalExecutionLabel(action.direction,isSell?"sell":"buy");
                 const labelWidth=Math.max(54,label.length*10+18);
                 const placeAbove=isSell||point.y>166;
                 const labelY=placeAbove?Math.max(17,point.y-21-(index%2)*8):Math.min(191,point.y+27+(index%2)*8);
