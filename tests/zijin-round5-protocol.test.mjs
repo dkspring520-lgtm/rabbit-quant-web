@@ -5,7 +5,7 @@ import test from "node:test";
 const protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round5-protocol.json", import.meta.url), "utf8"));
 const runner = await readFile(new URL("../scripts/run_zijin_round4_experiments.py", import.meta.url), "utf8");
 const scheduler = await readFile(new URL("../scripts/zijin-auto-trainer.py", import.meta.url), "utf8");
-const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 const researchBundle = await readFile(new URL("../lib/zijin-research-bundle.ts", import.meta.url), "utf8");
 
 test("round five preregisters two regime-specific hypotheses without opening 2026", () => {

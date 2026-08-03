@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("random batch replaces unavailable feeds and exposes progress", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   assert.match(source, /fetch\("\/api\/stock-universe\?pool=full-a-v1"/);
   assert.match(source, /pool=full-a-v1/);
   assert.match(source, /cache:"force-cache"/);

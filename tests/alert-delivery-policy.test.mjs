@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { alertDirection, conciseAlertSpeech, resolveAlertDelivery } from "../lib/alert-delivery-policy.mjs";
+import { conciseAlertSpeech, resolveAlertDelivery } from "../lib/alert-delivery-policy.mjs";
 
 const at = "2026-07-28T09:45:00+08:00";
 const previous = { code: "601899", level: "candidate", rabbit: "buy", title: "紫金矿业 · 低位观察", createdAt: at };

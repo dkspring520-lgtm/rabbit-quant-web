@@ -11,6 +11,12 @@ const runtimeReport = process.env.ZIJIN_TRAINING_REPORT_PATH || "/training-state
 const runtimeTrainerAlerts = process.env.ZIJIN_TRAINER_ALERTS_PATH || "/training-state/zijin-trainer-alerts.jsonl";
 const runtimeL2State = process.env.ZIJIN_L2_STATE_PATH || "/training-state/zijin-l2-orderflow.json";
 
+type JsonRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is JsonRecord {
+  return Boolean(value) && typeof value === "object";
+}
+
 function parseProgressTime(value: unknown) {
   if (typeof value !== "string") return Number.NaN;
   const normalized = value.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
@@ -73,9 +79,12 @@ async function latestTrainerAlert() {
   }
 }
 
-function trainerAlertIsHistorical(alert: any, automation: any) {
-  const alertAt = parseProgressTime(alert?.at);
-  const heartbeatAt = parseProgressTime(automation?.scheduler?.heartbeatAt);
+function trainerAlertIsHistorical(alert: unknown, automation: unknown) {
+  const alertRecord = isRecord(alert) ? alert : null;
+  const automationRecord = isRecord(automation) ? automation : null;
+  const scheduler = automationRecord && isRecord(automationRecord.scheduler) ? automationRecord.scheduler : null;
+  const alertAt = parseProgressTime(alertRecord?.at);
+  const heartbeatAt = parseProgressTime(scheduler?.heartbeatAt);
   return Number.isFinite(alertAt) && Number.isFinite(heartbeatAt) && alertAt < heartbeatAt;
 }
 
@@ -111,23 +120,26 @@ async function latestReport() {
   return null;
 }
 
-function mergeCurrentRun(payload: any, automation: any) {
-  if (!automation?.scheduler || !automation?.run) return payload;
-  const schedulerStatus = automation.scheduler.status;
+function mergeCurrentRun(payload: JsonRecord, automation: JsonRecord | null | undefined) {
+  const scheduler = automation && isRecord(automation.scheduler) ? automation.scheduler : null;
+  const run = automation && isRecord(automation.run) ? automation.run : null;
+  if (!scheduler || !run) return payload;
+  const schedulerStatus = scheduler.status;
+  const lastRun = automation && isRecord(automation.lastRun) ? automation.lastRun : null;
   const status = schedulerStatus === "running"
     ? "running"
     : schedulerStatus === "failed"
       ? "failed"
-      : automation.lastRun?.status === "completed"
+      : lastRun?.status === "completed"
         ? "completed"
         : payload.status;
   return {
     ...payload,
-    runId: automation.run.id || automation.lastRun?.id || payload.runId,
+    runId: run.id || lastRun?.id || payload.runId,
     status,
-    stage: automation.run.stage || payload.stage,
-    progress: Number.isFinite(automation.run.progress) ? automation.run.progress : payload.progress,
-    message: automation.run.currentTask || automation.scheduler.reason || payload.message,
+    stage: run.stage || payload.stage,
+    progress: Number.isFinite(run.progress) ? run.progress : payload.progress,
+    message: run.currentTask || scheduler.reason || payload.message,
     updatedAt: automation.updatedAt || payload.updatedAt,
   };
 }

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 const desktopCss = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 const mobileCss = await readFile(new URL("../app/mobile.css", import.meta.url), "utf8");
 

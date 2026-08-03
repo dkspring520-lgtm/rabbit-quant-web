@@ -41,3 +41,25 @@ next-env.d.ts
 /outputs/
 /work/
 /.round4-runtime/
+
+# local agent, preview and research artifacts
+/.agents/
+/.claude/
+/.data-inspect/
+/.training-state/
+/.zijin-auto-runtime/
+/.round*-runtime*
+/.site-*
+/.tmp-*
+/.smart-t-*.json
+/artifact-upload-response.txt
+/renders/
+/videos/
+/scripts/__pycache__/
+/tests/__pycache__/
+*.log
+*.pid
+*.tar.gz
+*.tar
+*.tsbuildinfo
+/.openai/site-version-*.tar.gz

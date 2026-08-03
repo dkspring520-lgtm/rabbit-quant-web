@@ -13,11 +13,19 @@ test("pricing publishes one real membership tier that matches the boolean member
 });
 
 test("pricing states the current commercial and execution boundaries", () => {
-  assert.match(pricing, /支付接口尚未接入，暂由管理员人工开通/);
+  assert.match(pricing, /联系客服购买或获取激活码/);
+  assert.match(pricing, /登录后可自行兑换/);
   assert.match(pricing, /不自动续费/);
   assert.match(pricing, /自动下单不在任何套餐内/);
   assert.match(pricing, /高级实时行情增强优先支持核心研究标的/);
   assert.doesNotMatch(pricing, /紫金(?:矿业)? L2|L2 十档与逐笔订单流/);
+});
+
+test("pricing publishes the activation-code day, month and year prices", () => {
+  assert.match(pricing, /cycle === "yearly" \? "298" : "99"/);
+  assert.match(pricing, /¥4\.9/);
+  assert.match(pricing, /登录后兑换激活码/);
+  assert.match(pricing, /激活码怎样使用/);
 });
 
 test("public landing links to the membership pricing page", () => {

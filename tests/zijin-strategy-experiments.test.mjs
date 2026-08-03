@@ -38,7 +38,7 @@ test("closure mode audits obvious errors instead of optimizing win rate", () => 
 });
 
 test("production replay, live desk, and background scanner stay on closure-first", () => {
-  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const controlPlane = readFileSync(new URL("../server/control-plane.mjs", import.meta.url), "utf8");
 
   assert.match(page, /useState<ZijinStrategyExperiment>\("closure-first"\)/);

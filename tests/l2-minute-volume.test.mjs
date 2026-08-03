@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 const collector = await readFile(new URL("../scripts/zijin_l2_collector.py", import.meta.url), "utf8");
 
 test("completed L2 minutes do not overwrite minute volume with session cumulative volume", () => {

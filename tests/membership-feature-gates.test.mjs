@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = fs.readFileSync(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
 test("advanced price plans and reminder history require an active membership", () => {
   assert.match(page, /const premiumEnabled=accountRole==="admin"\|\|\(!demoMode&&accountMembership\?\.active===true\)/);

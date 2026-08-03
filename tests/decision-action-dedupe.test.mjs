@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const source=fs.readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
+const source=fs.readFileSync(new URL("../app/authenticated-app.tsx",import.meta.url),"utf8");
 
 test("formal execution text is driven by the engine action side",()=>{
   assert.match(source,/const decisionActionSide:/);

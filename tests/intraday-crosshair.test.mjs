@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const source=fs.readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
+const source=fs.readFileSync(new URL("../app/authenticated-app.tsx",import.meta.url),"utf8");
 const styles=fs.readFileSync(new URL("../app/globals.css",import.meta.url),"utf8");
 
 test("intraday crosshair locks to an already observed minute",()=>{

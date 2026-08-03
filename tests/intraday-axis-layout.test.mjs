@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 test("intraday prices, ticks and the latest-price flag share the SVG coordinate system", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /const liveChartPriceY =/);
   assert.match(source, /pointAt=.*liveChartPriceY\(point\.price,min,max\)/);

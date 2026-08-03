@@ -100,7 +100,9 @@ test("zero historical volume placeholders fall back to genuine transaction notio
 });
 
 test("trade-flow-only L2 still vetoes an opposing direction", () => {
-  const points = rows("sell").map(({ bid1Volume, ask1Volume, ...point }) => point);
+  const points = rows("sell").map((point) => Object.fromEntries(
+    Object.entries(point).filter(([key]) => key !== "bid1Volume" && key !== "ask1Volume"),
+  ));
   const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
   assert.equal(result.available, true);
   assert.equal(result.bookAvailable, false);

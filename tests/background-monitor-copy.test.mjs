@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 
-const pageSource=readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
+const pageSource=readFileSync(new URL('../app/authenticated-app.tsx',import.meta.url),'utf8');
 const landingSource=readFileSync(new URL('../app/public-landing.tsx',import.meta.url),'utf8');
 
 test('monitor copy distinguishes server scanning from foreground refresh',()=>{

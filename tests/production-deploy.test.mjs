@@ -41,7 +41,7 @@ test("production compose and image expose commit-aware health", () => {
 });
 
 test("the site footer displays and refreshes the deployed version", () => {
-  const page = read("app/page.tsx");
+  const page = read("app/authenticated-app.tsx");
   const css = read("app/globals.css");
 
   assert.match(page, /function ReleaseVersion\(\)/);
