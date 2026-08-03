@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = fs.readFileSync(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 const server = fs.readFileSync(new URL("../server/control-plane.mjs", import.meta.url), "utf8");
 const worker = fs.readFileSync(new URL("../public/notifications-sw.js", import.meta.url), "utf8");
 const manifest = fs.readFileSync(new URL("../app/manifest.ts", import.meta.url), "utf8");

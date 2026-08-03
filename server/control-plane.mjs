@@ -229,11 +229,15 @@ function evaluateCausalMonitor(monitor, market, clock) {
   const candidateIsNew = observation && minuteDistance(observation.time, clock.hhmm) <= 2;
   const coverageIsNew = coverageObservation && minuteDistance(coverageObservation.time, clock.hhmm) <= 2;
   if (formalIsNew) {
-    const phase = action.meta?.phase === "exit" ? "闭环" : "执行";
+    const sideLabel = /卖/.test(String(action.side || ""))
+      ? "卖出"
+      : action.direction === "反T"
+        ? "买回"
+        : "买入";
     const alert = {
       code: monitor.code,
       level: "formal",
-      title: `${monitor.name} · ${action.direction || "做T"}${phase}提醒`,
+      title: `${monitor.name} · ${action.direction || "做T"}${sideLabel} · 正式`,
       message: `${action.time} ${action.side} ${Number(action.price).toFixed(2)}，${action.reason || "V4 因果条件已确认"}`,
       eventKey: `${clock.date}:${monitor.code}:formal:${action.cycleId}:${action.meta?.phase || "entry"}:${action.time}`,
       marketTime: action.time,
@@ -373,11 +377,11 @@ async function dispatch(req, res) {
     if (req.method === "GET" && path === "/profile") return json(res, 200, store.getProfile(requireUser(req).id));
     if (req.method === "PUT" && path === "/profile") return json(res, 200, store.putProfile(requireUser(req).id, (await bodyJson(req)).data));
     if (req.method === "GET" && path === "/monitors") {
-      const user=requireUser(req); const limit=user.role==="admin"?30:5;
+      const user=requireUser(req); const limit=user.role==="admin"?30:user.membership?.active?5:2;
       return json(res, 200, { monitors: store.listMonitors(user.id).slice(0,limit), limit });
     }
     if (req.method === "PUT" && path === "/monitors") {
-      const user=requireUser(req); const limit=user.role==="admin"?30:5;
+      const user=requireUser(req); const limit=user.role==="admin"?30:user.membership?.active?5:2;
       return json(res, 200, { monitors: store.replaceMonitors(user.id, (await bodyJson(req)).monitors, { maxMonitors: limit }), limit });
     }
     if (req.method === "GET" && path === "/alerts") return json(res, 200, { alerts: store.listAlerts(requireUser(req).id, { afterId: url.searchParams.get("afterId"), limit: url.searchParams.get("limit") }) });
@@ -411,7 +415,19 @@ async function dispatch(req, res) {
       requireUser(req);
       return json(res, 200, { leaderboard: store.referralLeaderboard(url.searchParams.get("limit")) });
     }
+    if (req.method === "POST" && path === "/membership/redeem") {
+      const user = requireUser(req);
+      return json(res, 200, store.redeemMembershipCode(user.id, (await bodyJson(req)).code));
+    }
     if (req.method === "GET" && path === "/admin/members") { requireAdmin(req); return json(res, 200, { members: store.listMembers() }); }
+    if (req.method === "GET" && path === "/admin/membership-codes") {
+      requireAdmin(req);
+      return json(res, 200, { codes: store.listMembershipCodes({ limit: url.searchParams.get("limit") }) });
+    }
+    if (req.method === "POST" && path === "/admin/membership-codes") {
+      const admin = requireAdmin(req);
+      return json(res, 201, { codes: store.createMembershipCodes(admin.id, await bodyJson(req)) });
+    }
     if (req.method === "PATCH" && /^\/admin\/members\/[^/]+$/.test(path)) {
       requireAdmin(req); const id = path.split("/")[3]; return json(res, 200, { user: store.setMemberStatus(id, (await bodyJson(req)).status) });
     }

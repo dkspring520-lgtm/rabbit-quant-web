@@ -19,7 +19,7 @@ import {
 const compose = await readFile(new URL("../compose.web.yml", import.meta.url), "utf8");
 const observer = await readFile(new URL("../scripts/zijin-shadow-ab-observer.mjs", import.meta.url), "utf8");
 const route = await readFile(new URL("../app/api/research/zijin-shadow-ab/route.ts", import.meta.url), "utf8");
-const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 const round12Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round12-protocol.json", import.meta.url), "utf8"));
 const round13Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round13-protocol.json", import.meta.url), "utf8"));
 const round14Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round14-protocol.json", import.meta.url), "utf8"));

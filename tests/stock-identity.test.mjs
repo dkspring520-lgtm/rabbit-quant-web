@@ -28,7 +28,7 @@ test("batch identity keeps unknown records explicit instead of treating them as 
 });
 
 test("saved watchlists are reconciled before invalid identities remain on the desk", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const route = await readFile(new URL("../app/api/stock-identity/route.ts", import.meta.url), "utf8");
   assert.match(page, /fetch\('\/api\/stock-identity'/);
   assert.match(page, /correctedCodes/);

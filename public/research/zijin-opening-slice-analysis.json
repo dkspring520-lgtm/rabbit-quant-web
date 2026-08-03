@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-opening-30m-slice-analysis",
+  "generatedAt": "2026-07-28T02:30:42.260Z",
+  "source": ".tmp-zijin-through-20260722.jsonl",
+  "coverage": {
+    "start": "20220104",
+    "end": "20260722",
+    "completeTradingDays": 1042,
+    "note": "Historical minute data only. L2 order-flow is analyzed separately from the actual connection date and is not backfilled."
+  },
+  "causality": {
+    "featureRule": "Every slice uses only prices and volume observed by that slice endpoint.",
+    "outcomeRule": "Later prices are used only for retrospective outcome labels such as continuation, gap fill and daily-extreme location.",
+    "futureFunctionUsedForSignals": false
+  },
+  "overall": {
+    "opening30": {
+      "days": 1042,
+      "meanRangePct": 1.6204,
+      "medianRangePct": 1.4054,
+      "p75RangePct": 2.0057,
+      "p90RangePct": 2.7166,
+      "meanAbsoluteReturnPct": 0.7143,
+      "rangeAtLeast050Rate": 0.9885,
+      "rangeAtLeast070Rate": 0.9415,
+      "rangeAtLeast100Rate": 0.7697
+    },
+    "meanRestOfDayRangePct": 2.0369,
+    "medianRestOfDayRangePct": 1.819,
+    "meanOpeningVolumeShare": 0.2741,
+    "dayHighInOpening30Rate": 0.4779,
+    "dayLowInOpening30Rate": 0.4511,
+    "eitherDayExtremeInOpening30Rate": 0.8436,
+    "firstFiveHighBrokenBy1000Rate": 0.5672,
+    "firstFiveLowBrokenBy1000Rate": 0.5355
+  },
+  "slices": [
+    {
+      "id": "09:30-09:34",
+      "days": 1042,
+      "meanRangePct": 0.8739,
+      "medianRangePct": 0.7514,
+      "p75RangePct": 1.1191,
+      "p90RangePct": 1.5735,
+      "meanAbsoluteReturnPct": 0.6252,
+      "rangeAtLeast050Rate": 0.7457,
+      "rangeAtLeast070Rate": 0.5441,
+      "rangeAtLeast100Rate": 0.3196
+    },
+    {
+      "id": "09:35-09:39",
+      "days": 1042,
+      "meanRangePct": 0.4796,
+      "medianRangePct": 0.4148,
+      "p75RangePct": 0.6134,
+      "p90RangePct": 0.8309,
+      "meanAbsoluteReturnPct": 0.3343,
+      "rangeAtLeast050Rate": 0.3733,
+      "rangeAtLeast070Rate": 0.1843,
+      "rangeAtLeast100Rate": 0.0499
+    },
+    {
+      "id": "09:40-09:44",
+      "days": 1042,
+      "meanRangePct": 0.4311,
+      "medianRangePct": 0.3761,
+      "p75RangePct": 0.529,
+      "p90RangePct": 0.765,
+      "meanAbsoluteReturnPct": 0.3051,
+      "rangeAtLeast050Rate": 0.2965,
+      "rangeAtLeast070Rate": 0.1382,
+      "rangeAtLeast100Rate": 0.0355
+    },
+    {
+      "id": "09:45-09:59",
+      "days": 1042,
+      "meanRangePct": 0.8209,
+      "medianRangePct": 0.7107,
+      "p75RangePct": 1.0183,
+      "p90RangePct": 1.3911,
+      "meanAbsoluteReturnPct": 0.4804,
+      "rangeAtLeast050Rate": 0.7774,
+      "rangeAtLeast070Rate": 0.5182,
+      "rangeAtLeast100Rate": 0.2591
+    }
+  ],
+  "byOpeningGap": [
+    {
+      "id": "低开-1%~-0.3%",
+      "days": 228,
+      "meanOpening30RangePct": 1.4569,
+      "medianOpening30RangePct": 1.3223,
+      "gapFillBy1000Rate": 0.4737,
+      "dayHighInOpening30Rate": 0.4693,
+      "dayLowInOpening30Rate": 0.4693
+    },
+    {
+      "id": "低开≤-1%",
+      "days": 146,
+      "meanOpening30RangePct": 1.7575,
+      "medianOpening30RangePct": 1.6205,
+      "gapFillBy1000Rate": 0.089,
+      "dayHighInOpening30Rate": 0.4384,
+      "dayLowInOpening30Rate": 0.4589
+    },
+    {
+      "id": "高开≥1%",
+      "days": 195,
+      "meanOpening30RangePct": 2.0498,
+      "medianOpening30RangePct": 1.8205,
+      "gapFillBy1000Rate": 0.1487,
+      "dayHighInOpening30Rate": 0.5692,
+      "dayLowInOpening30Rate": 0.4615
+    },
+    {
+      "id": "高开0.3%~1%",
+      "days": 194,
+      "meanOpening30RangePct": 1.6724,
+      "medianOpening30RangePct": 1.4158,
+      "gapFillBy1000Rate": 0.5,
+      "dayHighInOpening30Rate": 0.4588,
+      "dayLowInOpening30Rate": 0.4794
+    },
+    {
+      "id": "平开±0.3%",
+      "days": 279,
+      "meanOpening30RangePct": 1.3458,
+      "medianOpening30RangePct": 1.1864,
+      "gapFillBy1000Rate": 0.7957,
+      "dayHighInOpening30Rate": 0.4552,
+      "dayLowInOpening30Rate": 0.405
+    }
+  ],
+  "byYear": [
+    {
+      "id": "2022",
+      "days": 242,
+      "meanOpening30RangePct": 1.6182,
+      "medianOpening30RangePct": 1.4507,
+      "gapFillBy1000Rate": 0.4463,
+      "dayHighInOpening30Rate": 0.4876,
+      "dayLowInOpening30Rate": 0.5041
+    },
+    {
+      "id": "2023",
+      "days": 242,
+      "meanOpening30RangePct": 1.4626,
+      "medianOpening30RangePct": 1.3109,
+      "gapFillBy1000Rate": 0.405,
+      "dayHighInOpening30Rate": 0.5,
+      "dayLowInOpening30Rate": 0.405
+    },
+    {
+      "id": "2024",
+      "days": 242,
+      "meanOpening30RangePct": 1.6473,
+      "medianOpening30RangePct": 1.4876,
+      "gapFillBy1000Rate": 0.5207,
+      "dayHighInOpening30Rate": 0.4669,
+      "dayLowInOpening30Rate": 0.438
+    },
+    {
+      "id": "2025",
+      "days": 243,
+      "meanOpening30RangePct": 1.5914,
+      "medianOpening30RangePct": 1.3296,
+      "gapFillBy1000Rate": 0.4527,
+      "dayHighInOpening30Rate": 0.4527,
+      "dayLowInOpening30Rate": 0.4774
+    },
+    {
+      "id": "2026",
+      "days": 73,
+      "meanOpening30RangePct": 2.1574,
+      "medianOpening30RangePct": 2.0855,
+      "gapFillBy1000Rate": 0.3699,
+      "dayHighInOpening30Rate": 0.4932,
+      "dayLowInOpening30Rate": 0.3836
+    }
+  ],
+  "firstFiveDirectional": [
+    {
+      "id": "前5分钟上涨≥0.3%",
+      "days": 355,
+      "continuationTo1000Rate": 0.4676,
+      "reversalTo1000Rate": 0.5324,
+      "meanPostFiveMovePct": 0.0017
+    },
+    {
+      "id": "前5分钟下跌≤-0.3%",
+      "days": 352,
+      "continuationTo1000Rate": 0.4375,
+      "reversalTo1000Rate": 0.5625,
+      "meanPostFiveMovePct": 0.0736
+    }
+  ],
+  "interpretationGuardrails": [
+    "The observed intraday range is not the same as executable profit.",
+    "Fees, slippage and next-minute execution must be applied in strategy backtests.",
+    "The first five minutes are a high-noise opportunity-detection window, not automatic trade permission."
+  ]
+}

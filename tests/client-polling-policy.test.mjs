@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { REFERENCE_DATA_BOOTSTRAP_DELAY_MS, clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "../lib/client-polling-policy.mjs";
 
-const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
 test("visible trading desk keeps a one-second lightweight quote and five-second charts", () => {
   assert.equal(clientPollingInterval("activeQuote", true), 1_000);

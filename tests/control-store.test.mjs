@@ -96,6 +96,46 @@ test("member pause and password reset revoke existing sessions", () => {
   }
 });
 
+test("one-time activation codes extend membership and cannot be reused", () => {
+  const store = createControlStore(":memory:", { adminUsername: "owner@example.com" });
+  try {
+    const admin = store.register({ username: "owner@example.com", password: "OwnerPass123!" });
+    const member = store.register({ username: "member@example.com", password: "MemberPass123!" });
+    const before = Date.parse(member.membership.expiresAt);
+    const [issued] = store.createMembershipCodes(admin.id, { planId: "monthly", count: 1, validForDays: 180 });
+
+    assert.match(issued.code, /^RQ-M-/);
+    assert.equal(issued.days, 31);
+    assert.equal(store.listMembershipCodes()[0].code, undefined);
+
+    const redeemed = store.redeemMembershipCode(member.id, issued.code);
+    assert.equal(redeemed.planId, "monthly");
+    assert.equal(redeemed.membership.active, true);
+    assert.ok(Date.parse(redeemed.membership.expiresAt) >= before + 31 * 24 * 60 * 60 * 1000 - 1000);
+    assert.equal(store.listMembershipCodes()[0].status, "redeemed");
+    assert.throws(() => store.redeemMembershipCode(member.id, issued.code), /已被使用/);
+  } finally {
+    store.close();
+  }
+});
+
+test("admin status changes cannot revoke admin sessions or membership access", () => {
+  const store = createControlStore(":memory:", { adminUsername: "owner@example.com" });
+  try {
+    const admin = store.register({ username: "owner@example.com", password: "OwnerPass123!" });
+    const member = store.register({ username: "member@example.com", password: "MemberPass123!" });
+    const adminSession = store.login({ username: admin.username, password: "OwnerPass123!" });
+    store.setMemberStatus(admin.id, "paused");
+    assert.equal(store.authenticate(adminSession.token)?.role, "admin");
+    assert.equal(store.login({ username: admin.username, password: "OwnerPass123!" }).user.membership.active, true);
+
+    store.db.prepare("UPDATE memberships SET expires_at=? WHERE user_id=?").run("2000-01-01T00:00:00.000Z", member.id);
+    assert.equal(store.login({ username: member.username, password: "MemberPass123!" }).user.membership.active, false);
+  } finally {
+    store.close();
+  }
+});
+
 test("referrals credit seven days once and hold duplicate sources for review", () => {
   const store = createControlStore(":memory:", { adminUsername: "owner@example.com" });
   try {

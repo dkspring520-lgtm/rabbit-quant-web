@@ -1,9 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 type BillingCycle = "monthly" | "yearly";
+type UiTheme = "dark" | "light";
+
+const readTheme = (): UiTheme => document.documentElement.dataset.theme === "light" ? "light" : "dark";
+const subscribeTheme = (onChange: () => void) => {
+  window.addEventListener("rabbit-theme-change", onChange);
+  return () => window.removeEventListener("rabbit-theme-change", onChange);
+};
+const getServerTheme = (): UiTheme => "dark";
 
 const memberFeatures = [
   "实时行情增强与秒级状态确认",
@@ -33,34 +42,35 @@ const faqs = [
   ["实时行情增强是否覆盖所有股票？", "高级实时行情增强优先支持核心研究标的；其他股票继续使用公开行情与通用 Smart-T 逻辑。"],
   ["是否保证胜率或收益？", "不保证。会员购买的是数据整理、因果判断与研究工具，不是收益承诺。"],
   ["邀请奖励还能使用吗？", "可以。每位有效邀请增加 7 天会员权益，与付费获得的有效期顺延累计。"],
-  ["是否自动续费？", "当前不自动续费。支付接口尚未接入，不会产生静默扣款。"],
+  ["激活码怎样使用？", "登录后打开账户中心，在“激活码兑换”输入并确认；未到期会员会在原到期日基础上自动顺延。"],
+  ["是否自动续费？", "当前使用一次性激活码开通，不自动续费，也不会产生静默扣款。"],
   ["体验票到期后会怎样？", "自动恢复免费版；监控清单和历史数据保留，会员功能停止更新。"],
 ];
 
 export default function PricingPage() {
   const [cycle, setCycle] = useState<BillingCycle>("yearly");
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, getServerTheme);
 
   useEffect(() => {
     const saved = localStorage.getItem("rabbit-ui-theme") === "light" ? "light" : "dark";
-    setTheme(saved);
     document.documentElement.dataset.theme = saved;
+    window.dispatchEvent(new Event("rabbit-theme-change"));
   }, []);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
     document.documentElement.dataset.theme = next;
     localStorage.setItem("rabbit-ui-theme", next);
+    window.dispatchEvent(new Event("rabbit-theme-change"));
   };
 
-  const memberPrice = cycle === "yearly" ? "99" : "19";
+  const memberPrice = cycle === "yearly" ? "298" : "99";
   const memberUnit = cycle === "yearly" ? "年" : "月";
 
   return <main className="pricing-page">
     <header className="pricing-nav">
       <Link href="/" className="pricing-brand">
-        <img src="/rabbit-logo-compact.png" alt="做T神器"/>
+        <Image src="/rabbit-logo-compact.png" alt="做T神器" width={46} height={46} priority/>
         <span><b>做T神器</b><small>RABBIT QUANT</small></span>
       </Link>
       <nav aria-label="会员页导航">
@@ -86,7 +96,7 @@ export default function PricingPage() {
     <section className="pricing-plans" id="plans">
       <div className="billing-toggle" aria-label="计费周期">
         <button className={cycle === "monthly" ? "active" : ""} onClick={() => setCycle("monthly")}>按月</button>
-        <button className={cycle === "yearly" ? "active" : ""} onClick={() => setCycle("yearly")}>按年 <em>省 57%</em></button>
+        <button className={cycle === "yearly" ? "active" : ""} onClick={() => setCycle("yearly")}>按年 <em>省 75%</em></button>
       </div>
 
       <div className="pricing-grid">
@@ -102,9 +112,9 @@ export default function PricingPage() {
           <div className="pricing-badge">推荐</div>
           <span>完整研究能力</span><h2>Smart-T 会员</h2>
           <div className="pricing-value"><b>¥{memberPrice}</b><small>/{memberUnit}</small></div>
-          <p>{cycle === "yearly" ? "一年不到百元，适合持续盯盘、复盘和积累个人样本。" : "一杯奶茶钱，完整体验实时监控与复盘。"}</p>
+          <p>{cycle === "yearly" ? "折合约 ¥0.82/天，适合持续盯盘、复盘和积累个人样本。" : "按月开通，适合先完整体验实时监控与复盘。"}</p>
           <ul>{memberFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
-          <Link href="/?view=membership">登录后申请开通</Link>
+          <Link href="/?view=membership">登录后兑换激活码</Link>
         </article>
 
         <article className="pricing-card day-pass">
@@ -112,11 +122,11 @@ export default function PricingPage() {
           <div className="pricing-value"><b>¥4.9</b><small>/24小时</small></div>
           <p>适合完整测试一个交易日，不自动转成月费。</p>
           <ul><li>24 小时会员研究能力</li><li>实时行情增强与秒级候选确认</li><li>提醒历史和回放复盘</li><li>到期自动恢复免费版</li></ul>
-          <Link href="/?view=membership">申请体验</Link>
+          <Link href="/?view=membership">登录后兑换天卡</Link>
         </article>
       </div>
 
-      <div className="pricing-opening-note"><b>当前开通方式</b><span>支付接口尚未接入，暂由管理员人工开通；页面不会自动扣款，也不会静默续费。</span></div>
+      <div className="pricing-opening-note"><b>当前开通方式</b><span>联系客服购买或获取激活码，登录后可自行兑换，权益即时到账；页面不会自动扣款，也不会静默续费。</span></div>
     </section>
 
     <section className="pricing-compare" id="compare">
@@ -135,7 +145,7 @@ export default function PricingPage() {
     </section>
 
     <section className="pricing-cta">
-      <div><span>先看懂，再决定</span><h2>免费版足够验证界面与基础逻辑。</h2><p>确认实时行情增强、提醒和个人训练确实适合你，再申请开通会员。</p></div>
+      <div><span>先看懂，再决定</span><h2>免费版足够验证界面与基础逻辑。</h2><p>确认实时行情增强、提醒和个人训练确实适合你，再购买激活码自行兑换。</p></div>
       <div><Link href="/">进入免费版</Link><Link href="/?view=membership">登录查看权益</Link></div>
     </section>
 

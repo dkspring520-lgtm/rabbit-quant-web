@@ -39,7 +39,7 @@ test("restart-recovered notional remains visible without fabricated trade counts
 
 test("main-force chart is tracking evidence only and collector persists minute fields", async () => {
   const [page, collector] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../scripts/zijin_l2_collector.py", import.meta.url), "utf8"),
   ]);
   assert.match(page, /主力追踪/);

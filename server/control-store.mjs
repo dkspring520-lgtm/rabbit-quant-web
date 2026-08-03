@@ -2,6 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual, createHash } from "node:crypt
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { membershipPlan } from "../lib/membership-plans.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -149,6 +150,18 @@ export function createControlStore(databasePath, options = {}) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS membership_grants_user_idx ON membership_grants(user_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS membership_codes (
+      code_hash TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL,
+      days INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','redeemed','revoked')),
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      expires_at TEXT,
+      redeemed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      redeemed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS membership_codes_status_idx ON membership_codes(status, created_at DESC);
     CREATE TABLE IF NOT EXISTS referrals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       inviter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -235,6 +248,81 @@ export function createControlStore(databasePath, options = {}) {
         .run(userId, safeDays, reason, referenceUserId, nowIso());
     }
     return membershipSummary(userId, user.role);
+  }
+  function normalizeMembershipCode(value) {
+    return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 40);
+  }
+  function createMembershipCodes(createdBy, { planId, count = 1, validForDays = 180 } = {}) {
+    const plan = membershipPlan(planId);
+    if (!plan) throw Object.assign(new Error("请选择测试天卡、月卡或年卡"), { status: 400 });
+    const safeCount = Math.max(1, Math.min(20, Math.floor(Number(count) || 1)));
+    const safeValidDays = Math.max(1, Math.min(730, Math.floor(Number(validForDays) || 180)));
+    if (!getUserById(createdBy)) throw Object.assign(new Error("管理员账户不存在"), { status: 404 });
+    const createdAt = nowIso();
+    const expiresAt = new Date(Date.now() + safeValidDays * DAY).toISOString();
+    const codes = [];
+    for (let index = 0; index < safeCount; index += 1) {
+      let code = "";
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const secret = randomBytes(8).toString("hex").toUpperCase();
+        code = `RQ-${plan.prefix}-${secret.match(/.{1,4}/g).join("-")}`;
+        const hash = tokenHash(normalizeMembershipCode(code));
+        try {
+          db.prepare("INSERT INTO membership_codes(code_hash,plan_id,days,status,created_by,created_at,expires_at) VALUES(?,?,?,'active',?,?,?)")
+            .run(hash, plan.id, plan.durationDays, createdBy, createdAt, expiresAt);
+          break;
+        } catch (error) {
+          code = "";
+          if (attempt === 11) throw error;
+        }
+      }
+      codes.push({ code, planId: plan.id, planLabel: plan.label, days: plan.durationDays, createdAt, expiresAt });
+    }
+    return codes;
+  }
+  function listMembershipCodes({ limit = 100 } = {}) {
+    const safeLimit = Math.max(1, Math.min(500, Math.floor(Number(limit) || 100)));
+    return db.prepare(`SELECT membership_codes.*, creator.username AS creator_username, redeemer.username AS redeemer_username
+      FROM membership_codes
+      JOIN users creator ON creator.id=membership_codes.created_by
+      LEFT JOIN users redeemer ON redeemer.id=membership_codes.redeemed_by
+      ORDER BY membership_codes.created_at DESC LIMIT ?`).all(safeLimit).map(row => {
+        const expired = row.status === "active" && row.expires_at && Date.parse(row.expires_at) <= Date.now();
+        return {
+          planId: row.plan_id,
+          planLabel: membershipPlan(row.plan_id)?.label || row.plan_id,
+          days: Number(row.days),
+          status: expired ? "expired" : row.status,
+          createdBy: row.creator_username,
+          createdAt: row.created_at,
+          expiresAt: row.expires_at,
+          redeemedBy: row.redeemer_username || null,
+          redeemedAt: row.redeemed_at || null,
+        };
+      });
+  }
+  function redeemMembershipCode(userId, value) {
+    const normalized = normalizeMembershipCode(value);
+    if (normalized.length < 12) throw Object.assign(new Error("请输入完整激活码"), { status: 400 });
+    const hash = tokenHash(normalized);
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const row = db.prepare("SELECT * FROM membership_codes WHERE code_hash=?").get(hash);
+      if (!row) throw Object.assign(new Error("激活码无效，请核对后重试"), { status: 400 });
+      if (row.status === "redeemed") throw Object.assign(new Error("该激活码已被使用"), { status: 409 });
+      if (row.status !== "active") throw Object.assign(new Error("该激活码已失效"), { status: 409 });
+      if (row.expires_at && Date.parse(row.expires_at) <= Date.now()) throw Object.assign(new Error("该激活码已过期"), { status: 409 });
+      const redeemedAt = nowIso();
+      const result = db.prepare("UPDATE membership_codes SET status='redeemed',redeemed_by=?,redeemed_at=? WHERE code_hash=? AND status='active'")
+        .run(userId, redeemedAt, hash);
+      if (Number(result.changes || 0) !== 1) throw Object.assign(new Error("激活码已被使用"), { status: 409 });
+      const membership = grantMembership(userId, row.days, `activation_code:${row.plan_id}`);
+      db.exec("COMMIT");
+      return { planId: row.plan_id, planLabel: membershipPlan(row.plan_id)?.label || row.plan_id, days: Number(row.days), membership };
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
   }
   function normalizeReferralCode(value) { return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16); }
   function applyReferral(inviteeId, referralCodeValue, sourceHash) {
@@ -505,6 +593,8 @@ export function createControlStore(databasePath, options = {}) {
 
   function setMemberStatus(id, status) {
     if (!['active', 'paused'].includes(status)) throw Object.assign(new Error("状态参数不正确"), { status: 400 });
+    const target = getUserById(id);
+    if (target?.role === "admin") return serializeUser(target);
     db.prepare("UPDATE users SET status=? WHERE id=? AND role!='admin'").run(status, id);
     if (status !== "active") db.prepare("DELETE FROM sessions WHERE user_id=?").run(id);
     return serializeUser(getUserById(id));
@@ -545,5 +635,5 @@ export function createControlStore(databasePath, options = {}) {
 
   return { db, register, login, authenticate, logout, getProfile, putProfile, getServiceSetting, putServiceSetting, savePushSubscription, listPushSubscriptions, removePushSubscription, recordPushDelivery, listMonitors, replaceMonitors,
     listActiveMonitors, addAlert, listAlerts, latestAlertForCode, acknowledgeAlert, markAlertDelivery, recordMonitorScan, listMonitorScans, listMembers, referralLeaderboard, setMemberStatus,
-    grantMembership, requestReset, issueReset, resetPassword, close: () => db.close() };
+    grantMembership, createMembershipCodes, listMembershipCodes, redeemMembershipCode, requestReset, issueReset, resetPassword, close: () => db.close() };
 }

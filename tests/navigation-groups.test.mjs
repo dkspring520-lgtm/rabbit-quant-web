@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
 test("lower-frequency product pages share one simplified navigation category", () => {
   assert.match(page, /\['首页','操盘台','单股智研','量化工具','模拟回测','邀请中心'\]/);
@@ -17,8 +17,8 @@ test("lower-frequency product pages share one simplified navigation category", (
 test("signed-in home presents a compact pricing entry", () => {
   assert.match(page, /className="home-pricing"/);
   assert.match(page, /Smart-T 会员/);
-  assert.match(page, /¥19/);
-  assert.match(page, /年付 ¥99/);
+  assert.match(page, /¥99<small>\/月<\/small>/);
+  assert.match(page, /年卡 ¥298/);
   assert.match(page, /24小时体验票/);
   assert.match(page, /href="\/pricing"/);
 });

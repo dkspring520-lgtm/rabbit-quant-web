@@ -36,7 +36,7 @@ test("does not render development preview metadata", async () => {
 });
 
 test("Zijin research imports every opening-playbook symbol it executes", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   assert.match(
     source,
     /import \{ evaluateZijinOpeningPlaybook \} from "@\/lib\/zijin-opening-playbook\.mjs";/,
@@ -45,7 +45,7 @@ test("Zijin research imports every opening-playbook symbol it executes", async (
 });
 
 test("brand uses the 双兔助手 and 做T神器 lockup without regressing to the wrong name", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/typography.css", import.meta.url), "utf8");
   assert.match(source, /aria-label="双兔助手 做T神器 Rabbit Smart-T"/);
   assert.match(source, /<span>双兔助手<\/span>/);
@@ -59,7 +59,7 @@ test("brand uses the 双兔助手 and 做T神器 lockup without regressing to th
 });
 
 test("all-watchlist alerts use branded rabbits while candidates stay non-executable", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /买入 \/ 买回/);
   assert.match(source, /卖出 \/ 减仓/);
@@ -138,7 +138,7 @@ test("stock selector keeps horizontal scrolling without showing a full-width scr
 });
 
 test("Zijin factor research is visibly isolated from the execution strategy", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /紫金矿业专属因子研究/);
   assert.match(source, /与 Smart‑T V4 隔离/);
@@ -174,7 +174,7 @@ test("Zijin factor research is visibly isolated from the execution strategy", as
 test("mobile layout keeps core product flows usable on phones", async () => {
   const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const mobile = await readFile(new URL("../app/mobile.css", import.meta.url), "utf8");
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(layout, /import type \{ Metadata, Viewport \} from "next"/);
   assert.match(layout, /viewportFit: "cover"/);
@@ -194,7 +194,7 @@ test("mobile layout keeps core product flows usable on phones", async () => {
 });
 
 test("Zijin experiment progress has a stable deep link and explicit delivery stages", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /params\.get\('view'\)!=='zijin-lab'/);
   assert.match(source, /id="zijin-experiment-progress"/);
@@ -229,14 +229,15 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
 });
 
 test("session restore blocks the public landing flash and preserves the Zijin experiment deep link", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
+  const shell = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const homeStyles = await readFile(new URL("../app/home.css", import.meta.url), "utf8");
   const landing = await readFile(new URL("../app/public-landing.tsx", import.meta.url), "utf8");
   assert.match(source, /isZijinExperimentDeepLink/);
   assert.match(source, /ensureZijinExperimentStock/);
   assert.match(source, /prepareWatchlistForCurrentEntry/);
-  assert.match(source, /const \[authReady, setAuthReady\] = useState\(false\)/);
-  assert.match(source, /if\(!authReady\) return <main className="auth-loading">/);
+  assert.match(shell, /const \[authReady, setAuthReady\] = useState\(false\)/);
+  assert.match(shell, /if\s*\(!authReady\)\s*return <main className="auth-loading"/);
   assert.match(source, /openZijinExperiment/);
   assert.match(source, /紫金矿业实验室/);
   assert.match(source, /查看训练进度/);
@@ -247,7 +248,7 @@ test("session restore blocks the public landing flash and preserves the Zijin ex
 });
 
 test("pre-open status keeps readable labels without global auction layout leakage", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const responsive = await readFile(new URL("../app/backtest.css", import.meta.url), "utf8");
   assert.match(source, /className="opening-assessment"/);
@@ -262,7 +263,7 @@ test("pre-open status keeps readable labels without global auction layout leakag
 });
 
 test("desk history does not ship fixed fake cycles and minute volumes keep fixed width", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(source, /\['10:08:14','反T循环'/);
   assert.doesNotMatch(source, /\['09:02:11','正T循环'/);
   assert.match(source, /暂无已确认闭环/);
@@ -271,7 +272,7 @@ test("desk history does not ship fixed fake cycles and minute volumes keep fixed
 });
 
 test("research surfaces use real evidence instead of fixed demo metrics", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   assert.match(source, /待验证规律/);
   assert.match(source, /真实完整分时/);
   assert.match(source, /因子监控中（非训练）/);
@@ -282,7 +283,7 @@ test("research surfaces use real evidence instead of fixed demo metrics", async 
 });
 
 test("generic four-rabbit research separates market training from watchlist reconciliation", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /通用 V4 四兔研究中心/);
   assert.match(source, /历史全市场样本/);
@@ -295,7 +296,7 @@ test("generic four-rabbit research separates market training from watchlist reco
 });
 
 test("single-stock research keeps advanced evidence collapsed by default", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   assert.match(source, /const \[researchExpanded,setResearchExpanded\]=useState\(false\)/);
   assert.match(source, /aria-expanded=\{researchExpanded\}/);
   assert.match(source, /researchExpanded&&<div className="research-purpose"/);
@@ -304,7 +305,7 @@ test("single-stock research keeps advanced evidence collapsed by default", async
 });
 
 test("random 10-stock replay randomizes stock-days and separates references from formal trades", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const poolMatch = source.match(/const representativeBacktestUniverse = \[([\s\S]*?)\];/);
   assert.ok(poolMatch);
   const poolCodes = [...poolMatch[1].matchAll(/"(\d{6})"/g)].map((match) => match[1]);
@@ -348,7 +349,7 @@ test("random 10-stock replay randomizes stock-days and separates references from
 });
 
 test("the 09:25 auction result creates a plan instead of an executable order", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /09:25 集合竞价初判/);
   assert.match(source, /这不是买卖点/);
@@ -369,7 +370,7 @@ test("public beta has an honest no-registration entry and legal disclosure", asy
 });
 
 test("strategy research library does not advertise fabricated rankings or paid strategy following", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /策略研究与观察库/);
   assert.match(source, /当前不展示未经审计的用户策略排行、虚拟业绩或跟单订阅/);
@@ -382,7 +383,7 @@ test("strategy research library does not advertise fabricated rankings or paid s
 });
 
 test("every monitored stock shows an explicit event-radar state", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /暂无新增/);
   assert.match(source, /雷达待更新/);
@@ -392,7 +393,7 @@ test("every monitored stock shows an explicit event-radar state", async () => {
 });
 
 test("a market risk lock explains its score and concrete triggers", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /currentContext\.gate\.reasons\.join\("、"\)/);
   assert.match(source, /外部环境雷达 \$\{currentContext\.gate\.score\}\/100/);
@@ -400,7 +401,7 @@ test("a market risk lock explains its score and concrete triggers", async () => 
 });
 
 test("the app uses a global minimalist presentation without hiding decision evidence", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const minimal = await readFile(new URL("../app/minimal.css", import.meta.url), "utf8");
 
@@ -414,7 +415,7 @@ test("the app uses a global minimalist presentation without hiding decision evid
 });
 
 test("intraday markers use the recorded causal price", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /pointPosition\(action\.time,action\.price\)/);
   assert.match(source, /pointPosition\(observation\.time,observation\.price\)/);

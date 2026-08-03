@@ -4,7 +4,6 @@ import test from "node:test";
 
 const protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round9-protocol.json", import.meta.url), "utf8"));
 const runner = await readFile(new URL("../scripts/run_zijin_round4_experiments.py", import.meta.url), "utf8");
-const scheduler = await readFile(new URL("../scripts/zijin-auto-trainer.py", import.meta.url), "utf8");
 
 function configurationCount(grid) {
   return Object.values(grid).reduce((count, values) => count * values.length, 1);

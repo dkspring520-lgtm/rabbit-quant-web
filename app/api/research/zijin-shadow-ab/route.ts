@@ -5,11 +5,16 @@ import { upgradeShadowState } from "@/lib/zijin-shadow-ab.mjs";
 const runtimeState = process.env.ZIJIN_SHADOW_STATE_PATH || "/training-state/zijin-shadow-ab.json";
 const bundledState = resolve(process.cwd(), "public/research/zijin-shadow-ab.json");
 
-function valid(payload: any) {
-  return payload?.experimentId === "zijin-round10-vs-round11-forward-shadow"
-    && payload?.stock?.code === "601899"
-    && payload?.models?.A
-    && payload?.models?.B;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function valid(payload: unknown): payload is Record<string, unknown> {
+  if (!isRecord(payload) || !isRecord(payload.stock) || !isRecord(payload.models)) return false;
+  return payload.experimentId === "zijin-round10-vs-round11-forward-shadow"
+    && payload.stock.code === "601899"
+    && Boolean(payload.models.A)
+    && Boolean(payload.models.B);
 }
 export async function GET() {
   for (const path of [runtimeState, bundledState]) {

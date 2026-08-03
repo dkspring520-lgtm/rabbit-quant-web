@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("L2 console status never renders a provider endpoint or raw connection error", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /const l2ConsoleNode="上海节点"/);
   assert.doesNotMatch(source, /detail:`\$\{liveL2Status\.node/);
@@ -12,7 +12,7 @@ test("L2 console status never renders a provider endpoint or raw connection erro
 });
 
 test("L2 status does not claim tick data or a last price before either is available", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /const liveL2HasTicks=Boolean\(\(liveL2Status\?\.messages\?\.transaction\?\?0\)>0\|\|\(liveL2Status\?\.messages\?\.order\?\?0\)>0\)/);
   assert.match(source, /"十档在线，逐笔待数据"/);
@@ -21,7 +21,7 @@ test("L2 status does not claim tick data or a last price before either is availa
 });
 
 test("L2 console shows collector feed age and heartbeat health", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /const liveL2FeedAgeSeconds=Number\.isFinite\(liveL2Status\?\.status\?\.feedAgeSeconds\)/);
   assert.match(source, /const liveL2LatencyText=liveL2LatencyMs===null\?/);
@@ -31,7 +31,7 @@ test("L2 console shows collector feed age and heartbeat health", async () => {
 });
 
 test("valid L2 trades are the real-time price source for the active Zijin quote", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /const liveL2PriceUsable=stock\?\.code==="601899"/);
   assert.match(source, /&&liveL2HasTicks/);
@@ -41,7 +41,7 @@ test("valid L2 trades are the real-time price source for the active Zijin quote"
 });
 
 test("active Zijin monitoring refreshes L2 quickly during auction and market hours", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
   assert.match(source, /marketDataActive\?300:60_000/);
   assert.match(source, /isFastMarketDataPhase\(marketSession\)/);

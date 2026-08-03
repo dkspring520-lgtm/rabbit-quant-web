@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
 test("collapsed single-stock research does not run historical replay", () => {
   assert.match(page, /const researchSessions=useMemo/);
