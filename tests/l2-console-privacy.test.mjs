@@ -20,12 +20,14 @@ test("L2 status does not claim tick data or a last price before either is availa
   assert.match(source, /盘口中间价/);
 });
 
-test("L2 console shows the collector-reported data latency in milliseconds", async () => {
+test("L2 console shows collector feed age and heartbeat health", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /const liveL2LatencyMs=Number\.isFinite\(liveL2Status\?\.status\?\.ageSeconds\)/);
-  assert.match(source, /数据延迟 \$\{liveL2LatencyMs\} ms/);
-  assert.match(source, /ageSeconds\?:number/);
+  assert.match(source, /const liveL2FeedAgeSeconds=Number\.isFinite\(liveL2Status\?\.status\?\.feedAgeSeconds\)/);
+  assert.match(source, /const liveL2LatencyText=liveL2LatencyMs===null\?/);
+  assert.match(source, /const liveL2HeartbeatSeconds=Number\.isFinite\(liveL2Status\?\.status\?\.heartbeatAgeSeconds\)/);
+  assert.match(source, /feedAgeSeconds\?:number\|null/);
+  assert.match(source, /collectorStale\?:boolean/);
 });
 
 test("valid L2 trades are the real-time price source for the active Zijin quote", async () => {

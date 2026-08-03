@@ -681,7 +681,7 @@ export default function Home() {
   const alertSequence=useRef(0);
   const latestActiveChange=useRef<number|null>(null);
   const deliveredAlertByCode=useRef<Record<string,TradeAlertToast>>({});
-  const speechQueue=useRef<{spoken:string;risk:boolean;clip?:"buy"|"sell"}[]>([]);
+  const speechQueue=useRef<{spoken:string;risk:boolean;clip?:"buy"|"sell"|"risk"}[]>([]);
   const speechBusy=useRef(false);
   const alertedEventKeys = useRef<Set<string>>(new Set());
   const queuedAlertEventKeys = useRef<Set<string>>(new Set());
@@ -1012,12 +1012,19 @@ export default function Home() {
     void poll();
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
   },[localAuth,activeView,stock?.code,marketDataActive]);
-  const liveL2Stale=Boolean(liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
+  const liveL2CollectorAlive=Boolean(liveL2Status&&(liveL2Status.status?.collectorAlive!==false&&liveL2Status.meta?.collectorStale!==true));
+  const liveL2Stale=Boolean(!liveL2CollectorAlive||liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
   const liveL2HasTicks=Boolean((liveL2Status?.messages?.transaction??0)>0||(liveL2Status?.messages?.order??0)>0);
-  const liveL2LatencyMs=Number.isFinite(liveL2Status?.status?.ageSeconds)
-    ? Math.max(0,Math.round((liveL2Status?.status?.ageSeconds??0)*1000))
+  const liveL2FeedAgeSeconds=Number.isFinite(liveL2Status?.status?.feedAgeSeconds)
+    ? liveL2Status?.status?.feedAgeSeconds
+    : liveL2Status?.status?.ageSeconds;
+  const liveL2LatencyMs=Number.isFinite(liveL2FeedAgeSeconds)
+    ? Math.max(0,Math.round((liveL2FeedAgeSeconds??0)*1000))
     : null;
-  const liveL2LatencyText=liveL2LatencyMs===null?"延迟待测":`数据延迟 ${liveL2LatencyMs} ms`;
+  const liveL2LatencyText=liveL2LatencyMs===null?"行情年龄待测":`行情年龄 ${liveL2LatencyMs} ms`;
+  const liveL2HeartbeatSeconds=Number.isFinite(liveL2Status?.status?.heartbeatAgeSeconds)
+    ? Math.max(0,Math.round(liveL2Status?.status?.heartbeatAgeSeconds??0))
+    : null;
   const liveL2LastPrice=Number(liveL2Status?.book?.lastPrice);
   const liveL2PriceUsable=stock?.code==="601899"
     &&liveL2Status?.status?.connected===true
@@ -1049,19 +1056,24 @@ export default function Home() {
   // those transport details out of the console UI; this card is a service-status
   // indicator, not a connection diagnostic.
   const l2ConsoleNode="上海节点";
+  const l2ConnectionLimited=Boolean(liveL2Status?.error&&/maximum|active connections|连接.*上限|额度/i.test(liveL2Status.error));
   const l2ConsoleStatus=stock.code!=="601899"
     ? {tone:"inactive",label:"L2：未启用",detail:"仅紫金矿业接入"}
+    : !liveL2Status
+      ? {tone:"loading",label:"L2：连接中",detail:"正在核验上海节点"}
+    : !liveL2CollectorAlive
+      ? {tone:"off",label:"L2：采集器离线",detail:`${l2ConsoleNode} · 心跳${liveL2HeartbeatSeconds===null?"已中断":`中断 ${liveL2HeartbeatSeconds} 秒`}`}
+    : l2ConnectionLimited
+      ? {tone:"off",label:"L2：连接受限",detail:"账号连接额度已满，请清理旧连接"}
     : liveL2Status?.status?.authorized===false
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
-      : liveL2Status?.status?.connected&&!liveL2Stale
-        ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2LatencyText}`}
-        : liveL2Status?.status?.connected&&!marketSession.live
-          ? {tone:"paused",label:"L2：休市待命",detail:`${l2ConsoleNode} · ${marketSession.label}，开市后恢复实时校验`}
-        : liveL2Status?.status?.connected
-          ? {tone:"stale",label:"L2：数据延迟",detail:`${l2ConsoleNode} · 等待新数据`}
-          : liveL2Status
-            ? {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`}
-            : {tone:"loading",label:"L2：连接中",detail:"正在核验上海节点"};
+    : liveL2Status?.status?.connected&&!liveL2Stale
+      ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2LatencyText}`}
+    : liveL2Status?.status?.connected&&!marketSession.live
+      ? {tone:"paused",label:"L2：休市待命",detail:`${l2ConsoleNode} · ${marketSession.label}，开市后恢复实时校验`}
+    : marketSession.live
+      ? {tone:"stale",label:"L2：行情中断",detail:`${l2ConsoleNode} · ${liveL2LatencyText}`}
+      : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
   const rawMinutePoints = useMemo(
     () => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [],
     [currentTrial?.minutes,currentMarket?.minutes],
@@ -2027,7 +2039,8 @@ export default function Home() {
     }catch{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);}
   };
   const speakAlert=(text:string,risk=false,level:TradeAlertToast["level"]="signal",direction:"buy"|"sell"|null=null)=>{
-    speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk,clip:level==="signal"&&direction?direction:undefined});
+    const clip=risk||level==="risk"?"risk":level==="signal"&&direction?direction:undefined;
+    speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk,clip});
     drainAlertSpeech();
   };
   const queueAlert=(incoming:TradeAlertToast)=>{
@@ -3564,8 +3577,8 @@ type AutoResearchSample = { date:string; cycles:number; wins:number; net:number;
 type ZijinResearchBundle = typeof import("@/lib/zijin-research-bundle")["zijinResearchBundle"];
 type ZijinL2State = {
   node?:string; error?:string; lastExchangeTime?:string;
-  status?:{connected?:boolean;authorized?:boolean;stale?:boolean;ageSeconds?:number};
-  meta?:{stale?:boolean;servedAt?:string};
+  status?:{connected?:boolean;transportConnected?:boolean;authorized?:boolean;collectorAlive?:boolean;collectorStale?:boolean;heartbeatAgeSeconds?:number|null;feedAgeSeconds?:number|null;stale?:boolean;ageSeconds?:number};
+  meta?:{collectorAlive?:boolean;collectorStale?:boolean;heartbeatAgeSeconds?:number|null;stale?:boolean;servedAt?:string};
   flow?:{activeBuyRatio60s?:number|null;netActiveNotional60s?:number;bigOrderNetNotional60s?:number;activeBuyVolume60s?:number;activeSellVolume60s?:number;tradeVolume60s?:number;activeBuyNotional60s?:number;activeSellNotional60s?:number;bigBuyNotional60s?:number;bigSellNotional60s?:number;bigBuyVolume60s?:number;bigSellVolume60s?:number};
   book?:{lastPrice?:number|null;nearTouchImbalance?:number|null;spreadBps?:number|null;microprice?:number|null;micropriceEdgeBps?:number|null};
   session?:{previousClose?:number|null;open?:number|null;high?:number|null;low?:number|null;volume?:number|null;amount?:number|null;trades?:number|null};

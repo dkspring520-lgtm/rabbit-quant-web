@@ -12,6 +12,7 @@ import os
 import tempfile
 import time
 from collections import deque
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -780,6 +781,8 @@ class Collector:
         node_index = 0
         try:
             while True:
+                if writer.done():
+                    await writer
                 self.url = self.urls[node_index]
                 connection = None
                 connected_at = time.time()
@@ -806,6 +809,8 @@ class Collector:
                     await connection.subscribe(f"stk.order.{self.symbol}", cb=self.on_order)
                     while not connection.is_closed:
                         await asyncio.sleep(0.5)
+                        if writer.done():
+                            await writer
                         if not self.connected:
                             self.failover_reason = "connection-lost"
                             break
@@ -828,13 +833,21 @@ class Collector:
                 finally:
                     self.connected = False
                     if connection is not None and not connection.is_closed:
-                        await connection.close()
+                        try:
+                            await asyncio.wait_for(connection.close(), timeout=2)
+                        except asyncio.TimeoutError as error:
+                            # A stale NATS socket can hang close forever. Exit so
+                            # Docker releases the socket and restarts a clean feed.
+                            self.failover_reason = "close-timeout"
+                            raise RuntimeError("NATS close timed out; restart collector") from error
                 self.failovers += 1
                 self.reconnects += 1
                 node_index = (node_index + 1) % len(self.urls)
                 await asyncio.sleep(0.35 if is_live_a_share_session() else 2)
         finally:
             writer.cancel()
+            with suppress(asyncio.CancelledError):
+                await writer
 
 if __name__ == "__main__":
     asyncio.run(Collector().run())
