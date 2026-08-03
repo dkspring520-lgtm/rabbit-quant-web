@@ -627,7 +627,7 @@ export default function Home() {
   const alertToast=alertQueue[0]??null;
   const alertSequence=useRef(0);
   const deliveredAlertByCode=useRef<Record<string,TradeAlertToast>>({});
-  const speechQueue=useRef<{spoken:string;risk:boolean}[]>([]);
+  const speechQueue=useRef<{spoken:string;risk:boolean;clip?:"buy"|"sell"}[]>([]);
   const speechBusy=useRef(false);
   const alertedEventKeys = useRef<Set<string>>(new Set());
   const serverAlertCursor = useRef(0);
@@ -1855,6 +1855,14 @@ export default function Home() {
     speechBusy.current=true;
     playAlertTone(next.risk);
     try{
+      if(next.clip){
+        const audio=new Audio(`/audio/trade-alerts/${next.clip}.wav`);
+        const completed=()=>{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);};
+        audio.onended=completed;
+        audio.onerror=()=>{speechBusy.current=false;speechQueue.current.unshift({spoken:next.spoken,risk:next.risk});window.setTimeout(drainAlertSpeech,120);};
+        void audio.play().catch(()=>audio.onerror?.(new Event("error")));
+        return;
+      }
       if(!("speechSynthesis" in window)){speechBusy.current=false;return;}
       const speech=new SpeechSynthesisUtterance(next.spoken);
       speech.lang="zh-CN";speech.rate=1.02;speech.pitch=next.risk?0.82:1.08;speech.volume=.92;
@@ -1868,7 +1876,7 @@ export default function Home() {
     }catch{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);}
   };
   const speakAlert=(text:string,risk=false,level:TradeAlertToast["level"]="signal",direction:"buy"|"sell"|null=null)=>{
-    speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk});
+    speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk,clip:level==="signal"&&direction?direction:undefined});
     drainAlertSpeech();
   };
   const queueAlert=(incoming:TradeAlertToast)=>{
