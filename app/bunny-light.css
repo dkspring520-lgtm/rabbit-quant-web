@@ -2201,3 +2201,55 @@
     border-radius: 17px;
   }
 }
+
+/* Daylight cockpit refinement: clean white surfaces with local rabbit accents. */
+:root[data-theme="light"] .decision-zone {
+  background: #fbfbfc;
+}
+:root[data-theme="light"] .decision-primary-card.global-decision-card,
+:root[data-theme="light"] .decision-position-card {
+  border-color: #e8e2e8;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(104, 78, 96, .06);
+}
+:root[data-theme="light"] .global-decision-card .global-decision-status {
+  color: #bf7b24;
+  font-size: 22px;
+}
+:root[data-theme="light"] .global-decision-card.ready.positive .global-decision-status {
+  color: #159b88;
+}
+:root[data-theme="light"] .global-decision-card.ready.reverse .global-decision-status,
+:root[data-theme="light"] .global-decision-card.locked .global-decision-status {
+  color: #e45273;
+}
+:root[data-theme="light"] .decision-condition-progress {
+  background: #f2eaf0;
+}
+:root[data-theme="light"] .decision-condition-progress i {
+  background: linear-gradient(90deg, #efb24a, #32bda9);
+}
+:root[data-theme="light"] .decision-condition-grid > span {
+  border-color: #eee5eb;
+  background: #fff;
+}
+:root[data-theme="light"] .decision-condition-grid > span.met {
+  border-color: #cbece5;
+  background: #f3fbf9;
+}
+:root[data-theme="light"] .zijin-price-plan-grid > div,
+:root[data-theme="light"] .zijin-risk-plan > div {
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(104, 78, 96, .04);
+}
+:root[data-theme="light"] .zijin-risk-plan {
+  border-top-color: #efe5eb;
+}
+:root[data-theme="light"] .main-force-track-summary {
+  border-color: #cfe8e2;
+  background: #f2fbf8;
+}
+:root[data-theme="light"] .chart-wrap::after {
+  opacity: .03;
+}

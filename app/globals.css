@@ -1627,3 +1627,86 @@
   content: none !important;
   display: none !important;
 }
+
+/* Cockpit refinement: make the decision rail scannable without changing data or strategy. */
+.decision-primary-card.global-decision-card {
+  border-radius: 12px;
+  padding: 14px;
+}
+.global-decision-card .global-decision-status {
+  font-size: 22px;
+  line-height: 1.16;
+  letter-spacing: -.02em;
+}
+.minimal-ui .decision-zone.focus-mode .decision-primary-card > .global-decision-status {
+  font-size: 22px;
+}
+.decision-condition-grid {
+  position: relative;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 10px;
+}
+.decision-condition-progress {
+  grid-column: 1 / -1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--line-soft);
+}
+.decision-condition-progress i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--amber), var(--teal));
+  transition: width .2s ease;
+}
+.decision-condition-grid > span {
+  justify-content: center;
+  min-height: 30px;
+  padding: 5px 4px;
+  text-align: center;
+}
+.zijin-price-plan-grid > div,
+.zijin-risk-plan > div {
+  border-radius: 9px;
+}
+.zijin-risk-plan {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.zijin-risk-plan small {
+  display: block;
+}
+.main-force-track-summary {
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--amber) 35%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--amber) 7%, transparent);
+}
+.minimal-ui .primary-action:not(:disabled) {
+  animation: rabbit-primary-pulse 2.2s ease-in-out infinite;
+}
+@keyframes rabbit-primary-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,.12) inset, 0 0 0 rgba(40,215,196,0); }
+  50% { box-shadow: 0 0 0 1px rgba(255,255,255,.18) inset, 0 0 20px rgba(40,215,196,.18); }
+}
+.workspace.hide-rabbit-tracker .chart-wrap::after,
+.workspace.hide-rabbit-tracker .rabbit-chart-caption {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+/* Keep the calculator available in the black-gold focus rail. */
+:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode > .t-calculator {
+  display: block;
+}
+:root:not([data-theme="light"]) .minimal-ui .zijin-risk-plan small {
+  display: block;
+}
+
+@media(max-width:760px){
+  .decision-condition-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
