@@ -1548,3 +1548,61 @@
   .history-empty span{white-space:normal}
   .trade-footer>span:first-child{display:none}
 }
+.account-redeem{display:grid;gap:9px;padding:14px;border:1px solid rgba(240,189,79,.25);background:linear-gradient(135deg,rgba(240,189,79,.055),rgba(59,214,197,.025))}
+.account-redeem-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.account-redeem-head>div{display:grid;gap:3px}
+.account-redeem-head span{font-size:8px;color:var(--muted)}
+.account-redeem-head b{font-size:11px}
+.account-redeem-head a{font-size:8px;color:var(--teal);text-decoration:none}
+.account-redeem-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.account-redeem-form input{min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:10px 11px;font:9px var(--font-geist-mono);text-transform:uppercase}
+.account-redeem-form input:focus{outline:0;border-color:var(--teal)}
+.account-redeem-form button{border:1px solid var(--teal);background:rgba(40,215,196,.09);color:var(--teal);padding:0 13px;font-size:9px;cursor:pointer}
+.account-redeem-form button:disabled{opacity:.5}
+.account-redeem>small{font-size:8px;color:var(--dim);line-height:1.45}
+.account-redeem>em{font-size:8px;font-style:normal}
+.account-redeem>em.ok{color:var(--teal)}
+.account-redeem>em.error{color:var(--coral)}
+.member-code-issuer{display:grid;gap:12px;margin:14px 20px;padding:14px;border:1px solid rgba(240,189,79,.26);background:linear-gradient(145deg,rgba(240,189,79,.055),rgba(59,214,197,.025))}
+.member-code-issuer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.member-code-issuer-head>div{display:grid;gap:4px}
+.member-code-issuer-head span{font:8px var(--font-geist-mono);color:var(--amber);letter-spacing:.1em}
+.member-code-issuer-head h3{margin:0;font-size:14px}
+.member-code-issuer-head p{margin:0;color:var(--muted);font-size:8px}
+.member-code-issuer-head>button,.member-code-result button{border:1px solid var(--teal);background:rgba(40,215,196,.08);color:var(--teal);padding:8px 12px;cursor:pointer}
+.member-code-controls{display:grid;grid-template-columns:minmax(180px,1fr) 100px minmax(200px,1fr);gap:10px;align-items:end}
+.member-code-controls label{display:grid;gap:5px}
+.member-code-controls label>span,.member-code-controls>small{font-size:8px;color:var(--muted)}
+.member-code-controls select,.member-code-controls input{width:100%;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:9px 10px}
+.member-code-result{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--line-soft)}
+.member-code-result>div{display:flex;align-items:center;justify-content:space-between}
+.member-code-result ul{display:grid;gap:5px;margin:0;padding:0;list-style:none}
+.member-code-result li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px;border:1px solid var(--line-soft);background:var(--surface)}
+.member-code-result code{color:var(--amber);font-size:10px}
+.member-code-result span{font-size:8px;color:var(--muted)}
+.member-code-message{font-size:8px;color:var(--teal);font-style:normal}
+
+@media(max-width:760px){
+  .account-redeem-form{grid-template-columns:1fr}
+  .account-redeem-form button{min-height:38px}
+  .member-code-issuer-head{display:grid}
+  .member-code-controls{grid-template-columns:1fr 90px}
+  .member-code-controls>small{grid-column:1/-1}
+  .member-code-result li{align-items:flex-start;flex-direction:column}
+}
+/* Stock tabs use background only.  Remove every selected underline/pseudo
+   element so a teal rule cannot cross or cover the compact brand mark. */
+.ticker .ticker-item.selected,
+.ticker .ticker-item.selected > button,
+.ticker button.selected {
+  box-shadow: none !important;
+  border-bottom-color: transparent !important;
+  outline: 0 !important;
+}
+.ticker .ticker-item.selected::before,
+.ticker .ticker-item.selected::after,
+.ticker button.selected::before,
+.ticker button.selected::after {
+  content: none !important;
+  display: none !important;
+}
