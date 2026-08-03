@@ -115,6 +115,8 @@ type MonitorScanLog = { id:string|number; code:string; name:string; marketDate:s
 type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
 type Membership = { active:boolean; expiresAt:string|null; referralCode:string|null; referralCredits:number; referralReviews:number; referralRewardDays:number };
 type MemberRecord = { id:string; username:string; displayName:string; role:"admin"|"member"; status:"active"|"paused"; createdAt:string; lastLoginAt:string|null; monitorCount:number; alertCount:number; membership:Membership|null };
+type MembershipPlanId = "day"|"monthly"|"yearly";
+type IssuedMembershipCode = { code:string; planId:MembershipPlanId; planLabel:string; days:number; createdAt:string; expiresAt:string };
 type ZijinTrainingProgress = {
   schemaVersion:number;
   stock:{code:string;name:string};
@@ -308,6 +310,12 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 }
 
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
+const normalizeFormalTime=(value:unknown)=>String(value??"").replace(/\D/g,"").slice(0,4);
+const formalActionSide=(value:unknown):"buy"|"sell"=>String(value??"").includes("卖")?"sell":"buy";
+const formalExecutionLabel=(direction:"正T"|"反T",side:"buy"|"sell")=>
+  side==="sell"?`${direction}卖出`:direction==="反T"?"反T买回":"正T买入";
+const formalActionEventKey=(code:unknown,action:Pick<ReplayAction,"time"|"side">)=>
+  `${String(code??"").replace(/\D/g,"").slice(0,6)}:formal:${normalizeFormalTime(action.time)}:${formalActionSide(action.side)}`;
 type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string };
 type L2ReplayState = { available:boolean; source:string; minuteCount:number; observations:ReplayObservation[]; reason:string };
 type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; holdingMinutes:number; mfePct:number; maePct:number; bestTime:string; worstTime:string; outcomeMode:"post-replay-causal"; favorable:boolean; status:string };
@@ -652,6 +660,7 @@ export default function Home() {
   const [panel, setPanel] = useState("今日T循环");
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
+  const [openedCycleSide,setOpenedCycleSide]=useState<"buy"|"sell"|null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [activeView, setActiveView] = useState("操盘台");
   const [strategyOpen, setStrategyOpen] = useState(false);
@@ -667,17 +676,24 @@ export default function Home() {
   const [backgroundPushTesting,setBackgroundPushTesting]=useState(false);
   const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
   const [alertHistory,setAlertHistory]=useState<TradeAlertToast[]>([]);
+  const [serverFormalActionsByCode,setServerFormalActionsByCode]=useState<Record<string,ReplayAction[]>>({});
   const alertToast=alertQueue[0]??null;
   const alertSequence=useRef(0);
   const latestActiveChange=useRef<number|null>(null);
   const deliveredAlertByCode=useRef<Record<string,TradeAlertToast>>({});
-  const speechQueue=useRef<{spoken:string;risk:boolean}[]>([]);
+  const speechQueue=useRef<{spoken:string;risk:boolean;clip?:"buy"|"sell"}[]>([]);
   const speechBusy=useRef(false);
   const alertedEventKeys = useRef<Set<string>>(new Set());
+  const queuedAlertEventKeys = useRef<Set<string>>(new Set());
+  const lastFormalAlertAtBySide = useRef<Record<string,number>>({});
+  const cycleStageRef=useRef(cycleStage);
+  const openedCycleSideRef=useRef(openedCycleSide);
   const serverAlertCursor = useRef(0);
   const serverAlertsInitialized = useRef(false);
   const riskAlertEpisodes = useRef<Record<string,string>>({});
   const nextPreviewRabbit = useRef<"buy"|"sell">("buy");
+  useEffect(()=>{cycleStageRef.current=cycleStage;},[cycleStage]);
+  useEffect(()=>{openedCycleSideRef.current=openedCycleSide;},[openedCycleSide]);
   useEffect(()=>{
     const timer=window.setTimeout(()=>{
       try{
@@ -1743,6 +1759,19 @@ export default function Home() {
     };
   },[stockAgent,visibleStockAgentEvaluation,autoDecision]);
   const signalMode:"正T"|"反T"=decisionModel.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
+  const latestFormalAction=useMemo(()=>{
+    const latest=liveEngine.actions.at(-1)??null;
+    return latest&&isRecentCausalEvent(decisionModel.lastTime,latest.time,3)?latest:null;
+  },[decisionModel.lastTime,liveEngine.actions]);
+  const decisionActionSide:"buy"|"sell"|null=
+    decisionModel.status==="ready"&&latestFormalAction?formalActionSide(latestFormalAction.side):null;
+  const decisionActionDirection:"正T"|"反T"=
+    (latestFormalAction?.direction??signalMode) as "正T"|"反T";
+  const decisionExecutionLabel=decisionActionSide
+    ? formalExecutionLabel(decisionActionDirection,decisionActionSide)
+    : `${signalMode}信号`;
+  const expectedClosingSide=openedCycleSide==="buy"?"sell":openedCycleSide==="sell"?"buy":null;
+  const decisionMatchesCycle=cycleStage!=="opened"||Boolean(decisionActionSide&&expectedClosingSide===decisionActionSide);
   const secondLevelSignal=isZijinStock?liveL2Status?.secondState:null;
   const web4Microstructure=useMemo(()=>evaluateWeb4Microstructure({
     points:isZijinStock?minutePoints:[],
@@ -1885,7 +1914,7 @@ export default function Home() {
   const configuredCycleQuantity=activePosition.tradeShares??Math.floor(Math.min(Math.max(0,effectiveLivePosition.openingShares),effectiveLivePosition.sellable)/3/100)*100;
   const cycleQuantity=cycleLimitReached?0:Math.floor(Math.min(configuredCycleQuantity,Math.max(0,effectiveLivePosition.openingShares),effectiveLivePosition.sellable)/100)*100;
   const displayedShares=cycleStage==='opened'
-    ? effectiveLivePosition.openingShares+(signalMode==='正T'?cycleQuantity:-cycleQuantity)
+    ? effectiveLivePosition.openingShares+(openedCycleSide==="buy"?cycleQuantity:openedCycleSide==="sell"?-cycleQuantity:0)
     : effectiveLivePosition.openingShares;
   const tCalculator=useMemo(()=>{
     const entry=Number(tEntryPrice);
@@ -1973,6 +2002,18 @@ export default function Home() {
     speechBusy.current=true;
     playAlertTone(next.risk);
     try{
+      if(next.clip){
+        const audio=new Audio(`/audio/trade-alerts/${next.clip}.wav`);
+        const completed=()=>{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);};
+        audio.onended=completed;
+        audio.onerror=()=>{
+          speechBusy.current=false;
+          speechQueue.current.unshift({spoken:next.spoken,risk:next.risk});
+          window.setTimeout(drainAlertSpeech,120);
+        };
+        void audio.play().catch(()=>audio.onerror?.(new Event("error")));
+        return;
+      }
       if(!("speechSynthesis" in window)){speechBusy.current=false;return;}
       const speech=new SpeechSynthesisUtterance(next.spoken);
       speech.lang="zh-CN";speech.rate=1.02;speech.pitch=next.risk?0.82:1.08;speech.volume=.92;
@@ -1986,18 +2027,23 @@ export default function Home() {
     }catch{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);}
   };
   const speakAlert=(text:string,risk=false,level:TradeAlertToast["level"]="signal",direction:"buy"|"sell"|null=null)=>{
-    speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk});
+    speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk,clip:level==="signal"&&direction?direction:undefined});
     drainAlertSpeech();
   };
   const queueAlert=(incoming:TradeAlertToast)=>{
     const now=Date.now();
     let alert:TradeAlertToast={...incoming,id:incoming.id??`alert-${now}-${++alertSequence.current}`,createdAt:incoming.createdAt??new Date(now).toISOString()};
+    if(alert.eventKey&&queuedAlertEventKeys.current.has(alert.eventKey))return false;
     if(alert.code&&alert.rabbit!=="both"){
       const alertCode=alert.code;
       const delivery=resolveAlertDelivery({previous:deliveredAlertByCode.current[alertCode]??null,next:alert,nowMs:now});
       if(!delivery.deliver)return false;
       alert={...delivery.alert,id:alert.id,createdAt:alert.createdAt} as TradeAlertToast;
       deliveredAlertByCode.current[alertCode]=alert;
+    }
+    if(alert.eventKey){
+      if(queuedAlertEventKeys.current.size>1000)queuedAlertEventKeys.current.clear();
+      queuedAlertEventKeys.current.add(alert.eventKey);
     }
     setAlertQueue(current=>current.some(item=>alert.eventKey&&item.eventKey===alert.eventKey)?current:[...current,alert].slice(-12));
     if(alert.source!=="preview"&&alert.code){
@@ -2146,6 +2192,14 @@ export default function Home() {
       const agentCandidateFresh=Boolean(agentEvaluation?.status==="candidate"&&agentEvaluation.asOfTime&&isRecentCausalEvent(lastTime,agentEvaluation.asOfTime,2));
       const experimentalFresh=Boolean(experimentalReminder&&isRecentCausalEvent(lastTime,experimentalReminder.asOfTime,2));
       const displacementFresh=Boolean(displacementReminder&&isRecentCausalEvent(lastTime,displacementReminder.time,2));
+      const latestSide=formalFresh&&latest?formalActionSide(latest.side):null;
+      const latestDirection=(latest?.direction??(latestSide==="sell"?"反T":"正T")) as "正T"|"反T";
+      const latestExecutionLabel=formalFresh&&latestSide?formalExecutionLabel(latestDirection,latestSide):"";
+      const activeCycleSameSide=Boolean(formalFresh&&active&&cycleStageRef.current==="opened"&&openedCycleSideRef.current===latestSide);
+      if(activeCycleSameSide)continue;
+      const formalSideKey=formalFresh&&latestSide?`${item.code}:${latestSide}`:"";
+      const lastSameSideAt=formalSideKey?lastFormalAlertAtBySide.current[formalSideKey]??0:0;
+      if(formalFresh&&formalSideKey&&Date.now()-lastSameSideAt<10*60_000)continue;
       const engineCandidateFresh=Boolean(candidateFresh&&latestObservation&&!latestObservation.executable);
       const selectedExperimental=experimentalFresh?experimentalReminder:null;
       const selectedDisplacement=displacementFresh?displacementReminder:null;
@@ -2176,11 +2230,11 @@ export default function Home() {
       if(alreadyAlerted)continue;
       if(!isRisk){alertedEventKeys.current.add(persistedKey);try{localStorage.setItem(persistedKey,"1");}catch{}}
       const candidateDirection=selectedExperimental?.direction??selectedDisplacement?.direction??selectedAgent?.direction??selectedEngineCandidate?.direction;
-      const rabbit=isRisk?"both":formalFresh?(latest!.side.includes("卖")?"sell":"buy"):(selectedExperimental?.stage==="experimental-exit"?(candidateDirection==="正T"?"sell":"buy"):(candidateDirection==="反T"?"sell":"buy"));
+      const rabbit=isRisk?"both":formalFresh?latestSide!:(selectedExperimental?.stage==="experimental-exit"?(candidateDirection==="正T"?"sell":"buy"):(candidateDirection==="反T"?"sell":"buy"));
       const title=isRisk
         ? `${item.name} 风险锁定`
         : formalFresh
-          ? `${item.name} ${latest!.direction}${latest!.side}`
+          ? `${item.name} ${latestExecutionLabel}`
           : selectedExperimental
             ? `${item.name} · ${selectedExperimental.title}`
             : selectedDisplacement
@@ -2200,6 +2254,7 @@ export default function Home() {
               ? `${selectedAgent.reasons[0]}；紫金研究模型观察，不是买卖指令。`
               : `${selectedEngineCandidate!.reason}；${selectedEngineCandidate!.blockers.join("；")||"等待正式过滤确认"}`;
       const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
+      if(queued&&formalFresh&&formalSideKey)lastFormalAlertAtBySide.current[formalSideKey]=Date.now();
       const candidateSpeech=selectedExperimental
         ? selectedExperimental.stage==="experimental-exit"
           ? `${item.name}，${selectedExperimental.direction}实验观察结束，${selectedExperimental.reason}，不是买卖指令`
@@ -2217,7 +2272,7 @@ export default function Home() {
         : isVwapDisplacementObservation(selectedEngineCandidate)
         ? `${item.name}，${selectedEngineCandidate!.reason.split("；")[0]}，请观察确认，不是买卖指令`
         : `${item.name}，${selectedEngineCandidate?.direction??"做T"}候选观察，不是买卖指令`;
-      if(queued&&alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latest!.direction}${latest!.side}提醒`:candidateSpeech,isRisk,isRisk?"risk":formalFresh?"signal":"candidate",rabbit==="both"?null:rabbit);
+      if(queued&&alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latestExecutionLabel}提醒`:candidateSpeech,isRisk,isRisk?"risk":formalFresh?"signal":"candidate",rabbit==="both"?null:rabbit);
       if(queued&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
     }
   },[autoDecision.status,autoDecision.reason,liveEngine,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName,zijinResearchEnabled,stockAgentEvaluation]);
@@ -2238,10 +2293,18 @@ export default function Home() {
         const recent=alerts.filter((item:{createdAt:string})=>Date.now()-new Date(item.createdAt).getTime()<5*60_000).reverse();
         for(const item of recent){
           const action=item.payload?.action;const observation=item.payload?.observation;
-          const sell=String(action?.side??observation?.direction??item.title).includes('卖')||String(observation?.direction??'').includes('反T');
+          const actionSide=action?.side?formalActionSide(action.side):null;
+          const sell=actionSide?actionSide==="sell":String(observation?.direction??item.title).includes('卖');
+          const actionDirection=(action?.direction??observation?.direction??(sell?"反T":"正T")) as "正T"|"反T";
+          const executionLabel=actionSide?formalExecutionLabel(actionDirection,actionSide):item.title;
+          const sideKey=item.level==='formal'&&actionSide&&item.code?`${item.code}:${actionSide}`:"";
+          if(item.level==='formal'&&actionSide&&item.code===stockList[activeStock]?.code&&cycleStageRef.current==="opened"&&openedCycleSideRef.current===actionSide)continue;
+          if(sideKey&&Date.now()-(lastFormalAlertAtBySide.current[sideKey]??0)<10*60_000)continue;
           const level=item.level==='formal'?'signal':'candidate';
           const rabbit=sell?'sell':'buy';
-          const queued=queueAlert({code:item.code,eventKey:item.eventKey??`server:${item.id}`,source:"server",createdAt:item.createdAt,level,rabbit,title:item.title,message:item.message});
+          const serverTitle=item.level==='formal'?`${item.name??item.code} ${executionLabel}`:item.title;
+          const queued=queueAlert({code:item.code,eventKey:item.eventKey??`server:${item.id}`,source:"server",createdAt:item.createdAt,level,rabbit,title:serverTitle,message:item.message});
+          if(queued&&sideKey)lastFormalAlertAtBySide.current[sideKey]=Date.now();
           const shouldDeliver=serverAlertsInitialized.current&&item.level!=='watch';
           const deliveryChannels:string[]=[];
           if(queued&&shouldDeliver&&alertSettings.sound){speakAlert(`${item.title}，${item.level==='formal'?'正式信号':'候选观察'}`,false,level,rabbit);deliveryChannels.push('speech')}
@@ -2256,7 +2319,7 @@ export default function Home() {
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void pull()};
     document.addEventListener('visibilitychange',onVisibility);
     return()=>{cancelled=true;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisibility)};
-  },[localAuth,demoMode,alertSettings.sound,alertSettings.system]);
+  },[localAuth,demoMode,alertSettings.sound,alertSettings.system,stockList,activeStock]);
   useEffect(() => {
     const timer = window.setTimeout(() => {void (async()=>{
       try {
@@ -2351,7 +2414,10 @@ export default function Home() {
     return()=>window.clearTimeout(timer);
   },[ledgerStorageKey,tradingDate,stock?.code]);
   useEffect(()=>{
-    const timer=window.setTimeout(()=>setCycleStage('ready'),0);
+    const timer=window.setTimeout(()=>{
+      setCycleStage('ready');
+      setOpenedCycleSide(null);
+    },0);
     return()=>window.clearTimeout(timer);
   },[stock?.code]);
   useEffect(() => {
@@ -2546,6 +2612,27 @@ export default function Home() {
     setTradeLedgerState({key:ledgerStorageKey,rows:normalized});
     try{localStorage.setItem(ledgerStorageKey,JSON.stringify(normalized));}catch{}
   };
+
+  const handleCycleAction=()=>{
+    if(cycleStage==="ready"){
+      if(decisionModel.status!=="ready"||!decisionActionSide)return;
+      setOpenedCycleSide(decisionActionSide);
+      setCycleStage("opened");
+      return;
+    }
+    if(cycleStage==="opened"){
+      if(!openedCycleSide||!decisionActionSide||decisionActionSide===openedCycleSide)return;
+      setOpenedCycleSide(null);
+      setCycleStage("closed");
+      return;
+    }
+    setOpenedCycleSide(null);
+    setCycleStage("ready");
+  };
+  const primaryActionDisabled=
+    !stockAgent.canExecute||cycleLimitReached||cycleQuantity<100||
+    (cycleStage==="ready"&&(decisionModel.status!=="ready"||!decisionActionSide))||
+    (cycleStage==="opened"&&!decisionMatchesCycle);
 
   const membershipExpiry=accountMembership?.expiresAt?new Date(accountMembership.expiresAt).toLocaleDateString('zh-CN',{year:'numeric',month:'short',day:'numeric'}):'--';
   const copyReferralLink=async()=>{
@@ -2842,9 +2929,15 @@ export default function Home() {
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>盯盘重点</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>全部证据</button>
           </div>
-          <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${signalMode === "反T" ? "reverse" : "positive"}`} aria-label="全局决策状态">
+          <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="全局决策状态">
             <header><span>全局决策 <small className="decision-engine-badge">V4 正式</small></span><em>{decisionModel.confirmed}/4 条件</em></header>
-            <b className="global-decision-status">{decisionModel.status==="locked"?"🔴 风控已锁定":decisionModel.status==="ready"?`🟢 ${signalMode}信号已确认`:"🟡 信号观察中"}</b>
+            <b className="global-decision-status">{decisionModel.status==="locked"
+              ?"🔴 风控已锁定"
+              :cycleStage==="opened"
+                ?`🟡 已记录${openedCycleSide==="buy"?"买入":"卖出"}，等待${expectedClosingSide==="sell"?"卖出":"买回"}`
+                :decisionModel.status==="ready"&&decisionActionSide
+                  ?`🟢 ${decisionExecutionLabel}已确认`
+                  :"🟡 信号观察中"}</b>
             <small className="global-decision-summary">{signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
             <div className="decision-condition-grid" aria-label="全局决策条件进度">
               {decisionConditions.map(item=><span key={item.label} className={item.met?"met":""}><i>{item.met?"✓":"×"}</i>{item.label}</span>)}
@@ -2951,9 +3044,31 @@ export default function Home() {
           </div>
           <div className="opening-causal"><span>09:30 起实时扫描</span><b>仅使用已出现数据 · 无需手动切换</b><small>最早 09:33 显示候选，09:36–09:44 经连续走势与 VWAP 确认后才允许小仓正式信号；09:45 后恢复完整过滤。</small></div>
           {decisionZoneMode==="all"&&<><h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2><p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p></>}
-          <button disabled={!stockAgent.canExecute||cycleQuantity<100||(cycleStage==='ready'&&decisionModel.status!=="ready")} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={() => setCycleStage(cycleStage === 'ready' ? 'opened' : cycleStage === 'opened' ? 'closed' : 'ready')}>
-            <span>{!stockAgent.canExecute?'紫金智能体观察中 · 未开放执行':cycleLimitReached?`今日已完成 ${completedCycleCount}/${maxDailyTrades} 次做T`:cycleQuantity<100?'先设置本股持仓与单次做T数量':cycleStage === 'ready' ? decisionModel.status==="locked"?'风控锁定 · 暂停做T':decisionModel.status!=="ready"?'条件未完成 · 暂不可执行':(signalMode === '反T' ? `反T信号 · 卖出 ${cycleQuantity.toLocaleString()} 股` : `正T信号 · 买入 ${cycleQuantity.toLocaleString()} 股`) : cycleStage === 'opened' ? (signalMode === '反T' ? '记录等量买回' : '记录等量卖出') : '本次T已闭环'}</span>
-            <small>{cycleStage === 'ready' ? decisionModel.status==="ready"?'记录首笔成交':'完成条件后解锁' : cycleStage === 'opened' ? '完成反向成交' : '开始下一次循环'} →</small>
+          <button disabled={primaryActionDisabled} className={`primary-action ${cycleStage !== 'ready' ? 'confirmed' : ''}`} onClick={handleCycleAction}>
+            <span>{!stockAgent.canExecute
+              ?'紫金智能体观察中 · 未开放执行'
+              :cycleLimitReached
+                ?`今日已完成 ${completedCycleCount}/${maxDailyTrades} 次做T`
+                :cycleQuantity<100
+                  ?'先设置本股持仓与单次做T数量'
+                  :cycleStage==='ready'
+                    ?decisionModel.status==="locked"
+                      ?'风控锁定 · 暂停做T'
+                      :decisionModel.status!=="ready"
+                        ?'条件未完成 · 暂不可执行'
+                        :!decisionActionSide
+                          ?'等待引擎确认实际买卖方向'
+                          :`${decisionExecutionLabel} · ${cycleQuantity.toLocaleString()} 股`
+                    :cycleStage==='opened'
+                      ?decisionMatchesCycle&&decisionActionSide
+                        ?`${decisionExecutionLabel} · ${cycleQuantity.toLocaleString()} 股`
+                        :`已记录${openedCycleSide==="buy"?"买入":"卖出"} · 等待${expectedClosingSide==="sell"?"卖出":"买回"}`
+                      :'本次T已闭环'}</span>
+            <small>{cycleStage==='ready'
+              ?decisionModel.status==="ready"&&decisionActionSide?'记录首笔成交':'完成条件后解锁'
+              :cycleStage==='opened'
+                ?decisionMatchesCycle?'完成反向成交':'同方向信号已冻结'
+                :'开始下一次循环'} →</small>
           </button>
           <div className={`closure-guard ${cycleStage}`}>
             <div><span>当日闭环控制</span><b><i/>{cycleStage === 'ready' ? '允许开T' : cycleStage === 'opened' ? '等待闭环' : '已恢复底仓'}</b></div>
@@ -2964,7 +3079,21 @@ export default function Home() {
               <div><span>历史胜率</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b><em>{personalStrategyStats.wins}/{personalStrategyStats.cycles} 个闭环</em></div>
               <div><span>历史净收益</span><b className={personalStrategyStats.net>0?'positive':personalStrategyStats.net<0?'negative':''}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b><em>扣费后</em></div>
             </div>
-            <small>{tradeLedgerSummary.oversold?'本机流水显示卖出超过昨日可卖或当前持仓为负，请立即核对券商成交。':cycleLimitReached?`已达到你设置的每日 ${maxDailyTrades} 次上限，今天不再新增执行信号。`:cycleQuantity<100?'当前股票未设置足够的现有持仓与单次做T数量，请重新设置。':cycleStage === 'ready' ? (signalMode === '正T' ? `本股今日剩余可卖 ${effectiveLivePosition.sellable.toLocaleString()} 股；买入后需卖出等量旧仓。` : '卖出后需在 14:50 前买回等量股份。') : cycleStage === 'opened' ? `尚有 ${cycleQuantity.toLocaleString()} 股未配对，新的${signalMode}信号已冻结。` : '买卖数量相等，实际持仓已恢复计划底仓。'}</small>
+            <small>{tradeLedgerSummary.oversold
+              ?'本机流水显示卖出超过昨日可卖或当前持仓为负，请立即核对券商成交。'
+              :cycleLimitReached
+                ?`已达到你设置的每日 ${maxDailyTrades} 次上限，今天不再新增执行信号。`
+                :cycleQuantity<100
+                  ?'当前股票未设置足够的现有持仓与单次做T数量，请重新设置。'
+                  :cycleStage==='ready'
+                    ?decisionActionSide==='sell'
+                      ?`当前实际动作是卖出；本股剩余可卖 ${effectiveLivePosition.sellable.toLocaleString()} 股，后续只接受等量买回。`
+                      :decisionActionSide==='buy'
+                        ?`当前实际动作是买入；后续只接受卖出等量旧仓。`
+                        :'等待引擎给出真实买入或卖出动作。'
+                    :cycleStage==='opened'
+                      ?`尚有 ${cycleQuantity.toLocaleString()} 股未配对；同方向正式信号只更新证据，等待${expectedClosingSide==="sell"?"卖出":"买回"}闭环。`
+                      :'买卖数量相等，实际持仓已恢复计划底仓。'}</small>
           </div>
           <div className="risk-box"><div><span>当前利润模式</span><b>{activeProfitSummary.label}</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>{activeProfitSummary.id==="zijin-small-spread"?"每股毛价差至少 ¥0.10，并且扣除佣金、印花税和双向滑点后至少盈利 ¥30 才启动保护；继续上涨则持有，回吐后退出，0.30% 净收益直接锁定。":"扣费净收益达到 0.64% 后启动利润保护；走势继续有利则持有，出现连续反向动能或明显回吐才退出，达到 1.00% 上限直接锁定。"}</p></div>
           <button className="automation-reserved" disabled><span><i />自动交易接口</span><b>已预留 · 当前关闭</b></button>
@@ -3013,6 +3142,7 @@ export default function Home() {
         <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>{demoMode?'免注册演示已进入':'服务器账户已登录'}</span><h2>{accountName}</h2><p>{demoMode?'临时演示会话':accountRole==='admin'?'管理员账户':'会员账户 · 跨设备同步'}</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
         <div className="account-plan"><div><span>当前状态</span><b>{demoMode?'免注册演示':accountRole==='admin'?'运营管理员':accountMembership?.active?'内测会员':'内测权益已到期'}</b><small>{demoMode?'不跨设备同步，刷新后可能丢失':accountRole==='admin'?'管理员权益长期有效':accountMembership?.expiresAt?`有效至 ${membershipExpiry}`:'监控清单、持仓设置和提醒偏好已保存到服务器'}</small></div><em>{demoMode?'演示中':accountMembership?.active||accountRole==='admin'?'有效':'已到期'}</em></div>
         <div className={`account-premium-features ${premiumEnabled?"enabled":"locked"}`}><div><span>高级会员能力</span><b>{premiumEnabled?"已全部开启":"购买会员后开启"}</b></div><ul><li>9:25盘前预判</li><li>L2精确价区间</li><li>提醒历史复盘</li><li>个人回放训练</li></ul><a href="/pricing">查看方案与收费标准 →</a></div>
+        {!demoMode&&accountRole!=='admin'&&<MembershipRedeem onRedeemed={setAccountMembership}/>}
         {!demoMode&&accountRole!=='admin'&&accountMembership?.referralCode&&<div className="account-referral"><div><span>邀请好友</span><b>有效注册 1 人，+7 天权益</b><small>邀请码 {accountMembership.referralCode} · 已奖励 {accountMembership.referralCredits} 人{accountMembership.referralReviews?` · 待审核 ${accountMembership.referralReviews} 人`:''}</small></div><button onClick={()=>void copyReferralLink()}>复制邀请链接</button>{inviteMessage&&<em>{inviteMessage}</em>}</div>}
         <div className="account-stats"><div><span>监控股票</span><b>{stockList.length} / {monitorLimit}</b></div><div><span>后台监控</span><b>{demoMode?'关闭':'已连接'}</b></div><div><span>策略版本</span><b>V4</b></div></div>
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>当前股票计划底仓<small>{stock.code} · 用于当日闭环校验</small></span><b>{activePosition.plannedBase.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
@@ -3193,17 +3323,61 @@ function AlertLogView({stocks,activeCode,localHistory,onClose}:{stocks:{code:str
   </div>;
 }
 
+function MembershipRedeem({onRedeemed}:{onRedeemed:(membership:Membership)=>void}){
+  const [code,setCode]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState<{tone:'ok'|'error';text:string}|null>(null);
+  const redeem=async()=>{
+    const value=code.trim();
+    if(!value){setMessage({tone:'error',text:'请输入购买或领取到的激活码'});return}
+    setBusy(true);setMessage(null);
+    try{
+      const response=await fetch('/api/control/membership/redeem',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({code:value})});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error||'兑换失败，请核对激活码');
+      if(payload.membership)onRedeemed(payload.membership);
+      setCode('');
+      setMessage({tone:'ok',text:`${payload.planLabel||'会员权益'}兑换成功，已增加 ${payload.days||''} 天`});
+    }catch(error){setMessage({tone:'error',text:error instanceof Error?error.message:'兑换失败，请稍后重试'})}
+    finally{setBusy(false)}
+  };
+  return <section className="account-redeem" aria-label="会员激活码兑换">
+    <div className="account-redeem-head"><div><span>激活码兑换</span><b>购买后自行开通</b></div><a href="/pricing">购买说明</a></div>
+    <div className="account-redeem-form"><input value={code} onChange={event=>setCode(event.target.value.toUpperCase())} onKeyDown={event=>{if(event.key==='Enter')void redeem()}} autoComplete="one-time-code" placeholder="输入 RQ- 开头的激活码" aria-label="会员激活码"/><button type="button" disabled={busy} onClick={()=>void redeem()}>{busy?'兑换中…':'立即兑换'}</button></div>
+    <small>天卡、月卡和年卡均可兑换；未到期会员会在原到期日基础上顺延。</small>
+    {message&&<em className={message.tone}>{message.text}</em>}
+  </section>;
+}
+
 function MemberAdminView({onClose}:{onClose:()=>void}){
   const [members,setMembers]=useState<MemberRecord[]>([]);
   const [busyId,setBusyId]=useState('');
   const [error,setError]=useState('');
   const [resetInfo,setResetInfo]=useState<{username:string;token:string;expiresAt:string}|null>(null);
+  const [codePlan,setCodePlan]=useState<MembershipPlanId>('monthly');
+  const [codeCount,setCodeCount]=useState(1);
+  const [codeBusy,setCodeBusy]=useState(false);
+  const [generatedCodes,setGeneratedCodes]=useState<IssuedMembershipCode[]>([]);
+  const [codeMessage,setCodeMessage]=useState('');
   const load=async()=>{setError('');try{const response=await fetch('/api/control/admin/members',{credentials:'include',cache:'no-store'});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'无法读取会员');setMembers(payload.members??[])}catch(error){setError(error instanceof Error?error.message:'无法读取会员')}};
   useEffect(()=>{const timer=window.setTimeout(()=>void load(),0);return()=>window.clearTimeout(timer)},[]);
   const updateStatus=async(member:MemberRecord)=>{setBusyId(member.id);setError('');try{const response=await fetch(`/api/control/admin/members/${member.id}`,{method:'PATCH',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({status:member.status==='active'?'paused':'active'})});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'状态更新失败');await load()}catch(error){setError(error instanceof Error?error.message:'状态更新失败')}finally{setBusyId('')}};
   const issueReset=async(member:MemberRecord)=>{setBusyId(member.id);setError('');try{const response=await fetch(`/api/control/admin/members/${member.id}/reset`,{method:'POST',credentials:'include'});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'无法生成重置码');setResetInfo(payload)}catch(error){setError(error instanceof Error?error.message:'无法生成重置码')}finally{setBusyId('')}};
   const grantMembership=async(member:MemberRecord,days:number)=>{setBusyId(member.id);setError('');try{const response=await fetch(`/api/control/admin/members/${member.id}/membership`,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({days})});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'权益发放失败');await load()}catch(error){setError(error instanceof Error?error.message:'权益发放失败')}finally{setBusyId('')}};
-  return <div className="member-admin-overlay" role="dialog" aria-modal="true" aria-label="会员后台" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><section className="member-admin-panel"><header><div><span>MEMBER CONTROL</span><h2>会员与后台监控</h2><p>天卡延长 1 天，月卡延长 30 天；未到期会员会从原到期日继续顺延。</p></div><button onClick={onClose} aria-label="关闭会员后台">×</button></header>{error&&<div className="member-admin-error">{error}</div>}{resetInfo&&<div className="member-reset-token"><span>{resetInfo.username} 的一次性重置码</span><code>{resetInfo.token}</code><small>{new Date(resetInfo.expiresAt).toLocaleString('zh-CN')} 前有效；发送给会员后请勿再次公开。</small><button onClick={()=>void navigator.clipboard?.writeText(resetInfo.token)}>复制重置码</button></div>}<div className="member-admin-summary"><span>正式会员 <b>{members.filter(item=>item.role==='member').length}</b></span><span>正在监控 <b>{members.reduce((sum,item)=>sum+Number(item.monitorCount||0),0)} 只</b></span><span>后台告警 <b>{members.reduce((sum,item)=>sum+Number(item.alertCount||0),0)} 条</b></span><button onClick={()=>void load()}>刷新</button></div><div className="member-table"><div className="member-row member-head"><span>会员</span><span>状态 / 权益</span><span>监控 / 告警</span><span>最近登录</span><span>操作</span></div>{members.map(member=><div className="member-row" key={member.id}><span><b>{member.displayName}</b><small>{member.username} · {member.role==='admin'?'管理员':'会员'}</small></span><span><em className={member.status}>{member.status==='active'?'正常':'已暂停'}</em><small>{member.role==='admin'?'长期有效':member.membership?.expiresAt?`至 ${new Date(member.membership.expiresAt).toLocaleDateString('zh-CN')}`:'未开通'}</small></span><span><b>{member.monitorCount} / {member.alertCount}</b></span><span><small>{member.lastLoginAt?new Date(member.lastLoginAt).toLocaleString('zh-CN'):'从未登录'}</small></span><span>{member.role==='admin'?<small>系统管理员</small>:<><button disabled={busyId===member.id} onClick={()=>void updateStatus(member)}>{member.status==='active'?'暂停':'恢复'}</button><button disabled={busyId===member.id} onClick={()=>void grantMembership(member,1)}>+1 天</button><button disabled={busyId===member.id} onClick={()=>void grantMembership(member,30)}>+30 天</button><button disabled={busyId===member.id} onClick={()=>void issueReset(member)}>重置码</button></>}</span></div>)}</div></section></div>;
+  const createCodes=async()=>{
+    setCodeBusy(true);setError('');setCodeMessage('');setGeneratedCodes([]);
+    try{
+      const response=await fetch('/api/control/admin/membership-codes',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({planId:codePlan,count:codeCount,validForDays:180})});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error||'激活码生成失败');
+      setGeneratedCodes(Array.isArray(payload.codes)?payload.codes:[]);
+      setCodeMessage('激活码已生成；请立即复制并交付，关闭后后台不再显示明文。');
+    }catch(error){setError(error instanceof Error?error.message:'激活码生成失败')}finally{setCodeBusy(false)}
+  };
+  const copyCodes=async()=>{const value=generatedCodes.map(item=>item.code).join('\n');if(!value)return;try{await navigator.clipboard.writeText(value);setCodeMessage(`已复制 ${generatedCodes.length} 个激活码`)}catch{setCodeMessage('浏览器未允许复制，请手动选中激活码')}};
+  return <div className="member-admin-overlay" role="dialog" aria-modal="true" aria-label="会员后台" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><section className="member-admin-panel"><header><div><span>MEMBER CONTROL</span><h2>会员与后台监控</h2><p>天卡 1 天、月卡 31 天、年卡 366 天；未到期会员会从原到期日继续顺延。</p></div><button onClick={onClose} aria-label="关闭会员后台">×</button></header>{error&&<div className="member-admin-error">{error}</div>}{resetInfo&&<div className="member-reset-token"><span>{resetInfo.username} 的一次性重置码</span><code>{resetInfo.token}</code><small>{new Date(resetInfo.expiresAt).toLocaleString('zh-CN')} 前有效；发送给会员后请勿再次公开。</small><button onClick={()=>void navigator.clipboard?.writeText(resetInfo.token)}>复制重置码</button></div>}
+    <section className="member-code-issuer"><div className="member-code-issuer-head"><div><span>ACTIVATION CODES</span><h3>生成会员激活码</h3><p>激活码只在本次生成时明文显示，后台只保存不可逆摘要。</p></div><button type="button" disabled={codeBusy} onClick={()=>void createCodes()}>{codeBusy?'生成中…':'生成激活码'}</button></div><div className="member-code-controls"><label><span>套餐</span><select value={codePlan} onChange={event=>setCodePlan(event.target.value as MembershipPlanId)}><option value="day">测试天卡 · ¥4.9</option><option value="monthly">月卡 · ¥99</option><option value="yearly">年卡 · ¥298</option></select></label><label><span>数量</span><input type="number" min="1" max="20" value={codeCount} onChange={event=>setCodeCount(Math.max(1,Math.min(20,Number(event.target.value)||1)))}/></label><small>每批最多 20 个，未兑换码 180 天后失效。</small></div>{generatedCodes.length>0&&<div className="member-code-result"><div><b>本批激活码</b><button type="button" onClick={()=>void copyCodes()}>复制全部</button></div><ul>{generatedCodes.map(item=><li key={item.code}><code>{item.code}</code><span>{item.planLabel} · {item.days} 天</span></li>)}</ul></div>}{codeMessage&&<em className="member-code-message">{codeMessage}</em>}</section>
+    <div className="member-admin-summary"><span>正式会员 <b>{members.filter(item=>item.role==='member').length}</b></span><span>正在监控 <b>{members.reduce((sum,item)=>sum+Number(item.monitorCount||0),0)} 只</b></span><span>后台告警 <b>{members.reduce((sum,item)=>sum+Number(item.alertCount||0),0)} 条</b></span><button onClick={()=>void load()}>刷新</button></div><div className="member-table"><div className="member-row member-head"><span>会员</span><span>状态 / 权益</span><span>监控 / 告警</span><span>最近登录</span><span>操作</span></div>{members.map(member=><div className="member-row" key={member.id}><span><b>{member.displayName}</b><small>{member.username} · {member.role==='admin'?'管理员':'会员'}</small></span><span><em className={member.status}>{member.status==='active'?'正常':'已暂停'}</em><small>{member.role==='admin'?'长期有效':member.membership?.expiresAt?`至 ${new Date(member.membership.expiresAt).toLocaleDateString('zh-CN')}`:'未开通'}</small></span><span><b>{member.monitorCount} / {member.alertCount}</b></span><span><small>{member.lastLoginAt?new Date(member.lastLoginAt).toLocaleString('zh-CN'):'从未登录'}</small></span><span>{member.role==='admin'?<small>系统管理员</small>:<><button disabled={busyId===member.id} onClick={()=>void updateStatus(member)}>{member.status==='active'?'暂停':'恢复'}</button><button disabled={busyId===member.id} onClick={()=>void grantMembership(member,1)}>+1 天</button><button disabled={busyId===member.id} onClick={()=>void grantMembership(member,31)}>+31 天</button><button disabled={busyId===member.id} onClick={()=>void issueReset(member)}>重置码</button></>}</span></div>)}</div></section></div>;
 }
 
 function HomeView({onNavigate,onOpenZijin,stockCount,canInvite,referralCredits,onCopyInvite,inviteMessage}:{onNavigate:(view:string)=>void;onOpenZijin:()=>void;stockCount:number;canInvite:boolean;referralCredits:number;onCopyInvite:()=>void;inviteMessage:string}) {
@@ -3231,7 +3405,7 @@ function HomeView({onNavigate,onOpenZijin,stockCount,canInvite,referralCredits,o
       <header><div><span>MEMBERSHIP</span><h2>先免费使用，需要时再升级</h2></div><a href="/pricing">查看完整权益 →</a></header>
       <div>
         <article><span>免费版</span><b>¥0</b><small>长期使用 · 基础行情与候选观察</small></article>
-        <article className="recommended"><em>推荐</em><span>Smart-T 会员</span><b>¥19<small>/月</small></b><small>年付 ¥99 · 实时行情增强与提醒复盘</small></article>
+        <article className="recommended"><em>推荐</em><span>Smart-T 会员</span><b>¥99<small>/月</small></b><small>年卡 ¥298 · 购买激活码后自行兑换</small></article>
         <article><span>24小时体验票</span><b>¥4.9</b><small>完整体验一个交易日 · 不自动续费</small></article>
       </div>
     </section>
