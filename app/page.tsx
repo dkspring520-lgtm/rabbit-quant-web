@@ -22,8 +22,19 @@ type InitialAuth = {
   accountMembership: Membership | null;
 };
 
+function RabbitLoading() {
+  return (
+    <main className="auth-loading" aria-busy="true" aria-live="polite" role="status">
+      <div style={{ display: "grid", justifyItems: "center", gap: 14 }}>
+        <Image src="/rabbit-logo-compact.png" alt="双兔助手 做T神器" width={48} height={48} priority />
+        <span style={{ color: "var(--muted)", fontSize: 11 }}>正在进入双兔助手…</span>
+      </div>
+    </main>
+  );
+}
+
 const PublicLanding = dynamic(() => import("./public-landing"), {
-  loading: () => <main className="public-site public-site-loading" aria-busy="true" />,
+  loading: () => <RabbitLoading />,
 });
 
 type AuthViewProps = {
@@ -43,12 +54,12 @@ type AuthenticatedHomeProps = {
 
 const AuthView = dynamic<AuthViewProps>(
   () => import("./authenticated-app").then(module => module.AuthView),
-  { loading: () => <main className="auth-loading" aria-busy="true" /> },
+  { loading: () => <RabbitLoading /> },
 );
 
 const AuthenticatedHome = dynamic<AuthenticatedHomeProps>(
   () => import("./authenticated-app").then(module => module.default),
-  { loading: () => <main className="auth-loading" aria-busy="true" /> },
+  { loading: () => <RabbitLoading /> },
 );
 
 function readTheme(): UiTheme {
@@ -113,7 +124,7 @@ export default function Home() {
     } catch {}
   };
 
-  if (!authReady) return <main className="auth-loading" aria-busy="true"><Image src="/rabbit-logo-compact.png" alt="双兔助手 做T神器" width={40} height={40} priority /></main>;
+  if (!authReady) return <RabbitLoading />;
   if (initialAuth) {
     return <AuthenticatedHome initialAuth={initialAuth} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { setInitialAuth(null); setAuthScreen("account"); }} />;
   }
