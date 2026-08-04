@@ -267,11 +267,13 @@ class SecondLevelSignalMachine:
         buy_book = obi is not None and obi >= .10 and (edge is None or edge >= 0)
         sell_book = obi is not None and obi <= -.10 and (edge is None or edge <= 0)
         buy_price_confirm = (
-            w10["lowPrice"] is not None and price >= w10["lowPrice"] + tick * 2
+            price is not None and w10["lowPrice"] is not None
+            and price >= w10["lowPrice"] + tick * 2
             and (book.get("micropriceEdgeBps") or 0) >= 0
         )
         sell_price_confirm = (
-            w10["highPrice"] is not None and price <= w10["highPrice"] - tick * 2
+            price is not None and w10["highPrice"] is not None
+            and price <= w10["highPrice"] - tick * 2
             and (book.get("micropriceEdgeBps") or 0) <= 0
         )
 
