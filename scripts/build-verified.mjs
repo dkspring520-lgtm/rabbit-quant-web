@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { projectRoot, resolveLocalExecutable, runSiteCommand } from "./sites-env.mjs";
 import { validateArtifact } from "./validate-artifact.mjs";
@@ -12,6 +13,16 @@ function parseDuration(value) {
 }
 
 const vinext = resolveLocalExecutable("vinext");
+
+async function removeObsoleteCompatibilityFlags() {
+  const wranglerPath = join(projectRoot, "dist", "server", "wrangler.json");
+  if (!existsSync(wranglerPath)) return;
+  const config = JSON.parse(await readFile(wranglerPath, "utf8"));
+  if (!("compatibility_flags" in config)) return;
+  delete config.compatibility_flags;
+  await writeFile(wranglerPath, `${JSON.stringify(config)}\n`, "utf8");
+}
+
 if (!existsSync(join(projectRoot, "node_modules", ".bin", process.platform === "win32" ? "vinext.cmd" : "vinext"))) {
   console.error("vinext is unavailable. Run npm run install:ci and wait for it to finish before building.");
   process.exitCode = 69;
@@ -24,6 +35,7 @@ if (!existsSync(join(projectRoot, "node_modules", ".bin", process.platform === "
   if (result.code !== 0) {
     process.exitCode = result.code;
   } else {
+    await removeObsoleteCompatibilityFlags();
     await validateArtifact();
   }
 }
