@@ -50,6 +50,7 @@ services:
       # failover implementation enabled in code, but do not rotate into nodes
       # that the provider has not granted to this account.
       L2_NATS_URLS: nats://quote5.base32.cn:4222
+      L2_SUBSCRIBE_TIMEOUT_SECONDS: "5"
       L2_SYMBOL: "601899"
       L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
       L2_FORWARD_PATH: /training-state/zijin-l2-forward.jsonl
