@@ -1,17 +1,8 @@
 export const dynamic = "force-dynamic";
 
-function runtimeEnv() {
-  return (
-    globalThis as typeof globalThis & {
-      process?: { env?: Record<string, string | undefined> };
-    }
-  ).process?.env;
-}
-
 export async function GET() {
-  const env = runtimeEnv();
-  const commit = env?.APP_COMMIT_SHA || "development";
-  const buildTime = env?.APP_BUILD_TIME || null;
+  const commit = process.env.NEXT_PUBLIC_APP_COMMIT_SHA || "development";
+  const buildTime = process.env.NEXT_PUBLIC_APP_BUILD_TIME || null;
 
   return Response.json(
     {
@@ -19,7 +10,7 @@ export async function GET() {
       commit,
       shortCommit: commit === "development" ? commit : commit.slice(0, 12),
       buildTime,
-      environment: env?.NODE_ENV || "development",
+      environment: process.env.NODE_ENV || "development",
     },
     {
       headers: {
