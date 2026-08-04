@@ -206,6 +206,29 @@ type ZijinShadowAB = {
   meta?:{source:"runtime"|"bundled";servedAt:string;stale:boolean};
 };
 
+type ZijinFactorLifecycle = {
+  schemaVersion:number;
+  registryVersion:string;
+  stock:{code:string;name:string};
+  updatedAt:string;
+  formalStrategy:{id:string;version:string;writeEnabled:boolean;factorWritesAllowed:boolean;note:string};
+  scheduler:{enabled:boolean;mode:string;timezone:string;window:string;runCommand:string;shadowOnly:boolean};
+  pools:{formal:string[];shadow:string[];observe:string[];rejected:string[];retired:string[]};
+  factors:Array<{
+    id:string;version:string;displayName:string;scope:string;pool:string;status:string;executionMode:string;
+    enabled:boolean;affectsFormalStrategy:boolean;sendsAlerts:boolean;formula:string;
+    evidence?:{source?:string;researchStatus?:string;costModelPct?:number;note?:string};
+  }>;
+  daily:{
+    runId:string;marketDate:string|null;completedAt:string|null;status:string;mode:string;
+    summary?:{total?:number;formal?:number;shadow?:number;observe?:number;rejected?:number;insufficient?:number;promoted?:number;shadowEvents?:number};
+    factors?:Array<{id:string;decision:string;eligibleForFormal:boolean;shadowEvents:number;reason:string}>;
+    scheduler?:{window?:string;timezone?:string;nextAction?:string};
+  };
+  shadow:ZijinShadowAB|null;
+  meta?:{servedAt:string;formalStrategyWriteEnabled:boolean;registrySource:string;dailySource:string;shadowSource:string|null;dailyStale:boolean;shadowStale:boolean};
+};
+
 type RabbitProgressStatus = "running"|"completed"|"paused"|"error";
 
 function RabbitProgressMeter({
@@ -264,6 +287,37 @@ function FourRabbitAutomationDashboard({progress}:{progress:ZijinTrainingProgres
     <div className="zijin-auto-summary"><p><span>当前任务</span><b>{running?(automation.run.currentTask||automation.scheduler.reason):health.detail}</b></p><p><span>调度方式</span><b>数据或实验协议变化后运行</b></p><p><span>最近心跳</span><b>{timeLabel(automation.scheduler.heartbeatAt)}<small>{ageLabel}</small></b></p><p><span>本轮耗时</span><b>{automation.run.elapsedSeconds?`${automation.run.elapsedSeconds} 秒`:"尚未运行"}</b></p></div>
     <div className="zijin-auto-rabbits">{rabbits.map(rabbit=><article className={rabbit.status} key={rabbit.id}><div><i aria-hidden="true">兔</i><span><b>{rabbit.name}</b><small>{rabbit.scope}</small></span><em>{statusText(rabbit.status)}</em></div><p>{rabbit.task}</p><footer><span>{rabbit.completed}/{rabbit.total}</span><i><b style={{width:`${Math.max(0,Math.min(100,rabbit.total?rabbit.completed/rabbit.total*100:0))}%`}}/></i></footer></article>)}</div>
     <footer><span>最近结果：{automation.lastRun?`${automation.lastRun.qualifiedHypotheses??0} 个模型通过 · 账本 ${automation.lastRun.ledgerRecords??0} 条`:"尚无自动运行记录"}</span><span>2026 数据：{automation.input.sealed2026?"封存，不参与选参":"未封存"}</span><span>不会自动晋级：需盲测、影子盘和人工批准</span></footer>
+  </section>;
+}
+
+function ZijinFactorLifecyclePanel({lifecycle,connection}:{lifecycle:ZijinFactorLifecycle|null;connection:"loading"|"ok"|"error"}) {
+  if(!lifecycle)return <section className="zijin-factor-lifecycle unavailable"><header><div><span>RABBIT ALPHA LAB</span><h3>因子生命周期</h3><p>{connection==="error"?"主站暂时无法读取注册表；不会伪造因子状态。":"正在读取正式注册表和每日影子记录…"}</p></div><em>{connection==="error"?"接口异常":"读取中"}</em></header></section>;
+  const summary=lifecycle.daily.summary??{};
+  const statusLabel=(status:string)=>status==="shadow"?"影子运行":status==="observe"?"继续观察":status==="formal"?"正式池":status==="rejected"?"淘汰":"样本不足";
+  const dailyDate=lifecycle.daily.marketDate??"尚未运行";
+  return <section className="zijin-factor-lifecycle" aria-label="紫金矿业因子生命周期">
+    <header>
+      <div><span>RABBIT ALPHA LAB · FACTOR REGISTRY</span><h3>因子生命周期</h3><p>注册表已接入四兔训练；每日收盘后记录评估，候选只进入影子池。</p></div>
+      <em>正式写入关闭</em>
+    </header>
+    <div className="zijin-factor-summary">
+      <p><span>正式池</span><b>{lifecycle.pools.formal.length}</b><small>当前 V4 不改写</small></p>
+      <p><span>影子池</span><b>{lifecycle.pools.shadow.length}</b><small>观察 {summary.observe??0}</small></p>
+      <p><span>今日调度</span><b>{dailyDate}</b><small>{lifecycle.daily.status==="completed"?"已完成":"等待日任务"}</small></p>
+      <p><span>影子事件</span><b>{summary.shadowEvents??lifecycle.shadow?.integrity.eventCount??0}</b><small>只追加记录</small></p>
+    </div>
+    <div className="zijin-factor-cards">
+      {lifecycle.factors.map(factor=>{
+        const daily=lifecycle.daily.factors?.find(item=>item.id===factor.id);
+        return <article key={factor.id} className={factor.pool==="formal"?"formal":"shadow"}>
+          <div><span>{factor.displayName}</span><em>{statusLabel(factor.status)} · v{factor.version}</em></div>
+          <p><span>{factor.scope==="zijin"?"紫金专属":"A股通用"}</span><b>{factor.executionMode==="observe-only"?"只观察":"影子成交"}</b></p>
+          <p><span>研究结论</span><b>{factor.evidence?.researchStatus==="negative-after-cost"?"扣费后未晋级":"等待样本"}</b></p>
+          <small>{daily?.reason??factor.evidence?.note??"尚未形成正式晋级证据。"}</small>
+        </article>;
+      })}
+    </div>
+    <footer><span>版本 {lifecycle.registryVersion} · 调度 {lifecycle.scheduler.window} · {lifecycle.meta?.dailySource==="runtime"?"服务器每日记录":"内置审计快照"}</span><b>下一步：连续影子运行后人工评审，不自动进入 V4</b></footer>
   </section>;
 }
 
@@ -3661,6 +3715,8 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
   const [zijinTrainingFetchedAt,setZijinTrainingFetchedAt]=useState<string|null>(null);
   const [zijinShadow,setZijinShadow]=useState<ZijinShadowAB|null>(null);
   const [zijinShadowConnection,setZijinShadowConnection]=useState<"loading"|"ok"|"error">("loading");
+  const [zijinFactorLifecycle,setZijinFactorLifecycle]=useState<ZijinFactorLifecycle|null>(null);
+  const [zijinFactorLifecycleConnection,setZijinFactorLifecycleConnection]=useState<"loading"|"ok"|"error">("loading");
   const [zijinL2,setZijinL2]=useState<ZijinL2State|null>(null);
   const [researchExpanded,setResearchExpanded]=useState(false);
   useEffect(()=>{
@@ -3733,6 +3789,35 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
         }
       }catch{
         if(active)setZijinShadowConnection("error");
+      }
+      if(active)timer=window.setTimeout(()=>void load(),30_000);
+    };
+    void load();
+    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
+  },[stock.code,researchExpanded]);
+  useEffect(()=>{
+    if(stock.code!=="601899"){
+      const resetTimer=window.setTimeout(()=>{setZijinFactorLifecycle(null);setZijinFactorLifecycleConnection("loading");},0);
+      return()=>window.clearTimeout(resetTimer);
+    }
+    if(!researchExpanded)return;
+    let active=true;
+    let timer:number|undefined;
+    const load=async()=>{
+      if(document.visibilityState!=="visible"){
+        if(active)timer=window.setTimeout(()=>void load(),30_000);
+        return;
+      }
+      try{
+        const response=await fetch("/api/research/zijin-factor-lifecycle?t="+Date.now(),{cache:"no-store"});
+        if(!response.ok)throw new Error("HTTP "+response.status);
+        const payload=await response.json() as ZijinFactorLifecycle;
+        if(active&&payload.stock?.code==="601899"){
+          setZijinFactorLifecycle(payload);
+          setZijinFactorLifecycleConnection("ok");
+        }
+      }catch{
+        if(active)setZijinFactorLifecycleConnection("error");
       }
       if(active)timer=window.setTimeout(()=>void load(),30_000);
     };
@@ -3894,6 +3979,7 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
         stages={['整理数据','因果训练','样本外验证','最终盲测','人工评审']}
       />
       {zijinTrainingProgress&&<FourRabbitAutomationDashboard progress={zijinTrainingProgress}/>}
+      <ZijinFactorLifecyclePanel lifecycle={zijinFactorLifecycle} connection={zijinFactorLifecycleConnection}/>
       <details className={`zijin-shadow-ab ${zijinShadow?.status??"loading"}`} open>
         <summary><span><b>第10–16轮 · 紫金真实前瞻观察</b><small>第16轮新增沪金、沪铜、有色ETF、黄金ETF和美元人民币，按商品与权益传导分组形成共识；只累计登记后的新样本，不回填历史、不影响 V4</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
         {zijinShadow?<div className="zijin-shadow-body">

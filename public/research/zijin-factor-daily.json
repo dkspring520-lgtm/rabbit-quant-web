@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "runId": "zijin-factor-daily-not-run",
+  "marketDate": null,
+  "scheduledAt": null,
+  "completedAt": null,
+  "status": "pending",
+  "mode": "shadow-only",
+  "registryVersion": "2026.08.04",
+  "summary": {
+    "total": 2,
+    "formal": 0,
+    "shadow": 2,
+    "observe": 0,
+    "rejected": 0,
+    "insufficient": 2,
+    "promoted": 0,
+    "shadowEvents": 0
+  },
+  "factors": [],
+  "scheduler": {
+    "window": "15:20-16:00",
+    "timezone": "Asia/Shanghai",
+    "nextAction": "等待收盘后第一次每日调度。"
+  },
+  "integrity": {
+    "sourceShadowState": "bundled",
+    "shadowEventCount": 0,
+    "formalStrategyWriteEnabled": false
+  }
+}

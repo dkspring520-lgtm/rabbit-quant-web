@@ -119,6 +119,24 @@ services:
       retries: 3
       start_period: 120s
     stop_grace_period: 20s
+  factor-daily:
+    image: ${RABBIT_QUANT_TRAINER_IMAGE:-rabbit-quant-web-trainer}
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    container_name: rabbit-quant-zijin-factor-daily
+    entrypoint: ["node"]
+    command: ["scripts/zijin-factor-daily.mjs", "--daemon"]
+    restart: unless-stopped
+    environment:
+      ZIJIN_FACTOR_REGISTRY_PATH: /training-state/zijin-factor-registry.json
+      ZIJIN_FACTOR_DAILY_STATE_PATH: /training-state/zijin-factor-daily.json
+      ZIJIN_FACTOR_DAILY_LEDGER_PATH: /training-runtime/factors/zijin-factor-daily.jsonl
+      ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
+      ZIJIN_FACTOR_DAILY_POLL_MS: "60000"
+    volumes:
+      - /opt/rabbit-quant-state:/training-state
+      - /opt/rabbit-quant-training-runtime:/training-runtime
   shadow:
     image: ${RABBIT_QUANT_WEB_IMAGE:-rabbit-quant-web-web}
     build:
