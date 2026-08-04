@@ -666,8 +666,41 @@ if [[ -z "$previous_web_image" || -z "$previous_trainer_image" || -z "$previous_
   exit 1
 fi
 
-compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "$previous_l2_image" "${previous_sha:-development}" "rollback" "$active_origin" l2 trainer factor-daily control shadow l2-audit
-if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha" "$active_slot" 0 1 1 1 1 1 1; then
+rollback_available_services="$(docker compose \
+  --project-name "$COMPOSE_PROJECT" \
+  --project-directory "$REPO_DIR" \
+  -f "$rollback_compose" \
+  config --services 2>/dev/null || true)"
+rollback_services=()
+rollback_require_l2_audit=0
+rollback_require_trainer=0
+rollback_require_l2=0
+rollback_require_control=0
+rollback_require_shadow=0
+rollback_require_factor_daily=0
+for rollback_service in l2 trainer factor-daily control shadow l2-audit; do
+  if printf '%s\n' "$rollback_available_services" | grep -Fxq "$rollback_service"; then
+    rollback_services+=("$rollback_service")
+    case "$rollback_service" in
+      l2-audit) rollback_require_l2_audit=1 ;;
+      trainer) rollback_require_trainer=1 ;;
+      l2) rollback_require_l2=1 ;;
+      control) rollback_require_control=1 ;;
+      shadow) rollback_require_shadow=1 ;;
+      factor-daily) rollback_require_factor_daily=1 ;;
+    esac
+  else
+    log "回滚 Compose 未定义服务 $rollback_service，跳过。"
+  fi
+done
+if (( ${#rollback_services[@]} == 0 )); then
+  log "错误：回滚 Compose 没有可恢复的支持服务。"
+  record_result "failed" "回滚 Compose 缺少支持服务"
+  exit 1
+fi
+
+compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "$previous_l2_image" "${previous_sha:-development}" "rollback" "$active_origin" "${rollback_services[@]}"
+if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha" "$active_slot" "$rollback_require_l2_audit" "$rollback_require_trainer" "$rollback_require_l2" "$rollback_require_control" "$rollback_require_shadow" "$rollback_require_factor_daily"; then
   log "已恢复旧版本 ${previous_sha:0:12}。"
   record_result "rolled_back" "新版本不健康，旧版本已恢复"
 else
