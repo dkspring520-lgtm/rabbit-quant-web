@@ -16,7 +16,7 @@ import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { evaluateStockAgent, STOCK_AGENTS } from "@/lib/stock-agent-router.mjs";
 import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
-import { buildZijinReplayCandidates } from "@/lib/zijin-replay-candidates.mjs";
+import { mergeZijinReplayObservations } from "@/lib/zijin-replay-candidates.mjs";
 import { buildZijinL2CausalReplayObservations, mergeZijinL2ReplayMinutes } from "@/lib/zijin-l2-causal-replay.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
 import { compactChartObservations, compactRepairChartMarkers, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
@@ -421,9 +421,9 @@ function addHistoricalTimeVolumeBaseline(data:MarketData, session:IntradaySessio
   })};
 }
 
-function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinute[], observations:ReplayObservation[]) {
+function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinute[], observations:ReplayObservation[], repairObservations:ReplayObservation[] = []) {
   return code === "601899"
-    ? buildZijinReplayCandidates(minutes, observations) as ReplayObservation[]
+    ? mergeZijinReplayObservations(observations, repairObservations) as ReplayObservation[]
     : buildCausalReferencePoints(minutes, observations) as ReplayObservation[];
 }
 
@@ -437,7 +437,8 @@ function observationConfirmationLabel(observation: ReplayObservation) {
     "反弹参考":"反弹确认",
     "回落参考":"回落确认",
   };
-  return clearerLabels[rawLabel]??rawLabel;
+  const label=clearerLabels[rawLabel]??rawLabel;
+  return observation.direction==="正T"&&label==="反弹观察"&&observation.time<="1000"?"修复观察":label;
 }
 
 function observationDirectionNote(observation: ReplayObservation) {
@@ -1506,17 +1507,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>(isZijinStock?buildZijinL2CausalReplayObservations(minutePoints):[]) as ReplayObservation[],
     [isZijinStock,minutePoints],
   );
-  const currentObservations=useMemo(()=>{
-    const merged=[...((liveEngine.observations ?? []) as ReplayObservation[]),...zijinRepairHistory];
-    const deduped=new Map<string,ReplayObservation>();
-    for(const observation of merged){
-      const key=observation.candidateKey
-        ? `candidate:${observation.candidateKey}`
-        : `${observation.time}:${observation.direction}:${observation.confirmationLabel??observation.reason}`;
-      deduped.set(key,observation);
-    }
-    return [...deduped.values()].sort((left,right)=>left.time.localeCompare(right.time));
-  },[liveEngine.observations,zijinRepairHistory]);
+  const currentObservations=useMemo(
+    ()=>buildReplayChartObservations(stock?.code,minutePoints,(liveEngine.observations ?? []) as ReplayObservation[],zijinRepairHistory),
+    [stock?.code,minutePoints,liveEngine.observations,zijinRepairHistory],
+  );
   const latestReverseTObservation=useMemo(
     ()=>[...currentObservations].reverse().find(observation=>observation.direction==="反T")??null,
     [currentObservations],
@@ -1645,7 +1639,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
       const rawLabel=observationConfirmationLabel(observation)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
-      const currentLabel=!isSell&&rawLabel==="反弹观察"&&observation.time<="1000"?"修复观察":rawLabel;
+      const currentLabel=rawLabel;
       const labelWidth=currentLabel.length*8+14;
       // Keep every causal point, but merge the label of observations that repeat
       // in the same direction within five minutes. The latest representative
@@ -4566,7 +4560,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       setResult(calculated);
       setBatch(null);
       const candidateCount=calculated.diagnostics?.candidates ?? 0;
-      const observationCount=buildReplayChartObservations(data.quote.code,data.minutes ?? [],calculated.observations ?? []).length+strictL2.observations.length;
+      const observationCount=buildReplayChartObservations(data.quote.code,data.minutes ?? [],calculated.observations ?? [],strictL2.observations).length;
       setRunStatus(calculated.trades
         ? `全日回放完成：形成 ${calculated.trades} 个闭环，净收益 ${money(calculated.net)}`
         : `全日回放完成：展示 ${observationCount} 个候补观察点，出现 ${candidateCount} 次候选判定，0 个通过正式过滤`);
@@ -4836,10 +4830,8 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const visibleL2ReplayMarkers=compactRepairChartMarkers(l2Replay.observations,40) as ReplayObservation[];
   const visibleBacktestObservations=result
     ? [
-        ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? []),30) as ReplayObservation[],
-        ...visibleL2ReplayMarkers,
-      ].filter((observation,index,rows)=>rows.findIndex(row=>row.time===observation.time&&row.confirmationLabel===observation.confirmationLabel)===index)
-        .sort((left,right)=>left.time.localeCompare(right.time))
+        ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? [],l2Replay.observations),30) as ReplayObservation[],
+      ]
     : [];
   const cycles = (() => {
     const paired: { first: ReplayAction; second: ReplayAction }[] = [];
