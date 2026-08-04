@@ -187,6 +187,18 @@ container_is_healthy() {
   [[ "$state" == "running" && ( "$health" == "healthy" || "$health" == "none" ) ]]
 }
 
+wait_for_container_health() {
+  local container="$1"
+  local deadline=$((SECONDS + HEALTH_TIMEOUT))
+  while (( SECONDS < deadline )); do
+    if container_is_healthy "$container"; then
+      return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
+
 slot_port() {
   [[ "$1" == "green" ]] && printf '3001' || printf '3000'
 }
@@ -629,9 +641,29 @@ if (( switch_failed == 0 )); then
   fi
   if (( switch_failed == 0 )) && (( ${#support_services[@]} > 0 )); then
     current_stage="update changed support services"
-    if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$web_runtime_sha" "$build_time" "$candidate_origin" "${support_services[@]}"; then
-      log "Changed support services failed to update; traffic will be restored to the old Web."
-      switch_failed=1
+    if (( l2_service_needed == 1 )); then
+      current_stage="start L2 collector"
+      if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$web_runtime_sha" "$build_time" "$candidate_origin" l2; then
+        log "L2 collector failed to start; traffic will be restored to the old Web."
+        switch_failed=1
+      elif ! wait_for_container_health "$L2_CONTAINER"; then
+        log "L2 collector did not become healthy within ${HEALTH_TIMEOUT}s; traffic will be restored to the old Web."
+        switch_failed=1
+      fi
+    fi
+
+    if (( switch_failed == 0 )); then
+      remaining_support_services=()
+      for support_service in "${support_services[@]}"; do
+        [[ "$support_service" == "l2" ]] && continue
+        remaining_support_services+=("$support_service")
+      done
+      if (( ${#remaining_support_services[@]} > 0 )) && ! compose_up \
+        "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$web_runtime_sha" "$build_time" "$candidate_origin" \
+        "${remaining_support_services[@]}"; then
+        log "Changed support services failed to update; traffic will be restored to the old Web."
+        switch_failed=1
+      fi
     fi
   fi
 fi
