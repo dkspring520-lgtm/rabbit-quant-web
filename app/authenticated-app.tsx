@@ -229,6 +229,90 @@ type ZijinFactorLifecycle = {
   meta?:{servedAt:string;formalStrategyWriteEnabled:boolean;registrySource:string;dailySource:string;shadowSource:string|null;dailyStale:boolean;shadowStale:boolean};
 };
 
+type ZijinFactorGraphNode = {
+  id:string;
+  label:string;
+  group:"source"|"engine"|"factor"|"shadow"|"formal";
+  x:number;
+  y:number;
+  detail:string;
+  factorId?:string;
+};
+type ZijinFactorGraphEdge = { from:string; to:string };
+
+function buildZijinFactorGraph(lifecycle:ZijinFactorLifecycle) {
+  const nodes:ZijinFactorGraphNode[]=[
+    {id:"market-data",label:"MARKET DATA",group:"source",x:72,y:82,detail:"1m quotes / L2 / replay"},
+    {id:"basic-factors",label:"BASIC FACTORS",group:"source",x:212,y:150,detail:"VWAP / volume / momentum / relative strength"},
+    {id:"alpha-lab",label:"ALPHA LAB",group:"engine",x:360,y:78,detail:"candidate generation + rolling OOS validation"},
+  ];
+  const factorStep=lifecycle.factors.length>1?104/(lifecycle.factors.length-1):0;
+  lifecycle.factors.forEach((factor,index)=>{
+    const shortLabel=factor.displayName.length>18?`${factor.displayName.slice(0,18)}...`:factor.displayName;
+    nodes.push({
+      id:`factor-${factor.id}`,
+      factorId:factor.id,
+      label:shortLabel,
+      group:"factor",
+      x:500,
+      y:lifecycle.factors.length>1?60+index*factorStep:112,
+      detail:`${factor.scope} / v${factor.version} / ${factor.status}`,
+    });
+  });
+  nodes.push(
+    {id:"shadow-pool",label:"SHADOW POOL",group:"shadow",x:625,y:150,detail:"observe only - no formal writes"},
+    {id:"formal-v4",label:"FORMAL V4",group:"formal",x:732,y:78,detail:`formal pool: ${lifecycle.pools.formal.length}`},
+  );
+  const edges:ZijinFactorGraphEdge[]=[
+    {from:"market-data",to:"basic-factors"},
+    {from:"basic-factors",to:"alpha-lab"},
+    ...lifecycle.factors.flatMap(factor=>[
+      {from:"alpha-lab",to:`factor-${factor.id}`},
+      {from:`factor-${factor.id}`,to:"shadow-pool"},
+    ]),
+    {from:"shadow-pool",to:"formal-v4"},
+  ];
+  return {nodes,edges};
+}
+
+function ZijinFactorGraph({lifecycle}:{lifecycle:ZijinFactorLifecycle}) {
+  const graph=useMemo(()=>buildZijinFactorGraph(lifecycle),[lifecycle]);
+  const [selectedId,setSelectedId]=useState("alpha-lab");
+  const selectedNode=graph.nodes.find(node=>node.id===selectedId)??graph.nodes[2]??graph.nodes[0];
+  const selectNode=(id:string)=>setSelectedId(id);
+  return <div className="zijin-factor-graph" aria-label="Rabbit Alpha Lab factor knowledge graph">
+    <header><span>FACTOR KNOWLEDGE GRAPH</span><em>click a node to inspect</em></header>
+    <div className="zijin-factor-graph-shell">
+      <svg viewBox="0 0 760 220" role="img" aria-label="Factor data flow from market data to the formal model">
+        {graph.edges.map(edge=>{
+          const from=graph.nodes.find(node=>node.id===edge.from);
+          const to=graph.nodes.find(node=>node.id===edge.to);
+          if(!from||!to)return null;
+          const active=selectedNode?.id===from.id||selectedNode?.id===to.id;
+          return <line key={`${edge.from}-${edge.to}`} className={`zijin-factor-graph-edge${active?" active":""}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y}/>;
+        })}
+        {graph.nodes.map(node=><g
+          key={node.id}
+          className={`zijin-factor-graph-node ${node.group}${selectedNode?.id===node.id?" is-selected":""}`}
+          role="button"
+          tabIndex={0}
+          aria-label={`${node.label}: ${node.detail}`}
+          onClick={()=>selectNode(node.id)}
+          onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();selectNode(node.id);}}}
+        >
+          <circle cx={node.x} cy={node.y} r={node.group==="engine"?18:node.group==="factor"?13:15}/>
+          <text x={node.x} y={node.y+30} textAnchor="middle">{node.label}</text>
+          <text className="sub" x={node.x} y={node.y+40} textAnchor="middle">{node.group}</text>
+        </g>)}
+      </svg>
+    </div>
+    {selectedNode&&<p className="zijin-factor-graph-detail"><strong>{selectedNode.label}</strong><span>{selectedNode.detail}</span></p>}
+    <div className="zijin-factor-graph-legend" aria-label="Graph legend">
+      <span><i className="source"/>data</span><span><i className="engine"/>research</span><span><i className="factor"/>candidate</span><span><i className="shadow"/>shadow</span><span><i className="formal"/>formal</span>
+    </div>
+  </div>;
+}
+
 type RabbitProgressStatus = "running"|"completed"|"paused"|"error";
 
 function RabbitProgressMeter({
@@ -306,6 +390,7 @@ function ZijinFactorLifecyclePanel({lifecycle,connection}:{lifecycle:ZijinFactor
       <p><span>今日调度</span><b>{dailyDate}</b><small>{lifecycle.daily.status==="completed"?"已完成":"等待日任务"}</small></p>
       <p><span>影子事件</span><b>{summary.shadowEvents??lifecycle.shadow?.integrity.eventCount??0}</b><small>只追加记录</small></p>
     </div>
+    <ZijinFactorGraph lifecycle={lifecycle}/>
     <div className="zijin-factor-cards">
       {lifecycle.factors.map(factor=>{
         const daily=lifecycle.daily.factors?.find(item=>item.id===factor.id);
