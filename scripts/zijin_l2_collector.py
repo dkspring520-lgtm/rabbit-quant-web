@@ -178,6 +178,7 @@ class Collector:
             "minimum_gross_spread_yuan": float(os.getenv("L2_FORWARD_MIN_GROSS_SPREAD_YUAN", "0.10")),
         }
         self.stale_seconds = float(os.getenv("L2_STALE_SECONDS", "8"))
+        self.subscribe_timeout = float(os.getenv("L2_SUBSCRIBE_TIMEOUT_SECONDS", "5"))
         self.big_order = float(os.getenv("L2_BIG_ORDER_NOTIONAL", "200000"))
         # The UI reads the atomically-published state file.  Keep this short enough
         # for an intraday monitor, without attempting per-packet filesystem writes.
@@ -800,13 +801,24 @@ class Collector:
                         ),
                         timeout=5,
                     )
-                    self.connected = True
                     self.authorization_error = False
                     self.failover_reason = None
                     connected_at = time.time()
-                    await connection.subscribe(f"stk.l2.{self.symbol}", cb=self.on_snapshot)
-                    await connection.subscribe(f"stk.trans.{self.symbol}", cb=self.on_transaction)
-                    await connection.subscribe(f"stk.order.{self.symbol}", cb=self.on_order)
+                    # A TCP connection can succeed while the first subscription
+                    # is still waiting on a broken NATS socket. Bound every
+                    # readiness step so the supervisor can rotate/restart the
+                    # collector instead of freezing its heartbeat forever.
+                    for subject, callback in (
+                        (f"stk.l2.{self.symbol}", self.on_snapshot),
+                        (f"stk.trans.{self.symbol}", self.on_transaction),
+                        (f"stk.order.{self.symbol}", self.on_order),
+                    ):
+                        await asyncio.wait_for(
+                            connection.subscribe(subject, cb=callback),
+                            timeout=self.subscribe_timeout,
+                        )
+                    await asyncio.wait_for(connection.flush(), timeout=self.subscribe_timeout)
+                    self.connected = True
                     while not connection.is_closed:
                         await asyncio.sleep(0.5)
                         if writer.done():
