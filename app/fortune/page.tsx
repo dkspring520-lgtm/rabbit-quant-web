@@ -247,6 +247,13 @@ export default function FortunePage(){
   const zodiac=zodiacFor(listingDate);
   const astroTone=zodiac[1]==="火"?"倾向快速启动与较大波动":zodiac[1]==="土"?"倾向重视支撑与趋势确认":zodiac[1]==="风"?"倾向受消息和市场预期推动":"倾向受资金流动与市场情绪影响";
   const spokenReport=`小兔为你解签。${name||code}，${analysis.upper[0]}上${analysis.lower[0]}下，${lineNames[analysis.moving]}动。未来走势判断：${futureTitle}。${futurePath} 上行观察位${analysis.resistance.toFixed(2)}元，下行警戒位${analysis.support.toFixed(2)}元。卦象仅供文化娱乐，走势判断不构成投资建议。`;
+  const speak=()=>{
+    if(typeof window==="undefined"||!("speechSynthesis" in window)){setShareMessage("当前浏览器不支持语音播报");return}
+    window.speechSynthesis.cancel();
+    const utterance=new SpeechSynthesisUtterance(spokenReport);
+    utterance.lang="zh-CN";utterance.rate=.95;utterance.pitch=1;
+    window.speechSynthesis.speak(utterance);
+  };
   const shareCopy=`${name||code}（${code}）股票推演签\n未来 ${horizon} 个交易日：${trend} · ${analysis.score}/100\n${futureTitle}\n上行确认 ¥${analysis.resistance.toFixed(2)}｜下行警戒 ¥${analysis.support.toFixed(2)}\n子平取象：${ziPing.label} · ${ziPing.detail}\n卦象：${analysis.upper[0]}上${analysis.lower[0]}下，${lineNames[analysis.moving]}动\n#股票推演 #传统文化 #行情观察\n仅供文化娱乐，不构成投资建议。`;
   const generateShareCard=async()=>{
     setShareBusy(true);setShareMessage("");

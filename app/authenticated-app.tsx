@@ -1438,7 +1438,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       slippageMode:"percent",
       forceCloseTime:"1450",
       profile:liveStrategyExperiment.profile ?? profile,
-      volatilityMode:"causal-hybrid",
+      volatilityMode:liveStrategyExperiment.volatilityMode,
       previousClose:activeQuote?.previousClose ?? null,
       similarityArchive,
       randomValue:0,
@@ -1474,6 +1474,29 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       : null;
   },[latestReverseTObservation,minutePoints]);
   const reverseTDisplayObservation=freshReverseTObservation??latestReverseTObservation;
+  // Keep the live card in sync with the replay action vocabulary. Previously a
+  // reverse-T observation was rendered as the generic "最近观察", so a formal
+  // reverse-T action visible in backtest had no matching label on the desk.
+  const latestReverseTAction=useMemo(
+    ()=>[...liveEngine.actions].reverse().find(action=>action.direction==="反T")??null,
+    [liveEngine.actions],
+  );
+  const freshReverseTAction=useMemo(()=>{
+    const latestTime=minutePoints.at(-1)?.time;
+    return latestTime&&latestReverseTAction&&isRecentCausalEvent(latestTime,latestReverseTAction.time,3)
+      ? latestReverseTAction
+      : null;
+  },[latestReverseTAction,minutePoints]);
+  const reverseTSignalLabel=freshReverseTAction
+    ? formalExecutionLabel("反T",formalActionSide(freshReverseTAction.side))
+    : reverseTDisplayObservation
+      ? observationConfirmationLabel(reverseTDisplayObservation)
+      : "暂无候补";
+  const reverseTSignalDetail=freshReverseTAction
+    ? `${formatTime(freshReverseTAction.time)} · ¥${freshReverseTAction.price.toFixed(2)} · 正式信号`
+    : reverseTDisplayObservation
+      ? `${formatTime(reverseTDisplayObservation.time)} · ¥${reverseTDisplayObservation.price?.toFixed(2)??"--"}${freshReverseTObservation?" · 候补确认":" · 最近观察"}`
+      : "等待高位偏离与回落确认";
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(
@@ -2964,10 +2987,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                     ?`🟠 反T${freshReverseTObservation.stage==="candidate"?"候补":"观察"}`
                     :"🟡 等待信号"}</b>
             <small className="global-decision-summary">{signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
-            <div className={`global-decision-live-signal ${freshReverseTObservation?"active":"idle"}`} aria-label="实时反T信号">
+            <div className={`global-decision-live-signal ${freshReverseTAction||freshReverseTObservation?"active":"idle"}`} aria-label="实时反T信号">
               <span>实时反T</span>
-              <b>{reverseTDisplayObservation?(freshReverseTObservation?observationConfirmationLabel(freshReverseTObservation):"最近观察"):"暂无候补"}</b>
-              <small>{reverseTDisplayObservation?`${formatTime(reverseTDisplayObservation.time)} · ¥${reverseTDisplayObservation.price?.toFixed(2)??"--"}`:"等待高位偏离与回落确认"}</small>
+              <b>{reverseTSignalLabel}</b>
+              <small>{reverseTSignalDetail}</small>
             </div>
              <div className="decision-condition-grid" aria-label="全局决策条件进度" aria-valuemin={0} aria-valuemax={4} aria-valuenow={decisionModel.confirmed} role="progressbar">
                <div className="decision-condition-progress" aria-hidden="true"><i style={{width:`${Math.max(0,Math.min(4,decisionModel.confirmed))/4*100}%`}}/></div>
@@ -3149,7 +3172,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           {agentOpen&&<div className="agent-grid">{liveAgents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><Image src={agent.avatar} alt={`${agent.name} AI头像`} width={40} height={40}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>}
         </div>
       </section>
-      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} premiumEnabled={premiumEnabled} onOpenAccount={()=>setAccountOpen(true)} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
+      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} premiumEnabled={premiumEnabled} onOpenAccount={()=>setAccountOpen(true)} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} strategyExperiment={zijinExperimentMode} setStrategyExperiment={setZijinExperimentMode} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -4311,7 +4334,7 @@ function HoldingsView({position,stock,tradingDate,rows,onRowsChange}:{position:S
   </section>;
 }
 
-function BacktestView({ profile, setProfile, profitMode, setProfitMode, position, stock, stocks, activeStock, onSelectStock }: { profile: StrategyProfile; setProfile: (value: StrategyProfile) => void; profitMode:ProfitMode; setProfitMode:(value:ProfitMode)=>void; position:StockPosition; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void }) {
+function BacktestView({ profile, setProfile, profitMode, setProfitMode, position, stock, stocks, activeStock, onSelectStock, strategyExperiment, setStrategyExperiment }: { profile: StrategyProfile; setProfile: (value: StrategyProfile) => void; profitMode:ProfitMode; setProfitMode:(value:ProfitMode)=>void; position:StockPosition; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void; strategyExperiment:ZijinStrategyExperiment; setStrategyExperiment:(value:ZijinStrategyExperiment)=>void }) {
   const [capital, setCapital] = useState(200000);
   const [baseShares, setBaseShares] = useState(position.plannedBase);
   const [sellable, setSellable] = useState(position.sellable);
@@ -4338,7 +4361,6 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [batchFetchProgress, setBatchFetchProgress] = useState({ready:0,attempted:0});
   const [replayProgress, setReplayProgress] = useState({value:0,detail:"等待选择测试"});
   const [lastAction, setLastAction] = useState<"idle"|"single"|"multi"|"batch">("idle");
-  const [zijinReplayExperiment,setZijinReplayExperiment]=useState<ZijinStrategyExperiment>("closure-first");
   const [backtestConfigCollapsed,setBacktestConfigCollapsed]=useState(false);
   const batchRunSequence = useRef(0);
   const recentBatchCodes = useRef<string[]>([]);
@@ -4359,12 +4381,14 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   };
   const replay=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number}):BacktestResult=>{
     const code=data.quote.code??stock.code;
-    const experiment=resolveBacktestStrategyExperiment(code,zijinReplayExperiment);
+    const experiment=resolveBacktestStrategyExperiment(code,strategyExperiment);
     const profitOptions=smartTProfitModeOptions(code,profitMode) as ReplayProfitOptions;
+    const similarityArchive=buildHistoricalSimilarityArchive(data.intradaySessions ?? [],{asOfDate:data.sampleDate ?? null});
     return runSmartTReplay(data.minutes ?? [],{
       capital:account?.capital ?? capital,baseShares:account?.baseShares ?? baseShares,sellable:account?.sellable ?? sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,
       profile:experiment.profile ?? profile,
       previousClose:data.quote.previousClose ?? null,
+      similarityArchive,
       randomValue:0,
       ...profitOptions,
       profileOverrides:{...(profitOptions.profileOverrides??{}),...experiment.profileOverrides},
@@ -4511,7 +4535,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       const positive=cycleNets.filter(value=>value>0).reduce((sum,value)=>sum+value,0);
       const negative=Math.abs(cycleNets.filter(value=>value<0).reduce((sum,value)=>sum+value,0));
       const net=dayNets.reduce((sum,value)=>sum+value,0);
-      const experiment=resolveBacktestStrategyExperiment(stock.code,zijinReplayExperiment);
+      const experiment=resolveBacktestStrategyExperiment(stock.code,strategyExperiment);
       const report:MultiDayBacktestResult={
         code:stock.code,name:stock.name,modeLabel:experiment.label,requestedDays:multiDayCount,testedDays:results.length,
         firstDate:results.at(-1)?.date??"",lastDate:results[0]?.date??"",noTrade:results.filter(item=>item.result.trades===0).length,
@@ -4784,7 +4808,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           <small className="config-inline-help">首次运行会读取可用的完整交易日；随后可选择历史日期重新逐分钟回放。</small>
         </label>
         <label>V4 策略档位<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item as StrategyProfile)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；同一套 Smart-T 融合策略 V4，仅调整确认门槛与信号频率。</small></label>
-        <label>实验回测版本<div className="profile-picker experiment-picker">{zijinStrategyExperimentIds.map(id=>{const item=ZIJIN_STRATEGY_EXPERIMENTS[id];return <button type="button" className={`${zijinReplayExperiment===id?'active':''} ${item.experimental?'experimental':''}`} onClick={()=>setZijinReplayExperiment(id)} key={id}>{item.shortLabel}</button>})}</div><small className={`config-inline-help experiment-warning ${zijinReplayExperiment!=="formal-v4"?"active":""}`}>{zijinReplayExperiment==="formal-v4"?"正式 V4.1 基线。":`${ZIJIN_STRATEGY_EXPERIMENTS[zijinReplayExperiment].description} 复盘重点是明显错误、失败原因与因果退出，不以胜率作为调参目标。`}</small></label>
+        <label>实验回测版本<div className="profile-picker experiment-picker">{zijinStrategyExperimentIds.map(id=>{const item=ZIJIN_STRATEGY_EXPERIMENTS[id];return <button type="button" className={`${strategyExperiment===id?'active':''} ${item.experimental?'experimental':''}`} onClick={()=>setStrategyExperiment(id)} key={id}>{item.shortLabel}</button>})}</div><small className={`config-inline-help experiment-warning ${strategyExperiment!=="formal-v4"?"active":""}`}>{strategyExperiment==="formal-v4"?"正式 V4.1 基线。":`${ZIJIN_STRATEGY_EXPERIMENTS[strategyExperiment].description} 复盘重点是明显错误、失败原因与因果退出，不以胜率作为调参目标。`}</small></label>
         {stock.code==="601899"&&<label>紫金利润模式<div className="profile-picker profit-picker"><button type="button" className={profitMode==="standard"?'active':''} onClick={()=>setProfitMode("standard")}>标准价差</button><button type="button" className={profitMode==="zijin-small-spread"?'active':''} onClick={()=>setProfitMode("zijin-small-spread")}>小价差</button></div><small className="config-inline-help">小价差档要求每股至少 ¥0.10、扣费净利至少 ¥30；趋势、VWAP、量价和硬风控不放宽。</small></label>}
         <div className="broker-account-box">
           <div className="broker-account-head"><b>模拟证券账户</b><span>仅用于回测撮合，不连接真实券商</span></div>
@@ -4798,7 +4822,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}<span>→</span></button>
         <div className="multi-day-controls"><label>连续交易日<select value={multiDayCount} onChange={event=>setMultiDayCount(Number(event.target.value))} disabled={running}>{[10,20,60,100].map(value=><option value={value} key={value}>最近 {value} 日</option>)}</select></label><button type="button" onClick={()=>void runMultiDay()} disabled={running}>{runMode==='multi'?`正在连续回放 ${multiDayCount} 日…`:`连续回放最近 ${multiDayCount} 日`}</button></div>
-        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:`全A股随机10股 · ${zijinReplayExperiment==="formal-v4"?"正式":"闭环错误审计"}`}</button></div>
+        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:`全A股随机10股 · ${strategyExperiment==="formal-v4"?"正式":"闭环错误审计"}`}</button></div>
         <RabbitProgressMeter
           label={runMode==='batch'?'全 A 股随机批次测试':runMode==='multi'?`单股连续 ${multiDayCount} 日回测`:'单股完整交易日回测'}
           detail={replayProgress.detail}
