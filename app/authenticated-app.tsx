@@ -118,7 +118,7 @@ function tradeAlertGuide(alert:TradeAlertToast){
 }
 type MonitorScanLog = { id:string|number; code:string; name:string; marketDate:string; marketTime:string; price:number|null; result:string; reason:string; provider:string|null; eventKey:string|null; createdAt:string; deliveryStatus?:"stored"|"displayed"|"notified"|"failed"|null; deliveryChannel?:string|null; deliveredAt?:string|null; deliveryError?:string|null };
 type StockIdentityResult = { inputCode:string; inputName:string; code:string; name:string; status:"valid"|"corrected"|"unknown"; reason:string };
-type Membership = { active:boolean; expiresAt:string|null; referralCode:string|null; referralCredits:number; referralReviews:number; referralRewardDays:number };
+type Membership = { active:boolean; planId:MembershipPlanId|null; expiresAt:string|null; referralCode:string|null; referralCredits:number; referralReviews:number; referralRewardDays:number };
 type MemberRecord = { id:string; username:string; displayName:string; role:"admin"|"member"; status:"active"|"paused"; createdAt:string; lastLoginAt:string|null; monitorCount:number; alertCount:number; membership:Membership|null };
 type MembershipPlanId = "day"|"monthly"|"yearly";
 type IssuedMembershipCode = { code:string; planId:MembershipPlanId; planLabel:string; days:number; createdAt:string; expiresAt:string };
@@ -698,7 +698,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [accountRole, setAccountRole] = useState(initialAuth?.accountRole ?? "member");
   const [accountMembership,setAccountMembership]=useState<Membership|null>(initialAuth?.accountMembership ?? null);
   const [inviteMessage,setInviteMessage]=useState("");
-  const monitorLimit=watchlistLimitForRole(accountRole);
+  const monitorLimit=watchlistLimitForRole(accountRole,accountMembership?.active===true,accountMembership?.planId);
   const remoteSyncReady = useRef(false);
   const [remoteSyncEpoch,setRemoteSyncEpoch]=useState(0);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -2452,8 +2452,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         if(monitorResponse.ok){
           const remote=await monitorResponse.json();
           if(Array.isArray(remote.monitors)&&remote.monitors.length){
-            const allowedMonitors=enforceWatchlistLimit(remote.monitors,accountRole);
-            const list=enforceWatchlistLimit(prepareWatchlistForCurrentEntry(allowedMonitors.map((item:{code:string;name:string})=>({code:item.code,name:item.name,price:'--',change:'0.00%'}))),accountRole);
+            const allowedMonitors=enforceWatchlistLimit(remote.monitors,accountRole,accountMembership?.active===true,accountMembership?.planId);
+            const list=enforceWatchlistLimit(prepareWatchlistForCurrentEntry(allowedMonitors.map((item:{code:string;name:string})=>({code:item.code,name:item.name,price:'--',change:'0.00%'}))),accountRole,accountMembership?.active===true,accountMembership?.planId);
             const positions=Object.fromEntries(allowedMonitors.map((item:{code:string;position:StockPosition})=>[item.code,normalizeStockPosition(item.position??{},item.code)]));
             setStockList(list);setStockPositions(positions);
             localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list));
@@ -2463,7 +2463,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       }catch{}finally{if(!cancelled){remoteSyncReady.current=true;setRemoteSyncEpoch(value=>value+1)}}
     })();
     return()=>{cancelled=true};
-  },[localAuth,demoMode,accountName,accountRole]);
+  },[localAuth,demoMode,accountName,accountRole,accountMembership]);
   useEffect(()=>{
     if(!remoteSyncReady.current||!localAuth||demoMode||!accountName||!stockList.length)return;
     const timer=window.setTimeout(()=>{void Promise.all([
@@ -3248,7 +3248,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
 
       {accountOpen && <div className="account-overlay" role="dialog" aria-modal="true" aria-label="账户中心" onMouseDown={e=>{if(e.target===e.currentTarget)setAccountOpen(false)}}><div className="account-dialog">
         <div className="account-head"><div className="account-avatar">{accountName.slice(0,1).toUpperCase()}</div><div><span>{demoMode?'免注册演示已进入':'服务器账户已登录'}</span><h2>{accountName}</h2><p>{demoMode?'临时演示会话':accountRole==='admin'?'管理员账户':'会员账户 · 跨设备同步'}</p></div><button onClick={()=>setAccountOpen(false)} aria-label="关闭账户中心">×</button></div>
-        <div className="account-plan"><div><span>当前状态</span><b>{demoMode?'免注册演示':accountRole==='admin'?'运营管理员':accountMembership?.active?'内测会员':'内测权益已到期'}</b><small>{demoMode?'不跨设备同步，刷新后可能丢失':accountRole==='admin'?'管理员权益长期有效':accountMembership?.expiresAt?`有效至 ${membershipExpiry}`:'监控清单、持仓设置和提醒偏好已保存到服务器'}</small></div><em>{demoMode?'演示中':accountMembership?.active||accountRole==='admin'?'有效':'已到期'}</em></div>
+        <div className="account-plan"><div><span>当前状态</span><b>{demoMode?'免注册演示':accountRole==='admin'?'运营管理员':accountMembership?.active?(accountMembership.planId==='yearly'?'年 V 会员':accountMembership.planId==='day'?'测试天卡':'月卡'):'内测权益已到期'}</b><small>{demoMode?'不跨设备同步，刷新后可能丢失':accountRole==='admin'?'管理员权益长期有效':accountMembership?.expiresAt?`有效至 ${membershipExpiry}`:'监控清单、持仓设置和提醒偏好已保存到服务器'}</small></div><em>{demoMode?'演示中':accountMembership?.active||accountRole==='admin'?'有效':'已到期'}</em></div>
         <div className={`account-premium-features ${premiumEnabled?"enabled":"locked"}`}><div><span>高级会员能力</span><b>{premiumEnabled?"已全部开启":"购买会员后开启"}</b></div><ul><li>9:25盘前预判</li><li>L2精确价区间</li><li>提醒历史复盘</li><li>个人回放训练</li></ul><a href="/pricing">查看方案与收费标准 →</a></div>
         {!demoMode&&accountRole!=='admin'&&<MembershipRedeem onRedeemed={setAccountMembership}/>}
         {!demoMode&&accountRole!=='admin'&&accountMembership?.referralCode&&<div className="account-referral"><div><span>邀请好友</span><b>有效注册 1 人，+7 天权益</b><small>邀请码 {accountMembership.referralCode} · 已奖励 {accountMembership.referralCredits} 人{accountMembership.referralReviews?` · 待审核 ${accountMembership.referralReviews} 人`:''}</small></div><button onClick={()=>void copyReferralLink()}>复制邀请链接</button>{inviteMessage&&<em>{inviteMessage}</em>}</div>}
@@ -3259,7 +3259,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       </div></div>}
       {memberAdminOpen&&<MemberAdminView onClose={()=>setMemberAdminOpen(false)}/>}
       {alertLogOpen&&premiumEnabled&&<AlertLogView stocks={stockList} activeCode={stock.code} localHistory={alertHistory} onClose={()=>setAlertLogOpen(false)}/>}
-      {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
+      {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole,accountMembership?.active===true,accountMembership?.planId);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
 
       <footer className="trade-footer"><span><i className="online"/>策略研究工具 · 非交易级</span><ReleaseVersion/></footer>
     </main>
@@ -3475,7 +3475,7 @@ function MemberAdminView({onClose}:{onClose:()=>void}){
   useEffect(()=>{const timer=window.setTimeout(()=>void load(),0);return()=>window.clearTimeout(timer)},[]);
   const updateStatus=async(member:MemberRecord)=>{setBusyId(member.id);setError('');try{const response=await fetch(`/api/control/admin/members/${member.id}`,{method:'PATCH',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({status:member.status==='active'?'paused':'active'})});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'状态更新失败');await load()}catch(error){setError(error instanceof Error?error.message:'状态更新失败')}finally{setBusyId('')}};
   const issueReset=async(member:MemberRecord)=>{setBusyId(member.id);setError('');try{const response=await fetch(`/api/control/admin/members/${member.id}/reset`,{method:'POST',credentials:'include'});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'无法生成重置码');setResetInfo(payload)}catch(error){setError(error instanceof Error?error.message:'无法生成重置码')}finally{setBusyId('')}};
-  const grantMembership=async(member:MemberRecord,days:number)=>{setBusyId(member.id);setError('');try{const response=await fetch(`/api/control/admin/members/${member.id}/membership`,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({days})});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'权益发放失败');await load()}catch(error){setError(error instanceof Error?error.message:'权益发放失败')}finally{setBusyId('')}};
+  const grantMembership=async(member:MemberRecord,days:number,planId?:MembershipPlanId)=>{setBusyId(member.id);setError('');try{const response=await fetch(`/api/control/admin/members/${member.id}/membership`,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({days,planId})});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'权益发放失败');await load()}catch(error){setError(error instanceof Error?error.message:'权益发放失败')}finally{setBusyId('')}};
   const createCodes=async()=>{
     setCodeBusy(true);setError('');setCodeMessage('');setGeneratedCodes([]);
     try{

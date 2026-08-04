@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { membershipPlan } from "../lib/membership-plans.mjs";
+import { watchlistLimitForRole } from "../lib/watchlist-limits.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -138,6 +139,7 @@ export function createControlStore(databasePath, options = {}) {
     CREATE TABLE IF NOT EXISTS memberships (
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       referral_code TEXT NOT NULL UNIQUE,
+      plan_id TEXT NOT NULL DEFAULT 'monthly',
       expires_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -191,6 +193,19 @@ export function createControlStore(databasePath, options = {}) {
   for (const [name, sql] of alertMigrations) {
     if (!alertColumns.some(column => column.name === name)) db.exec(sql);
   }
+  const membershipColumns = db.prepare("PRAGMA table_info(memberships)").all();
+  const membershipPlanColumnAdded = !membershipColumns.some(column => column.name === "plan_id");
+  if (membershipPlanColumnAdded) {
+    db.exec("ALTER TABLE memberships ADD COLUMN plan_id TEXT NOT NULL DEFAULT 'monthly'");
+    const existingMemberships = db.prepare("SELECT user_id FROM memberships").all();
+    const latestGrant = db.prepare("SELECT days,reason FROM membership_grants WHERE user_id=? ORDER BY created_at DESC LIMIT 1");
+    const updatePlan = db.prepare("UPDATE memberships SET plan_id=? WHERE user_id=?");
+    for (const row of existingMemberships) {
+      const grant = latestGrant.get(row.user_id);
+      const inferredPlan = String(grant?.reason ?? "").includes(":yearly") || Number(grant?.days) >= 366 ? "yearly" : "monthly";
+      updatePlan.run(inferredPlan, row.user_id);
+    }
+  }
 
   const configuredAdmin = normalizeLogin(options.adminUsername ?? process.env.RABBIT_ADMIN_USER ?? "dkspring520@outlook.com");
 
@@ -205,6 +220,7 @@ export function createControlStore(databasePath, options = {}) {
     throw new Error("邀请码生成失败，请稍后重试");
   }
 
+  function normalizePlanId(value) { return membershipPlan(value)?.id ?? null; }
   function membershipRow(userId) { return db.prepare("SELECT * FROM memberships WHERE user_id=?").get(userId); }
   function membershipSummary(userId, role = "member") {
     const row = membershipRow(userId);
@@ -217,6 +233,7 @@ export function createControlStore(databasePath, options = {}) {
       FROM referrals WHERE inviter_id=?`).get(userId) || {};
     return {
       active,
+      planId: normalizePlanId(row?.plan_id),
       expiresAt,
       referralCode: row?.referral_code || null,
       referralCredits: Number(referral.credited_count || 0),
@@ -225,25 +242,28 @@ export function createControlStore(databasePath, options = {}) {
     };
   }
   function serializeUser(row) { return row ? publicUser(row, membershipSummary(row.id, row.role)) : null; }
-  function createMembership(userId, days, reason) {
+  function createMembership(userId, days, reason, planId = "monthly") {
     const createdAt = nowIso();
     const expiresAt = new Date(Date.now() + days * DAY).toISOString();
-    db.prepare("INSERT INTO memberships(user_id,referral_code,expires_at,updated_at) VALUES(?,?,?,?)")
-      .run(userId, referralCode(), expiresAt, createdAt);
+    const safePlanId = normalizePlanId(planId) ?? (Number(days) >= 366 ? "yearly" : "monthly");
+    db.prepare("INSERT INTO memberships(user_id,referral_code,plan_id,expires_at,updated_at) VALUES(?,?,?,?,?)")
+      .run(userId, referralCode(), safePlanId, expiresAt, createdAt);
     db.prepare("INSERT INTO membership_grants(user_id,days,reason,created_at) VALUES(?,?,?,?)")
       .run(userId, days, reason, createdAt);
   }
-  function grantMembership(userId, days, reason, referenceUserId = null) {
+  function grantMembership(userId, days, reason, referenceUserId = null, planId = null) {
     const safeDays = Math.max(1, Math.min(3650, Math.floor(Number(days) || 0)));
     const user = getUserById(userId);
     if (!user) throw Object.assign(new Error("会员不存在"), { status: 404 });
     const row = membershipRow(userId);
-    if (!row) createMembership(userId, safeDays, reason);
+    const requestedPlanId = normalizePlanId(planId);
+    if (!row) createMembership(userId, safeDays, reason, requestedPlanId);
     else {
       const current = Date.parse(row.expires_at);
       const base = Number.isFinite(current) && current > Date.now() ? current : Date.now();
       const expiresAt = new Date(base + safeDays * DAY).toISOString();
-      db.prepare("UPDATE memberships SET expires_at=?,updated_at=? WHERE user_id=?").run(expiresAt, nowIso(), userId);
+      const nextPlanId = requestedPlanId ?? normalizePlanId(row.plan_id) ?? (safeDays >= 366 ? "yearly" : "monthly");
+      db.prepare("UPDATE memberships SET plan_id=?,expires_at=?,updated_at=? WHERE user_id=?").run(nextPlanId, expiresAt, nowIso(), userId);
       db.prepare("INSERT INTO membership_grants(user_id,days,reason,reference_user_id,created_at) VALUES(?,?,?,?,?)")
         .run(userId, safeDays, reason, referenceUserId, nowIso());
     }
@@ -316,7 +336,7 @@ export function createControlStore(databasePath, options = {}) {
       const result = db.prepare("UPDATE membership_codes SET status='redeemed',redeemed_by=?,redeemed_at=? WHERE code_hash=? AND status='active'")
         .run(userId, redeemedAt, hash);
       if (Number(result.changes || 0) !== 1) throw Object.assign(new Error("激活码已被使用"), { status: 409 });
-      const membership = grantMembership(userId, row.days, `activation_code:${row.plan_id}`);
+      const membership = grantMembership(userId, row.days, `activation_code:${row.plan_id}`, null, row.plan_id);
       db.exec("COMMIT");
       return { planId: row.plan_id, planLabel: membershipPlan(row.plan_id)?.label || row.plan_id, days: Number(row.days), membership };
     } catch (error) {
@@ -489,7 +509,8 @@ export function createControlStore(databasePath, options = {}) {
       WHERE monitors.enabled=1 AND users.status='active'
       ORDER BY monitors.user_id ASC, monitors.sort_order ASC, monitors.updated_at DESC`).all().filter(row => {
       const count = perUserCount.get(row.user_id) ?? 0;
-      const limit = row.role === "admin" ? 30 : 5;
+      const membership = row.role === "admin" ? null : membershipSummary(row.user_id, row.role);
+      const limit = watchlistLimitForRole(row.role, membership?.active === true, membership?.planId);
       if (count >= limit) return false;
       perUserCount.set(row.user_id, count + 1);
       return true;
