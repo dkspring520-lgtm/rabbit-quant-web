@@ -150,8 +150,14 @@ classify_changed_path() {
       trainer_build_needed=1
       web_service_needed=1
       trainer_service_needed=1
+      web_support_services_needed=1
       ;;
-    app/*|components/*|hooks/*|styles/*|public/*|server/*|package.json|package-lock.json|Dockerfile.server|tsconfig.json|next.config.*|vite.config.*|postcss.config.*|tailwind.config.*)
+    server/*|Dockerfile.server)
+      web_build_needed=1
+      web_service_needed=1
+      web_support_services_needed=1
+      ;;
+    app/*|components/*|hooks/*|styles/*|public/*|package.json|package-lock.json|tsconfig.json|next.config.*|vite.config.*|postcss.config.*|tailwind.config.*)
       web_build_needed=1
       web_service_needed=1
       ;;
@@ -457,6 +463,7 @@ web_service_needed=0
 trainer_service_needed=0
 l2_service_needed=0
 compose_changed=0
+web_support_services_needed=0
 
 if [[ -z "$deployed_sha" ]] || ! git -C "$REPO_DIR" cat-file -e "$deployed_sha^{commit}" 2>/dev/null; then
   force_full_release=1
@@ -473,6 +480,7 @@ if (( force_full_release == 1 )); then
   web_service_needed=1
   trainer_service_needed=1
   l2_service_needed=1
+  web_support_services_needed=1
 else
   while IFS= read -r changed_path; do
     [[ -n "$changed_path" ]] || continue
@@ -486,6 +494,7 @@ if (( compose_changed == 1 )); then
   web_service_needed=1
   trainer_service_needed=1
   l2_service_needed=1
+  web_support_services_needed=1
 fi
 
 if [[ -z "$previous_web_image" ]] || ! docker image inspect "$previous_web_image" >/dev/null 2>&1; then
@@ -593,7 +602,7 @@ if (( web_service_needed == 1 )); then
   candidate_origin="http://${candidate_service}:3000"
   expected_web_sha="$web_runtime_sha"
 fi
-if (( web_service_needed == 1 )); then
+if (( web_service_needed == 1 && web_support_services_needed == 1 )); then
   append_unique_service control
   append_unique_service shadow
   append_unique_service l2-audit
