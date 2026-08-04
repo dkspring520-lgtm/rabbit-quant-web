@@ -784,7 +784,7 @@ function ReleaseVersion() {
   },[]);
   const shortCommit=!release?"检测中":release.shortCommit&&release.shortCommit!=="development"?release.shortCommit.slice(0,8):"本地";
   const title=release?.buildTime?`构建时间 ${new Date(release.buildTime).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai"})}`:"正在核对服务器版本";
-  return <span className="release-version" title={title}><b>版本 V4-{shortCommit}</b><span><a href="/terms">协议</a> · <a href="/privacy">隐私</a></span></span>;
+  return <span className="release-version" title={title}><b>版本 闭环-{shortCommit}</b><span><a href="/terms">协议</a> · <a href="/privacy">隐私</a></span></span>;
 }
 
 
@@ -2038,6 +2038,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       {label:isZijinStock?"L2确认":"量价确认",met:l2Confirmed},
     ];
   },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,isZijinStock,signalMode,zijinFundResponse.score,zijinRepair?.checks?.l2BuyRecovery]);
+  const decisionConditionsConfirmed=decisionConditions.reduce((count,item)=>count+(item.met?1:0),0);
   const rabbitTrackerMode=rabbitTrackerSignal
     ?"signal"
     :marketSession.phase==="lunch"
@@ -2883,13 +2884,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           >{(()=>{
             const quote=item.code===stock?.code?(activeQuote??marketQuotes[item.code]):marketQuotes[item.code];
             const radar=eventsByCode[item.code];
-            const change=quote?.changePercent == null ? item.change : `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`;
+            const quotePrice=Number(quote?.price);
+            const quoteAvailable=Number.isFinite(quotePrice)&&quotePrice>0;
+            const displayedPrice=quoteAvailable?quotePrice.toFixed(2):item.price;
+            const change=quoteAvailable&&Number.isFinite(quote?.changePercent)
+              ? `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`
+              : displayedPrice==="--"?"--":item.change;
             const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>
               :radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>
               :radar?<small className="ticker-event quiet">暂无新增</small>
               :eventRadarError?<small className="ticker-event pending">雷达待更新</small>
               :<small className="ticker-event pending" title="资讯雷达尚未返回结果，不代表没有新闻或买卖信号">{marketSession.live?"资讯扫描中":"资讯待更新"}</small>;
-            return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>startStockDrag(event,item.code)} onDragEnd={finishStockDrag} title="按住手柄拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => selectActiveStock(index)} aria-pressed={activeStock===index}><span>{item.code} {quote?.name || item.name}</span><b>{quote?.price?.toFixed(2) ?? item.price}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>;
+            return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>startStockDrag(event,item.code)} onDragEnd={finishStockDrag} title="按住手柄拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => selectActiveStock(index)} aria-pressed={activeStock===index}><span>{item.code} {quote?.name || item.name}</span><b>{displayedPrice}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>;
           })()}</div>
         ))}
         <div className={`session-inline ${marketSession.tone}`} role="status" aria-live="polite" title={marketSession.detail}>
@@ -3085,7 +3091,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <line x1={LIVE_CHART.plotLeft} y1="36" x2={LIVE_CHART.plotRight} y2="36" className="main-force-zero"/>
               {A_SHARE_INTRADAY_AXIS.map(tick=><line key={tick.label} x1={liveChartSlotX(tick.slot)} y1="6" x2={liveChartSlotX(tick.slot)} y2="66" className="main-force-grid"/>)}
               <text x={LIVE_CHART.plotLeft-5} y="10" textAnchor="end" className="main-force-bar-axis">{formatMainForceAmount(zijinMainForcePeak)}</text>
-              <text x={LIVE_CHART.plotLeft-5} y="68" textAnchor="end" className="main-force-bar-axis">-{formatMainForceAmount(zijinMainForcePeak)}</text>
+              <text x={LIVE_CHART.plotLeft-5} y="68" textAnchor="end" className="main-force-bar-axis">{formatMainForceAmount(-zijinMainForcePeak)}</text>
               {zijinMainForceTrack.bars.map(bar=>{
                 const height=Math.max(bar.netNotional===0?0:2,Math.min(28,Math.abs(bar.netNotional)/zijinMainForcePeak*28));
                 const y=bar.netNotional>=0?36-height:36;
@@ -3122,7 +3128,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>全部证据</button>
           </div>
           <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="全局决策状态">
-            <header><span>全局决策 <small className="decision-engine-badge">V4 正式</small></span><em>{decisionModel.confirmed}/4 条件</em></header>
+            <header><span>全局决策 <small className="decision-engine-badge">闭环策略</small></span><em>{decisionConditionsConfirmed}/4 条件</em></header>
             <b className="global-decision-status">{decisionModel.status==="locked"
               ?"🔴 风控已锁定"
               :cycleStage==="opened"
@@ -3138,8 +3144,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <b>{reverseTSignalLabel}</b>
               <small>{reverseTSignalDetail}</small>
             </div>
-             <div className="decision-condition-grid" aria-label="全局决策条件进度" aria-valuemin={0} aria-valuemax={4} aria-valuenow={decisionModel.confirmed} role="progressbar">
-               <div className="decision-condition-progress" aria-hidden="true"><i style={{width:`${Math.max(0,Math.min(4,decisionModel.confirmed))/4*100}%`}}/></div>
+             <div className="decision-condition-grid" aria-label="全局决策条件进度" aria-valuemin={0} aria-valuemax={4} aria-valuenow={decisionConditionsConfirmed} role="progressbar">
+               <div className="decision-condition-progress" aria-hidden="true"><i style={{width:`${decisionConditionsConfirmed/4*100}%`}}/></div>
                {decisionConditions.map(item=><span key={item.label} className={item.met?"met":""}><i>{item.met?"✓":"×"}</i>{item.label}</span>)}
              </div>
             <div className="decision-primary-meta"><span>{decisionModel.status==="ready"?(decisionModel.mode??signalMode):decisionModel.status==="locked"?"禁止开T":"等待条件补齐"}</span><strong>{stockAgent.canExecute?(decisionModel.status==="ready"?"可进入执行":decisionModel.status==="locked"?"风险优先":"实时监控"):"研究观察"}</strong></div>
@@ -5028,7 +5034,8 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           {result&&source?.quote.code==="601899"&&<div className={`l2-replay-audit ${l2Replay.available?"available":"unavailable"}`}><span><i/>L2严格因果回放</span><b>{l2Replay.reason}</b><em>{l2Replay.available?`${l2Replay.minuteCount} 个L2分钟点 · 图上合并为 ${visibleL2ReplayMarkers.length} 个关键波段 · ${l2Replay.source==="archive"?"交易日归档":"当日实时快照"}`:"未使用L2补值"}</em></div>}
           <svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点">
             <defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".16"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>
-            {chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toFixed(2)}</text></g>})}
+            {result&&source&&chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toFixed(2)}</text></g>})}
+            {(!result||!source)&&<text x="420" y="114" textAnchor="middle" className="equity-axis-label">运行一次全日回放后显示真实分时与买卖点</text>}
             {previousCloseY!==null&&<line x1="65" x2="820" y1={previousCloseY} y2={previousCloseY} className="equity-base-line"/>}
             {points&&<>
               <polyline points={`${points} 820,202 65,202`} fill="url(#equityFill)"/>
@@ -5079,7 +5086,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
               <text x="820" y="222" textAnchor="end" className="equity-time-label">{formatTime(fullDayMinutes.at(-1)?.time)}</text>
             </>}
           </svg>
-          <div className="chart-truth-note"><span>曲线展示整日真实 1 分钟价格；悬停标记可查看触发或拦截原因，决策不读取未来数据</span><b>开 {fullDayPrices[0]?.toFixed(2) ?? "—"} · 高 {observedMax.toFixed(2)} · 低 {observedMin.toFixed(2)} · 收 {fullDayPrices.at(-1)?.toFixed(2) ?? "—"}</b></div>
+          {result&&source?<div className="chart-truth-note"><span>曲线展示整日真实 1 分钟价格；悬停标记可查看触发或拦截原因，决策不读取未来数据</span><b>开 {fullDayPrices[0]?.toFixed(2) ?? "—"} · 高 {observedMax.toFixed(2)} · 低 {observedMin.toFixed(2)} · 收 {fullDayPrices.at(-1)?.toFixed(2) ?? "—"}</b></div>:<div className="chart-truth-note"><span>尚未运行回放，不展示空白价格坐标或伪造行情摘要。</span></div>}
         </div>
         {result&&<div className="replay-actions"><div className="panel-heading"><div><h2>盲测循环复盘</h2><span>{cycles.length ? "每个闭环均列出持仓时间、开仓与平仓原因" : "本次没有完整循环"}</span></div></div>{cycles.length ? <div className="cycle-list">{cycles.map(cycle=><article className={`cycle-row ${cycle.net>=0?"profit":"loss"}`} key={`${cycle.first.time}-${cycle.second.time}`}><div><b>{cycle.direction} 循环 #{cycle.index}</b><span>{cycle.first.side} {cycle.first.time} ¥ {cycle.first.price.toFixed(2)} → {cycle.second.side} {cycle.second.time} ¥ {cycle.second.price.toFixed(2)}</span><p className="cycle-reason"><em>开仓依据</em>{cycle.first.reason ?? "趋势、量价与成本门槛同时通过"}</p><p className="cycle-reason"><em>平仓依据</em>{cycle.second.reason ?? "达到闭环或风控退出条件"}</p></div><div><small>持仓时间</small><b>{cycle.holdingMinutes} 分钟</b></div><div><small>数量</small><b>{cycle.first.quantity.toLocaleString()} 股</b></div><div><small>毛收益</small><b>{money(cycle.gross)}</b></div><div><small>费用 + 滑点</small><b>{money(-(cycle.fees + cycle.executionCost))}</b></div><div><small>单次循环净收益</small><strong>{money(cycle.net)}</strong></div></article>)}</div> : <p className="config-note">策略在本完整交易日内没有形成同时满足成本、趋势和风控条件的正/反 T 循环，资金不变；整日真实分时仍保留用于复盘。</p>}<p className="config-note">毛收益按未滑点理论成交价计算；“费用 + 滑点”已包含佣金、卖出印花税和双向滑点。</p></div>}
         {result&&<details className="candidate-audit" key={`candidate-audit-${singleRunDate}`} open={result.trades===0 || undefined}>
