@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "registryVersion": "2026.08.04",
+  "stock": { "code": "601899", "name": "紫金矿业" },
+  "updatedAt": "2026-08-04T07:20:00.000Z",
+  "formalStrategy": {
+    "id": "zijin-v4",
+    "version": "v4",
+    "writeEnabled": false,
+    "factorWritesAllowed": false,
+    "note": "因子只有通过影子运行、人工评审和版本发布后才能进入正式策略。"
+  },
+  "scheduler": {
+    "enabled": true,
+    "mode": "daily-after-close",
+    "timezone": "Asia/Shanghai",
+    "window": "15:20-16:00",
+    "runCommand": "npm run research:factor-daily",
+    "shadowOnly": true
+  },
+  "pools": {
+    "formal": [],
+    "shadow": ["zijin_peer_momentum", "ashare_vwap_volume"],
+    "observe": [],
+    "rejected": [],
+    "retired": []
+  },
+  "factors": [
+    {
+      "id": "zijin_peer_momentum",
+      "version": "0.1.0",
+      "displayName": "紫金专属：同业动量",
+      "scope": "zijin",
+      "stockCodes": ["601899"],
+      "pool": "shadow",
+      "status": "shadow",
+      "executionMode": "observe-only",
+      "enabled": true,
+      "affectsFormalStrategy": false,
+      "sendsAlerts": false,
+      "formula": "z(return_5m) + 0.8*z(peer_relative_strength) + 0.4*z(peer_breadth - 0.5) + 0.4*z(volume_ratio)",
+      "inputs": ["601899 5m return", "peer relative strength", "peer breadth", "volume ratio"],
+      "evidence": {
+        "source": "five-year A-share replay",
+        "researchStatus": "negative-after-cost",
+        "costModelPct": 0.14,
+        "note": "已完成回放，但扣费后没有形成晋级证据；继续影子观察。"
+      },
+      "gate": {
+        "minimumOutOfSampleTrades": 80,
+        "minimumWinRate": 0.55,
+        "minimumPositiveWindowRatio": 0.65,
+        "maximumCorrelationWithFormal": 0.85,
+        "minimumShadowDays": 20,
+        "minimumL2ShadowDays": 30
+      }
+    },
+    {
+      "id": "ashare_vwap_volume",
+      "version": "0.1.0",
+      "displayName": "A股通用：VWAP量能",
+      "scope": "a-share",
+      "stockCodes": ["*"],
+      "pool": "shadow",
+      "status": "shadow",
+      "executionMode": "observe-only",
+      "enabled": true,
+      "affectsFormalStrategy": false,
+      "sendsAlerts": false,
+      "formula": "-z(vwap_bias) + 0.8*z(return_3m) + 0.5*z(volume_ratio)",
+      "inputs": ["VWAP bias", "3m return", "volume ratio"],
+      "evidence": {
+        "source": "five-year A-share replay",
+        "researchStatus": "negative-after-cost",
+        "costModelPct": 0.14,
+        "note": "已完成回放，但扣费后没有形成晋级证据；继续影子观察。"
+      },
+      "gate": {
+        "minimumOutOfSampleTrades": 80,
+        "minimumWinRate": 0.55,
+        "minimumPositiveWindowRatio": 0.65,
+        "maximumCorrelationWithFormal": 0.85,
+        "minimumShadowDays": 20,
+        "minimumL2ShadowDays": 30
+      }
+    }
+  ]
+}
