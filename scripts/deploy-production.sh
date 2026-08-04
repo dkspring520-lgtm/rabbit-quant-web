@@ -132,6 +132,41 @@ ASSETS
   log "生产运维脚本、定时器和日志策略已同步。"
 }
 
+classify_changed_path() {
+  local path="$1"
+  case "$path" in
+    Dockerfile.l2|requirements.l2.txt|scripts/zijin_l2_collector.py|scripts/zijin_l2_forward_labels.py|scripts/zijin_l2_second_state.py)
+      l2_build_needed=1
+      l2_service_needed=1
+      ;;
+    Dockerfile.trainer|requirements.trainer.txt)
+      trainer_build_needed=1
+      trainer_service_needed=1
+      ;;
+    scripts/deploy-production.sh|scripts/backup-production.sh|deploy/*|.github/*|README*|docs/*|tests/*)
+      ;;
+    scripts/*|lib/*|public/research/*)
+      web_build_needed=1
+      trainer_build_needed=1
+      web_service_needed=1
+      trainer_service_needed=1
+      ;;
+    app/*|components/*|hooks/*|styles/*|public/*|server/*|package.json|package-lock.json|Dockerfile.server|tsconfig.json|next.config.*|vite.config.*|postcss.config.*|tailwind.config.*)
+      web_build_needed=1
+      web_service_needed=1
+      ;;
+    compose.web.yml)
+      compose_changed=1
+      ;;
+    *)
+      web_build_needed=1
+      trainer_build_needed=1
+      web_service_needed=1
+      trainer_service_needed=1
+      ;;
+  esac
+}
+
 on_error() {
   local exit_code=$?
   log "部署失败：阶段=$current_stage，退出码=$exit_code；尚未成功切换的构建不会替换线上版本。"
@@ -274,21 +309,43 @@ wait_for_web_slot() {
 }
 
 wait_for_release() {
-  local expected_sha="$1" active_slot="${2:-blue}" require_l2_audit="${3:-1}" active_container active_port
+  local expected_sha="$1" active_slot="${2:-blue}" require_l2_audit="${3:-1}" require_trainer="${4:-1}" require_l2="${5:-1}" require_control="${6:-1}" require_shadow="${7:-1}" require_factor_daily="${8:-0}" active_container active_port
   active_container="$(slot_container "$active_slot")"
   active_port="$(slot_port "$active_slot")"
   local deadline=$((SECONDS + HEALTH_TIMEOUT))
   while (( SECONDS < deadline )); do
     local l2_audit_ready=1
+    local trainer_ready=1
+    local l2_ready=1
+    local control_ready=1
+    local shadow_ready=1
+    local factor_daily_ready=1
     if [[ "$require_l2_audit" == "1" ]] && ! container_is_healthy "$L2_AUDIT_CONTAINER"; then
       l2_audit_ready=0
     fi
+    if [[ "$require_trainer" == "1" ]] && ! container_is_healthy "$TRAINER_CONTAINER"; then
+      trainer_ready=0
+    fi
+    if [[ "$require_l2" == "1" ]] && ! container_is_healthy "$L2_CONTAINER"; then
+      l2_ready=0
+    fi
+    if [[ "$require_control" == "1" ]] && ! container_is_healthy "rabbit-quant-control"; then
+      control_ready=0
+    fi
+    if [[ "$require_shadow" == "1" ]] && ! container_is_healthy "rabbit-quant-zijin-shadow"; then
+      shadow_ready=0
+    fi
+    if [[ "$require_factor_daily" == "1" ]] && ! container_is_healthy "rabbit-quant-zijin-factor-daily"; then
+      factor_daily_ready=0
+    fi
     if (( l2_audit_ready == 1 )) \
+      && (( trainer_ready == 1 )) \
+      && (( l2_ready == 1 )) \
+      && (( control_ready == 1 )) \
+      && (( shadow_ready == 1 )) \
+      && (( factor_daily_ready == 1 )) \
       && container_is_healthy "$active_container" \
-      && container_is_healthy "rabbit-quant-control" \
-      && container_is_healthy "$TRAINER_CONTAINER" \
-      && container_is_healthy "$L2_CONTAINER" \
-      && container_is_healthy "rabbit-quant-zijin-shadow"; then
+      ; then
       if curl --fail --silent --show-error --max-time 5 \
         "http://127.0.0.1:${active_port}/api/control/version" | grep -Fq "$expected_sha"; then
         return 0
@@ -333,6 +390,14 @@ compose_up() {
   return "$compose_status"
 }
 
+append_unique_service() {
+  local service="$1" existing
+  for existing in "${support_services[@]}"; do
+    [[ "$existing" == "$service" ]] && return 0
+  done
+  support_services+=("$service")
+}
+
 if [[ ! -d "$REPO_DIR/.git" ]]; then
   log "错误：$REPO_DIR 不是 Git 仓库。"
   exit 1
@@ -348,6 +413,11 @@ active_slot="$(cat "$STATE_DIR/active-web-slot" 2>/dev/null || true)"
 [[ "$active_slot" == "blue" || "$active_slot" == "green" ]] || active_slot="blue"
 active_port="$(slot_port "$active_slot")"
 active_container="$(slot_container "$active_slot")"
+previous_web_image="$(container_image "$active_container")"
+previous_trainer_image="$(container_image "$TRAINER_CONTAINER")"
+previous_l2_image="$(container_image "$L2_CONTAINER")"
+previous_sha="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${active_port}/api/control/version" 2>/dev/null | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' || true)"
+previous_sha="${previous_sha:-$deployed_sha}"
 
 current_stage="configure zero-downtime entry"
 ensure_nginx_zero_downtime "$active_slot"
@@ -368,9 +438,88 @@ git -C "$REPO_DIR" worktree add --detach "$release_dir" "$target_sha" >/dev/null
 
 compose_file="$release_dir/compose.web.yml"
 build_time="$(date --utc --iso-8601=seconds)"
-web_image="rabbit-quant-web:$short_sha"
-trainer_image="rabbit-quant-trainer:$short_sha"
-l2_image="rabbit-quant-l2:$short_sha"
+web_build_needed=0
+trainer_build_needed=0
+l2_build_needed=0
+web_service_needed=0
+trainer_service_needed=0
+l2_service_needed=0
+compose_changed=0
+
+if [[ -z "$deployed_sha" ]] || ! git -C "$REPO_DIR" cat-file -e "$deployed_sha^{commit}" 2>/dev/null; then
+  force_full_release=1
+elif [[ "$target_sha" == "$deployed_sha" ]]; then
+  force_full_release=1
+else
+  force_full_release=0
+fi
+
+if (( force_full_release == 1 )); then
+  web_build_needed=1
+  trainer_build_needed=1
+  l2_build_needed=1
+  web_service_needed=1
+  trainer_service_needed=1
+  l2_service_needed=1
+else
+  while IFS= read -r changed_path; do
+    [[ -n "$changed_path" ]] || continue
+    classify_changed_path "$changed_path"
+  done < <(git -C "$REPO_DIR" diff --name-only "$deployed_sha" "$target_sha")
+fi
+
+if (( compose_changed == 1 )); then
+  # Compose is shared by all runtime containers. Recreate services, but only
+  # rebuild images whose own source inputs changed.
+  web_service_needed=1
+  trainer_service_needed=1
+  l2_service_needed=1
+fi
+
+if [[ -z "$previous_web_image" ]] || ! docker image inspect "$previous_web_image" >/dev/null 2>&1; then
+  web_build_needed=1
+  web_service_needed=1
+fi
+if [[ -z "$previous_trainer_image" ]] || ! docker image inspect "$previous_trainer_image" >/dev/null 2>&1; then
+  trainer_build_needed=1
+  trainer_service_needed=1
+fi
+if [[ -z "$previous_l2_image" ]] || ! docker image inspect "$previous_l2_image" >/dev/null 2>&1; then
+  l2_build_needed=1
+  l2_service_needed=1
+fi
+if [[ -z "$previous_sha" ]]; then
+  # Without a known active Web commit we cannot safely validate a support-only
+  # update, so make the Web image/version explicit again.
+  web_build_needed=1
+  web_service_needed=1
+fi
+
+web_image="$previous_web_image"
+trainer_image="$previous_trainer_image"
+l2_image="$previous_l2_image"
+if (( web_build_needed == 1 )); then web_image="rabbit-quant-web:$short_sha"; fi
+if (( trainer_build_needed == 1 )); then trainer_image="rabbit-quant-trainer:$short_sha"; fi
+if (( l2_build_needed == 1 )); then l2_image="rabbit-quant-l2:$short_sha"; fi
+web_runtime_sha="$previous_sha"
+if (( web_build_needed == 1 )); then web_runtime_sha="$target_sha"; fi
+
+log "变更范围：Web 构建=$web_build_needed，Trainer 构建=$trainer_build_needed，L2 构建=$l2_build_needed；Web 服务=$web_service_needed，Trainer 服务=$trainer_service_needed，L2 服务=$l2_service_needed，Compose=$compose_changed。"
+
+if (( web_service_needed == 1 || trainer_service_needed == 1 || l2_service_needed == 1 )); then
+  :
+else
+  printf '%s\n' "$target_sha" > "$STATE_DIR/deployed-sha"
+  printf '%s\n' "$web_image" > "$STATE_DIR/last-good-web-image"
+  printf '%s\n' "$trainer_image" > "$STATE_DIR/last-good-trainer-image"
+  printf '%s\n' "$l2_image" > "$STATE_DIR/last-good-l2-image"
+  cp "$compose_file" "$STATE_DIR/last-good-compose.yml"
+  install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
+  sync_operations_assets "$target_sha"
+  log "本次提交没有运行时文件变化，跳过容器更新。"
+  record_result "success" "无运行时变化，复用现有镜像"
+  exit 0
+fi
 
 current_stage="配置预检"
 log "预检 Compose 配置。"
@@ -379,65 +528,115 @@ RABBIT_QUANT_TRAINER_IMAGE="$trainer_image" \
 RABBIT_QUANT_L2_IMAGE="$l2_image" \
   docker compose --project-directory "$REPO_DIR" -f "$compose_file" config --quiet
 
-current_stage="构建 Web 镜像"
-log "先构建 Web 镜像 $web_image；构建失败不会触碰线上容器。"
-docker build --pull \
-  --build-arg APP_COMMIT_SHA="$target_sha" \
-  --build-arg APP_BUILD_TIME="$build_time" \
-  --label rabbit-quant.commit="$target_sha" \
-  -t "$web_image" -f "$release_dir/Dockerfile.server" "$release_dir"
+if (( web_build_needed == 1 )); then
+  current_stage="构建 Web 镜像"
+  log "先构建 Web 镜像 $web_image；构建失败不会触碰线上容器。"
+  docker build --pull \
+    --build-arg APP_COMMIT_SHA="$target_sha" \
+    --build-arg APP_BUILD_TIME="$build_time" \
+    --label rabbit-quant.commit="$target_sha" \
+    -t "$web_image" -f "$release_dir/Dockerfile.server" "$release_dir"
+else
+  log "Web 无相关改动，复用 $web_image。"
+fi
 
-current_stage="构建训练镜像"
-log "先构建训练镜像 $trainer_image；两个镜像都成功后才允许切换。"
-docker build --pull \
-  --label rabbit-quant.commit="$target_sha" \
-  -t "$trainer_image" -f "$release_dir/Dockerfile.trainer" "$release_dir"
+if (( trainer_build_needed == 1 )); then
+  current_stage="构建训练镜像"
+  log "先构建训练镜像 $trainer_image；两个镜像都成功后才允许切换。"
+  docker build --pull \
+    --label rabbit-quant.commit="$target_sha" \
+    -t "$trainer_image" -f "$release_dir/Dockerfile.trainer" "$release_dir"
+else
+  log "Trainer 无相关改动，复用 $trainer_image。"
+fi
 
-current_stage="build L2 collector image"
-log "Building L2 collector image $l2_image."
-docker build --pull \
-  --label rabbit-quant.commit="$target_sha" \
-  -t "$l2_image" -f "$release_dir/Dockerfile.l2" "$release_dir"
+if (( l2_build_needed == 1 )); then
+  current_stage="build L2 collector image"
+  log "Building L2 collector image $l2_image."
+  docker build --pull \
+    --label rabbit-quant.commit="$target_sha" \
+    -t "$l2_image" -f "$release_dir/Dockerfile.l2" "$release_dir"
+else
+  log "L2 无相关改动，复用 $l2_image。"
+fi
 
-previous_web_image="$(container_image "$active_container")"
-previous_trainer_image="$(container_image "$TRAINER_CONTAINER")"
-previous_l2_image="$(container_image "$L2_CONTAINER")"
-previous_sha="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${active_port}/api/control/version" 2>/dev/null | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' || true)"
-candidate_slot="$(other_slot "$active_slot")"
-candidate_port="$(slot_port "$candidate_slot")"
-candidate_service="$(slot_service "$candidate_slot")"
-candidate_origin="http://${candidate_service}:3000"
 active_origin="http://$(slot_service "$active_slot"):3000"
+candidate_slot="$active_slot"
+candidate_port="$active_port"
+candidate_service="$(slot_service "$active_slot")"
+candidate_origin="$active_origin"
+expected_web_sha="$previous_sha"
+support_services=()
+required_l2_audit=0
+required_trainer=0
+required_l2=0
+required_control=0
+required_shadow=0
+required_factor_daily=0
+
+if (( web_service_needed == 1 )); then
+  candidate_slot="$(other_slot "$active_slot")"
+  candidate_port="$(slot_port "$candidate_slot")"
+  candidate_service="$(slot_service "$candidate_slot")"
+  candidate_origin="http://${candidate_service}:3000"
+  expected_web_sha="$web_runtime_sha"
+fi
+if (( web_service_needed == 1 )); then
+  append_unique_service control
+  append_unique_service shadow
+  append_unique_service l2-audit
+  required_control=1
+  required_shadow=1
+  required_l2_audit=1
+fi
+if (( trainer_service_needed == 1 )); then
+  append_unique_service trainer
+  append_unique_service factor-daily
+  required_trainer=1
+  required_factor_daily=1
+fi
+if (( l2_service_needed == 1 )); then
+  append_unique_service l2
+  append_unique_service l2-audit
+  required_l2=1
+  required_l2_audit=1
+fi
 
 current_stage="切换线上容器"
-log "构建全部通过，开始切换到 $short_sha。"
-prepare_candidate_slot "$active_slot" "$candidate_slot"
-if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$target_sha" "$build_time" "$active_origin" "$candidate_service"; then
-  log "容器切换命令失败，准备恢复旧镜像。"
-  switch_failed=1
+log "按变更范围切换版本 $short_sha。"
+switch_failed=0
+if (( web_service_needed == 1 )); then
+  prepare_candidate_slot "$active_slot" "$candidate_slot"
+  if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$web_runtime_sha" "$build_time" "$active_origin" "$candidate_service"; then
+    log "Web 容器切换命令失败，准备恢复旧镜像。"
+    switch_failed=1
+  fi
 else
-  switch_failed=0
+  log "Web 无需更新，继续复用当前活动槽 $active_slot。"
 fi
 
 current_stage="健康验证"
 if (( switch_failed == 0 )); then
-  current_stage="candidate Web health check"
-  if ! wait_for_web_slot "$candidate_slot" "$target_sha"; then
-    log "Candidate Web failed health checks; live traffic was not switched."
-    switch_failed=1
-  elif ! write_nginx_upstream "$candidate_port"; then
-    log "Nginx traffic switch failed; old Web remains active."
-    switch_failed=1
-  else
-    current_stage="update support services"
-    if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$target_sha" "$build_time" "$candidate_origin" l2 trainer control shadow l2-audit; then
-      log "Support services failed to update; traffic will be restored to the old Web."
+  if (( web_service_needed == 1 )); then
+    current_stage="candidate Web health check"
+    if ! wait_for_web_slot "$candidate_slot" "$web_runtime_sha"; then
+      log "Candidate Web failed health checks; live traffic was not switched."
+      switch_failed=1
+    elif ! write_nginx_upstream "$candidate_port"; then
+      log "Nginx traffic switch failed; old Web remains active."
+      switch_failed=1
+    fi
+  fi
+  if (( switch_failed == 0 )) && (( ${#support_services[@]} > 0 )); then
+    current_stage="update changed support services"
+    if ! compose_up "$compose_file" "$web_image" "$trainer_image" "$l2_image" "$web_runtime_sha" "$build_time" "$candidate_origin" "${support_services[@]}"; then
+      log "Changed support services failed to update; traffic will be restored to the old Web."
       switch_failed=1
     fi
   fi
 fi
 
-if (( switch_failed == 0 )) && wait_for_release "$target_sha" "$candidate_slot"; then
+if (( switch_failed == 0 )) && wait_for_release "$expected_web_sha" "$candidate_slot" "$required_l2_audit" "$required_trainer" "$required_l2" "$required_control" "$required_shadow" "$required_factor_daily"; then
   printf '%s\n' "$candidate_slot" > "$STATE_DIR/active-web-slot"
   printf '%s\n' "$target_sha" > "$STATE_DIR/deployed-sha"
   cp "$compose_file" "$STATE_DIR/last-good-compose.yml"
@@ -467,8 +666,8 @@ if [[ -z "$previous_web_image" || -z "$previous_trainer_image" || -z "$previous_
   exit 1
 fi
 
-compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "$previous_l2_image" "${previous_sha:-development}" "rollback" "$active_origin" l2 trainer control shadow
-if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha" "$active_slot" 0; then
+compose_up "$rollback_compose" "$previous_web_image" "$previous_trainer_image" "$previous_l2_image" "${previous_sha:-development}" "rollback" "$active_origin" l2 trainer factor-daily control shadow l2-audit
+if [[ -n "$previous_sha" ]] && wait_for_release "$previous_sha" "$active_slot" 0 1 1 1 1 1 1; then
   log "已恢复旧版本 ${previous_sha:0:12}。"
   record_result "rolled_back" "新版本不健康，旧版本已恢复"
 else
