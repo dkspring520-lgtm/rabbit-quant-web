@@ -240,33 +240,43 @@ type ZijinFactorGraphNode = {
 };
 type ZijinFactorGraphEdge = { from:string; to:string };
 
-function buildZijinFactorGraph(lifecycle:ZijinFactorLifecycle) {
+/* function buildZijinFactorGraph(lifecycle:ZijinFactorLifecycle) {
+  const visibleFactors=lifecycle.factors.slice(0,4);
+  const omittedFactors=Math.max(0,lifecycle.factors.length-visibleFactors.length);
   const nodes:ZijinFactorGraphNode[]=[
-    {id:"market-data",label:"MARKET DATA",group:"source",x:72,y:82,detail:"1m quotes / L2 / replay"},
-    {id:"basic-factors",label:"BASIC FACTORS",group:"source",x:212,y:150,detail:"VWAP / volume / momentum / relative strength"},
-    {id:"alpha-lab",label:"ALPHA LAB",group:"engine",x:360,y:78,detail:"candidate generation + rolling OOS validation"},
+    {id:"market-data",label:"行情与 L2",group:"source",x:82,y:132,detail:"1分钟行情 / L2 / 历史回放"},
+    {id:"basic-factors",label:"基础因子",group:"source",x:250,y:132,detail:"VWAP / 量能 / 动量 / 相对强弱"},
+    {id:"alpha-lab",label:"因子实验室",group:"engine",x:420,y:132,detail:"候选生成 + 滚动样本外验证"},
   ];
-  const factorStep=lifecycle.factors.length>1?104/(lifecycle.factors.length-1):0;
-  lifecycle.factors.forEach((factor,index)=>{
-    const shortLabel=factor.displayName.length>18?`${factor.displayName.slice(0,18)}...`:factor.displayName;
+  const factorNodes=[...visibleFactors,...(omittedFactors>0?[{
+    id:"factor-more",
+    displayName:`还有 ${omittedFactors} 个`,
+    scope:"候选池",
+    version:"",
+    status:"已折叠",
+  }]:[])];
+  const factorStep=42;
+  const factorStart=132-((factorNodes.length-1)*factorStep)/2;
+  factorNodes.forEach((factor,index)=>{
+    const shortLabel=factor.displayName.length>12?`${factor.displayName.slice(0,12)}…`:factor.displayName;
     nodes.push({
       id:`factor-${factor.id}`,
-      factorId:factor.id,
+      factorId:factor.id==="factor-more"?undefined:factor.id,
       label:shortLabel,
       group:"factor",
-      x:500,
-      y:lifecycle.factors.length>1?60+index*factorStep:112,
+      x:600,
+      y:factorStart+index*factorStep,
       detail:`${factor.scope} / v${factor.version} / ${factor.status}`,
     });
   });
   nodes.push(
-    {id:"shadow-pool",label:"SHADOW POOL",group:"shadow",x:625,y:150,detail:"observe only - no formal writes"},
-    {id:"formal-v4",label:"FORMAL V4",group:"formal",x:732,y:78,detail:`formal pool: ${lifecycle.pools.formal.length}`},
+    {id:"shadow-pool",label:"影子观察池",group:"shadow",x:760,y:132,detail:"只记录，不写入正式策略"},
+    {id:"formal-v4",label:"正式模型",group:"formal",x:880,y:132,detail:`正式因子 ${lifecycle.pools.formal.length} 个`},
   );
   const edges:ZijinFactorGraphEdge[]=[
     {from:"market-data",to:"basic-factors"},
     {from:"basic-factors",to:"alpha-lab"},
-    ...lifecycle.factors.flatMap(factor=>[
+    ...factorNodes.flatMap(factor=>[
       {from:"alpha-lab",to:`factor-${factor.id}`},
       {from:`factor-${factor.id}`,to:"shadow-pool"},
     ]),
@@ -280,10 +290,17 @@ function ZijinFactorGraph({lifecycle}:{lifecycle:ZijinFactorLifecycle}) {
   const [selectedId,setSelectedId]=useState("alpha-lab");
   const selectedNode=graph.nodes.find(node=>node.id===selectedId)??graph.nodes[2]??graph.nodes[0];
   const selectNode=(id:string)=>setSelectedId(id);
-  return <div className="zijin-factor-graph" aria-label="Rabbit Alpha Lab factor knowledge graph">
-    <header><span>FACTOR KNOWLEDGE GRAPH</span><em>click a node to inspect</em></header>
+  return <div className="zijin-factor-graph" aria-label="Rabbit Alpha Lab 因子知识图谱">
+    <header><span>FACTOR KNOWLEDGE GRAPH</span><em>点击节点查看详情</em></header>
     <div className="zijin-factor-graph-shell">
-      <svg viewBox="0 0 760 220" role="img" aria-label="Factor data flow from market data to the formal model">
+      <svg viewBox="0 0 920 250" role="img" aria-label="因子从数据到正式模型的流转图">
+        <g className="zijin-factor-graph-stages" aria-hidden="true">
+          <text x="82" y="28" textAnchor="middle">数据源</text>
+          <text x="250" y="28" textAnchor="middle">基础层</text>
+          <text x="420" y="28" textAnchor="middle">研究层</text>
+          <text x="600" y="28" textAnchor="middle">候选因子</text>
+          <text x="820" y="28" textAnchor="middle">上线路径</text>
+        </g>
         {graph.edges.map(edge=>{
           const from=graph.nodes.find(node=>node.id===edge.from);
           const to=graph.nodes.find(node=>node.id===edge.to);
@@ -303,6 +320,93 @@ function ZijinFactorGraph({lifecycle}:{lifecycle:ZijinFactorLifecycle}) {
           <circle cx={node.x} cy={node.y} r={node.group==="engine"?18:node.group==="factor"?13:15}/>
           <text x={node.x} y={node.y+30} textAnchor="middle">{node.label}</text>
           <text className="sub" x={node.x} y={node.y+40} textAnchor="middle">{node.group}</text>
+        </g>)}
+      </svg>
+    </div>
+    {selectedNode&&<p className="zijin-factor-graph-detail"><strong>{selectedNode.label}</strong><span>{selectedNode.detail}</span></p>}
+    <div className="zijin-factor-graph-legend" aria-label="Graph legend">
+      <span><i className="source"/>data</span><span><i className="engine"/>research</span><span><i className="factor"/>candidate</span><span><i className="shadow"/>shadow</span><span><i className="formal"/>formal</span>
+    </div>
+  </div>;
+}
+
+*/
+
+function buildZijinFactorGraph(lifecycle:ZijinFactorLifecycle) {
+  const visibleFactors=lifecycle.factors.slice(0,4);
+  const omittedFactors=Math.max(0,lifecycle.factors.length-visibleFactors.length);
+  const factorNodes=[...visibleFactors,...(omittedFactors>0?[{
+    id:"factor-more",
+    displayName:`+ ${omittedFactors} more`,
+    scope:"candidate pool",
+    version:"",
+    status:"collapsed",
+  }]:[])];
+  const factorStep=42;
+  const factorStart=132-((factorNodes.length-1)*factorStep)/2;
+  const nodes:ZijinFactorGraphNode[]=[
+    {id:"market-data",label:"MARKET / L2",group:"source",x:82,y:132,detail:"1m quotes / L2 / historical replay"},
+    {id:"basic-factors",label:"BASE FACTORS",group:"source",x:250,y:132,detail:"VWAP / volume / momentum / relative strength"},
+    {id:"alpha-lab",label:"ALPHA LAB",group:"engine",x:420,y:132,detail:"candidate generation + rolling OOS validation"},
+    ...factorNodes.map((factor,index)=>({
+      id:`factor-${factor.id}`,
+      factorId:factor.id==="factor-more"?undefined:factor.id,
+      label:factor.displayName.length>12?`${factor.displayName.slice(0,12)}...`:factor.displayName,
+      group:"factor" as const,
+      x:600,
+      y:factorStart+index*factorStep,
+      detail:`${factor.scope}${factor.version?` / v${factor.version}`:""} / ${factor.status}`,
+    })),
+    {id:"shadow-pool",label:"SHADOW POOL",group:"shadow",x:760,y:132,detail:"observe only - no formal writes"},
+    {id:"formal-v4",label:"FORMAL MODEL",group:"formal",x:880,y:132,detail:`formal factors: ${lifecycle.pools.formal.length}`},
+  ];
+  const edges:ZijinFactorGraphEdge[]=[
+    {from:"market-data",to:"basic-factors"},
+    {from:"basic-factors",to:"alpha-lab"},
+    ...factorNodes.flatMap(factor=>[
+      {from:"alpha-lab",to:`factor-${factor.id}`},
+      {from:`factor-${factor.id}`,to:"shadow-pool"},
+    ]),
+    {from:"shadow-pool",to:"formal-v4"},
+  ];
+  return {nodes,edges};
+}
+
+function ZijinFactorGraph({lifecycle}:{lifecycle:ZijinFactorLifecycle}) {
+  const graph=useMemo(()=>buildZijinFactorGraph(lifecycle),[lifecycle]);
+  const [selectedId,setSelectedId]=useState("alpha-lab");
+  const selectedNode=graph.nodes.find(node=>node.id===selectedId)??graph.nodes[2]??graph.nodes[0];
+  const selectNode=(id:string)=>setSelectedId(id);
+  return <div className="zijin-factor-graph" aria-label="Rabbit Alpha Lab factor knowledge graph">
+    <header><span>FACTOR KNOWLEDGE GRAPH</span><em>click a node to inspect</em></header>
+    <div className="zijin-factor-graph-shell">
+      <svg viewBox="0 0 920 250" role="img" aria-label="Factor flow from market data to the formal model">
+        <g className="zijin-factor-graph-stages" aria-hidden="true">
+          <text x="82" y="28" textAnchor="middle">DATA</text>
+          <text x="250" y="28" textAnchor="middle">BASE</text>
+          <text x="420" y="28" textAnchor="middle">RESEARCH</text>
+          <text x="600" y="28" textAnchor="middle">CANDIDATE</text>
+          <text x="820" y="28" textAnchor="middle">ROLLOUT</text>
+        </g>
+        {graph.edges.map(edge=>{
+          const from=graph.nodes.find(node=>node.id===edge.from);
+          const to=graph.nodes.find(node=>node.id===edge.to);
+          if(!from||!to)return null;
+          const active=selectedNode?.id===from.id||selectedNode?.id===to.id;
+          return <line key={`${edge.from}-${edge.to}`} className={`zijin-factor-graph-edge${active?" active":""}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y}/>;
+        })}
+        {graph.nodes.map(node=><g
+          key={node.id}
+          className={`zijin-factor-graph-node ${node.group}${selectedNode?.id===node.id?" is-selected":""}`}
+          role="button"
+          tabIndex={0}
+          aria-label={`${node.label}: ${node.detail}`}
+          onClick={()=>selectNode(node.id)}
+          onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();selectNode(node.id);}}}
+        >
+          <circle cx={node.x} cy={node.y} r={node.group==="engine"?20:node.group==="factor"?15:17}/>
+          <text x={node.x} y={node.y+33} textAnchor="middle">{node.label}</text>
+          <text className="sub" x={node.x} y={node.y+46} textAnchor="middle">{node.group}</text>
         </g>)}
       </svg>
     </div>
