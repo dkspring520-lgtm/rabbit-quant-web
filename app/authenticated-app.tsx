@@ -1189,6 +1189,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const l2ConnectionLimited=Boolean(liveL2Status?.error&&/maximum|active connections|连接.*上限|额度/i.test(liveL2Status.error));
   const l2ConsoleStatus=stock.code!=="601899"
     ? {tone:"inactive",label:"L2：未启用",detail:"仅紫金矿业接入"}
+    : !marketSession.live
+      ? {tone:"paused",label:"L2：休市待命",detail:`${l2ConsoleNode} · ${marketSession.label}，开市后恢复实时校验`}
     : !liveL2Status
       ? {tone:"loading",label:"L2：连接中",detail:"正在核验上海节点"}
     : !liveL2CollectorAlive
@@ -1199,8 +1201,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
     : liveL2Status?.status?.connected&&!liveL2Stale
       ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2LatencyText}`}
-    : liveL2Status?.status?.connected&&!marketSession.live
-      ? {tone:"paused",label:"L2：休市待命",detail:`${l2ConsoleNode} · ${marketSession.label}，开市后恢复实时校验`}
     : marketSession.live
       ? {tone:"stale",label:"L2：行情中断",detail:`${l2ConsoleNode} · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};

@@ -95,15 +95,6 @@
 .backtest-action-marker .action-label-bg,
 .backtest-action-marker .action-leader,
 .backtest-action-marker text {
-  opacity: 0;
-  transition: opacity .16s ease;
-}
-.backtest-candidate-marker:hover .candidate-label-bg,
-.backtest-candidate-marker:hover .candidate-leader,
-.backtest-candidate-marker:hover text,
-.backtest-action-marker:hover .action-label-bg,
-.backtest-action-marker:hover .action-leader,
-.backtest-action-marker:hover text {
   opacity: 1;
 }
 .mini-observation,
