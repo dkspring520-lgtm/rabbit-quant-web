@@ -25,16 +25,16 @@ const memberFeatures = [
 ];
 
 const compareRows = [
-  ["监控股票", "2 只", "5 只", "5 只"],
-  ["基础分时、VWAP 与量价观察", "支持", "支持", "支持"],
-  ["普通候选观察点", "支持", "支持", "支持"],
-  ["实时行情增强", "—", "支持", "支持"],
-  ["9:25 盘前预判", "—", "支持", "支持"],
-  ["秒级行情状态机", "—", "支持", "支持"],
-  ["精确正T / 反T关注区", "—", "支持", "支持"],
-  ["提醒历史与手机后台推送", "—", "支持", "支持"],
-  ["个人回放训练", "—", "支持", "支持"],
-  ["自动下单", "不支持", "不支持", "不支持"],
+  ["监控股票", "2 只", "5 只", "30 只", "5 只"],
+  ["基础分时、VWAP 与量价观察", "支持", "支持", "支持", "支持"],
+  ["普通候选观察点", "支持", "支持", "支持", "支持"],
+  ["实时行情增强", "—", "支持", "支持", "支持"],
+  ["9:25 盘前预判", "—", "支持", "支持", "支持"],
+  ["秒级行情状态机", "—", "支持", "支持", "支持"],
+  ["精确正T / 反T关注区", "—", "支持", "支持", "支持"],
+  ["提醒历史与手机后台推送", "—", "支持", "支持", "支持"],
+  ["个人回放训练", "—", "支持", "支持", "支持"],
+  ["自动下单", "不支持", "不支持", "不支持", "不支持"],
 ];
 
 const faqs = [
@@ -114,7 +114,7 @@ export default function PricingPage() {
           <span>完整研究能力</span><h2>Smart-T 会员</h2>
           <div className="pricing-value"><b>¥{memberPrice}</b><small>/{memberUnit}</small></div>
           <p>{cycle === "yearly" ? "折合约 ¥0.82/天，适合持续盯盘、复盘和积累个人样本。当前仍按人工激活码灰度开通。" : "按月开通，适合先完整体验实时监控与复盘；当前仍按人工激活码灰度开通。"}</p>
-          <ul>{memberFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
+          <ul>{[cycle === "yearly" ? "30 只自选监控" : "5 只自选监控", ...memberFeatures].map(feature => <li key={feature}>{feature}</li>)}</ul>
           <Link href="/?view=membership">登录后兑换激活码</Link>
         </article>
 
@@ -122,7 +122,7 @@ export default function PricingPage() {
           <span>短期体验</span><h2>24 小时体验票</h2>
           <div className="pricing-value"><b>¥4.9</b><small>/24小时</small></div>
           <p>适合完整测试一个交易日，不自动转成月费。</p>
-          <ul><li>24 小时会员研究能力</li><li>实时行情增强与秒级候选确认</li><li>提醒历史和回放复盘</li><li>到期自动恢复免费版</li></ul>
+          <ul><li>5 只自选监控</li><li>24 小时会员研究能力</li><li>实时行情增强与秒级候选确认</li><li>提醒历史和回放复盘</li><li>到期自动恢复免费版</li></ul>
           <Link href="/?view=membership">登录后兑换天卡</Link>
         </article>
       </div>
@@ -133,7 +133,7 @@ export default function PricingPage() {
     <section className="pricing-compare" id="compare">
       <header><span>FEATURE COMPARISON</span><h2>权益对比</h2><p>只为真实已实现的能力收费；自动下单不在任何套餐内。</p></header>
       <div className="pricing-table" role="table" aria-label="会员权益对比">
-        <div className="pricing-row pricing-row-head" role="row"><b>功能</b><b>免费版</b><b>会员</b><b>体验票</b></div>
+        <div className="pricing-row pricing-row-head" role="row"><b>功能</b><b>免费版</b><b>月卡</b><b>年 V 会员</b><b>体验票</b></div>
         {compareRows.map(row => <div className="pricing-row" role="row" key={row[0]}>
           {row.map((cell, index) => <span key={`${cell}-${index}`} className={cell === "支持" ? "yes" : cell === "—" || cell === "不支持" ? "no" : ""}>{cell}</span>)}
         </div>)}
