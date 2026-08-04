@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import QRCode from "qrcode";
 import "./fortune.css";
 import "./traditional.css";
 import "./interpretation.css";
@@ -256,6 +255,7 @@ export default function FortunePage(){
   };
   const shareCopy=`${name||code}（${code}）股票推演签\n未来 ${horizon} 个交易日：${trend} · ${analysis.score}/100\n${futureTitle}\n上行确认 ¥${analysis.resistance.toFixed(2)}｜下行警戒 ¥${analysis.support.toFixed(2)}\n子平取象：${ziPing.label} · ${ziPing.detail}\n卦象：${analysis.upper[0]}上${analysis.lower[0]}下，${lineNames[analysis.moving]}动\n#股票推演 #传统文化 #行情观察\n仅供文化娱乐，不构成投资建议。`;
   const generateShareCard=async()=>{
+    const { default: QRCode } = await import("qrcode/lib/browser.js");
     setShareBusy(true);setShareMessage("");
     const shareUrl=`${window.location.origin}/fortune?stock=${encodeURIComponent(code)}&from=share`;
     const qrSource=await QRCode.toDataURL(shareUrl,{width:400,margin:3,errorCorrectionLevel:"H",color:{dark:"#10231d",light:"#fffdf5"}});
