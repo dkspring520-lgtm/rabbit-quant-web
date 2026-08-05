@@ -1,20 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import "./globals.css";
-import "./backtest.css";
-import "./holdings.css";
-import "./modules.css";
 import "./typography.css";
-import "./home.css";
 import "./auth.css";
-import "./onboarding.css";
-import "./watchlist.css";
-import "./marketplace.css";
 import "./legal.css";
-import "./mobile.css";
-import "./minimal.css";
 import "./theme.css";
-import "./bunny-light.css";
-import "./brand-cute.css";
 import "./pricing.css";
 
 export const viewport: Viewport = {

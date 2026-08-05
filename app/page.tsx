@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { clientFetch as fetch } from "@/lib/client-polling.mjs";
+import PublicLanding from "./public-landing";
 
 type UiTheme = "dark" | "light";
 type Membership = {
@@ -26,16 +27,12 @@ function RabbitLoading() {
   return (
     <main className="auth-loading" aria-busy="true" aria-live="polite" role="status">
       <div style={{ display: "grid", justifyItems: "center", gap: 14 }}>
-        <Image src="/rabbit-logo-compact.png" alt="双兔助手 做T神器" width={48} height={48} priority />
+        <Image src="/rabbit-logo-loading.webp" alt="双兔助手 做T神器" width={48} height={48} priority unoptimized />
         <span style={{ color: "var(--muted)", fontSize: 11 }}>正在进入双兔助手…</span>
       </div>
     </main>
   );
 }
-
-const PublicLanding = dynamic(() => import("./public-landing"), {
-  loading: () => <RabbitLoading />,
-});
 
 type AuthViewProps = {
   onAuthenticated: (name: string, isNew: boolean, remember: boolean, membership: Membership | null) => void;
@@ -77,7 +74,6 @@ function getServerTheme(): UiTheme {
 
 export default function Home() {
   const theme = useSyncExternalStore(subscribeTheme, readTheme, getServerTheme);
-  const [authReady, setAuthReady] = useState(false);
   const [initialAuth, setInitialAuth] = useState<InitialAuth | null>(null);
   const [authScreen, setAuthScreen] = useState<"landing" | "account">("landing");
 
@@ -97,7 +93,6 @@ export default function Home() {
             }
           }
         } catch {}
-        setAuthReady(true);
       })();
     }, 0);
     return () => window.clearTimeout(timer);
@@ -124,7 +119,6 @@ export default function Home() {
     } catch {}
   };
 
-  if (!authReady) return <RabbitLoading />;
   if (initialAuth) {
     return <AuthenticatedHome initialAuth={initialAuth} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { setInitialAuth(null); setAuthScreen("account"); }} />;
   }

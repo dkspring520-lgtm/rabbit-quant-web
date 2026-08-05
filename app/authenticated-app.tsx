@@ -3,6 +3,18 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import "./globals.css";
+import "./backtest.css";
+import "./holdings.css";
+import "./modules.css";
+import "./home.css";
+import "./onboarding.css";
+import "./watchlist.css";
+import "./marketplace.css";
+import "./mobile.css";
+import "./minimal.css";
+import "./bunny-light.css";
+import "./brand-cute.css";
 import "./position-setup.css";
 import "./referral.css";
 import { buildHistoricalSimilarityArchive, runSmartTReplay } from "@/lib/smart-t-engine.mjs";
@@ -3053,13 +3065,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className="quote-metrics">
           <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{isZijinStock&&liveL2PriceUsable ? "L2 主源" : currentTrial ? "1 秒试用" : currentMarket ? "公开兜底" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? isZijinStock ? `${minutePoints.length} 点 · L2 ${l2CalculationCoverage}` : `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
         </div>
-        <div className={`l2-console-status ${l2ConsoleStatus.tone}`} role="status" title={l2ConsoleStatus.detail}>
-          <i/><span>{l2ConsoleStatus.label}</span><small>{l2ConsoleStatus.detail}</small>
-        </div>
         <div className={`next-session-header ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} role="status" aria-label="下一交易日预判" title={nextSessionOutlook.ready?`${nextSessionOutlook.stage}：${nextSessionOutlook.failure}`:nextSessionOutlook.detail}>
           <span>明日预判</span>
           <b>{nextSessionOutlook.ready?nextSessionOutlook.direction:"待定"}<small>{nextSessionOutlook.ready?` · ${nextSessionOutlook.confidence}%`:""}</small></b>
           <em>{nextSessionOutlook.ready?`¥${nextSessionOutlook.lower.toFixed(2)}–${nextSessionOutlook.upper.toFixed(2)}`:"收盘后生成"}</em>
+        </div>
+        <div className={`l2-console-status ${l2ConsoleStatus.tone}`} role="status" title={l2ConsoleStatus.detail}>
+          <i/><span>{l2ConsoleStatus.label}</span><small>{l2ConsoleStatus.detail}</small>
         </div>
       </section>
 
