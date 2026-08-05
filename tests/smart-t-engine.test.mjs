@@ -71,7 +71,7 @@ test("same-direction cycles merge inside one wave and reopen for a distinct wave
   assert.equal(cooled.blocked, false);
 });
 
-test("adaptive exit extends only when current causal structure still supports the trade", () => {
+test("adaptive exit extends a profitable trade only when current causal structure still supports it", () => {
   const points = [100, 99.9, 99.8, 99.85, 99.9, 99.95, 100.0, 100.05, 100.1].map((price) => ({ price }));
   const vwaps = points.map(() => 99.95);
   const decision = evaluateAdaptiveTimeExit({
@@ -81,6 +81,8 @@ test("adaptive exit extends only when current causal structure still supports th
     vwaps,
     entryPivotPrice: 99.8,
     holdMinutes: 18,
+    projectedNetPct: 0.08,
+    bestProjectedNetPct: 0.08,
   });
 
   assert.equal(decision.reviewing, true);
@@ -115,7 +117,7 @@ test("adaptive exit closes a structurally broken trade and enforces a causal max
   assert.equal(expired.maxHoldReached, true);
 });
 
-test("closure review protects only an intact losing trade from a mechanical clock exit", () => {
+test("closure review does not extend an intact losing trade without a prior profit excursion", () => {
   const points = [100, 99.95, 99.9, 99.92, 99.94, 99.96, 99.98, 100.0, 100.02].map((price) => ({ price }));
   const vwaps = points.map(() => 99.80);
   const decision = evaluateAdaptiveTimeExit({
@@ -127,6 +129,7 @@ test("closure review protects only an intact losing trade from a mechanical cloc
     holdMinutes: 18,
     minSupportVotes: 2,
     projectedNetPct: -0.12,
+    bestProjectedNetPct: -0.12,
     protectIntactLoss: true,
   });
 
@@ -137,17 +140,21 @@ test("closure review protects only an intact losing trade from a mechanical cloc
     vwaps,
     entryPivotPrice: 100.2,
     holdMinutes: 18,
-    minSupportVotes: 2,
+    minSupportVotes: 1,
     projectedNetPct: 0.02,
+    bestProjectedNetPct: 0.04,
     protectIntactLoss: true,
   });
 
   assert.equal(decision.pivotIntact, true);
   assert.equal(decision.lossProtected, true);
-  assert.equal(decision.extended, true);
-  assert.equal(decision.exit, false);
+  assert.equal(decision.profitableExcursion, false);
+  assert.equal(decision.extended, false);
+  assert.equal(decision.exit, true);
+  assert.equal(recovered.profitableExcursion, true);
   assert.equal(recovered.lossProtected, false);
-  assert.equal(recovered.exit, true, "after break-even, weak structure must release inventory");
+  assert.equal(recovered.extended, true);
+  assert.equal(recovered.exit, false);
 });
 
 test("three independent scores do not let a strong tape hide a weak location", () => {
@@ -772,6 +779,42 @@ test("causal trend correction is symmetric and leaves mixed regimes unchanged", 
   assert.equal(mixed.consensus, "range");
 });
 
+test("strict causal correction blocks a counter-trend setup until local turn confirmation", () => {
+  const blocked = resolveCausalTrendDirection({
+    enabled: true,
+    requireAlignedTurnForCorrection: true,
+    rawDirection: "SELL_FIRST",
+    regime: "uptrend",
+    cyclePreference: "uptrend",
+    persistentDirection: "range",
+    recovered: 0.01,
+    faded: 0.10,
+    localMomentum3: -0.05,
+    deviation: 0.40,
+    effectiveReversal: 0.08,
+  });
+  assert.equal(blocked.direction, "SELL_FIRST");
+  assert.equal(blocked.corrected, false);
+  assert.equal(blocked.blockedCounterTrend, true);
+
+  const confirmed = resolveCausalTrendDirection({
+    enabled: true,
+    requireAlignedTurnForCorrection: true,
+    rawDirection: "SELL_FIRST",
+    regime: "uptrend",
+    cyclePreference: "uptrend",
+    persistentDirection: "range",
+    recovered: 0.12,
+    faded: 0.10,
+    localMomentum3: 0.05,
+    deviation: 0.40,
+    effectiveReversal: 0.08,
+  });
+  assert.equal(confirmed.direction, "BUY_FIRST");
+  assert.equal(confirmed.corrected, true);
+  assert.equal(confirmed.blockedCounterTrend, false);
+});
+
 test("causal trend memory survives a brief pullback and flips only after persistent evidence", () => {
   let state = advanceCausalTrendMemory({
     enabled: true,
@@ -1051,7 +1094,13 @@ test("partial intraday data is not treated as the closing bell", () => {
 });
 
 test("coverage research markers provide both directions without entering candidate cycles or performance", () => {
-  const rows = sessionTimes.slice(0, 45).map((time) => ({ time, price: 10, volume: 10_000 }));
+  const rows = sessionTimes.slice(0, 45).map((time, index) => ({
+    time,
+    price: 10,
+    high: index === 11 ? 10.88 : 10,
+    low: index === 7 ? 9.12 : 10,
+    volume: 10_000,
+  }));
   const result = runSmartTReplay(rows, { ...options, baseShares: 0, sellable: 0 });
   const coverage = result.observations.filter((observation) => observation.coverageOnly);
 
@@ -1059,6 +1108,11 @@ test("coverage research markers provide both directions without entering candida
   assert.ok(coverage.every((observation) => observation.stage === "watch" && !observation.executable));
   assert.equal(result.candidateCycles.length, 0);
   assert.equal(result.trades, 0);
+  assert.deepEqual(
+    coverage.map((observation) => [observation.pivotTime, observation.pivotPrice]),
+    [[rows[7].time, 9.12], [rows[11].time, 10.88]],
+    "coverage references use only the intraminute low/high observed before each confirmation checkpoint",
+  );
 
   for (const observation of coverage) {
     const prefixIndex = rows.findIndex((point) => point.time === observation.time);
@@ -1092,6 +1146,22 @@ test("gate audit labels rejected candidates after replay without changing V4 dec
   assert.equal(audited.gateAudit?.mode, "research-only-post-replay");
   assert.equal(audited.gateAudit?.horizonMinutes, 30);
   assert.ok((audited.gateAudit?.rejectedCandidateMinutes ?? 0) >= 0);
+});
+
+test("positive-T quality gates keep an unconfirmed rebound out of the formal pool", () => {
+  const baseline = runSmartTReplay(openingRecoverySession("rise"), options);
+  const gated = runSmartTReplay(openingRecoverySession("rise"), {
+    ...options,
+    profileOverrides: {
+      ...options.profileOverrides,
+      minBuyFormalPivotAge: 999,
+      minBuyPriceMomentum30: 100,
+    },
+  });
+
+  assert.equal(baseline.trades, 1);
+  assert.equal(gated.trades, 0);
+  assert.ok(gated.observations.length > 0, "a blocked positive-T setup remains visible for review");
 });
 
 test("every replay prefix matches the same moment inside a full-day replay", () => {
@@ -1226,7 +1296,7 @@ test("every V4 profile owns the complete risk, exit and trend gate set", () => {
     "strongSellSessionMove", "strongSellVwap30", "counterTrendVwap30",
     "counterTrendSessionMove", "counterTrendMinVolumeRatio",
     "minBuyExecutionConfirmationVotes", "minSellExecutionConfirmationVotes",
-    "minSellFormalPivotAge",
+    "minBuyFormalPivotAge", "minSellFormalPivotAge",
     "enableSellExhaustionVolumeRegime", "maxSellExhaustionVolumeRatio",
     "minSellExpansionVolumeRatio",
   ];
@@ -1253,6 +1323,7 @@ test("production profiles keep the validated V5 confirmation and sell-volume reg
   assert.equal(balanced.cooldown, 5);
   assert.equal(balanced.maxCycles, 2);
   assert.equal(balanced.matureSellReversalMinPivotAge, 2);
+  assert.equal(balanced.minBuyFormalPivotAge, 0);
   assert.equal(balanced.minSellFormalPivotAge, 2);
 
   Object.entries(PROFILES)
