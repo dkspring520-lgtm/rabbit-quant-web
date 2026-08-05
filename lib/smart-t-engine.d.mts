@@ -335,6 +335,7 @@ export function evaluateAdaptiveTimeExit(input: {
   momentumPct?: number;
   minSupportVotes?: number;
   projectedNetPct?: number | null;
+  bestProjectedNetPct?: number | null;
   protectIntactLoss?: boolean;
 }): {
   exit: boolean;
@@ -345,6 +346,7 @@ export function evaluateAdaptiveTimeExit(input: {
   pivotIntact?: boolean;
   supportVotes?: number;
   requiredSupportVotes?: number;
+  profitableExcursion?: boolean;
   lossProtected?: boolean;
   momentum3?: number;
   momentum8?: number;
@@ -383,6 +385,9 @@ export const PROFILES: Record<string, {
   counterTrendMinVolumeRatio?: number;
   maxBuyTrendRiskVotes?: number;
   maxSellTrendRiskVotes?: number;
+  minBuyFormalPivotAge?: number;
+  minSellFormalPivotAge?: number;
+  minBuyPriceMomentum30?: number | null;
   matureSellReversalMinPivotAge?: number;
   sameDirectionWaveLock?: number;
   sameDirectionWaveMinGapMinutes?: number;
