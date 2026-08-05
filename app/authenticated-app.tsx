@@ -1697,10 +1697,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(!chartModel)return {observations:[],actions:[],rabbitCandidates:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
     const occupied:LabelBox[]=[];
-    const pointPosition=(time:string,price?:number)=>{
-      const minuteIndex=minutePoints.findIndex(point=>point.time===time);
-      if(minuteIndex<0)return null;
-      const point=minutePoints[minuteIndex];
+    const pointPosition=(time:string,price?:number,allowRecentFallback=false)=>{
+      const exactPoint=minutePoints.find(point=>point.time===time);
+      // Quote streams can briefly skip the confirmation minute while the
+      // causal engine has already produced its action. Formal markers may use
+      // only the immediately preceding real minute; observations remain exact.
+      const point=exactPoint??(allowRecentFallback
+        ?[...minutePoints].reverse().find(candidate=>isRecentCausalEvent(time,candidate.time,1))
+        :undefined);
+      if(!point)return null;
       return {x:liveChartX(point.time),y:liveChartPriceY(price??point.price,chartModel.min,chartModel.max)};
     };
     const reserveLabel=(pointX:number,preferredBaseline:number,width:number,height:number,direction:-1|1)=>{
@@ -1726,7 +1731,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // A live minute can be updated more than once by the public quote feed.
       // Anchor the marker to the price captured by the causal decision instead
       // of the first point sharing the same HHmm timestamp.
-      const point=pointPosition(action.time,action.price);
+      const point=pointPosition(action.time,action.price,true);
       if(!point)return [];
       const isSell=action.side==="卖出";
       const label=formalExecutionLabel(action.direction,isSell?"sell":"buy");
@@ -1956,8 +1961,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const latest=liveEngine.actions.at(-1)??null;
     return latest&&isRecentCausalEvent(decisionModel.lastTime,latest.time,3)?latest:null;
   },[decisionModel.lastTime,liveEngine.actions]);
+  const latestFormalActionMarked=useMemo(
+    ()=>Boolean(latestFormalAction&&intradayMarkerLayout.actions.some(marker=>marker.action===latestFormalAction)),
+    [intradayMarkerLayout.actions,latestFormalAction],
+  );
+  const formalActionMarkerPending=Boolean(
+    decisionModel.status==="ready"&&latestFormalAction&&!latestFormalActionMarked,
+  );
   const decisionActionSide:"buy"|"sell"|null=
-    decisionModel.status==="ready"&&latestFormalAction?formalActionSide(latestFormalAction.side):null;
+    decisionModel.status==="ready"&&latestFormalAction&&latestFormalActionMarked
+      ?formalActionSide(latestFormalAction.side)
+      :null;
   const decisionActionDirection:"正T"|"反T"=
     (latestFormalAction?.direction??signalMode) as "正T"|"反T";
   const decisionExecutionLabel=decisionActionSide
@@ -2817,7 +2831,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
 
   const handleCycleAction=()=>{
     if(cycleStage==="ready"){
-      if(decisionModel.status!=="ready"||!decisionActionSide)return;
+      if(decisionModel.status!=="ready"||!decisionActionSide||!latestFormalActionMarked)return;
       setOpenedCycleSide(decisionActionSide);
       setCycleStage("opened");
       return;
@@ -2833,7 +2847,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   };
   const primaryActionDisabled=
     !stockAgent.canExecute||cycleLimitReached||cycleQuantity<100||
-    (cycleStage==="ready"&&(decisionModel.status!=="ready"||!decisionActionSide))||
+    (cycleStage==="ready"&&(decisionModel.status!=="ready"||!decisionActionSide||!latestFormalActionMarked))||
     (cycleStage==="opened"&&!decisionMatchesCycle);
 
   const membershipExpiry=accountMembership?.expiresAt?new Date(accountMembership.expiresAt).toLocaleDateString('zh-CN',{year:'numeric',month:'short',day:'numeric'}):'--';
@@ -3143,6 +3157,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               ?"🔴 风控已锁定"
               :cycleStage==="opened"
                 ?`🟡 已记录${openedCycleSide==="buy"?"买入":"卖出"}，等待${expectedClosingSide==="sell"?"卖出":"买回"}`
+                :formalActionMarkerPending
+                  ?"🟡 正式信号写入分时图中"
                 :decisionModel.status==="ready"&&decisionActionSide
                   ?`🟢 ${decisionExecutionLabel}已确认`
                   :freshReverseTObservation
@@ -3282,6 +3298,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                       ?'风控锁定 · 暂停做T'
                       :decisionModel.status!=="ready"
                         ?'条件未完成 · 暂不可执行'
+                        :formalActionMarkerPending
+                          ?'正式信号待写入分时图'
                         :!decisionActionSide
                           ?'等待引擎确认实际买卖方向'
                           :`${decisionExecutionLabel} · ${cycleQuantity.toLocaleString()} 股`
