@@ -1431,8 +1431,8 @@ test("flat-open reversals become visible candidates without hindsight promotion"
   assert.ok(buyCandidate.time <= "0940", "the recovery candidate should not wait until the local peak");
   assert.ok(buyCandidate.pivotTime <= buyCandidate.time, "a valley reference must only use an already observed minute");
   assert.ok(buyCandidate.pivotPrice <= buyCandidate.price, "a buy-side valley reference must not be above its confirmation minute");
-  assert.ok(["低位偏离", "低位候选", "转强确认", "反弹观察"].includes(buyCandidate.confirmationLabel));
-  if (sellCandidate.confirmationLabel === "高位偏离") {
+  assert.ok(["均价下方观察", "低位候选", "转强确认", "反弹观察"].includes(buyCandidate.confirmationLabel));
+  if (sellCandidate.confirmationLabel === "均价上方观察") {
     assert.ok(sellCandidate.time >= "0939" && sellCandidate.time <= "0945", "a live VWAP displacement warning may precede reversal confirmation");
     assert.equal(sellCandidate.executable, false, "a displacement warning is never a hindsight sell signal");
   } else {
@@ -1441,7 +1441,7 @@ test("flat-open reversals become visible candidates without hindsight promotion"
   assert.ok(sellCandidate.pivotTime <= sellCandidate.time, "a peak reference must only use an already observed minute");
   assert.ok(sellCandidate.pivotPrice >= sellCandidate.price, "a sell-side peak reference must not be below its confirmation minute");
   assert.ok(["strong", "confirmed", "unconfirmed"].includes(sellCandidate.pivotAssessment));
-  assert.ok(["高位偏离", "高位候选", "转弱确认", "回落观察"].includes(sellCandidate.confirmationLabel));
+  assert.ok(["均价上方观察", "高位候选", "转弱确认", "回落观察"].includes(sellCandidate.confirmationLabel));
   assert.equal(result.actions.length, 0, "flat-open swing observations must wait for formal confirmation");
 });
 

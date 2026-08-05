@@ -16,7 +16,7 @@ test("creates a non-executable upper displacement watch", () => {
   );
   assert.equal(result?.direction, "反T");
   assert.equal(result?.executable, false);
-  assert.match(result?.label ?? "", /高位偏离/);
+  assert.match(result?.label ?? "", /均价上方观察/);
   assert.match(result?.reason ?? "", /不是卖点/);
 });
 
