@@ -528,10 +528,10 @@ function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinut
 function observationConfirmationLabel(observation: ReplayObservation) {
   const rawLabel=observation.confirmationLabel ?? (observation.direction==="正T"?"反弹观察":"回落观察");
   const clearerLabels:Record<string,string>={
-    "低位参考":"前低确认",
-    "高位参考":"前高确认",
-    "覆盖候选·低位参考":"前低确认",
-    "覆盖候选·高位参考":"前高确认",
+    "低位参考":"支撑观察",
+    "高位参考":"压力观察",
+    "覆盖候选·低位参考":"支撑观察",
+    "覆盖候选·高位参考":"压力观察",
     "反弹参考":"反弹确认",
     "回落参考":"回落确认",
   };
@@ -2948,7 +2948,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <div>
                   {indicatorsVisible&&<span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span>}
                   {stock?.code==="601899"&&<span className={`hk-linkage-legend ${zijinAhLinkage.bias}`} title={zijinAhLinkage.reason}><i/>港股紫金 <b>{zijinAhLinkage.available?`${zijinAhLinkage.hkReturnPercent!>=0?"+":""}${zijinAhLinkage.hkReturnPercent!.toFixed(2)}%`:"--"}</b></span>}
-                  <small>中文提示常驻 · 前低/前高确认不是买卖点</small>
+                  <small>中文提示常驻 · 前低/压力观察不是买卖点</small>
                 </div>
               </details>
             </div>
