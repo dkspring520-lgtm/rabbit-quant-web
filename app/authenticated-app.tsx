@@ -106,7 +106,7 @@ type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; 
 type ZijinHkMarket = { symbol:string; name:string; provider:string; fetchedAt:string; sourceTimestamp:string|null; quote:{price:number;previousClose:number;changePercent:number}; minutes:{time:string;price:number}[] };
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; zijinHk:ZijinHkMarket|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
-type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
+type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; marketDate?:string; marketTime?:string; price?:number; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 function tradeAlertLabel(alert:TradeAlertToast){
   if(alert.level==="risk"||alert.rabbit==="both")return "风险提醒";
   if(alert.level==="candidate")return alert.rabbit==="buy"?"低位观察":"高位观察";
@@ -1654,6 +1654,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>compactChartObservations(currentObservations,30) as ReplayObservation[],
     [currentObservations],
   );
+  const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
   const rabbitTrackerSignal=useMemo(()=>{
     const latestTime=minutePoints.at(-1)?.time;
     if(!latestTime)return null;
@@ -1771,6 +1772,32 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         : {labelX:point.x,labelY:point.y};
       return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,labelVisible,labelRendered,observation}];
     });
+    // Every delivered candidate reminder is evidence, not just the latest
+    // rabbit state. Plot the recorded minute on its own chart so an alert such
+    // as the 14:05 displacement confirmation remains reviewable after later
+    // quotes replace the tracker bubble.
+    const recordedCandidates=alertHistory.flatMap((alert,index)=>{
+      if(alert.level!=="candidate"||alert.code!==stock.code)return [];
+      const createdAt=alert.createdAt?new Date(alert.createdAt):null;
+      const createdDate=createdAt&&!Number.isNaN(createdAt.getTime())
+        ?createdAt.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})
+        :null;
+      if(!activeChartDate||(alert.marketDate??createdDate)!==activeChartDate)return [];
+      const createdTime=createdAt&&!Number.isNaN(createdAt.getTime())
+        ?createdAt.toLocaleTimeString("en-GB",{timeZone:"Asia/Shanghai",hour12:false}).replace(/:/g,"")
+        :"";
+      const time=String(alert.marketTime??createdTime).replace(/\D/g,"").slice(-4);
+      if(!/^\d{4}$/.test(time))return [];
+      const minute=minutePoints.find(point=>point.time===time);
+      const markerPrice=Number.isFinite(alert.price)?Number(alert.price):minute?.price;
+      const point=pointPosition(time,markerPrice);
+      if(!point)return [];
+      const label=alert.title.replace(`${stock.name} · `,"").replace(`${stock.name} `,"").trim()||"候选提醒";
+      const isSell=alert.rabbit==="sell";
+      const labelWidth=label.length*8+16;
+      const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
+      return [{...point,...placed,isSell,label,labelWidth,key:`recorded-${alert.eventKey??alert.id??index}`}];
+    });
     // The rabbit can surface the faster displacement candidate before the
     // minute engine promotes it into replay.observations. Keep that causal
     // point on the chart at the exact signal minute/price after the rabbit
@@ -1782,7 +1809,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           const duplicate=observations.some(marker=>
             marker.observation.time===rabbitTrackerSignal.time
             && marker.currentLabel===rabbitTrackerSignal.label
-          );
+          )||recordedCandidates.some(marker=>marker.key===`recorded-${rabbitTrackerSignal.key}`||marker.label===rabbitTrackerSignal.label&&marker.x===point.x);
           if(duplicate)return [];
           const isSell=rabbitTrackerSignal.tone==="sell";
           const label=rabbitTrackerSignal.label;
@@ -1791,8 +1818,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           return [{...point,...placed,isSell,label,labelWidth,key:rabbitTrackerSignal.key}];
         })()
       :[];
-    return {observations,actions,rabbitCandidates};
-  },[chartModel,minutePoints,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal]);
+    return {observations,actions,rabbitCandidates:[...recordedCandidates,...rabbitCandidates]};
+  },[activeChartDate,alertHistory,chartModel,minutePoints,stock.code,stock.name,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -2464,7 +2491,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             : selectedAgent
               ? `${selectedAgent.reasons[0]}；紫金研究模型观察，不是买卖指令。`
               : `${selectedEngineCandidate!.reason}；${selectedEngineCandidate!.blockers.join("；")||"等待正式过滤确认"}`;
-      const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
+      const alertTime=formalFresh?latest!.time:selectedExperimental?.asOfTime??selectedDisplacement?.time??selectedAgent?.asOfTime??selectedEngineCandidate?.time??lastTime;
+      const alertPrice=formalFresh?latest!.price:selectedExperimental?.price??selectedDisplacement?.price??selectedEngineCandidate?.price??points.find(point=>point.time===alertTime)?.price;
+      const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",marketDate:eventDate,marketTime:alertTime,price:alertPrice,level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
       if(queued&&formalFresh&&formalSideKey)lastFormalAlertAtBySide.current[formalSideKey]=Date.now();
       const candidateSpeech=selectedExperimental
         ? selectedExperimental.stage==="experimental-exit"
@@ -2520,7 +2549,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           const level=item.level==='formal'?'signal':item.level==='risk'?'risk':'candidate';
           const rabbit=sell?'sell':'buy';
           const serverTitle=item.level==='formal'?`${item.name??item.code} ${executionLabel}`:item.title;
-          const queued=queueAlert({code:item.code,eventKey:item.eventKey??`server:${item.id}`,source:"server",createdAt:item.createdAt,level,rabbit,title:serverTitle,message:item.message});
+          const serverTime=String(item.marketTime??action?.time??observation?.time??"").replace(/\D/g,"").slice(-4);
+          const serverPrice=Number(action?.price??observation?.price);
+          const queued=queueAlert({code:item.code,eventKey:item.eventKey??`server:${item.id}`,source:"server",createdAt:item.createdAt,marketTime:serverTime||undefined,price:Number.isFinite(serverPrice)?serverPrice:undefined,level,rabbit,title:serverTitle,message:item.message});
           if(queued&&sideKey)lastFormalAlertAtBySide.current[sideKey]=Date.now();
           const shouldDeliver=serverAlertsInitialized.current&&item.level!=='watch';
           const deliveryChannels:string[]=[];
