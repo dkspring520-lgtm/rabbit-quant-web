@@ -2387,7 +2387,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const displacementReminder=item.code===STOCK_AGENTS.zijin.code
         ? evaluateZijinDisplacementWatch(points)
         : null;
-      const formalFresh=Boolean(latest&&isRecentCausalEvent(lastTime,latest.time,3));
+      // A formal alert for the active chart must be visible on that chart first.
+      // Other monitored stocks keep their background-alert behavior.
+      const formalCharted=!active||Boolean(latest&&intradayMarkerLayout.actions.some(marker=>marker.action===latest));
+      const formalFresh=Boolean(latest&&formalCharted&&isRecentCausalEvent(lastTime,latest.time,3));
       const riskMessage=active&&autoDecision.status==="locked"
         ? autoDecision.reason
         : eventsByCode[item.code]?.gate.hardLock
@@ -2484,7 +2487,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(queued&&alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latestExecutionLabel}提醒`:candidateSpeech,isRisk,isRisk?"risk":formalFresh?"signal":"candidate",rabbit==="both"?null:rabbit);
       if(queued&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
     }
-  },[autoDecision.status,autoDecision.reason,liveEngine,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName,zijinResearchEnabled,stockAgentEvaluation,queueAlert,speakAlert]);
+  },[autoDecision.status,autoDecision.reason,liveEngine,intradayMarkerLayout,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName,zijinResearchEnabled,stockAgentEvaluation,queueAlert,speakAlert]);
   useEffect(()=>{
     if(!localAuth||demoMode)return;
     let cancelled=false;
@@ -2503,6 +2506,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         for(const item of recent){
           const action=item.payload?.action;const observation=item.payload?.observation;
           const actionSide=action?.side?formalActionSide(action.side):null;
+          const activeFormalMarkerReady=item.level!=="formal"||item.code!==stockList[activeStock]?.code||Boolean(
+            action&&intradayMarkerLayout.actions.some(marker=>marker.action.time===action.time&&formalActionSide(marker.action.side)===actionSide),
+          );
+          // Keep a server-pushed formal alert pending until its chart marker is
+          // present, so speech, toast, and the visible buy/sell point agree.
+          if(!activeFormalMarkerReady)continue;
           const sell=actionSide?actionSide==="sell":String(observation?.direction??item.title).includes('卖');
           const actionDirection=(action?.direction??observation?.direction??(sell?"反T":"正T")) as "正T"|"反T";
           const executionLabel=actionSide?formalExecutionLabel(actionDirection,actionSide):item.title;
@@ -2528,7 +2537,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void pull()};
     document.addEventListener('visibilitychange',onVisibility);
     return()=>{cancelled=true;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisibility)};
-  },[localAuth,demoMode,alertSettings.sound,alertSettings.system,stockList,activeStock,queueAlert,speakAlert]);
+  },[localAuth,demoMode,alertSettings.sound,alertSettings.system,stockList,activeStock,intradayMarkerLayout,queueAlert,speakAlert]);
   useEffect(() => {
     if(initialAuth)return;
     const timer = window.setTimeout(() => {void (async()=>{
