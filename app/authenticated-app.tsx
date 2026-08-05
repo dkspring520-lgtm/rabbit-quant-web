@@ -3056,6 +3056,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className={`l2-console-status ${l2ConsoleStatus.tone}`} role="status" title={l2ConsoleStatus.detail}>
           <i/><span>{l2ConsoleStatus.label}</span><small>{l2ConsoleStatus.detail}</small>
         </div>
+        <div className={`next-session-header ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} role="status" aria-label="下一交易日预判" title={nextSessionOutlook.ready?`${nextSessionOutlook.stage}：${nextSessionOutlook.failure}`:nextSessionOutlook.detail}>
+          <span>明日预判</span>
+          <b>{nextSessionOutlook.ready?nextSessionOutlook.direction:"待定"}<small>{nextSessionOutlook.ready?` · ${nextSessionOutlook.confidence}%`:""}</small></b>
+          <em>{nextSessionOutlook.ready?`¥${nextSessionOutlook.lower.toFixed(2)}–${nextSessionOutlook.upper.toFixed(2)}`:"收盘后生成"}</em>
+        </div>
       </section>
 
       <section className="desk-core-strip" aria-label="做T核心指标">
