@@ -1762,11 +1762,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // Preserve the auditable label contract for every causal marker. Nearby
       // duplicates may render as hoverable dots, but their label/time remain.
       const labelVisible=true;
-      // Candidate observations remain visible as dots. Their full causal reason
-      // is available from the native SVG hover title / chart cursor, keeping the
-      // one-second price read free of overlapping labels. Formal actions below
-      // intentionally keep their labels.
-      const labelRendered=false;
+      // Keep watch-only observations as light dots, but surface qualified
+      // candidates as compact labels. This preserves a clean one-second read
+      // while making the signals that need manual follow-up visible on-chart.
+      const labelRendered=qualified||assessment==="confirmed"||assessment==="strong";
       const placed=labelRendered
         ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
         : {labelX:point.x,labelY:point.y};
@@ -2484,7 +2483,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         : isVwapDisplacementObservation(selectedEngineCandidate)
         ? `${item.name}，${selectedEngineCandidate!.reason.split("；")[0]}，请观察确认，不是买卖指令`
         : `${item.name}，${selectedEngineCandidate?.direction??"做T"}候选观察，不是买卖指令`;
-      if(queued&&alertSettings.sound)speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latestExecutionLabel}提醒`:candidateSpeech,isRisk,isRisk?"risk":formalFresh?"signal":"candidate",rabbit==="both"?null:rabbit);
+      if(queued&&alertSettings.sound&&(isRisk||formalFresh))speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latestExecutionLabel}提醒`:candidateSpeech,isRisk,isRisk?"risk":formalFresh?"signal":"candidate",rabbit==="both"?null:rabbit);
       if(queued&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
     }
   },[autoDecision.status,autoDecision.reason,liveEngine,intradayMarkerLayout,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName,zijinResearchEnabled,stockAgentEvaluation,queueAlert,speakAlert]);
@@ -2518,14 +2517,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           const sideKey=item.level==='formal'&&actionSide&&item.code?`${item.code}:${actionSide}`:"";
           if(item.level==='formal'&&actionSide&&item.code===stockList[activeStock]?.code&&cycleStageRef.current==="opened"&&openedCycleSideRef.current===actionSide)continue;
           if(sideKey&&Date.now()-(lastFormalAlertAtBySide.current[sideKey]??0)<10*60_000)continue;
-          const level=item.level==='formal'?'signal':'candidate';
+          const level=item.level==='formal'?'signal':item.level==='risk'?'risk':'candidate';
           const rabbit=sell?'sell':'buy';
           const serverTitle=item.level==='formal'?`${item.name??item.code} ${executionLabel}`:item.title;
           const queued=queueAlert({code:item.code,eventKey:item.eventKey??`server:${item.id}`,source:"server",createdAt:item.createdAt,level,rabbit,title:serverTitle,message:item.message});
           if(queued&&sideKey)lastFormalAlertAtBySide.current[sideKey]=Date.now();
           const shouldDeliver=serverAlertsInitialized.current&&item.level!=='watch';
           const deliveryChannels:string[]=[];
-          if(queued&&shouldDeliver&&alertSettings.sound){speakAlert(`${item.title}，${item.level==='formal'?'正式信号':'候选观察'}`,false,level,rabbit);deliveryChannels.push('speech')}
+          if(queued&&shouldDeliver&&(item.level==='formal'||item.level==='risk')&&alertSettings.sound){speakAlert(`${item.title}，${item.level==='formal'?'正式信号':'风险提醒'}`,item.level==='risk',level,rabbit);deliveryChannels.push('speech')}
           if(queued&&shouldDeliver&&alertSettings.system&&'Notification' in window&&Notification.permission==='granted'){new Notification(`双兔助手 · ${item.title}`,{body:item.message,tag:`server-${item.id}`});deliveryChannels.push('system')}
           if(shouldDeliver)void fetch(`/api/control/alerts/${item.id}/delivery`,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({status:deliveryChannels.length?'notified':'displayed',channel:deliveryChannels.length?deliveryChannels.join('+'):'in-app'})}).catch(()=>{});
           void fetch(`/api/control/alerts/${item.id}/ack`,{method:'POST',credentials:'include'}).catch(()=>{});
@@ -3010,7 +3009,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.currentLabel}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
-              {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="5"/></g>)}
+              {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} with-label`}><title>{marker.label}</title><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text><circle cx={marker.x} cy={marker.y} r="5"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
                 <image className="rabbit-brand-reference" href="/rabbit-daylight-pair.webp" width="0" height="0" opacity="0" aria-hidden="true"/>
