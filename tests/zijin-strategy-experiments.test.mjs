@@ -33,7 +33,8 @@ test("closure mode audits obvious errors instead of optimizing win rate", () => 
   assert.equal(zijin.profileOverrides.hardTrendContinuationGate, 0);
   assert.equal(zijin.profileOverrides.obviousDirectionalErrorGate, 1);
   assert.equal(zijin.profileOverrides.causalTrendCorrectionRequireAlignedTurn, 1);
-  assert.equal(zijin.profileOverrides.maxBuyTrendRiskVotes, 1);
+  assert.equal(zijin.profileOverrides.minBuyPriceMomentum30, 0.4);
+  assert.equal(zijin.profileOverrides.maxBuyTrendRiskVotes, 0);
   assert.equal(zijin.profileOverrides.maxSellTrendRiskVotes, 3);
   assert.equal(zijin.profileOverrides.adaptiveTimeExit, 1);
   assert.equal(zijin.profileOverrides.timeExitMinutes, 45);
