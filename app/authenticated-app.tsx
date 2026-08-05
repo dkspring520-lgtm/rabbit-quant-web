@@ -3187,8 +3187,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <div className="sell"><small title="反T：先卖出旧仓、后低价买回等量股份">{isPreopenPlanPhase?"开盘反T观察区":"反T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.sellRange[0].toFixed(2)}–{displayedZijinPricePlan.sellRange[1].toFixed(2)}</b><span>到区后等衰竭确认</span></div>
               </div>
               <div className="zijin-price-plan-quick-fill" role="group" aria-label="T calculator quick fill">
-                <button className="buy" type="button" onClick={()=>setTEntryPrice(((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2))}><span>{"\u6b63T \u4e70\u5165"}</span><b>?{((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2)}</b></button>
-                <button className="sell" type="button" onClick={()=>setTExitPrice(((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2))}><span>{"\u53cdT \u5356\u51fa"}</span><b>?{((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2)}</b></button>
+                <button className="buy" type="button" onClick={()=>setTEntryPrice(((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2))}><span>{"\u6b63T \u4e70\u5165"}</span><b>¥{((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2)}</b></button>
+                <button className="sell" type="button" onClick={()=>setTExitPrice(((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2))}><span>{"\u53cdT \u5356\u51fa"}</span><b>¥{((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2)}</b></button>
               </div>
               <div className="zijin-price-plan-meta">
                 <span title="毛价差：未扣除佣金、税费和滑点前的买卖价差">预期毛价差 <sup>ⓘ</sup> <b>¥{displayedZijinPricePlan.expectedGrossSpread.toFixed(2)}</b></span>
