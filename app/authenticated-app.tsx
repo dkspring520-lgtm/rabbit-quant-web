@@ -1642,7 +1642,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ? `${formatTime(freshReverseTAction.time)} · ¥${freshReverseTAction.price.toFixed(2)} · 正式信号`
     : reverseTDisplayObservation
       ? `${formatTime(reverseTDisplayObservation.time)} · ¥${reverseTDisplayObservation.price?.toFixed(2)??"--"}${freshReverseTObservation?" · 候补确认":" · 最近观察"}`
-      : "等待高位偏离与回落确认";
+      : "等待均价上方观察与回落确认";
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(
