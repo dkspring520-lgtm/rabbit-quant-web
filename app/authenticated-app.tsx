@@ -32,6 +32,7 @@ import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
 import { buildZijinPreopenPricePlan } from "@/lib/zijin-preopen-price-plan.mjs";
 import { buildZijinMainForceTrack } from "@/lib/zijin-main-force-track.mjs";
 import { evaluateZijinFundResponse } from "@/lib/zijin-fund-response.mjs";
+import { summarizeZijinMainForceIntent } from "@/lib/zijin-main-force-intent.mjs";
 import { analyzeZijinAhLinkage } from "@/lib/zijin-ah-linkage.mjs";
 import { evaluateWeb4Microstructure } from "@/lib/web4-microstructure.mjs";
 import { evaluateWeb4RealtimeMonitor } from "@/lib/web4-realtime-monitor.mjs";
@@ -1414,6 +1415,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   );
   const zijinFundResponse=useMemo(
     ()=>evaluateZijinFundResponse(zijinMainForceTrack.bars),
+    [zijinMainForceTrack.bars],
+  );
+  const zijinMainForceIntent=useMemo(
+    ()=>summarizeZijinMainForceIntent(zijinMainForceTrack.bars),
     [zijinMainForceTrack.bars],
   );
   const zijinMainForceCumulative=useMemo(()=>{
@@ -3108,6 +3113,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="main-force-track-foot">
               <span>大额买入 {formatMainForceAmount(zijinMainForceTrack.totals.bigBuyNotional)}</span>
               <span>大额卖出 {formatMainForceAmount(zijinMainForceTrack.totals.bigSellNotional)}</span>
+              <span className={`main-force-intent ${zijinMainForceIntent.state}`} title={`${zijinMainForceIntent.message}；${zijinMainForceIntent.evidence}。仅为大额成交统计观察，不识别具体资金主体，也不构成交易建议。`}><i>全天意图</i><b>{zijinMainForceIntent.label}</b><small>{zijinMainForceIntent.confidence}</small></span>
               <span className={`main-force-response-note ${zijinFundResponse.state}`}>{zijinFundResponse.message}</span>
               <em>{zijinFundResponse.evidence}</em>
             </div>
