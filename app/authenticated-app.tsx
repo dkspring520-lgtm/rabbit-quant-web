@@ -93,7 +93,7 @@ const base64UrlToUint8Array = (value:string) => {
 };
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
-type IntradayMinute = {time:string;price:number;volume:number;averagePrice?:number|null;timeVolumeBaseline?:number|null};
+type IntradayMinute = {time:string;price:number;volume:number;high?:number|null;low?:number|null;averagePrice?:number|null;timeVolumeBaseline?:number|null};
 type IntradaySession = { date:string; previousClose:number|null; minutes:IntradayMinute[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
 type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
@@ -1225,7 +1225,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const l2MinutePoints=useMemo(()=>stock.code==="601899"?liveL2ByMinute:{},[stock.code,liveL2ByMinute]);
   const minutePoints = useMemo(() => {
     type LiveMinutePoint = {
-      time:string; price:number; volume:number; averagePrice?:number|null;
+      time:string; price:number; volume:number; high?:number|null; low?:number|null; averagePrice?:number|null;
       dataSource:"public-fallback"|"l2-primary"; l2?:ZijinL2State;
     };
     const merged=new Map<string,LiveMinutePoint>(rawMinutePoints
@@ -1236,6 +1236,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(l2.status?.connected!==true||l2.status?.authorized===false||l2.status?.stale===true||l2.meta?.stale===true)continue;
       const base=merged.get(time);
       const l2Price=Number(l2.l2Bar?.price??l2.book?.lastPrice);
+      const l2High=Number(l2.l2Bar?.high);
+      const l2Low=Number(l2.l2Bar?.low);
       const priceCompatible=Number.isFinite(l2Price)&&l2Price>0
         &&(!base||Math.abs(l2Price-base.price)/Math.max(base.price,.01)<=.05);
       if(!priceCompatible)continue;
@@ -1256,13 +1258,28 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       merged.set(time,{
         ...(base??{time,price:l2Price,volume:0}),
         price:l2Price,
+        high:Number.isFinite(l2High)&&l2High>0?l2High:base?.high??l2Price,
+        low:Number.isFinite(l2Low)&&l2Low>0?l2Low:base?.low??l2Price,
         volume:Number.isFinite(l2Volume)&&l2Volume>0?l2Volume:base?.volume??0,
         averagePrice:l2.l2Bar?.averagePrice??base?.averagePrice??null,
         dataSource:"l2-primary",
         l2,
       });
     }
-    return [...merged.values()].sort((a,b)=>a.time.localeCompare(b.time));
+    return [...merged.values()].sort((a,b)=>a.time.localeCompare(b.time)).map(point=>{
+      // Some upstream snapshots occasionally carry a day-level high/low in a
+      // minute bar.  It must not stretch the intraday scale when it is plainly
+      // inconsistent with that minute's last price.
+      const price=Number(point.price);
+      if(!Number.isFinite(price)||price<=0)return point;
+      const high=Number(point.high);
+      const low=Number(point.low);
+      return {
+        ...point,
+        high:Number.isFinite(high)&&high>=price&&high<=price*1.06?high:price,
+        low:Number.isFinite(low)&&low<=price&&low>=price*.94?low:price,
+      };
+    });
   }, [rawMinutePoints,l2MinutePoints]);
   const l2CalculationCoverage=useMemo(
     ()=>stock?.code==="601899"?minutePoints.filter(point=>point.dataSource==="l2-primary").length:0,
@@ -1279,7 +1296,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[afterHoursPoints]);
   const chartModel = useMemo(() => {
     if (minutePoints.length < 2) return null;
-    const prices=minutePoints.map(point=>point.price);
+    const prices=minutePoints.flatMap(point=>[
+      point.price,
+      Number.isFinite(point.high)&&Number(point.high)>0?Number(point.high):point.price,
+      Number.isFinite(point.low)&&Number(point.low)>0?Number(point.low):point.price,
+    ]);
     const averageSeries=cumulativeIntradayAverage(minutePoints);
     const scale=symmetricIntradayScale(
       [...prices,...averageSeries],
@@ -1383,6 +1404,55 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ticks:scale.ticks.map(tick=>({...tick,y:liveChartPriceY(tick.value,min,max)})),
     };
   },[minutePoints,activeQuote?.previousClose]);
+  const nextSessionOutlook=useMemo(()=>{
+    const previousClose=Number(activeQuote?.previousClose);
+    const prices=minutePoints.map(point=>Number(point.price)).filter(price=>Number.isFinite(price)&&price>0);
+    const close=prices.at(-1)??0;
+    if(prices.length<20||!Number.isFinite(previousClose)||previousClose<=0||close<=0){
+      return {ready:false as const,stage:"数据准备中",detail:"至少需要 20 个有效分钟点与昨收，收盘后自动生成下一交易日的概率预判。"};
+    }
+    const high=Math.max(...prices);
+    const low=Math.min(...prices);
+    const vwap=chartModel?.lastVwap??close;
+    const changePct=(close-previousClose)/previousClose*100;
+    const vwapBiasPct=(close-vwap)/Math.max(vwap,.01)*100;
+    const closePosition=(close-low)/Math.max(high-low,.01);
+    const recentStart=prices[Math.max(0,prices.length-20)];
+    const recentMovePct=(close-recentStart)/Math.max(recentStart,.01)*100;
+    const recentVolume=minutePoints.slice(-20).reduce((sum,point)=>sum+Math.max(0,Number(point.volume)||0),0);
+    const priorVolume=minutePoints.slice(Math.max(0,minutePoints.length-40),-20).reduce((sum,point)=>sum+Math.max(0,Number(point.volume)||0),0);
+    const volumeRatio=priorVolume>0?recentVolume/priorVolume:1;
+    const score=(changePct>=.8?2:changePct<=-.8?-2:0)
+      +(vwapBiasPct>=.18?1:vwapBiasPct<=-.18?-1:0)
+      +(closePosition>=.72?1:closePosition<=.28?-1:0)
+      +(recentMovePct>=.15?1:recentMovePct<=-.15?-1:0)
+      +(volumeRatio>=1.15?(recentMovePct>=0?1:-1):0);
+    const direction=score>=2?"偏强":score<=-2?"偏弱":"震荡";
+    const confidence=Math.min(80,Math.max(55,56+Math.abs(score)*5+Math.min(8,Math.abs(vwapBiasPct)*2)));
+    const todayRangePct=(high-low)/Math.max(close,.01);
+    const expectedMovePct=Math.min(.045,Math.max(.012,todayRangePct*.52));
+    const support=close*(1-expectedMovePct*.58);
+    const resistance=close*(1+expectedMovePct*.58);
+    const failure=direction==="偏强"?`跌破 ¥${support.toFixed(2)}，偏强预判失效`:
+      direction==="偏弱"?`收复 ¥${resistance.toFixed(2)}，偏弱预判失效`:
+      `放量突破 ¥${resistance.toFixed(2)} 或跌破 ¥${support.toFixed(2)}，震荡结构改变`;
+    return {
+      ready:true as const,
+      stage:marketSession.live?"盘后定稿中":"下一交易日概率预判",
+      direction,
+      confidence,
+      lower:close*(1-expectedMovePct),
+      upper:close*(1+expectedMovePct),
+      support,
+      resistance,
+      failure,
+      factors:[
+        `日内 ${changePct>=0?"+":""}${changePct.toFixed(2)}%`,
+        `${vwapBiasPct>=0?"均价上方":"均价下方"} ${Math.abs(vwapBiasPct).toFixed(2)}%`,
+        `尾盘 ${recentMovePct>=0?"+":""}${recentMovePct.toFixed(2)}%`,
+      ],
+    };
+  },[activeQuote?.previousClose,chartModel?.lastVwap,marketSession.live,minutePoints]);
   const zijinAhLinkage=useMemo(()=>{
     if(stock?.code!=="601899"||!zijinHkMarket)return analyzeZijinAhLinkage();
     const sourceTime=zijinHkMarket.sourceTimestamp?new Date(zijinHkMarket.sourceTimestamp).getTime():NaN;
@@ -3240,6 +3310,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · V4 过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
           </div>
           <div className="signal-funnel-note"><span>{visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察")}</span><em>{visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒仍由 V4 运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层"}</em></div>
+          <section className={`next-session-outlook ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} aria-label="下一交易日走势概率预判">
+            <header><span>下一交易日预判</span><em>{nextSessionOutlook.stage}</em></header>
+            {nextSessionOutlook.ready?<>
+              <div className="next-session-outlook-main"><b>{nextSessionOutlook.direction}</b><strong>{nextSessionOutlook.confidence}<small>%</small></strong></div>
+              <div className="next-session-outlook-range"><span>预计波动</span><b>¥{nextSessionOutlook.lower.toFixed(2)}–{nextSessionOutlook.upper.toFixed(2)}</b></div>
+              <div className="next-session-outlook-levels"><span>支撑 ¥{nextSessionOutlook.support.toFixed(2)}</span><span>压力 ¥{nextSessionOutlook.resistance.toFixed(2)}</span></div>
+              <p>{nextSessionOutlook.factors.join(" · ")}</p><small>{nextSessionOutlook.failure}</small>
+            </>:<p>{nextSessionOutlook.detail}</p>}
+            <i>基于已出现的日内分钟数据生成概率区间，不构成投资建议；盘前消息与大盘变化会使结果失效。</i>
+          </section>
           {isZijinStock&&displayedZijinPricePlan&&<div className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"} ${premiumEnabled&&!displayedZijinPricePlan.ready?"compact-waiting":""}`} aria-label="紫金矿业预判买入卖出价区间">
             <div className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":"紫金会员 · 实时因果"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":"预判买卖价区间"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":"等待分时"):"会员功能"}</em></div>
             {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
