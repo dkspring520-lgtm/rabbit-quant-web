@@ -1821,3 +1821,4 @@
   .zijin-price-plan-quick-fill { grid-template-columns: 1fr; }
   .t-calculator-presets button { flex: 1 1 42%; }
 }
+.stock-head{padding-left:20px;padding-right:20px;gap:14px}.l2-console-status{min-width:150px;flex-basis:200px}.next-session-header{min-width:128px;flex-basis:164px;padding-left:9px;padding-right:9px}
