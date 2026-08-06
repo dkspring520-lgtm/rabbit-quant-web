@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  FORMAL_CLOSURE_FLOOR,
   PROFILES,
   buildHistoricalSimilarityArchive,
   buildCandidateObservationCycles,
@@ -14,6 +15,7 @@ import {
   resolveCausalTrendDirection,
   causalRangeEvidence,
   causalVolatilityScale,
+  calculateFormalClosureRate,
   confirmsRapidRiseSellReversal,
   consolidateTrendRiskVotes,
   confirmCandidateDirectionFlip,
@@ -21,6 +23,7 @@ import {
   detectFallingKnifeConflict,
   detectRisingKnifeConflict,
   describeVwapConfirmation,
+  evaluateDirectionPermissionGate,
   evaluateAdaptiveTimeExit,
   evaluateSameDirectionWaveLock,
   evaluateStructuralStop,
@@ -33,6 +36,33 @@ import {
   runSmartTReplay,
   summarizeHistoricalSimilarity,
 } from "../lib/smart-t-engine.mjs";
+
+test("pre-open direction permission stays shadow-only until an explicit formal guard is requested", () => {
+  const shadow = evaluateDirectionPermissionGate({
+    direction: "BUY_FIRST",
+    time: "0936",
+    permission: { enabled: true, mode: "shadow-only", status: "confirmed", allowedDirections: ["反T"], expiresAt: "1000" },
+  });
+  assert.equal(shadow.active, true);
+  assert.equal(shadow.wouldBlock, true);
+  assert.equal(shadow.pass, true);
+
+  const formal = evaluateDirectionPermissionGate({
+    direction: "BUY_FIRST",
+    time: "0936",
+    permission: { enabled: true, mode: "formal-guard", status: "confirmed", allowedDirections: ["反T"], expiresAt: "1000" },
+  });
+  assert.equal(formal.enforced, true);
+  assert.equal(formal.pass, false);
+});
+
+test("formal cycle coverage uses reviewed stock-days and keeps the 25 percent floor explicit", () => {
+  assert.equal(FORMAL_CLOSURE_FLOOR, 0.25);
+  assert.equal(calculateFormalClosureRate({ closedCycles: 25, evaluatedSessions: 100 }), 0.25);
+  assert.equal(calculateFormalClosureRate({ closedCycles: 24, evaluatedSessions: 100 }), 0.24);
+  assert.equal(calculateFormalClosureRate({ closedCycles: 2, evaluatedSessions: 1 }), 2);
+  assert.equal(calculateFormalClosureRate({ closedCycles: 1, evaluatedSessions: 0 }), 0);
+});
 
 test("same-direction cycles merge inside one wave and reopen for a distinct wave", () => {
   const lastCycle = {

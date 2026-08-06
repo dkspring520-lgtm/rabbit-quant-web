@@ -135,6 +135,16 @@ export type SmartTReplayResult = {
     }>;
   };
 };
+export const FORMAL_CLOSURE_FLOOR: 0.25;
+export function calculateFormalClosureRate(input?: { closedCycles?: number; evaluatedSessions?: number }): number;
+export type SmartTDirectionPermission = {
+  enabled?: boolean;
+  mode?: "shadow-only" | "formal-guard";
+  status?: string;
+  allowedDirections?: Array<"正T" | "反T">;
+  expiresAt?: string;
+  reason?: string;
+};
 export type SmartTOptions = {
   capital: number;
   baseShares: number;
@@ -154,6 +164,7 @@ export type SmartTOptions = {
   strategyVersion?: string;
   gateAudit?: boolean;
   volatilityMode?: "fixed" | "causal-realized" | "causal-hybrid";
+  directionPermission?: SmartTDirectionPermission;
   similarityArchive?: Array<{
     date?: string;
     direction: "BUY_FIRST" | "SELL_FIRST";
@@ -168,6 +179,23 @@ export type SmartTOptions = {
   }>;
 };
 export function runSmartTReplay(minutes: SmartTMinute[], options: SmartTOptions): SmartTReplayResult;
+export function evaluateDirectionPermissionGate(input?: {
+  direction?: "BUY_FIRST" | "SELL_FIRST" | null;
+  time?: string | null;
+  permission?: SmartTDirectionPermission | null;
+}): {
+  enabled: boolean;
+  active: boolean;
+  enforced: boolean;
+  wouldBlock: boolean;
+  pass: boolean;
+  mode: string;
+  direction: "正T" | "反T" | null;
+  allowedDirections: Array<"正T" | "反T">;
+  status: string;
+  expiresAt: string;
+  reason: string;
+};
 export function shouldEnforceObviousDirectionalMemory(options?: {
   completedCycles?: number;
   latestCycleNet?: number | null;

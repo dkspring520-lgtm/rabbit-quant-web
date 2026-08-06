@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
-import { PROFILES, runSmartTReplay } from "../lib/smart-t-engine.mjs";
+import { FORMAL_CLOSURE_FLOOR, PROFILES, runSmartTReplay } from "../lib/smart-t-engine.mjs";
 
 const [
   inputPath,
@@ -23,7 +23,23 @@ const profileOverrides = profileOverridesArg.startsWith("{")
   }));
 const selectedProfile = PROFILES?.[profile];
 if (!selectedProfile) throw new Error(`unknown profile: ${profile}`);
-const unknownOverrideKeys = Object.keys(profileOverrides).filter((key) => !(key in selectedProfile));
+// Some replay controls deliberately stay opt-in rather than becoming a
+// production-profile default.  Keep the audit strict for typos while allowing
+// the current, versioned experiment to exercise those engine controls.
+const EXPERIMENT_OVERRIDE_KEYS = new Set([
+  "adaptiveTimeExit",
+  "adaptiveMaxHoldMinutes",
+  "adaptiveExitPivotBufferPct",
+  "adaptiveExitMomentumPct",
+  "obviousDirectionalErrorGate",
+  "adaptiveExitMinSupportVotes",
+  "adaptiveProtectIntactLoss",
+  "sameDirectionWaveLock",
+  "sameDirectionWaveMinGapMinutes",
+  "sameDirectionWaveResetPct",
+]);
+const unknownOverrideKeys = Object.keys(profileOverrides)
+  .filter((key) => !(key in selectedProfile) && !EXPERIMENT_OVERRIDE_KEYS.has(key));
 if (unknownOverrideKeys.length > 0) {
   throw new Error(`unknown profile override(s): ${unknownOverrideKeys.join(", ")}`);
 }
@@ -106,6 +122,8 @@ function finalize(bucket) {
     fees: Number(bucket.fees.toFixed(2)),
     executionCost: Number(bucket.executionCost.toFixed(2)),
     cyclesPer100Days: bucket.days ? Number((bucket.cycles / bucket.days * 100).toFixed(2)) : 0,
+    cycleClosureRate: bucket.days ? bucket.cycles / bucket.days : 0,
+    meetsClosureFloor: bucket.days > 0 && bucket.cycles / bucket.days >= FORMAL_CLOSURE_FLOOR,
     tradeDayCoverage: bucket.days ? bucket.tradeDays / bucket.days : 0,
     winRate: bucket.cycles ? bucket.wins / bucket.cycles : 0,
     averageNetPerCycle: bucket.cycles ? Number((bucket.net / bucket.cycles).toFixed(2)) : 0,
@@ -159,8 +177,9 @@ console.log(JSON.stringify({
   volatilityMode,
   profileOverrides,
   target: {
-    cyclesPer100Days: 40,
-    description: "约每100个交易日形成40个扣费正式闭环",
+    cycleClosureRate: FORMAL_CLOSURE_FLOOR,
+    cyclesPer100Days: FORMAL_CLOSURE_FLOOR * 100,
+    description: "每100个评估股票日，至少形成25个扣费正式闭环",
   },
   partitions: Object.fromEntries(Object.entries(partitions)
     .map(([name, bucket]) => [name, finalize(bucket)])),
