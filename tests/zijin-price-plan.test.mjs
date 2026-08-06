@@ -22,6 +22,9 @@ test("Zijin price plan exposes ordered buy and sell ranges", () => {
   assert.ok(plan.riskPlan.positiveT.takeProfit2>=plan.riskPlan.positiveT.takeProfit1);
   assert.ok(plan.riskPlan.reverseT.hardStop>plan.sellRange[1]);
   assert.ok(plan.riskPlan.reverseT.takeProfit1<plan.sellRange[0]);
+  assert.ok(plan.riskPlan.bufferPct>=.5&&plan.riskPlan.bufferPct<=1);
+  assert.ok(plan.buyRange[0]-plan.riskPlan.positiveT.hardStop>=.15);
+  assert.ok(plan.riskPlan.reverseT.hardStop-plan.sellRange[1]>=.15);
 });
 
 test("Zijin price plan waits for enough causal points", () => {
