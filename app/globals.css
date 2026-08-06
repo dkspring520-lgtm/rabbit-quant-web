@@ -1822,3 +1822,124 @@
   .t-calculator-presets button { flex: 1 1 42%; }
 }
 .stock-head{padding-left:20px;padding-right:20px;gap:14px}.l2-console-status{min-width:150px;flex-basis:200px}.next-session-header{min-width:128px;flex-basis:164px;padding-left:9px;padding-right:9px}
+
+/* Light desk: actions lead, explanations stay one click away. */
+.decision-audit-details>summary,
+.t-calculator>summary{
+  list-style:none;
+  cursor:pointer;
+}
+.decision-audit-details>summary::-webkit-details-marker,
+.t-calculator>summary::-webkit-details-marker{display:none}
+.t-calculator>summary{display:none}
+:root[data-theme="light"] .minimal-ui .decision-audit-details{
+  margin-top:2px;
+  border-top:1px solid var(--line-soft);
+}
+:root[data-theme="light"] .minimal-ui .decision-audit-details>summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:30px;
+  color:var(--muted);
+  font-size:9px;
+}
+:root[data-theme="light"] .minimal-ui .decision-audit-details>summary b{
+  color:var(--amber);
+  font-family:var(--font-geist-mono),monospace;
+}
+:root[data-theme="light"] .minimal-ui .decision-audit-details .global-decision-summary{
+  margin:0 0 7px;
+  white-space:normal;
+}
+:root[data-theme="light"] .minimal-ui .decision-audit-details .decision-condition-grid{margin-bottom:8px}
+:root[data-theme="light"] .minimal-ui .global-decision-card .global-decision-status{
+  display:flex;
+  align-items:center;
+  width:fit-content;
+  min-height:38px;
+  padding:7px 10px;
+  border:1px solid color-mix(in srgb,var(--amber) 42%,var(--line));
+  border-radius:10px;
+  background:color-mix(in srgb,var(--amber) 10%,var(--surface));
+  font-size:20px;
+}
+:root[data-theme="light"] .minimal-ui .global-decision-card.ready.positive .global-decision-status{
+  border-color:color-mix(in srgb,var(--teal) 52%,var(--line));
+  background:color-mix(in srgb,var(--teal) 12%,var(--surface));
+}
+:root[data-theme="light"] .minimal-ui .global-decision-card.ready.reverse .global-decision-status,
+:root[data-theme="light"] .minimal-ui .global-decision-card.locked .global-decision-status{
+  border-color:color-mix(in srgb,var(--coral) 52%,var(--line));
+  background:color-mix(in srgb,var(--coral) 10%,var(--surface));
+}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan{display:flex;flex-direction:column;gap:7px}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-head{order:1}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-quick-fill{order:2;margin:0}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-grid{order:3}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-meta,
+:root[data-theme="light"] .minimal-ui .zijin-risk-plan,
+:root[data-theme="light"] .minimal-ui .zijin-price-plan>p,
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-note{order:4}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-quick-fill button{
+  min-height:52px;
+  padding:9px 10px;
+  box-shadow:0 3px 10px rgba(25,42,35,.06);
+}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-quick-fill .buy{
+  background:color-mix(in srgb,var(--teal) 13%,var(--surface));
+  border-color:color-mix(in srgb,var(--teal) 62%,var(--line));
+}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-quick-fill .sell{
+  background:color-mix(in srgb,var(--coral) 11%,var(--surface));
+  border-color:color-mix(in srgb,var(--coral) 60%,var(--line));
+}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-quick-fill button b{font-size:17px}
+:root[data-theme="light"] .minimal-ui .main-force-track-summary{
+  padding:6px 10px;
+  border-radius:8px;
+  background:var(--surface);
+  box-shadow:0 2px 8px rgba(25,42,35,.06);
+}
+:root[data-theme="light"] .minimal-ui .main-force-track-summary b{font-size:16px}
+:root[data-theme="light"] .minimal-ui .t-calculator{padding:0;overflow:hidden}
+:root[data-theme="light"] .minimal-ui .t-calculator>summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:42px;
+  padding:0 11px;
+  color:var(--teal);
+  font-size:10px;
+  letter-spacing:.04em;
+}
+:root[data-theme="light"] .minimal-ui .t-calculator>summary b{
+  color:var(--muted);
+  font-size:8px;
+  font-weight:650;
+}
+:root[data-theme="light"] .minimal-ui .t-calculator[open]>summary{border-bottom:1px solid var(--line-soft)}
+:root[data-theme="light"] .minimal-ui .t-calculator-body{padding:11px}
+:root[data-theme="light"] .minimal-ui .web4-monitor.market-live{
+  display:flex;
+  align-items:center;
+  min-height:10px;
+  margin:0 0 4px;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+:root[data-theme="light"] .minimal-ui .web4-monitor.market-live>:not(.market-live-status-dot){display:none!important}
+.market-live-status-dot{display:none}
+:root[data-theme="light"] .minimal-ui .market-live-status-dot{
+  display:block;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--teal);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--teal) 14%,transparent);
+}
+:root[data-theme="light"] .minimal-ui .web4-monitor.market-live.degraded .market-live-status-dot,
+:root[data-theme="light"] .minimal-ui .web4-monitor.market-live.conflict .market-live-status-dot,
+:root[data-theme="light"] .minimal-ui .web4-monitor.market-live.risk .market-live-status-dot{background:var(--amber);box-shadow:0 0 0 3px color-mix(in srgb,var(--amber) 14%,transparent)}
+:root[data-theme="light"] .minimal-ui .alert-channel.market-live .mobile-push-guide{display:none}
