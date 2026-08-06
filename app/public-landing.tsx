@@ -30,6 +30,7 @@ export default function PublicLanding({onDemo,onAccount,theme,onToggleTheme}:Pub
       <button className="theme-toggle public-theme-toggle" type="button" onClick={onToggleTheme} aria-label={theme==='dark'?'切换到白天模式':'切换到黑夜模式'} title={theme==='dark'?'白天模式':'黑夜模式'}><span aria-hidden="true">{theme==='dark'?'☀':'☾'}</span></button>
       <button onClick={onAccount}>登录 / 注册</button>
     </header>
+    <Link href="/admin/growth" className="public-growth-entry">增长中心 ↗</Link>
 
     <section className="public-hero" id="top">
       <div className="public-hero-copy"><span className="public-kicker"><i/>A 股日内策略研究终端 · 公开测试</span><h1>把复杂盘面，<br/>变成<strong>有依据的提醒。</strong></h1><p>围绕单只股票的日内走势、VWAP、量价、底仓与风险做因果判断。系统只提示，不连接券商，不替用户下单。</p><div className="public-cta"><button onClick={onDemo}>免注册进入演示 <span>→</span></button><button onClick={openZijinExperiment}>查看紫金实验进度</button><button onClick={onAccount}>创建服务器测试账户</button></div><small>演示无需密码 · 公开行情非交易级 · 不构成投资建议</small></div>

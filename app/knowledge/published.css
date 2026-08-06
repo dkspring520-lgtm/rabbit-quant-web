@@ -1,0 +1,12 @@
+.knowledge-published{max-width:1120px;margin:0 auto 72px;padding-top:28px;border-top:1px solid var(--line)}
+.knowledge-published-heading{display:flex;align-items:baseline;justify-content:space-between;gap:20px;color:var(--teal);font:9px var(--font-mono,monospace);letter-spacing:.16em}
+.knowledge-published-heading small{color:var(--muted);font-size:9px;letter-spacing:0}
+.knowledge-published-list{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;margin-top:22px;background:var(--line)}
+.knowledge-published-list article{padding:26px;background:var(--bg)}
+.knowledge-published-list article>span{color:var(--teal);font:9px var(--font-mono,monospace)}
+.knowledge-published-list h2{margin:18px 0 10px;font-size:22px;letter-spacing:-.04em}
+.published-description,.published-body p{color:var(--muted);font-size:13px;line-height:1.9}
+.published-description{margin:0 0 18px}
+.published-body p{margin:8px 0}
+.published-body p:first-child{margin-top:0}
+@media(max-width:720px){.knowledge-published-list{grid-template-columns:1fr}.knowledge-published-heading{display:block}.knowledge-published-heading small{display:block;margin-top:8px}}
