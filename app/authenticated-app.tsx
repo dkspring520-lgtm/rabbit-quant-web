@@ -31,7 +31,7 @@ import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { mergeZijinReplayObservations } from "@/lib/zijin-replay-candidates.mjs";
 import { buildZijinL2CausalReplayObservations, mergeZijinL2ReplayMinutes } from "@/lib/zijin-l2-causal-replay.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
-import { compactChartObservations, compactRepairChartMarkers, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
+import { compactCandidateAlertHistory, compactChartObservations, compactRepairChartMarkers, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
@@ -1773,9 +1773,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const eligible=positiveTBlockedByFlow&&latestTime
         ? currentObservations.filter(observation=>observation.direction!=="正T"||!isRecentCausalEvent(latestTime,observation.time,3))
         : currentObservations;
-      return compactChartObservations(eligible,30) as ReplayObservation[];
+      return compactChartObservations(eligible,isZijinStock?45:30,{mergeRepairPhases:isZijinStock}) as ReplayObservation[];
     },
-    [currentObservations,minutePoints,positiveTBlockedByFlow],
+    [currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow],
   );
   const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
   const rabbitTrackerSignal=useMemo(()=>{
@@ -1864,7 +1864,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
     const observations=visibleChartObservations.flatMap((observation,index)=>{
-      const point=pointPosition(observation.time,observation.price);
+      const markerPrice=observation.coverageOnly&&Number.isFinite(observation.pivotPrice) ? observation.pivotPrice : observation.price;
+      const point=pointPosition(observation.time,markerPrice);
       if(!point)return [];
       const isSell=observation.direction==="反T";
       const qualified=observation.stage!=="watch";
@@ -1899,7 +1900,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     // rabbit state. Plot the recorded minute on its own chart so an alert such
     // as the 14:05 displacement confirmation remains reviewable after later
     // quotes replace the tracker bubble.
-    const recordedCandidates=alertHistory.flatMap((alert,index)=>{
+    const chartCandidateAlerts=alertHistory.filter(alert=>{
+      if(alert.level!=="candidate"||alert.code!==stock.code)return false;
+      const createdAt=alert.createdAt?new Date(alert.createdAt):null;
+      const createdDate=createdAt&&!Number.isNaN(createdAt.getTime())
+        ?createdAt.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})
+        :null;
+      return Boolean(activeChartDate&&(alert.marketDate??createdDate)===activeChartDate);
+    });
+    const recordedCandidates=(isZijinStock
+      ?compactCandidateAlertHistory(chartCandidateAlerts,{episodeMinutes:20,ignoreBefore:"0935"})
+      :chartCandidateAlerts).flatMap((alert,index)=>{
       if(alert.level!=="candidate"||alert.code!==stock.code)return [];
       const createdAt=alert.createdAt?new Date(alert.createdAt):null;
       const createdDate=createdAt&&!Number.isNaN(createdAt.getTime())
@@ -1942,7 +1953,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         })()
       :[];
     return {observations,actions,rabbitCandidates:[...recordedCandidates,...rabbitCandidates]};
-  },[activeChartDate,alertHistory,chartModel,minutePoints,stock.code,stock.name,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal]);
+  },[activeChartDate,alertHistory,chartModel,isZijinStock,minutePoints,stock.code,stock.name,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -2571,11 +2582,31 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(activeCycleSameSide)continue;
       const formalSideKey=formalFresh&&latestSide?`${item.code}:${latestSide}`:"";
       const lastSameSideAt=formalSideKey?lastFormalAlertAtBySide.current[formalSideKey]??0:0;
+      const candidateDirection=selectedExperimental?.direction??selectedDisplacement?.direction??selectedAgent?.direction??selectedEngineCandidate?.direction;
+      const candidateTime=String(selectedExperimental?.asOfTime??selectedDisplacement?.time??selectedAgent?.asOfTime??selectedEngineCandidate?.time??lastTime).replace(/\D/g,"").slice(-4);
+      const candidateStageRank=selectedDisplacement?.stage==="displacement-l2-confirmation"||selectedExperimental?.stage==="experimental-exit"
+        ?3
+        :selectedDisplacement?.stage==="displacement-progress"||selectedAgent||selectedEngineCandidate?.stage==="candidate"
+          ?2
+          :1;
+      const candidateSide=candidateDirection==="?T"?"sell":"buy";
+      const candidateSideKey=isCandidate&&candidateDirection?`${item.code}:${candidateSide}`:"";
+      const previousCandidate=candidateSideKey?lastCandidateAlertBySide.current[candidateSideKey]:null;
+      const isZijinCandidate=isCandidate&&item.code===STOCK_AGENTS.zijin.code;
+      const now=Date.now();
+      if(isZijinCandidate&&candidateTime<"0935")continue;
+      if(isZijinCandidate&&previousCandidate){
+        const sameEpisode=now-previousCandidate.at<20*60_000;
+        const delayedUpgrade=candidateStageRank>previousCandidate.rank&&now-previousCandidate.at>=10*60_000;
+        if(previousCandidate.time===candidateTime||(sameEpisode&&!delayedUpgrade))continue;
+      }
       if(formalFresh&&formalSideKey&&Date.now()-lastSameSideAt<10*60_000)continue;
       const engineCandidateFresh=Boolean(candidateFresh&&latestObservation&&!latestObservation.executable);
       const selectedExperimental=experimentalFresh?experimentalReminder:null;
       const selectedDisplacement=displacementFresh?displacementReminder:null;
       const selectedAgent=agentCandidateFresh?agentEvaluation:null;
+          : isZijinCandidate&&candidateDirection&&/^\d{4}$/.test(candidateTime)
+            ? `${item.code}:candidate:${candidateSide}:${candidateStageRank}:${Math.floor((Number(candidateTime.slice(0,2))*60+Number(candidateTime.slice(2)))/20)}`
       const selectedEngineCandidate=engineCandidateFresh?latestObservation:null;
       const isCandidate=!isRisk&&!formalFresh&&Boolean(
         selectedExperimental
@@ -2601,7 +2632,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       try{alreadyAlerted=alreadyAlerted||(!isRisk&&localStorage.getItem(persistedKey)==="1");}catch{}
       if(alreadyAlerted)continue;
       if(!isRisk){alertedEventKeys.current.add(persistedKey);try{localStorage.setItem(persistedKey,"1");}catch{}}
-      const candidateDirection=selectedExperimental?.direction??selectedDisplacement?.direction??selectedAgent?.direction??selectedEngineCandidate?.direction;
       const rabbit=isRisk?"both":formalFresh?latestSide!:(selectedExperimental?.stage==="experimental-exit"?(candidateDirection==="正T"?"sell":"buy"):(candidateDirection==="反T"?"sell":"buy"));
       const title=isRisk
         ? `${item.name} 风险锁定`
@@ -2617,6 +2647,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const message=isRisk
         ? riskMessage
         : formalFresh
+      if(queued&&isZijinCandidate&&candidateSideKey)lastCandidateAlertBySide.current[candidateSideKey]={at:now,rank:candidateStageRank,time:candidateTime};
           ? (latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`)
           : selectedExperimental
             ? `${selectedExperimental.reason}${selectedExperimental.plan} 这是实验观察，不是买卖指令。`
@@ -2625,7 +2656,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             : selectedAgent
               ? `${selectedAgent.reasons[0]}；紫金研究模型观察，不是买卖指令。`
               : `${selectedEngineCandidate!.reason}；${selectedEngineCandidate!.blockers.join("；")||"等待正式过滤确认"}`;
-      const alertTime=formalFresh?latest!.time:selectedExperimental?.asOfTime??selectedDisplacement?.time??selectedAgent?.asOfTime??selectedEngineCandidate?.time??lastTime;
+      const alertTime=formalFresh?latest!.time:candidateTime;
       const alertPrice=formalFresh?latest!.price:selectedExperimental?.price??selectedDisplacement?.price??selectedEngineCandidate?.price??points.find(point=>point.time===alertTime)?.price;
       const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",marketDate:eventDate,marketTime:alertTime,price:alertPrice,level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
       if(queued&&formalFresh&&formalSideKey)lastFormalAlertAtBySide.current[formalSideKey]=Date.now();
