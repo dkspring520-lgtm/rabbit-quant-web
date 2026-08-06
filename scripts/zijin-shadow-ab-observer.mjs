@@ -177,6 +177,11 @@ async function observe(state) {
 
   const allEvents = [];
   for (const index of indices) {
+    const point = minutes[index];
+    // L2 is an instantaneous feed. Never attach the newest book snapshot to
+    // a missed public minute, otherwise a restarted observer would leak
+    // future order-flow information into an older decision.
+    const minuteL2 = l2ExchangeMinute(l2) === point?.time ? l2 : null;
     allEvents.push(...processVisibleMinute(state, {
       marketDate: date,
       minutes,
@@ -185,6 +190,7 @@ async function observe(state) {
       peers,
       externalContext,
       preopenGate,
+      l2: minuteL2,
     }));
   }
   state.source = {

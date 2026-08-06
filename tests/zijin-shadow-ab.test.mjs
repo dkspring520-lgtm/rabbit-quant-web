@@ -14,6 +14,7 @@ import {
   SHADOW_MODELS,
   summarizeZijinDirectionPermissionAB,
   summarizeZijinExternalContext,
+  summarizeZijinRangeReverseQuality,
   upgradeShadowState,
 } from "../lib/zijin-shadow-ab.mjs";
 
@@ -40,6 +41,7 @@ const round13Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-roun
 const round14Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round14-protocol.json", import.meta.url), "utf8"));
 const round15Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round15-protocol.json", import.meta.url), "utf8"));
 const round16Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round16-protocol.json", import.meta.url), "utf8"));
+const round17Protocol = JSON.parse(await readFile(new URL("../scripts/zijin-round17-protocol.json", import.meta.url), "utf8"));
 
 const minutes = [
   { time: "0930", price: 99.00, volume: 100 },
@@ -106,16 +108,20 @@ test("positive models shadow trade while reverse models are observation only", (
   assert.equal(SHADOW_MODELS.E.executionMode, "shadow-trade");
   assert.equal(SHADOW_MODELS.F.executionMode, "shadow-trade");
   assert.equal(SHADOW_MODELS.G.executionMode, "shadow-trade");
+  assert.equal(SHADOW_MODELS.H.executionMode, "observe-only");
+  assert.equal(SHADOW_MODELS.H.side, "short");
 });
 
 test("legacy A/B state upgrades in place and preserves its evidence", () => {
   const legacy = createShadowState("2026-07-21T01:32:00.000Z");
   delete legacy.models.C;
+  delete legacy.models.H;
+  delete legacy.rangeReverseQuality;
   legacy.schemaVersion = 1;
   legacy.models.A.total.resolvedTrades = 3;
   legacy.integrity.eventCount = 9;
   const upgraded = upgradeShadowState(legacy);
-  assert.equal(upgraded.schemaVersion, 3);
+  assert.equal(upgraded.schemaVersion, 4);
   assert.equal(upgraded.models.A.total.resolvedTrades, 3);
   assert.equal(upgraded.integrity.eventCount, 9);
   assert.equal(upgraded.models.C.id, "round12-reverse-relative-weakness");
@@ -128,9 +134,93 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   assert.equal(upgraded.models.F.side, "long");
   assert.equal(upgraded.models.G.id, "round16-positive-multi-market-consensus");
   assert.equal(upgraded.models.G.side, "long");
+  assert.equal(upgraded.models.H.id, "round17-range-reverse-quality-l2");
+  assert.equal(upgraded.models.H.side, "short");
+  assert.equal(upgraded.rangeReverseQuality.factorId, "round17-range-reverse-quality-l2");
+  assert.equal(upgraded.rangeReverseQuality.promotionGate.minimumResolvedSignals, 50);
+  assert.equal(upgraded.rangeReverseQuality.promotionGate.minimumWinRate, 0.55);
   assert.equal(upgraded.prospectiveGate.minimumResolvedTrades, 50);
   assert.equal(upgraded.prospectiveGate.minimumResearchCandidateWinRate, 0.65);
   assert.equal(upgraded.prospectiveGate.minimumWinRate, 0.70);
+});
+
+test("round-17 requires an exact-minute healthy L2 sell confirmation for a range reverse", () => {
+  const base = {
+    time: "1010",
+    visibleMinuteCount: 24,
+    return3Pct: -0.12,
+    previousReturn3Pct: 0.04,
+    ma5Slope3Pct: -0.02,
+    previousMa5Slope3Pct: 0.03,
+    intradayPosition: 0.74,
+    vwapBiasPct: 0.32,
+    volumeRatio: 1.05,
+    peerCoverage: 1,
+    peerBreadth3: 0.5,
+    l2: {
+      available: true,
+      qualityBlocked: false,
+      sellVotes: 2,
+    },
+    preopenPermission: { active: true, wouldBlock: false },
+  };
+  assert.equal(evaluateShadowCandidate("H", base).passed, true);
+  assert.equal(evaluateShadowCandidate("H", { ...base, l2: { available: false, qualityBlocked: false, sellVotes: 0 } }).passed, false);
+  assert.equal(evaluateShadowCandidate("H", { ...base, preopenPermission: { active: true, wouldBlock: true } }).passed, false);
+});
+
+test("round-17 uses a 30-minute after-cost cohort and never auto-promotes", () => {
+  const records = Array.from({ length: 50 }, (_, index) => ({
+    event: "range-reverse-quality-outcome",
+    outcomes: [{ minutes: 30, complete: true, afterCostPct: index < 28 ? 0.20 : -0.10 }],
+  }));
+  const report = summarizeZijinRangeReverseQuality({ ledger: records, stockDays: 200 });
+  assert.equal(report.quality.resolvedSignals, 50);
+  assert.equal(report.quality.winRate, 0.56);
+  assert.equal(report.signalsPer100StockDays, 25);
+  assert.equal(report.promotion.status, "manual-review");
+  assert.equal(report.promotion.automaticPromotion, false);
+});
+
+test("round-17 appends a forward 5/15/30-minute audit without creating a shadow trade", () => {
+  const timeAt = (index) => {
+    const minute = 9 * 60 + 30 + index;
+    return `${String(Math.floor(minute / 60)).padStart(2, "0")}${String(minute % 60).padStart(2, "0")}`;
+  };
+  const prices = Array.from({ length: 50 }, (_, index) => (
+    index < 13 ? 100 + index * 0.08 : index === 13 ? 101.2 : index === 14 ? 101.3 : 101.3 - (index - 14) * 0.10
+  ));
+  const forwardMinutes = prices.map((price, index) => ({ time: timeAt(index), price, volume: 100 }));
+  const forwardPeers = Array.from({ length: 6 }, (_, peerIndex) => ({
+    code: `range-peer-${peerIndex}`,
+    minutes: forwardMinutes.map((point, index) => ({
+      ...point,
+      price: 50 + peerIndex + (index < 13 ? index * 0.01 : 0.13),
+    })),
+  }));
+  const l2 = {
+    status: { connected: true, authorized: true, stale: false },
+    flow: { activeBuyRatio60s: 0.40, bigOrderNetNotional60s: -100, transactionCount60s: 15 },
+    book: { nearTouchImbalance: -0.10, spreadBps: 4, micropriceEdgeBps: -0.5 },
+  };
+  const state = createShadowState();
+  const events = [];
+  for (let index = 15; index < 49; index += 1) {
+    events.push(...processVisibleMinute(state, {
+      marketDate: "20260806",
+      minutes: forwardMinutes,
+      index,
+      previousClose: 100,
+      peers: forwardPeers,
+      l2,
+    }));
+  }
+  const outcome = events.find((event) => event.event === "range-reverse-quality-outcome");
+  assert.ok(outcome);
+  assert.deepEqual(outcome.outcomes.map((item) => item.minutes), [5, 15, 30]);
+  assert.equal(state.models.H.today.entries, 0);
+  assert.equal(state.models.H.today.activeTrade, null);
+  assert.equal(state.rangeReverseQuality.today.resolvedSignals, 1);
 });
 
 test("legacy commercial gates cannot weaken the current 70 percent graduation rule", () => {
@@ -437,6 +527,19 @@ test("round-16 freezes old rounds and trains only on newly observed real-factor 
   assert.equal(round16Protocol.prospectiveGate.minimumWinRate, 0.70);
 });
 
+test("round-17 is preregistered for forward-only L2 quality observation", () => {
+  assert.equal(round17Protocol.status, "prospective-shadow-only");
+  assert.equal(round17Protocol.researchDisclosure.usesHistoricalL2, false);
+  assert.equal(round17Protocol.researchDisclosure.backfillAfterRegistration, false);
+  assert.equal(round17Protocol.researchDisclosure.affectsV4, false);
+  assert.equal(round17Protocol.researchDisclosure.sendsAlerts, false);
+  assert.equal(round17Protocol.researchDisclosure.automaticPromotion, false);
+  assert.equal(round17Protocol.frozenRule.entry, "observation only; no shadow execution and no user-facing signal");
+  assert.equal(round17Protocol.promotionGate.minimumResolvedSignals, 50);
+  assert.equal(round17Protocol.promotionGate.minimumWinRate, 0.55);
+  assert.equal(round17Protocol.promotionGate.minimumSignalsPer100StockDays, 25);
+});
+
 test("single-stock research shows model G with plain 65 and 70 percent gates", () => {
   assert.match(page, /\["A","B","C","D","E","F","G"\]/);
   assert.match(page, /第10–16轮 · 紫金真实前瞻观察/);
@@ -468,6 +571,7 @@ test("production shadow observer is isolated, restartable and never sends V4 ale
   assert.match(observer, /\/api\/market-context/);
   assert.match(observer, /\/api\/event-radar/);
   assert.match(observer, /externalCoverage/);
+  assert.match(observer, /l2ExchangeMinute\(l2\) === point\?\.time/);
   assert.match(observer, /saveMinuteArchive/);
   assert.match(observer, /minutes\/601899/);
   assert.match(compose, /ZIJIN_SHADOW_MINUTES_DIR/);
