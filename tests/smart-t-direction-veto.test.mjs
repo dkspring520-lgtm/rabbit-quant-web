@@ -10,6 +10,7 @@ import {
   causalOpeningQualityConflict,
   causalOpeningRepairAgeConflict,
   causalPositiveTQualityConflict,
+  causalReverseTQualityConflict,
   causalPersistentDirection,
   causalThirtyMinuteTrendShieldConflict,
   causalTrendImpulseConflict,
@@ -218,6 +219,40 @@ test("positive-T rejects an unconfirmed rebound inside a causal decline", () => 
     vwapMomentum15: 0.02,
   }), false);
   assert.equal(causalPositiveTQualityConflict({ ...unsafe, direction: "SELL_FIRST" }), false);
+});
+
+test("reverse-T quality gate blocks stale pullbacks and active rising continuation", () => {
+  const stalePullback = {
+    opening: false,
+    direction: "SELL_FIRST",
+    pivotReversal: 0.44,
+    maxSellPullback: 0.36,
+    trendContinuationRisk: { blocked: false },
+  };
+  assert.equal(causalReverseTQualityConflict(stalePullback), true);
+  assert.equal(causalReverseTQualityConflict({
+    ...stalePullback,
+    pivotReversal: 0.20,
+    trendContinuationRisk: { blocked: true, strongSessionRise: true },
+  }), true);
+  assert.equal(causalReverseTQualityConflict({
+    ...stalePullback,
+    pivotReversal: 0.20,
+    trendContinuationRisk: { blocked: true, strongSessionRise: true },
+    matureReversal: true,
+  }), false);
+  assert.equal(causalReverseTQualityConflict({
+    ...stalePullback,
+    pivotReversal: 0.20,
+  }), false);
+  assert.equal(causalReverseTQualityConflict({
+    ...stalePullback,
+    direction: "BUY_FIRST",
+  }), false);
+  assert.equal(causalReverseTQualityConflict({
+    ...stalePullback,
+    opening: true,
+  }), false);
 });
 
 test("persistent direction survives a small local counter move", () => {
