@@ -17,6 +17,9 @@ x-web-common: &web-common
     ZIJIN_SHADOW_STATE_PATH: /training-state/zijin-shadow-ab.json
     ZIJIN_L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
     ZIJIN_L2_AUDIT_STATE_PATH: /training-state/zijin-l2-state-audit.json
+    GROWTH_CONTENT_PATH: /training-state/growth-content.json
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
   volumes:
     - /opt/rabbit-quant-state:/training-state
     - /opt/rabbit-quant-research:/training-data:ro

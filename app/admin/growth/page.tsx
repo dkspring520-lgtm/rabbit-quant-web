@@ -24,6 +24,7 @@ type Draft = {
   status: "draft" | "review" | "published";
   createdAt: string;
   publishedAt?: string;
+  generatedBy?: string;
 };
 
 const KEYWORDS_KEY = "rabbit-growth-keywords-v1";
@@ -108,6 +109,8 @@ export default function GrowthPage() {
   const [selectedKeywordId, setSelectedKeywordId] = useState("kw-1");
   const [selectedDraftId, setSelectedDraftId] = useState("");
   const [keywordInput, setKeywordInput] = useState("");
+  const [automating, setAutomating] = useState(false);
+  const [automationMessage, setAutomationMessage] = useState("");
 
   // Local storage is an external client-side source; hydrate the dashboard once after mount.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -122,6 +125,30 @@ export default function GrowthPage() {
     setSelectedDraftId(loadedDrafts[0]?.id ?? "");
     trackGrowthEvent("page_view");
     setEvents(readGrowthEvents());
+    void fetch("/api/growth/content", { cache: "no-store" })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!payload) return;
+        if (Array.isArray(payload.keywords) && payload.keywords.length > 0) {
+          const serverKeywords = payload.keywords as Keyword[];
+          setKeywords((current) => {
+            const merged = [...serverKeywords, ...current.filter((item) => !serverKeywords.some((serverItem) => serverItem.id === item.id))];
+            writeLocal(KEYWORDS_KEY, merged);
+            return merged;
+          });
+          setSelectedKeywordId(serverKeywords[0].id);
+        }
+        if (Array.isArray(payload.drafts) && payload.drafts.length > 0) {
+          const serverDrafts = payload.drafts as Draft[];
+          setDrafts((current) => {
+            const merged = [...serverDrafts, ...current.filter((item) => !serverDrafts.some((serverItem) => serverItem.id === item.id))];
+            writeLocal(DRAFTS_KEY, merged);
+            return merged;
+          });
+          setSelectedDraftId(serverDrafts[0].id);
+        }
+      })
+      .catch(() => undefined);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -149,6 +176,38 @@ export default function GrowthPage() {
     refreshEvents();
   }
 
+  async function runAutomation() {
+    if (automating) return;
+    setAutomating(true);
+    setAutomationMessage("正在抓取百度关键词并生成草稿…");
+    try {
+      const response = await fetch("/api/growth/auto-generate", { method: "POST", cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "自动生成失败");
+      const contentResponse = await fetch("/api/growth/content", { cache: "no-store" });
+      const content = contentResponse.ok ? await contentResponse.json() : null;
+      if (Array.isArray(content?.keywords)) {
+        const serverKeywords = content.keywords as Keyword[];
+        setKeywords(serverKeywords);
+        writeLocal(KEYWORDS_KEY, serverKeywords);
+        setSelectedKeywordId(serverKeywords[0]?.id ?? "");
+      }
+      if (Array.isArray(content?.drafts)) {
+        const serverDrafts = content.drafts as Draft[];
+        setDrafts(serverDrafts);
+        writeLocal(DRAFTS_KEY, serverDrafts);
+        setSelectedDraftId(payload.draft?.id ?? serverDrafts[0]?.id ?? "");
+      }
+      trackGrowthEvent("draft_created");
+      refreshEvents();
+      setAutomationMessage(payload.warning ? `已生成，待审核：${payload.warning}` : "已抓取并生成 1 篇待审核草稿");
+    } catch (error) {
+      setAutomationMessage(error instanceof Error ? error.message : "自动生成失败");
+    } finally {
+      setAutomating(false);
+    }
+  }
+
   function generateDraft() {
     if (!selectedKeyword) return;
     const draft = makeDraft(selectedKeyword);
@@ -162,9 +221,15 @@ export default function GrowthPage() {
 
   function updateDraft(patch: Partial<Draft>) {
     if (!selectedDraft) return;
-    const next = drafts.map((draft) => (draft.id === selectedDraft.id ? { ...draft, ...patch } : draft));
+    const updatedDraft = { ...selectedDraft, ...patch };
+    const next = drafts.map((draft) => (draft.id === selectedDraft.id ? updatedDraft : draft));
     setDrafts(next);
     writeLocal(DRAFTS_KEY, next);
+    void fetch("/api/growth/content", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ draft: updatedDraft }),
+    }).catch(() => undefined);
   }
 
   function publishDraft() {
@@ -182,7 +247,7 @@ export default function GrowthPage() {
       </header>
 
       <section className="growth-hero">
-        <div><span className="growth-kicker">CONTENT ENGINE / REVIEW FIRST</span><h1>把做T知识，变成持续增长的入口。</h1><p>关键词 → 文章草稿 → 人工审核 → 发布记录 → 访问统计。当前先用本地数据跑通流程，AI生成和云端统计接口预留在下一阶段。</p></div>
+        <div><span className="growth-kicker">CONTENT ENGINE / REVIEW FIRST</span><h1>把做T知识，变成持续增长的入口。</h1><p>百度关键词 → AI文章草稿 → 人工审核 → 发布记录 → 访问统计。自动生成内容会保存到服务器，发布前始终保留人工确认。</p></div>
         <div className="growth-status"><span className="status-dot" />MVP 已启动<small>不触碰交易策略与账户数据</small></div>
       </section>
 
@@ -207,7 +272,8 @@ export default function GrowthPage() {
           </aside>
 
           <section className="growth-panel draft-panel">
-            <div className="panel-heading"><div><span>02 / DRAFTS</span><h2>文章生成与审核</h2></div><button className="primary-button" onClick={generateDraft}>生成草稿</button></div>
+            <div className="panel-heading"><div><span>02 / DRAFTS</span><h2>文章生成与审核</h2></div><div className="growth-panel-actions"><button className="primary-button" onClick={runAutomation} disabled={automating}>{automating ? "抓取中…" : "自动抓取生成"}</button><button className="primary-button" onClick={generateDraft}>生成草稿</button></div></div>
+            {automationMessage && <div className="automation-message">{automationMessage}</div>}
             <div className="selected-topic"><small>当前主题</small><b>{selectedKeyword?.text ?? "请选择关键词"}</b><span>{selectedKeyword?.intent ?? "—"} · 机会分 {selectedKeyword?.score ?? "—"}</span></div>
             {selectedDraft ? <>
               <div className="draft-list">{drafts.slice(0, 5).map((draft) => <button key={draft.id} className={draft.id === selectedDraft.id ? "selected" : ""} onClick={() => setSelectedDraftId(draft.id)}><span>{draft.title}</span><em className={`draft-status ${draft.status}`}>{draft.status === "published" ? "已发布" : draft.status === "review" ? "待审核" : "草稿"}</em></button>)}</div>
@@ -222,7 +288,7 @@ export default function GrowthPage() {
         </section>
       )}
 
-      <footer className="growth-footer"><span>下一步：接入 AI 文章生成、云端内容库、站点 sitemap 与百度提交。</span><Link href="/knowledge">先看公开知识库 →</Link></footer>
+      <footer className="growth-footer"><span>每日 02:00 自动抓取并生成 1 篇待审核草稿；发布后可继续接入 sitemap 与百度提交。</span><Link href="/knowledge">先看公开知识库 →</Link></footer>
     </main>
   );
 }

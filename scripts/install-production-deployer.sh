@@ -19,6 +19,8 @@ install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-deploy.service" /etc/syst
 install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-deploy.timer" /etc/systemd/system/rabbit-quant-deploy.timer
 install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-backup.service" /etc/systemd/system/rabbit-quant-backup.service
 install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-backup.timer" /etc/systemd/system/rabbit-quant-backup.timer
+install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-growth.service" /etc/systemd/system/rabbit-quant-growth.service
+install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-growth.timer" /etc/systemd/system/rabbit-quant-growth.timer
 install -m 0644 "$REPO_DIR/deploy/logrotate/rabbit-quant-deploy" /etc/logrotate.d/rabbit-quant-deploy
 install -m 0644 "$REPO_DIR/deploy/logrotate/rabbit-quant-backup" /etc/logrotate.d/rabbit-quant-backup
 if [[ ! -f /etc/default/rabbit-quant-ops ]]; then
@@ -28,10 +30,13 @@ fi
 systemctl daemon-reload
 systemctl enable --now rabbit-quant-deploy.timer
 systemctl enable --now rabbit-quant-backup.timer
+systemctl enable --now rabbit-quant-growth.timer
 systemctl start rabbit-quant-deploy.service
 
 echo "备份定时器：systemctl status rabbit-quant-backup.timer"
 echo "立即验证备份：systemctl start rabbit-quant-backup.service"
+echo "增长定时器：systemctl status rabbit-quant-growth.timer"
+echo "立即验证增长：systemctl start rabbit-quant-growth.service"
 
 echo "自动部署已启用。"
 echo "查看定时器：systemctl status rabbit-quant-deploy.timer"

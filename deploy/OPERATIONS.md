@@ -10,6 +10,16 @@ journalctl -u rabbit-quant-deploy.service -n 100 --no-pager
 curl -sS https://www.zhuandianmi.com/api/control/version
 ```
 
+## Growth content automation
+
+The growth timer runs daily at 02:00 Asia/Shanghai. It collects Baidu suggestions, generates one review draft, and stores it in `/opt/rabbit-quant-state/growth-content.json`. Configure `OPENAI_API_KEY` in `/etc/default/rabbit-quant-ops` for AI long-form generation; without it, the safe template fallback still runs.
+
+```bash
+systemctl status rabbit-quant-growth.timer --no-pager
+systemctl start rabbit-quant-growth.service
+journalctl -u rabbit-quant-growth.service -n 100 --no-pager
+```
+
 The newest five web and trainer releases are retained by default. The active and previous rollback images are never removed by the retention pass.
 
 ## Verified daily backup

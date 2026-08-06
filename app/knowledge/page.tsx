@@ -31,16 +31,30 @@ function readPublishedDrafts(): PublishedDraft[] {
   }
 }
 
+async function loadPublishedDrafts() {
+  const localDrafts = readPublishedDrafts();
+  try {
+    const response = await fetch("/api/growth/content", { cache: "no-store" });
+    if (!response.ok) return localDrafts;
+    const payload = await response.json();
+    const serverDrafts = Array.isArray(payload?.drafts)
+      ? payload.drafts.filter((draft: PublishedDraft) => draft?.status === "published")
+      : [];
+    const serverIds = new Set(serverDrafts.map((draft: PublishedDraft) => draft.id));
+    return [...serverDrafts, ...localDrafts.filter((draft) => !serverIds.has(draft.id))];
+  } catch {
+    return localDrafts;
+  }
+}
+
 export default function KnowledgePage() {
   const [publishedDrafts, setPublishedDrafts] = useState<PublishedDraft[]>([]);
 
-  // Local storage is an external client-side source; hydrate the public preview once after mount.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // Local storage and the server content endpoint are external sources; hydrate once after mount.
   useEffect(() => {
     trackGrowthEvent("page_view");
-    setPublishedDrafts(readPublishedDrafts());
+    void loadPublishedDrafts().then(setPublishedDrafts);
   }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <main className="knowledge-page">
@@ -64,7 +78,7 @@ export default function KnowledgePage() {
       </section>
       {publishedDrafts.length > 0 && (
         <section className="knowledge-published">
-          <div className="knowledge-published-heading"><span>FROM GROWTH CENTER</span><small>当前浏览器的发布预览</small></div>
+          <div className="knowledge-published-heading"><span>FROM GROWTH CENTER</span><small>服务器已发布内容</small></div>
           <div className="knowledge-published-list">
             {publishedDrafts.map((draft) => <article key={draft.id}>
               <span>NEW / PUBLISHED</span>
