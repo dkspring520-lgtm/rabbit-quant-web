@@ -118,6 +118,8 @@ deploy/systemd/rabbit-quant-deploy.service|/etc/systemd/system/rabbit-quant-depl
 deploy/systemd/rabbit-quant-deploy.timer|/etc/systemd/system/rabbit-quant-deploy.timer|0644
 deploy/systemd/rabbit-quant-backup.service|/etc/systemd/system/rabbit-quant-backup.service|0644
 deploy/systemd/rabbit-quant-backup.timer|/etc/systemd/system/rabbit-quant-backup.timer|0644
+deploy/systemd/rabbit-quant-growth.service|/etc/systemd/system/rabbit-quant-growth.service|0644
+deploy/systemd/rabbit-quant-growth.timer|/etc/systemd/system/rabbit-quant-growth.timer|0644
 deploy/logrotate/rabbit-quant-deploy|/etc/logrotate.d/rabbit-quant-deploy|0644
 deploy/logrotate/rabbit-quant-backup|/etc/logrotate.d/rabbit-quant-backup|0644
 ASSETS
@@ -127,7 +129,7 @@ ASSETS
   fi
   rm -rf "$temp_dir"
   systemctl daemon-reload
-  systemctl enable --now rabbit-quant-deploy.timer rabbit-quant-backup.timer >/dev/null
+  systemctl enable --now rabbit-quant-deploy.timer rabbit-quant-backup.timer rabbit-quant-growth.timer >/dev/null
   printf '%s\n' "$commit" > "$STATE_DIR/ops-assets-sha"
   log "生产运维脚本、定时器和日志策略已同步。"
 }
@@ -395,6 +397,8 @@ compose_up() {
     "APP_COMMIT_SHA=$app_commit_sha" \
     "APP_BUILD_TIME=$app_build_time" \
     "RABBIT_QUANT_ACTIVE_WEB_ORIGIN=$active_web_origin" \
+    "OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
+    "OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}" \
     > "$runtime_env"
 
   compose_status=0
