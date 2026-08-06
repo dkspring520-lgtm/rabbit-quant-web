@@ -1,0 +1,39 @@
+{
+  "experimentId": "zijin-round17-range-reverse-quality-l2",
+  "status": "prospective-shadow-only",
+  "scope": "601899 only; morning range reverse-T observation cohort",
+  "researchDisclosure": {
+    "newEconomicHypothesis": true,
+    "usesTodayToTuneThresholds": false,
+    "usesHistoricalL2": false,
+    "backfillAfterRegistration": false,
+    "affectsV4": false,
+    "sendsAlerts": false,
+    "automaticPromotion": false
+  },
+  "frozenRule": {
+    "decision": "minute-t close using only an L2 snapshot stamped with the same exchange minute; a missing or stale L2 snapshot cannot form a candidate",
+    "entry": "observation only; no shadow execution and no user-facing signal",
+    "direction": "reverse-T",
+    "outcomes": [5, 15, 30],
+    "afterCostRoundTripPct": 0.12
+  },
+  "qualityConditions": {
+    "session": ["0945", "1125"],
+    "minimumIntradayPosition": 0.65,
+    "minimumVwapBiasPct": 0.2,
+    "minimumVolumeRatio": 0.8,
+    "maximumPeerBreadth": 0.67,
+    "maximumReturn3Pct": -0.06,
+    "minimumL2SellVotes": 2,
+    "preopenDirectionPermission": "active gates must permit reverse-T"
+  },
+  "promotionGate": {
+    "minimumResolvedSignals": 50,
+    "minimumWinRate": 0.55,
+    "minimumSignalsPer100StockDays": 25,
+    "requirePositiveAfterCostNet": true,
+    "manualReviewRequired": true
+  },
+  "nextStage": "Only a manual review may authorize a separate full-cycle A/B; this factor can never auto-register into the formal pool."
+}
