@@ -36,6 +36,20 @@ test("Zijin opening evaluation stays causal and non-executable", () => {
   assert.equal(first.executable, false);
 });
 
+test("a confirmed pre-open mismatch downgrades only the Zijin research candidate", () => {
+  const baseline=evaluateStockAgent({code:"601899",minutes:opening,previousClose:28.70});
+  assert.equal(baseline.status,"candidate");
+  const gated=evaluateStockAgent({
+    code:"601899",
+    minutes:opening,
+    previousClose:28.70,
+    preopenGate:{mode:"shadow-only",status:"blocked",allowedDirections:[],expiresAt:"1000"},
+  });
+  assert.equal(gated.status,"watch");
+  assert.equal(gated.metrics.preopenPermission.wouldBlock,true);
+  assert.equal(gated.affectsV4,false);
+});
+
 test("Zijin stays active after 10:30 with the intraday factor layer", () => {
   const later = [...opening];
   for (let index = 0; index < 30; index += 1) {

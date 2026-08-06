@@ -12,9 +12,24 @@ import {
   processVisibleMinute,
   SHADOW_CONSTANTS,
   SHADOW_MODELS,
+  summarizeZijinDirectionPermissionAB,
   summarizeZijinExternalContext,
   upgradeShadowState,
 } from "../lib/zijin-shadow-ab.mjs";
+
+test("direction permission A/B can only request manual review after the shadow thresholds", () => {
+  const records=Array.from({length:25},(_,index)=>({
+    event:"direction-permission-outcome",
+    direction:"正T",
+    blocked:false,
+    outcomes:[{minutes:30,complete:true,afterCostPct:index<14?.20:-.12}],
+  }));
+  const report=summarizeZijinDirectionPermissionAB({ledger:records,stockDays:100});
+  assert.equal(report.permitted.positiveTWinRate,.56);
+  assert.equal(report.cyclesPer100StockDays,25);
+  assert.equal(report.promotion.status,"manual-review");
+  assert.equal(report.promotion.automaticPromotion,false);
+});
 
 const compose = await readFile(new URL("../compose.web.yml", import.meta.url), "utf8");
 const observer = await readFile(new URL("../scripts/zijin-shadow-ab-observer.mjs", import.meta.url), "utf8");
@@ -100,7 +115,7 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   legacy.models.A.total.resolvedTrades = 3;
   legacy.integrity.eventCount = 9;
   const upgraded = upgradeShadowState(legacy);
-  assert.equal(upgraded.schemaVersion, 2);
+  assert.equal(upgraded.schemaVersion, 3);
   assert.equal(upgraded.models.A.total.resolvedTrades, 3);
   assert.equal(upgraded.integrity.eventCount, 9);
   assert.equal(upgraded.models.C.id, "round12-reverse-relative-weakness");

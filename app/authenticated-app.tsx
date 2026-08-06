@@ -41,7 +41,7 @@ import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-remi
 import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-policy.mjs";
 import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intraday-chart-model.mjs";
 import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
-import { buildZijinPreopenPricePlan } from "@/lib/zijin-preopen-price-plan.mjs";
+import { buildZijinPreopenPricePlan, evaluateZijinPreopenGate } from "@/lib/zijin-preopen-price-plan.mjs";
 import { buildZijinMainForceTrack } from "@/lib/zijin-main-force-track.mjs";
 import { evaluateZijinFundResponse } from "@/lib/zijin-fund-response.mjs";
 import { summarizeZijinMainForceIntent } from "@/lib/zijin-main-force-intent.mjs";
@@ -849,6 +849,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const alertedEventKeys = useRef<Set<string>>(new Set());
   const queuedAlertEventKeys = useRef<Set<string>>(new Set());
   const lastFormalAlertAtBySide = useRef<Record<string,number>>({});
+  const lastCandidateAlertBySide = useRef<Record<string,{at:number;rank:number;time:string}>>({});
+  const [frozenZijinPreopenPlan,setFrozenZijinPreopenPlan] = useState<{date:string;plan:ReturnType<typeof buildZijinPreopenPricePlan>}|null>(null);
   const cycleStageRef=useRef(cycleStage);
   const openedCycleSideRef=useRef(openedCycleSide);
   const serverAlertCursor = useRef(0);
@@ -1615,6 +1617,28 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     l2Connected:liveL2Status?.status?.connected===true,
     l2Stale:liveL2Status?.status?.stale!==false,
   }):null,[isZijinStock,isPreopenPlanPhase,marketSession.phase,l2ExchangeMinute,liveL2Status?.session?.previousClose,activeQuote?.previousClose,preopenIndicativePrice,liveL2Status?.book?.nearTouchImbalance,liveL2Status?.flow?.activeBuyRatio60s,liveL2Status?.volatility?.atrPct14,liveL2Status?.book?.spreadBps,liveL2Status?.status?.connected,liveL2Status?.status?.stale]);
+  const preopenPlanDate=clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??"";
+  const preopenPlanStorageKey=`rabbit-zijin-preopen-plan:${preopenPlanDate}`;
+  useEffect(()=>{
+    if(!isZijinStock){setFrozenZijinPreopenPlan(null);return;}
+    if(frozenZijinPreopenPlan?.date&&frozenZijinPreopenPlan.date!==preopenPlanDate){setFrozenZijinPreopenPlan(null);return;}
+    if(!frozenZijinPreopenPlan&&preopenPlanDate){
+      try{
+        const saved=JSON.parse(localStorage.getItem(preopenPlanStorageKey)??"null");
+        if(saved?.ready){setFrozenZijinPreopenPlan({date:preopenPlanDate,plan:saved as ReturnType<typeof buildZijinPreopenPricePlan>});return;}
+      }catch{}
+    }
+    if(marketSession.phase==="auction-result"&&zijinPreopenPricePlan?.ready){
+      setFrozenZijinPreopenPlan(current=>current?.date===preopenPlanDate&&current.plan.asOfTime===zijinPreopenPricePlan.asOfTime
+        ?current
+        :{date:preopenPlanDate,plan:zijinPreopenPricePlan});
+      try{localStorage.setItem(preopenPlanStorageKey,JSON.stringify(zijinPreopenPricePlan));}catch{}
+    }
+  },[frozenZijinPreopenPlan?.date,isZijinStock,marketSession.phase,preopenPlanDate,preopenPlanStorageKey,zijinPreopenPricePlan]);
+  const zijinPreopenGate=useMemo(()=>evaluateZijinPreopenGate({
+    plan:frozenZijinPreopenPlan?.date===preopenPlanDate?frozenZijinPreopenPlan.plan:null,
+    minutes:minutePoints,
+  }),[frozenZijinPreopenPlan,minutePoints,preopenPlanDate]);
   const displayedZijinPricePlan=isPreopenPlanPhase?zijinPreopenPricePlan:zijinPricePlan;
   const zijinChartPriceOverlay=useMemo(()=>{
     if(!premiumEnabled||!isZijinStock||isPreopenPlanPhase||!chartModel||!displayedZijinPricePlan?.ready||!("riskPlan" in displayedZijinPricePlan))return null;
@@ -1648,16 +1672,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       hiddenCount:Math.max(0,allLines.length-lines.length),
     };
   },[premiumEnabled,isZijinStock,isPreopenPlanPhase,chartModel,displayedZijinPricePlan,activeQuote?.price,showAllPriceLevels]);
-  // The validated V4 engine always remains the formal execution path. The
-  // dedicated Zijin agent can only be added manually as a research overlay
-  // until it passes the sealed out-of-sample gate and a human review.
+  // The member-facing desk and replay share the audited closure-first path.
+  // 紫金研究层 remains explanatory only and cannot create an extra trade point.
   const stockAgent=STOCK_AGENTS.smartT;
   const stockAgentEvaluation=useMemo(()=>evaluateStockAgent({
     code:stock?.code,
     minutes:minutePoints,
     previousClose:activeQuote?.previousClose??null,
     historicalBars:currentMarket?.bars??[],
-  }),[stock?.code,minutePoints,activeQuote?.previousClose,currentMarket?.bars]);
+    preopenGate:zijinPreopenGate,
+  }),[stock?.code,minutePoints,activeQuote?.previousClose,currentMarket?.bars,zijinPreopenGate]);
   const zijinRepair=stockAgentEvaluation?.metrics?.repair??null;
   // An unconfirmed repair is a moving state, not a historical event. Keep it
   // in the side status panel only. The chart receives a fixed marker solely
@@ -1668,7 +1692,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>buildHistoricalSimilarityArchive(currentMarket?.intradaySessions ?? [],{asOfDate:currentMarket?.sampleDate ?? null}),
     [currentMarket?.intradaySessions,currentMarket?.sampleDate],
   );
-  const liveStrategyExperiment=resolveBacktestStrategyExperiment(stock?.code,zijinExperimentMode);
+  const liveStrategyExperiment=resolveBacktestStrategyExperiment(stock?.code,"closure-first");
   const liveEngine = useMemo(() => {
     const profitOptions=smartTProfitModeOptions(stock?.code,preferences.profitMode) as ReplayProfitOptions;
     return runSmartTReplay(minutePoints, {
@@ -1688,9 +1712,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...profitOptions,
       profileOverrides:{...(profitOptions.profileOverrides??{}),...liveStrategyExperiment.profileOverrides},
       positionSizeMode:liveStrategyExperiment.positionSizeMode,
-      strategyVersion:liveStrategyExperiment.experimental?"V4.1-experiment":"V4.1",
+      strategyVersion:"closure-first",
+      directionPermission:isZijinStock?{
+        enabled:true,
+        mode:"shadow-only",
+        status:zijinPreopenGate.status,
+        allowedDirections:zijinPreopenGate.allowedDirections,
+        expiresAt:zijinPreopenGate.expiresAt,
+        reason:zijinPreopenGate.reason,
+      }:undefined,
     });
-  },[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose,stock?.code,preferences.profitMode,similarityArchive,liveStrategyExperiment]);
+  },[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose,stock?.code,preferences.profitMode,similarityArchive,liveStrategyExperiment,isZijinStock,zijinPreopenGate]);
   const zijinRepairHistory=useMemo(
     ()=>(isZijinStock?buildZijinL2CausalReplayObservations(minutePoints):[]) as ReplayObservation[],
     [isZijinStock,minutePoints],
@@ -3339,16 +3371,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <em>陪你盯盘</em>
           </div>}
           {alertQueue.length>0&&<div className="trade-alert-stack" aria-label="股票提醒列表">{alertQueue.slice(0,3).map((item,index)=><div key={item.id??`${item.title}-${index}`} className={`trade-alert-toast ${item.level} rabbit-${item.rabbit}`} role="alert"><span className={`rabbit-speaker ${item.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{tradeAlertLabel(item)}</small><b>{item.title}</b><span>{tradeAlertGuide(item)}</span><details className="trade-alert-detail"><summary>查看依据</summary><p>{item.message}</p></details></div>{index===2&&alertQueue.length>3&&<em className="alert-queue-count">+{alertQueue.length-3}</em>}<button onClick={()=>setAlertQueue(current=>current.filter(alert=>alert.id!==item.id))} aria-label={`关闭${item.title}提醒`}>×</button></div>)}</div>}
-          {isZijinStock&&<div className={`stock-agent-switch ${liveStrategyExperiment.experimental?"experiment-active":""}`} aria-label="紫金矿业信号引擎选择">
-            <div><span>{liveStrategyExperiment.experimental?"紫金实盘观察实验 · 不自动下单":"正式信号引擎 · 三分离过滤"}</span><b>{liveStrategyExperiment.label}</b><small>{liveStrategyExperiment.experimental?`${liveStrategyExperiment.description} 未通过扣费净收益门槛，仅供手动观察。`:"正式 V4.1 保持默认；实验档必须主动切换。"}</small></div>
-            <div className="stock-agent-switch-actions experiment-actions">{zijinStrategyExperimentIds.map(id=>{const item=ZIJIN_STRATEGY_EXPERIMENTS[id];return <button key={id} className={`${zijinExperimentMode===id?"active":""} ${item.experimental?"experimental":""}`} onClick={()=>setZijinExperimentMode(id)} aria-pressed={zijinExperimentMode===id} title={item.description}>{item.shortLabel}</button>})}<button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
+          {isZijinStock&&<div className="stock-agent-switch experiment-active" aria-label="紫金矿业闭环策略状态">
+            <div><span>紫金内置闭环策略 · 因果观察</span><b>{liveStrategyExperiment.label}</b><small>候选须经过趋势、成本、盘口和仓位校验；仅辅助人工决策，不自动下单。</small></div>
+            <div className="stock-agent-switch-actions experiment-actions"><button className="active experimental" type="button" disabled aria-pressed>闭环已固定</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
           </div>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
             <div className="signal-layer candidate"><span>本股实时观察</span><b>{visibleStockAgentEvaluation?Number(visibleStockAgentEvaluation.status==="candidate"):signalFunnel.currentObservations}<small> 个</small></b><em>{visibleStockAgentEvaluation?`${STOCK_AGENTS.zijin.name} · ${visibleStockAgentEvaluation.title}`:`条件候补 ${signalFunnel.currentCandidates} · 全自选观察 ${signalFunnel.observations}`}</em></div>
             <i>→</i>
-            <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · V4 过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
+            <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · 闭环过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
           </div>
-          <div className="signal-funnel-note"><span>{visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察")}</span><em>{visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒仍由 V4 运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层"}</em></div>
+          <div className="signal-funnel-note"><span>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`盘前影子许可 · ${zijinPreopenGate.predictedDirection??"等待方向"} · ${zijinPreopenGate.confirmationCount}/${zijinPreopenGate.requiredConfirmations} 确认`:(visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察"))}</span><em>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`${zijinPreopenGate.reason} 仅供影子审计，不影响正式 V4、账户或下单。`:(visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒均由内置闭环运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层")}</em></div>
           <section className={`next-session-outlook ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} aria-label="下一交易日走势概率预判">
             <header><span>下一交易日预判</span><em>{nextSessionOutlook.stage}</em></header>
             {nextSessionOutlook.ready?<>

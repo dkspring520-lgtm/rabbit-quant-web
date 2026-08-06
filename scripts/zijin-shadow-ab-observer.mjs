@@ -8,6 +8,7 @@ import {
   summarizeZijinExternalContext,
   upgradeShadowState,
 } from "../lib/zijin-shadow-ab.mjs";
+import { buildZijinPreopenPricePlan, evaluateZijinPreopenGate } from "../lib/zijin-preopen-price-plan.mjs";
 
 const origin = process.env.ZIJIN_SHADOW_MARKET_ORIGIN || "http://web:3000";
 const statePath = process.env.ZIJIN_SHADOW_STATE_PATH || "/training-state/zijin-shadow-ab.json";
@@ -91,6 +92,33 @@ async function fetchExternalContext(payload) {
   );
 }
 
+function l2ExchangeMinute(l2) {
+  return l2?.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1] || null;
+}
+
+function freezePreopenPlan(state, date, payload, l2) {
+  if (state.preopenPlan?.marketDate === date && state.preopenPlan.plan?.ready) return state.preopenPlan.plan;
+  const asOfTime = l2ExchangeMinute(l2);
+  if (!asOfTime || asOfTime < "0925" || asOfTime >= "0930") return null;
+  const indicativePrice = [l2?.session?.open, l2?.book?.lastPrice, payload.quote?.open, payload.quote?.price]
+    .map(Number)
+    .find(value => Number.isFinite(value) && value > 0) || null;
+  const plan = buildZijinPreopenPricePlan({
+    phase: "auction-result",
+    asOfTime,
+    previousClose: l2?.session?.previousClose ?? payload.quote?.previousClose ?? null,
+    indicativePrice,
+    bookImbalance: l2?.book?.nearTouchImbalance ?? null,
+    activeBuyRatio: l2?.flow?.activeBuyRatio60s ?? null,
+    atrPct: l2?.volatility?.atrPct14 ?? null,
+    spreadBps: l2?.book?.spreadBps ?? null,
+    l2Connected: l2?.status?.connected === true,
+    l2Stale: l2?.status?.stale !== false,
+  });
+  if (plan.ready) state.preopenPlan = { marketDate: date, frozenAt: new Date().toISOString(), plan };
+  return plan.ready ? plan : null;
+}
+
 function marketDate(payload) {
   const raw = payload.sourceTimestamp || payload.fetchedAt;
   if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10).replaceAll("-", "");
@@ -118,17 +146,21 @@ async function appendEvents(state, events, source) {
 }
 
 async function observe(state) {
-  const settled = await Promise.allSettled([fetchStock(targetCode), ...peerCodes.map(fetchStock)]);
+  const settled = await Promise.allSettled([fetchStock(targetCode), ...peerCodes.map(fetchStock), fetchJson("/api/research/zijin-l2-orderflow")]);
   const target = settled[0];
   if (target.status !== "fulfilled") throw target.reason;
   const payload = target.value;
   const minutes = payload.minutes.filter((point) => /^\d{4}$/.test(point.time) && point.time <= "1500" && Number.isFinite(point.price) && point.price > 0);
   if (!minutes.length) throw new Error("紫金矿业暂无有效分钟数据");
-  const peers = settled.slice(1).flatMap((result, index) => result.status === "fulfilled"
+  const peers = settled.slice(1, 1 + peerCodes.length).flatMap((result, index) => result.status === "fulfilled"
     ? [{ code: peerCodes[index], minutes: result.value.minutes.filter((point) => point.time <= "1500") }]
     : []);
   const externalContext = await fetchExternalContext(payload);
   const date = marketDate(payload);
+  const l2Result = settled.at(-1);
+  const l2 = l2Result?.status === "fulfilled" ? l2Result.value : null;
+  const preopenPlan = freezePreopenPlan(state, date, payload, l2);
+  const preopenGate = evaluateZijinPreopenGate({ plan: preopenPlan, minutes });
   await saveMinuteArchive(date, payload, minutes);
   const lastIndex = minutes.length - 1;
   let indices;
@@ -152,6 +184,7 @@ async function observe(state) {
       previousClose: payload.quote.previousClose,
       peers,
       externalContext,
+      preopenGate,
     }));
   }
   state.source = {
@@ -161,13 +194,30 @@ async function observe(state) {
     peerCoverage: peers.length / Math.max(1, peerCodes.length),
     externalCoverage: externalContext.coverage,
     externalObservedAt: externalContext.observedAt,
+    l2: {
+      connected: l2?.status?.connected === true,
+      stale: l2?.status?.stale !== false,
+      lastExchangeTime: l2?.lastExchangeTime || null,
+      sourceTimestamp: l2?.updatedAt || null,
+    },
+    preopenGate: {
+      status: preopenGate.status,
+      confirmationCount: preopenGate.confirmationCount,
+      allowedDirections: preopenGate.allowedDirections,
+      expiresAt: preopenGate.expiresAt,
+    },
     error: null,
   };
   // Keep the service heartbeat fresh even when the market has no new minute.
   // lastProcessedMinute remains unchanged, so this cannot manufacture evidence.
   state.updatedAt = new Date().toISOString();
   state.status = deriveShadowStatus(date);
-  await appendEvents(state, allEvents, { provider: state.source.provider, sourceTimestamp: state.source.sourceTimestamp });
+  await appendEvents(state, allEvents, {
+    provider: state.source.provider,
+    sourceTimestamp: state.source.sourceTimestamp,
+    l2: state.source.l2,
+    preopenGate: state.source.preopenGate,
+  });
   await saveState(state);
 }
 
