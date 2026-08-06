@@ -2582,6 +2582,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(activeCycleSameSide)continue;
       const formalSideKey=formalFresh&&latestSide?`${item.code}:${latestSide}`:"";
       const lastSameSideAt=formalSideKey?lastFormalAlertAtBySide.current[formalSideKey]??0:0;
+      if(formalFresh&&formalSideKey&&Date.now()-lastSameSideAt<10*60_000)continue;
+      const engineCandidateFresh=Boolean(candidateFresh&&latestObservation&&!latestObservation.executable);
+      const selectedExperimental=experimentalFresh?experimentalReminder:null;
+      const selectedDisplacement=displacementFresh?displacementReminder:null;
+      const selectedAgent=agentCandidateFresh?agentEvaluation:null;
+      const selectedEngineCandidate=engineCandidateFresh?latestObservation:null;
+      const isCandidate=!isRisk&&!formalFresh&&Boolean(
+        selectedExperimental
+        || selectedDisplacement
+        || selectedAgent
+        || selectedEngineCandidate
+      );
       const candidateDirection=selectedExperimental?.direction??selectedDisplacement?.direction??selectedAgent?.direction??selectedEngineCandidate?.direction;
       const candidateTime=String(selectedExperimental?.asOfTime??selectedDisplacement?.time??selectedAgent?.asOfTime??selectedEngineCandidate?.time??lastTime).replace(/\D/g,"").slice(-4);
       const candidateStageRank=selectedDisplacement?.stage==="displacement-l2-confirmation"||selectedExperimental?.stage==="experimental-exit"
@@ -2589,7 +2601,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         :selectedDisplacement?.stage==="displacement-progress"||selectedAgent||selectedEngineCandidate?.stage==="candidate"
           ?2
           :1;
-      const candidateSide=candidateDirection==="?T"?"sell":"buy";
+      const candidateSide=candidateDirection==="反T"?"sell":"buy";
       const candidateSideKey=isCandidate&&candidateDirection?`${item.code}:${candidateSide}`:"";
       const previousCandidate=candidateSideKey?lastCandidateAlertBySide.current[candidateSideKey]:null;
       const isZijinCandidate=isCandidate&&item.code===STOCK_AGENTS.zijin.code;
@@ -2600,32 +2612,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const delayedUpgrade=candidateStageRank>previousCandidate.rank&&now-previousCandidate.at>=10*60_000;
         if(previousCandidate.time===candidateTime||(sameEpisode&&!delayedUpgrade))continue;
       }
-      if(formalFresh&&formalSideKey&&Date.now()-lastSameSideAt<10*60_000)continue;
-      const engineCandidateFresh=Boolean(candidateFresh&&latestObservation&&!latestObservation.executable);
-      const selectedExperimental=experimentalFresh?experimentalReminder:null;
-      const selectedDisplacement=displacementFresh?displacementReminder:null;
-      const selectedAgent=agentCandidateFresh?agentEvaluation:null;
-          : isZijinCandidate&&candidateDirection&&/^\d{4}$/.test(candidateTime)
-            ? `${item.code}:candidate:${candidateSide}:${candidateStageRank}:${Math.floor((Number(candidateTime.slice(0,2))*60+Number(candidateTime.slice(2)))/20)}`
-      const selectedEngineCandidate=engineCandidateFresh?latestObservation:null;
-      const isCandidate=!isRisk&&!formalFresh&&Boolean(
-        selectedExperimental
-        || selectedDisplacement
-        || selectedAgent
-        || selectedEngineCandidate
-      );
       if(!isRisk&&!formalFresh&&!isCandidate)continue;
-      const key=isRisk
-        ? `${item.code}:risk:${riskSignature}`
-        : formalFresh
-          ? `${item.code}:${latest!.time}:${latest!.side}`
-          : selectedExperimental
-            ? `${item.code}:experimental:${selectedExperimental.id}:${selectedExperimental.stage}:${selectedExperimental.asOfTime}`
-            : selectedDisplacement
-              ? `${item.code}:displacement:${selectedDisplacement.id}`
-            : selectedAgent
-              ? `${item.code}:agent:${selectedAgent.asOfTime}:${selectedAgent.direction}`
-              : `${item.code}:candidate:${selectedEngineCandidate!.time}:${selectedEngineCandidate!.direction}`;
+      let key:string;
+      if(isRisk)key=`${item.code}:risk:${riskSignature}`;
+      else if(formalFresh)key=`${item.code}:${latest!.time}:${latest!.side}`;
+      else if(isZijinCandidate&&candidateDirection&&/^\d{4}$/.test(candidateTime)){
+        const episode=Math.floor((Number(candidateTime.slice(0,2))*60+Number(candidateTime.slice(2)))/20);
+        key=`${item.code}:candidate:${candidateSide}:${candidateStageRank}:${episode}`;
+      }else if(selectedExperimental)key=`${item.code}:experimental:${selectedExperimental.id}:${selectedExperimental.stage}:${selectedExperimental.asOfTime}`;
+      else if(selectedDisplacement)key=`${item.code}:displacement:${selectedDisplacement.id}`;
+      else if(selectedAgent)key=`${item.code}:agent:${selectedAgent.asOfTime}:${selectedAgent.direction}`;
+      else key=`${item.code}:candidate:${selectedEngineCandidate!.time}:${selectedEngineCandidate!.direction}`;
       const eventDate=snapshot?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??"unknown-date";
       const persistedKey=`rabbit-alerted:${accountName.toLowerCase()}:${eventDate}:${key}`;
       let alreadyAlerted=!isRisk&&alertedEventKeys.current.has(persistedKey);
@@ -2647,7 +2644,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const message=isRisk
         ? riskMessage
         : formalFresh
-      if(queued&&isZijinCandidate&&candidateSideKey)lastCandidateAlertBySide.current[candidateSideKey]={at:now,rank:candidateStageRank,time:candidateTime};
           ? (latest!.reason??`正式执行信号已通过趋势、量价、成本与风控过滤`)
           : selectedExperimental
             ? `${selectedExperimental.reason}${selectedExperimental.plan} 这是实验观察，不是买卖指令。`
@@ -2660,6 +2656,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const alertPrice=formalFresh?latest!.price:selectedExperimental?.price??selectedDisplacement?.price??selectedEngineCandidate?.price??points.find(point=>point.time===alertTime)?.price;
       const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",marketDate:eventDate,marketTime:alertTime,price:alertPrice,level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
       if(queued&&formalFresh&&formalSideKey)lastFormalAlertAtBySide.current[formalSideKey]=Date.now();
+      if(queued&&isZijinCandidate&&candidateSideKey)lastCandidateAlertBySide.current[candidateSideKey]={at:now,rank:candidateStageRank,time:candidateTime};
       const candidateSpeech=selectedExperimental
         ? selectedExperimental.stage==="experimental-exit"
           ? `${item.name}，${selectedExperimental.direction}实验观察结束，${selectedExperimental.reason}，不是买卖指令`
