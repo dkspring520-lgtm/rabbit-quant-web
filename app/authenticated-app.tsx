@@ -892,6 +892,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [tEntryPrice,setTEntryPrice]=useState("");
   const [tExitPrice,setTExitPrice]=useState("");
   const [tQuantity,setTQuantity]=useState("1000");
+  const [tUseConservativeFee,setTUseConservativeFee]=useState(true);
   const [showAllPriceLevels,setShowAllPriceLevels]=useState(false);
   const [decisionZoneMode,setDecisionZoneMode]=useState<"focus"|"all">("focus");
   const [draggedStockCode, setDraggedStockCode] = useState<string | null>(null);
@@ -1499,6 +1500,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>evaluateZijinFundResponse(zijinMainForceTrack.bars),
     [zijinMainForceTrack.bars],
   );
+  const positiveTBlockedByFlow=Boolean(isZijinStock&&zijinFundResponse.positiveTBlocked);
   const zijinMainForceIntent=useMemo(
     ()=>summarizeZijinMainForceIntent(zijinMainForceTrack.bars),
     [zijinMainForceTrack.bars],
@@ -1591,7 +1593,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     open:activeQuote?.open??null,
     vwap:chartModel?.lastVwap??null,
     l2Coverage:l2CalculationCoverage,
-  }):null,[isZijinStock,minutePoints,activeQuote?.previousClose,activeQuote?.open,chartModel?.lastVwap,l2CalculationCoverage]);
+    atrPct:liveL2Status?.volatility?.atrPct14??null,
+  }):null,[isZijinStock,minutePoints,activeQuote?.previousClose,activeQuote?.open,chartModel?.lastVwap,l2CalculationCoverage,liveL2Status?.volatility?.atrPct14]);
   const isPreopenPlanPhase=["preauction","auction","auction-result"].includes(marketSession.phase);
   const l2ExchangeMinute=liveL2Status?.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1]??null;
   const preopenIndicativePrice=useMemo(()=>[
@@ -1733,15 +1736,21 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(
-    ()=>compactChartObservations(currentObservations,30) as ReplayObservation[],
-    [currentObservations],
+    ()=>{
+      const latestTime=minutePoints.at(-1)?.time;
+      const eligible=positiveTBlockedByFlow&&latestTime
+        ? currentObservations.filter(observation=>observation.direction!=="正T"||!isRecentCausalEvent(latestTime,observation.time,3))
+        : currentObservations;
+      return compactChartObservations(eligible,30) as ReplayObservation[];
+    },
+    [currentObservations,minutePoints,positiveTBlockedByFlow],
   );
   const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
   const rabbitTrackerSignal=useMemo(()=>{
     const latestTime=minutePoints.at(-1)?.time;
     if(!latestTime)return null;
     const recentAction=[...(liveEngine.actions??[])].reverse().find(action=>isRecentCausalEvent(latestTime,action.time,2));
-    if(recentAction){
+    if(recentAction&&!(positiveTBlockedByFlow&&recentAction.direction==="正T")){
       const sell=recentAction.side==="卖出";
       return {
         key:`action-${recentAction.time}-${recentAction.side}`,
@@ -1753,7 +1762,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       };
     }
     const displacement=isZijinStock?evaluateZijinDisplacementWatch(minutePoints):null;
-    if(displacement?.stage==="displacement-candidate"&&isRecentCausalEvent(latestTime,displacement.time,2)){
+    if(displacement?.stage==="displacement-candidate"&&!(positiveTBlockedByFlow&&displacement.direction==="正T")&&isRecentCausalEvent(latestTime,displacement.time,2)){
       return {
         key:`displacement-${displacement.id}`,
         label:displacement.label,
@@ -1763,7 +1772,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         price:displacement.price,
       };
     }
-    const recentObservation=[...currentObservations].reverse().find(observation=>isRecentCausalEvent(latestTime,observation.time,2));
+    const recentObservation=[...currentObservations].reverse().find(observation=>!(positiveTBlockedByFlow&&observation.direction==="正T")&&isRecentCausalEvent(latestTime,observation.time,2));
     if(!recentObservation)return null;
     const rawLabel=recentObservation.confirmationLabel
       ?? (recentObservation.direction==="反T"?"高位观察":"低位观察");
@@ -1775,7 +1784,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       time:recentObservation.time,
       price:recentObservation.price,
     };
-  },[currentObservations,isZijinStock,liveEngine.actions,minutePoints]);
+  },[currentObservations,isZijinStock,liveEngine.actions,minutePoints,positiveTBlockedByFlow]);
   const intradayMarkerLayout=useMemo(()=>{
     if(!chartModel)return {observations:[],actions:[],rabbitCandidates:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
@@ -2064,7 +2073,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       trendConfirmed:evaluation?.status==="candidate",
     };
   },[stockAgent,visibleStockAgentEvaluation,autoDecision]);
-  const signalMode:"正T"|"反T"=decisionModel.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
+  const signalMode:"正T"|"反T"=positiveTBlockedByFlow
+    ?"反T"
+    :decisionModel.mode ?? (openingAssessment.session==="高开"?"反T":"正T");
   const latestFormalAction=useMemo(()=>{
     const latest=liveEngine.actions.at(-1)??null;
     return latest&&isRecentCausalEvent(decisionModel.lastTime,latest.time,3)?latest:null;
@@ -2074,10 +2085,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     [intradayMarkerLayout.actions,latestFormalAction],
   );
   const formalActionMarkerPending=Boolean(
-    decisionModel.status==="ready"&&latestFormalAction&&!latestFormalActionMarked,
+    decisionModel.status==="ready"&&latestFormalAction&&!latestFormalActionMarked&&!(positiveTBlockedByFlow&&latestFormalAction.direction==="正T"),
   );
   const decisionActionSide:"buy"|"sell"|null=
-    decisionModel.status==="ready"&&latestFormalAction&&latestFormalActionMarked
+    decisionModel.status==="ready"&&latestFormalAction&&latestFormalActionMarked&&!(positiveTBlockedByFlow&&latestFormalAction.direction==="正T")
       ?formalActionSide(latestFormalAction.side)
       :null;
   const decisionActionDirection:"正T"|"反T"=
@@ -2161,14 +2172,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const l2Confirmed=decisionModel.status==="ready"
       || (reverse
         ? zijinFundResponse.score>=65
-        : Boolean(zijinRepair?.checks?.l2BuyRecovery));
+        : !positiveTBlockedByFlow&&Boolean(zijinRepair?.checks?.l2BuyRecovery));
     return [
       {label:"时段有效",met:decisionModel.inDecisionWindow},
       {label:reverse?"跌回均价":"站回均价",met:decisionModel.referenceConfirmed},
       {label:reverse?"动量转弱":"动量转强",met:decisionModel.trendConfirmed},
-      {label:isZijinStock?"L2确认":"量价确认",met:l2Confirmed},
+      {label:isZijinStock?(reverse?"L2卖压确认":positiveTBlockedByFlow?"主动净卖解除":"L2承接确认"):"量价确认",met:l2Confirmed},
     ];
-  },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,isZijinStock,signalMode,zijinFundResponse.score,zijinRepair?.checks?.l2BuyRecovery]);
+  },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,isZijinStock,positiveTBlockedByFlow,signalMode,zijinFundResponse.score,zijinRepair?.checks?.l2BuyRecovery]);
   const decisionConditionsConfirmed=decisionConditions.reduce((count,item)=>count+(item.met?1:0),0);
   const rabbitTrackerMode=rabbitTrackerSignal
     ?"signal"
@@ -2238,12 +2249,21 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const quantity=Math.max(0,Math.floor(Number(tQuantity)/100)*100);
     if(!Number.isFinite(entry)||!Number.isFinite(exit)||entry<=0||exit<=0||quantity<=0)return null;
     const gross=(exit-entry)*quantity;
-    const turnover=(entry+exit)*quantity;
-    const estimatedFees=Math.max(10,turnover*.00035)+Math.max(0,exit*quantity*.0005);
+    const entryTurnover=entry*quantity;
+    const exitTurnover=exit*quantity;
+    const turnover=entryTurnover+exitTurnover;
+    const commission=Math.max(5,entryTurnover*.00025)+Math.max(5,exitTurnover*.00025);
+    const stampDuty=exitTurnover*.0005;
+    const transferFee=turnover*.00001;
+    const calculatedFees=commission+stampDuty+transferFee;
+    const estimatedFees=tUseConservativeFee?Math.max(calculatedFees,turnover*.001):calculatedFees;
     const net=gross-estimatedFees;
     const base=Math.max(1,effectiveLivePosition.openingShares);
-    return {quantity,gross,estimatedFees,net,costChange:net/base};
-  },[tEntryPrice,tExitPrice,tQuantity,effectiveLivePosition.openingShares]);
+    return {
+      quantity,gross,estimatedFees,net,costChange:net/base,
+      feeLabel:tUseConservativeFee?"保守综合费率 0.10%":"佣金、印花税及过户费",
+    };
+  },[tEntryPrice,tExitPrice,tQuantity,tUseConservativeFee,effectiveLivePosition.openingShares]);
   const confirmedCycleRows=useMemo<DeskHistoryRow[]>(()=>{
     const trades=tradeLedgerRows
       .filter(row=>row.status!=="已失效")
@@ -3283,6 +3303,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               ?"🔴 风控已锁定"
               :cycleStage==="opened"
                 ?`🟡 已记录${openedCycleSide==="buy"?"买入":"卖出"}，等待${expectedClosingSide==="sell"?"卖出":"买回"}`
+                :positiveTBlockedByFlow
+                  ?"🟡 主动净卖中，正T已锁定"
                 :formalActionMarkerPending
                   ?"🟡 正式信号写入分时图中"
                 :decisionModel.status==="ready"&&decisionActionSide
@@ -3290,7 +3312,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                   :freshReverseTObservation
                     ?`🟠 反T${freshReverseTObservation.stage==="candidate"?"候补":"观察"}`
                     :"🟡 等待信号"}</b>
-            <small className="global-decision-summary">{signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
+            <small className="global-decision-summary">{positiveTBlockedByFlow?"主动净卖与价格走弱同向，卖压解除前不提示正T买入。":signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
             <div className={`global-decision-live-signal ${freshReverseTAction||freshReverseTObservation?"active":"idle"}`} aria-label="实时反T信号">
               <span>实时反T</span>
               <b>{reverseTSignalLabel}</b>
@@ -3300,7 +3322,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                <div className="decision-condition-progress" aria-hidden="true"><i style={{width:`${decisionConditionsConfirmed/4*100}%`}}/></div>
                {decisionConditions.map(item=><span key={item.label} className={item.met?"met":""}><i>{item.met?"✓":"×"}</i>{item.label}</span>)}
              </div>
-            <div className="decision-primary-meta"><span>{decisionModel.status==="ready"?(decisionModel.mode??signalMode):decisionModel.status==="locked"?"禁止开T":"等待条件补齐"}</span><strong>{stockAgent.canExecute?(decisionModel.status==="ready"?"可进入执行":decisionModel.status==="locked"?"风险优先":"实时监控"):"研究观察"}</strong></div>
+            <div className="decision-primary-meta"><span>{positiveTBlockedByFlow?"正T已锁定":decisionModel.status==="ready"?(decisionModel.mode??signalMode):decisionModel.status==="locked"?"禁止开T":"等待条件补齐"}</span><strong>{stockAgent.canExecute?(positiveTBlockedByFlow?"等待卖压解除":decisionModel.status==="ready"?"可进入执行":decisionModel.status==="locked"?"风险优先":"实时监控"):"研究观察"}</strong></div>
           </section>
           <section className="decision-position-card" aria-label="持仓与本次做T">
             <header><span>持仓与试算</span><em>{marketSession.live?"实时":"复盘"}</em></header>
@@ -3341,11 +3363,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":"紫金会员 · 实时因果"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":"预判买卖价区间"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":"等待分时"):"会员功能"}</em></div>
             {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
               <div className="zijin-price-plan-grid">
-                <div className="buy"><small title="正T：先买入、后卖出等量旧仓，目标是降低持仓成本">{isPreopenPlanPhase?"开盘正T观察区":"正T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.buyRange[0].toFixed(2)}–{displayedZijinPricePlan.buyRange[1].toFixed(2)}</b><span>到区后等承接确认</span></div>
+                <div className={`buy ${positiveTBlockedByFlow?"locked":""}`}><small title="正T：先买入、后卖出等量旧仓，目标是降低持仓成本">{isPreopenPlanPhase?"开盘正T观察区":"正T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.buyRange[0].toFixed(2)}–{displayedZijinPricePlan.buyRange[1].toFixed(2)}</b><span>{positiveTBlockedByFlow?"主动净卖中，暂不执行正T":"到区后等承接确认"}</span></div>
                 <div className="sell"><small title="反T：先卖出旧仓、后低价买回等量股份">{isPreopenPlanPhase?"开盘反T观察区":"反T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.sellRange[0].toFixed(2)}–{displayedZijinPricePlan.sellRange[1].toFixed(2)}</b><span>到区后等衰竭确认</span></div>
               </div>
               <div className="zijin-price-plan-quick-fill" role="group" aria-label="T calculator quick fill">
-                <button className="buy" type="button" onClick={()=>setTEntryPrice(((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2))}><span>{"\u6b63T \u4e70\u5165"}</span><b>¥{((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2)}</b></button>
+                <button className="buy" type="button" disabled={positiveTBlockedByFlow} title={positiveTBlockedByFlow?"主动净卖与价格走弱同向，正T已锁定":"填入正T关注区中位价"} onClick={()=>setTEntryPrice(((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2))}><span>{"\u6b63T \u4e70\u5165"}</span><b>¥{((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2)}</b></button>
                 <button className="sell" type="button" onClick={()=>setTExitPrice(((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2))}><span>{"\u53cdT \u5356\u51fa"}</span><b>¥{((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2)}</b></button>
               </div>
               <div className="zijin-price-plan-meta">
@@ -3356,6 +3378,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <span>{displayedZijinPricePlan.position}</span>
               </div>
               {"riskPlan" in displayedZijinPricePlan&&displayedZijinPricePlan.riskPlan&&<div className="zijin-risk-plan">
+                {"bufferPct" in displayedZijinPricePlan.riskPlan&&<small className="zijin-risk-buffer">波动缓冲 {displayedZijinPricePlan.riskPlan.bufferPct.toFixed(2)}% · ¥{displayedZijinPricePlan.riskPlan.buffer.toFixed(2)}</small>}
                 <div className="buy"><span>正T风控</span><b>止损 ¥{displayedZijinPricePlan.riskPlan.positiveT.hardStop.toFixed(2)}</b><small>止盈一 ¥{displayedZijinPricePlan.riskPlan.positiveT.takeProfit1.toFixed(2)} · 止盈二 ¥{displayedZijinPricePlan.riskPlan.positiveT.takeProfit2.toFixed(2)}</small></div>
                 <div className="sell"><span>反T风控</span><b>止损 ¥{displayedZijinPricePlan.riskPlan.reverseT.hardStop.toFixed(2)}</b><small>买回一 ¥{displayedZijinPricePlan.riskPlan.reverseT.takeProfit1.toFixed(2)} · 买回二 ¥{displayedZijinPricePlan.riskPlan.reverseT.takeProfit2.toFixed(2)}</small></div>
               </div>}
@@ -3381,7 +3404,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <button type="button" onClick={()=>setTQuantity(String(Math.floor(Math.max(0,effectiveLivePosition.sellable)/100)*100))}>{"\u5168\u90e8\u53ef\u5356"}</button>
               <button type="button" onClick={()=>setTQuantity(String(Math.floor(Math.max(0,cycleQuantity)/100)*100))}>{"\u9ed8\u8ba4"} {cycleQuantity.toLocaleString()}</button>
             </div>
-            <div className="t-calculator-result"><span>预估净收益 <b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"待输入"}</b></span><span>摊薄成本 <b>{tCalculator?`${tCalculator.costChange>=0?"-":"+"}¥${Math.abs(tCalculator.costChange).toFixed(3)}/股`:"--"}</b></span><small>{tCalculator?`毛收益 ${money(tCalculator.gross)} · 预估费用 ¥${tCalculator.estimatedFees.toFixed(2)} · ${tCalculator.quantity.toLocaleString()} 股`:"输入计划买卖价与整手数量后自动计算"}</small></div>
+            <label className="t-calculator-fee"><input type="checkbox" checked={tUseConservativeFee} onChange={event=>setTUseConservativeFee(event.target.checked)}/><span>保守综合费率</span><b>0.10%</b><small>已覆盖佣金、卖出印花税与过户费</small></label>
+            <div className="t-calculator-result"><span>预估净收益 <b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"待输入"}</b></span><span>摊薄成本 <b>{tCalculator?`${tCalculator.costChange>=0?"-":"+"}¥${Math.abs(tCalculator.costChange).toFixed(3)}/股`:"--"}</b></span><small>{tCalculator?`毛收益 ${money(tCalculator.gross)} · ${tCalculator.feeLabel} ¥${tCalculator.estimatedFees.toFixed(2)} · ${tCalculator.quantity.toLocaleString()} 股`:"输入计划买卖价与整手数量后自动计算"}</small></div>
           </section>
           <details className={`stock-state stock-state-collapsible ${stockState.level}`}>
             <summary><span>状态判断</span><b>{stockState.label}</b><strong>{stockState.score}<small>/100</small></strong><i aria-hidden="true">⌄</i></summary>
