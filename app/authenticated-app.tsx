@@ -895,6 +895,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [tExitPrice,setTExitPrice]=useState("");
   const [tQuantity,setTQuantity]=useState("1000");
   const [tUseConservativeFee,setTUseConservativeFee]=useState(true);
+  const [decisionAuditOpen,setDecisionAuditOpen]=useState(false);
+  const [tCalculatorOpen,setTCalculatorOpen]=useState(false);
   const [showAllPriceLevels,setShowAllPriceLevels]=useState(false);
   const [decisionZoneMode,setDecisionZoneMode]=useState<"focus"|"all">("focus");
   const [draggedStockCode, setDraggedStockCode] = useState<string | null>(null);
@@ -1890,7 +1892,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // Keep watch-only observations as light dots, but surface qualified
       // candidates as compact labels. This preserves a clean one-second read
       // while making the signals that need manual follow-up visible on-chart.
-      const labelRendered=qualified||assessment==="confirmed"||assessment==="strong";
+      const labelRendered=uiTheme==="light"
+        ?assessment==="confirmed"
+        :qualified||assessment==="confirmed"||assessment==="strong";
       const placed=labelRendered
         ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
         : {labelX:point.x,labelY:point.y};
@@ -1953,7 +1957,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         })()
       :[];
     return {observations,actions,rabbitCandidates:[...recordedCandidates,...rabbitCandidates]};
-  },[activeChartDate,alertHistory,chartModel,isZijinStock,minutePoints,stock.code,stock.name,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal]);
+  },[activeChartDate,alertHistory,chartModel,isZijinStock,minutePoints,stock.code,stock.name,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -3207,7 +3211,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.currentLabel}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.qualified?5:4}/></g>)}
-              {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} with-label`}><title>{marker.label}</title><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text><circle cx={marker.x} cy={marker.y} r="5"/></g>)}
+              {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} ${uiTheme==="light"?"dot-only":"with-label"}`}><title>{marker.label}</title>{uiTheme!=="light"&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="4"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text></>}<circle cx={marker.x} cy={marker.y} r="5"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
                 <image className="rabbit-brand-reference" href="/rabbit-daylight-pair.webp" width="0" height="0" opacity="0" aria-hidden="true"/>
@@ -3372,16 +3376,19 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                   :freshReverseTObservation
                     ?`🟠 反T${freshReverseTObservation.stage==="candidate"?"候补":"观察"}`
                     :"🟡 等待信号"}</b>
-            <small className="global-decision-summary">{positiveTBlockedByFlow?"主动净卖与价格走弱同向，卖压解除前不提示正T买入。":signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
             <div className={`global-decision-live-signal ${freshReverseTAction||freshReverseTObservation?"active":"idle"}`} aria-label="实时反T信号">
               <span>实时反T</span>
               <b>{reverseTSignalLabel}</b>
               <small>{reverseTSignalDetail}</small>
             </div>
+            <details className="decision-audit-details" open={uiTheme!=="light"||decisionAuditOpen} onToggle={event=>setDecisionAuditOpen(event.currentTarget.open)}>
+              <summary>条件与依据 <b>{decisionConditionsConfirmed}/4</b></summary>
+              <small className="global-decision-summary">{positiveTBlockedByFlow?"主动净卖与价格走弱同向，卖压解除前不提示正T买入。":signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
              <div className="decision-condition-grid" aria-label="全局决策条件进度" aria-valuemin={0} aria-valuemax={4} aria-valuenow={decisionConditionsConfirmed} role="progressbar">
                <div className="decision-condition-progress" aria-hidden="true"><i style={{width:`${decisionConditionsConfirmed/4*100}%`}}/></div>
                {decisionConditions.map(item=><span key={item.label} className={item.met?"met":""}><i>{item.met?"✓":"×"}</i>{item.label}</span>)}
              </div>
+            </details>
             <div className="decision-primary-meta"><span>{positiveTBlockedByFlow?"正T已锁定":decisionModel.status==="ready"?(decisionModel.mode??signalMode):decisionModel.status==="locked"?"禁止开T":"等待条件补齐"}</span><strong>{stockAgent.canExecute?(positiveTBlockedByFlow?"等待卖压解除":decisionModel.status==="ready"?"可进入执行":decisionModel.status==="locked"?"风险优先":"实时监控"):"研究观察"}</strong></div>
           </section>
           <section className="decision-position-card" aria-label="持仓与本次做T">
@@ -3427,8 +3434,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <div className="sell"><small title="反T：先卖出旧仓、后低价买回等量股份">{isPreopenPlanPhase?"开盘反T观察区":"反T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.sellRange[0].toFixed(2)}–{displayedZijinPricePlan.sellRange[1].toFixed(2)}</b><span>到区后等衰竭确认</span></div>
               </div>
               <div className="zijin-price-plan-quick-fill" role="group" aria-label="T calculator quick fill">
-                <button className="buy" type="button" disabled={positiveTBlockedByFlow} title={positiveTBlockedByFlow?"主动净卖与价格走弱同向，正T已锁定":"填入正T关注区中位价"} onClick={()=>setTEntryPrice(((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2))}><span>{"\u6b63T \u4e70\u5165"}</span><b>¥{((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2)}</b></button>
-                <button className="sell" type="button" onClick={()=>setTExitPrice(((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2))}><span>{"\u53cdT \u5356\u51fa"}</span><b>¥{((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2)}</b></button>
+                <button className="buy" type="button" disabled={positiveTBlockedByFlow} title={positiveTBlockedByFlow?"主动净卖与价格走弱同向，正T已锁定":"填入正T关注区中位价"} onClick={()=>{setTEntryPrice(((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2));setTQuantity(String(cycleQuantity));setTCalculatorOpen(true)}}><span>{"\u6b63T \u4e70\u5165"}</span><b>¥{((displayedZijinPricePlan.buyRange[0]+displayedZijinPricePlan.buyRange[1])/2).toFixed(2)}</b></button>
+                <button className="sell" type="button" onClick={()=>{setTExitPrice(((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2));setTQuantity(String(cycleQuantity));setTCalculatorOpen(true)}}><span>{"\u53cdT \u5356\u51fa"}</span><b>¥{((displayedZijinPricePlan.sellRange[0]+displayedZijinPricePlan.sellRange[1])/2).toFixed(2)}</b></button>
               </div>
               <div className="zijin-price-plan-meta">
                 <span title="毛价差：未扣除佣金、税费和滑点前的买卖价差">预期毛价差 <sup>ⓘ</sup> <b>¥{displayedZijinPricePlan.expectedGrossSpread.toFixed(2)}</b></span>
@@ -3453,9 +3460,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             {zijinStructure&&<small className="zijin-structure-summary">多周期 {zijinStructure.direction} {zijinStructure.directionScore>=0?"+":""}{zijinStructure.directionScore} · 缠论 {zijinStructure.chan.location} · 威科夫 {zijinStructure.wyckoff.phase} · 成交密集区 ¥{zijinStructure.volumeProfile.valueAreaLow.toFixed(2)}–{zijinStructure.volumeProfile.valueAreaHigh.toFixed(2)}</small>}
             <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
-          <div className="alert-channel"><div><span>提醒</span><small>语音、弹窗与手机后台通知</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时播放简短语音">🔊 {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试"}</button>}</div><details className="mobile-push-guide"><summary>ⓘ 帮助</summary><div><p><b>安卓 Chrome</b><span>菜单 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><p><b>苹果 Safari</b><span>分享 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><small>锁屏通知音由手机系统控制；详细说明可在设置中查看。</small></div></details></div>
+          <div className={`alert-channel ${marketSession.live?"market-live":""}`}><div><span>提醒</span><small>语音、弹窗与手机后台通知</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时播放简短语音">🔊 {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试"}</button>}</div><details className="mobile-push-guide"><summary>ⓘ 帮助</summary><div><p><b>安卓 Chrome</b><span>菜单 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><p><b>苹果 Safari</b><span>分享 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><small>锁屏通知音由手机系统控制；详细说明可在设置中查看。</small></div></details></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
-          <section className="t-calculator" aria-label="日内做T试算">
+          <details className="t-calculator" aria-label="日内做T试算" open={uiTheme!=="light"||tCalculatorOpen} onToggle={event=>setTCalculatorOpen(event.currentTarget.open)}>
+            <summary><span>日内做T试算</span><b>{tCalculatorOpen?"收起":"展开"}</b></summary>
+            <div className="t-calculator-body">
             <header><div><span>日内做T试算</span><b>实时估算收益与成本变化</b></div><small>空格快速定位</small></header>
             <div className="t-calculator-inputs"><label>买入价<input inputMode="decimal" value={tEntryPrice} onChange={event=>setTEntryPrice(event.target.value)} placeholder={activeQuote?.price?.toFixed(2)??"0.00"}/></label><label>卖出价<input inputMode="decimal" value={tExitPrice} onChange={event=>setTExitPrice(event.target.value)} placeholder={activeQuote?.price?.toFixed(2)??"0.00"}/></label><label>数量<input inputMode="numeric" value={tQuantity} onChange={event=>setTQuantity(event.target.value)} placeholder="1000"/></label></div>
             <div className="t-calculator-presets" aria-label="T calculator quantity presets">
@@ -3466,7 +3475,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             <label className="t-calculator-fee"><input type="checkbox" checked={tUseConservativeFee} onChange={event=>setTUseConservativeFee(event.target.checked)}/><span>保守综合费率</span><b>0.10%</b><small>已覆盖佣金、卖出印花税与过户费</small></label>
             <div className="t-calculator-result"><span>预估净收益 <b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"待输入"}</b></span><span>摊薄成本 <b>{tCalculator?`${tCalculator.costChange>=0?"-":"+"}¥${Math.abs(tCalculator.costChange).toFixed(3)}/股`:"--"}</b></span><small>{tCalculator?`毛收益 ${money(tCalculator.gross)} · ${tCalculator.feeLabel} ¥${tCalculator.estimatedFees.toFixed(2)} · ${tCalculator.quantity.toLocaleString()} 股`:"输入计划买卖价与整手数量后自动计算"}</small></div>
-          </section>
+            </div>
+          </details>
           <details className={`stock-state stock-state-collapsible ${stockState.level}`}>
             <summary><span>状态判断</span><b>{stockState.label}</b><strong>{stockState.score}<small>/100</small></strong><i aria-hidden="true">⌄</i></summary>
             <div className="stock-state-details">
@@ -3474,7 +3484,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <p>{stockState.summary}</p><ul>{stockState.details.map(detail=><li key={detail}>{detail}</li>)}</ul><em>{stockState.action}</em>
             </div>
           </details>
-          <section className={`web4-monitor ${web4Monitor.status} ${web4Monitor.status==="degraded"?"compact":""}`} aria-label="WEB 4.0 多源实时监控">
+          <section className={`web4-monitor ${web4Monitor.status} ${web4Monitor.status==="degraded"?"compact":""} ${marketSession.live?"market-live":""}`} aria-label="WEB 4.0 多源实时监控">
+            {marketSession.live&&<span className="market-live-status-dot" title={web4Monitor.summary} aria-label={`数据状态：${web4Monitor.label}`}/>}
             <header>
               <div><span>WEB 4.0 · 多源监控</span><b>{web4Monitor.label}</b></div>
               <strong>{web4Monitor.confidence}<small>/100</small></strong>
