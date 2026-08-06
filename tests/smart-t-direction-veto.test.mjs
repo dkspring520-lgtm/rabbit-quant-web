@@ -9,6 +9,7 @@ import {
   causalOpeningDisplacementConflict,
   causalOpeningQualityConflict,
   causalOpeningRepairAgeConflict,
+  causalPositiveTQualityConflict,
   causalPersistentDirection,
   causalThirtyMinuteTrendShieldConflict,
   causalTrendImpulseConflict,
@@ -193,6 +194,30 @@ test("30-minute trend shield enforces an economic opening displacement", () => {
   assert.equal(causalThirtyMinuteTrendShieldConflict(opening), true);
   assert.equal(causalThirtyMinuteTrendShieldConflict({ ...opening, deviation: 0.46 }), false);
   assert.equal(causalThirtyMinuteTrendShieldConflict({ ...opening, crossedVwap: true }), false);
+});
+
+test("positive-T rejects an unconfirmed rebound inside a causal decline", () => {
+  const unsafe = {
+    opening: false,
+    direction: "BUY_FIRST",
+    crossedVwap: false,
+    broadPricePoints: 36,
+    pivotAge: 1,
+    ratio: 0.85,
+    localMomentum3: 0.24,
+    vwapMomentum15: -0.155,
+    priceMomentum30: -0.239,
+    longPriceMeanBias: -0.493,
+  };
+  assert.equal(causalPositiveTQualityConflict(unsafe), true);
+  assert.equal(causalPositiveTQualityConflict({ ...unsafe, crossedVwap: true }), false);
+  assert.equal(causalPositiveTQualityConflict({
+    ...unsafe,
+    pivotAge: 2,
+    ratio: 1.10,
+    vwapMomentum15: 0.02,
+  }), false);
+  assert.equal(causalPositiveTQualityConflict({ ...unsafe, direction: "SELL_FIRST" }), false);
 });
 
 test("persistent direction survives a small local counter move", () => {
