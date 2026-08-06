@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   compactChartObservations,
+  compactCandidateAlertHistory,
   compactRepairChartMarkers,
   fulfilledWatchlistSnapshots,
   isRecentCausalEvent,
@@ -35,6 +36,29 @@ test("different repair milestones stay visible while duplicate stages are compac
   assert.deepEqual(
     compactChartObservations([firstWatch, repeatedWatch, confirmed], 30),
     [repeatedWatch, confirmed],
+  );
+});
+
+test("Zijin chart can merge repair milestones into one same-side decision episode", () => {
+  const watch = { time:"0941", direction:"正T", stage:"watch", repairPhase:"bottom-watch", executable:false };
+  const candidate = { time:"0948", direction:"正T", stage:"candidate", executable:false };
+  const confirmed = { time:"0954", direction:"正T", stage:"candidate", repairPhase:"repair-confirmed", executable:false };
+  assert.deepEqual(
+    compactChartObservations([watch, candidate, confirmed], 45, { mergeRepairPhases:true }),
+    [confirmed],
+  );
+});
+
+test("same-side candidate reminders collapse and opening noise stays out of the chart", () => {
+  const alerts = [
+    { level:"candidate", rabbit:"buy", marketTime:"0931", title:"候选买点" },
+    { level:"candidate", rabbit:"buy", marketTime:"0940", title:"均价下方观察" },
+    { level:"candidate", rabbit:"buy", marketTime:"0948", title:"低位修复·买压确认" },
+    { level:"candidate", rabbit:"sell", marketTime:"0950", title:"反T候选观察" },
+  ];
+  assert.deepEqual(
+    compactCandidateAlertHistory(alerts, { episodeMinutes:20, ignoreBefore:"0935" }).map(alert => alert.title),
+    ["低位修复·买压确认", "反T候选观察"],
   );
 });
 
