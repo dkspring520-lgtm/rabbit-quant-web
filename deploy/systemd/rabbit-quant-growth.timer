@@ -3,7 +3,6 @@ Description=Run Rabbit Growth content generation every day
 
 [Timer]
 OnCalendar=*-*-* 02:00:00 Asia/Shanghai
-RandomizedDelaySec=15min
 Persistent=true
 Unit=rabbit-quant-growth.service
 
