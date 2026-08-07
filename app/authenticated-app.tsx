@@ -4815,6 +4815,9 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [replayProgress, setReplayProgress] = useState({value:0,detail:"等待选择测试"});
   const [lastAction, setLastAction] = useState<"idle"|"single"|"multi"|"batch">("idle");
   const [backtestConfigCollapsed,setBacktestConfigCollapsed]=useState(false);
+  const [trainingMode,setTrainingMode]=useState(false);
+  const [trainingIndex,setTrainingIndex]=useState(0);
+  const [trainingChoices,setTrainingChoices]=useState<Array<{choice:"buy"|"sell"|"wait";expected:"buy"|"sell";time:string}>>([]);
   const batchRunSequence = useRef(0);
   const recentBatchCodes = useRef<string[]>([]);
   const selectBacktestStock=(index:number)=>{
@@ -4830,11 +4833,14 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
     setRunStatus("等待运行");
     setReplayProgress({value:0,detail:"等待选择测试"});
     setLastAction("idle");
+    setTrainingMode(false);
+    setTrainingIndex(0);
+    setTrainingChoices([]);
     onSelectStock(index);
   };
   const replay=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number}):BacktestResult=>{
     const code=data.quote.code??stock.code;
-    const experiment=resolveBacktestStrategyExperiment(code,strategyExperiment);
+    const experiment=resolveBacktestStrategyExperiment(code,"closure-first");
     const profitOptions=smartTProfitModeOptions(code,profitMode) as ReplayProfitOptions;
     const similarityArchive=buildHistoricalSimilarityArchive(data.intradaySessions ?? [],{asOfDate:data.sampleDate ?? null});
     return runSmartTReplay(data.minutes ?? [],{
@@ -4869,6 +4875,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
     setLastAction("single");
     setAccountNotice("");
     setRunning(true); setRunMode("single"); setError(""); setResult(null); setBatch(null); setMultiDay(null); setSource(null);
+    setTrainingMode(false); setTrainingIndex(0); setTrainingChoices([]);
     setL2Replay({available:false,source:"loading",minuteCount:0,observations:[],reason:"正在读取历史L2分钟快照"});
     setReplayProgress({value:6,detail:`正在连接 ${stock.code} 公开分时数据`});
     setRunStatus(`第 ${attempt} 次：正在获取 ${stock.code} ${stock.name} 最新完整分时…`);
@@ -5206,6 +5213,16 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? [],l2Replay.observations),30) as ReplayObservation[],
       ]
     : [];
+  const trainingObservations=visibleBacktestObservations.filter(observation=>!observation.coverageOnly);
+  const trainingCurrent=trainingObservations[trainingIndex] ?? null;
+  const trainingCorrect=trainingChoices.filter(item=>item.choice===item.expected).length;
+  const trainingLabel=(value:"buy"|"sell"|"wait")=>value==="buy"?"正T":value==="sell"?"反T":"观望";
+  const submitTrainingChoice=(choice:"buy"|"sell"|"wait")=>{
+    if(!trainingCurrent)return;
+    const expected=trainingCurrent.direction==="正T"?"buy":"sell";
+    setTrainingChoices(current=>[...current,{choice,expected,time:trainingCurrent.time}]);
+    setTrainingIndex(current=>Math.min(trainingObservations.length,current+1));
+  };
   const cycles = (() => {
     const paired: { first: ReplayAction; second: ReplayAction }[] = [];
     let pending: ReplayAction | null = null;
@@ -5288,7 +5305,21 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <p className="config-note">状态：{runStatus}</p>
         {error&&<p className="config-note">{error}</p>}
       </aside>
-      <div className="backtest-results" id="single-backtest-result">
+      <div className={`backtest-results ${trainingMode?"training-active":""}`} id="single-backtest-result">
+        {result&&<section className="backtest-training" aria-label="逐分钟训练模式">
+          <div className="backtest-training-head">
+            <div><span className="eyebrow">CAUSAL DECISION PRACTICE</span><h2>逐分钟训练模式</h2><p>隐藏完整曲线，只在每个候选时刻让你先做判断，再揭示闭环引擎的方向。</p></div>
+            <button type="button" className={trainingMode?"active":""} onClick={()=>{setTrainingMode(current=>!current);setTrainingIndex(0);setTrainingChoices([])}}>{trainingMode?"退出训练":"开始训练"}</button>
+          </div>
+          {trainingMode&&<div className="backtest-training-body">
+            <div className="training-progress"><span>训练进度</span><b>{Math.min(trainingIndex,trainingObservations.length)} / {trainingObservations.length}</b><i><em style={{width:`${trainingObservations.length?Math.min(100,trainingIndex/trainingObservations.length*100):0}%`}}/></i><small>当前结果仅展示因果候选点，不提前显示未来价格和触发原因。</small></div>
+            {trainingCurrent?<>
+              <div className="training-prompt"><span>{formatTime(trainingCurrent.time)} · 当前价格 ¥{trainingCurrent.price?.toFixed(2) ?? "--"}</span><b>你会怎么做？</b><small>先选择动作，再查看引擎方向。</small></div>
+              <div className="training-choice-grid"><button type="button" onClick={()=>submitTrainingChoice("buy")}>正T<small>低位买入</small></button><button type="button" onClick={()=>submitTrainingChoice("sell")}>反T<small>高位卖出</small></button><button type="button" onClick={()=>submitTrainingChoice("wait")}>观望<small>等待确认</small></button></div>
+            </>:<div className="training-complete"><b>本次训练完成</b><span>答对 {trainingCorrect} / {trainingChoices.length} 个候选点</span><button type="button" onClick={()=>{setTrainingIndex(0);setTrainingChoices([])}}>重新开始</button></div>}
+            {trainingChoices.at(-1)&&<div className={`training-feedback ${trainingChoices.at(-1)?.choice===trainingChoices.at(-1)?.expected?"correct":"wrong"}`}><b>{trainingChoices.at(-1)?.choice===trainingChoices.at(-1)?.expected?"判断正确":"判断偏离"}</b><span>{formatTime(trainingChoices.at(-1)?.time)} · 引擎方向：{trainingLabel(trainingChoices.at(-1)?.expected ?? "wait")} · 你的选择：{trainingLabel(trainingChoices.at(-1)?.choice ?? "wait")}</span></div>}
+          </div>}
+        </section>}
         {batch&&<BatchReport batch={batch} representativeCode={source?.quote.code}/>}
         {multiDay&&<section className="multi-day-report"><div><span>连续因果回放</span><strong>{multiDay.testedDays}<small> / {multiDay.requestedDays} 日</small></strong><em>{formatDate(multiDay.firstDate)} — {formatDate(multiDay.lastDate)}</em></div><div><span>正式闭环 / 胜率</span><strong>{multiDay.completed}<small> / {multiDay.completed?(multiDay.wins/multiDay.completed*100).toFixed(1):"0.0"}%</small></strong><em>{multiDay.modeLabel}</em></div><div><span>有交易日 / 空白日</span><strong>{multiDay.tradingRounds}<small> / {multiDay.noTrade}</small></strong><em>逐日独立复位</em></div><div><span>扣费后合计</span><strong className={pnlClass(multiDay.net)}>{money(multiDay.net)}</strong><em>日均 {money(multiDay.averageNet)}</em></div></section>}
         <div className="result-summary">
