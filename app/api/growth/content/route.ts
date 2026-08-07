@@ -14,7 +14,9 @@ export async function PUT(request: Request) {
   if (!payload?.draft?.id) {
     return NextResponse.json({ error: "缺少文章记录" }, { status: 400 });
   }
-  return NextResponse.json(updateGrowthDraft(payload.draft), {
+  return NextResponse.json(await updateGrowthDraft(payload.draft, {
+    submitToBaidu: payload.submitToBaidu === true,
+  }), {
     headers: { "cache-control": "no-store" },
   });
 }

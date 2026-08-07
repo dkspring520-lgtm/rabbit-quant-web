@@ -399,6 +399,9 @@ compose_up() {
     "RABBIT_QUANT_ACTIVE_WEB_ORIGIN=$active_web_origin" \
     "OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
     "OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}" \
+    "BAIDU_SUBMIT_SITE=${BAIDU_SUBMIT_SITE:-https://www.zhuandianmi.com}" \
+    "BAIDU_SUBMIT_TOKEN=${BAIDU_SUBMIT_TOKEN:-}" \
+    "BAIDU_SUBMIT_ENDPOINT=${BAIDU_SUBMIT_ENDPOINT:-http://data.zz.baidu.com/urls}" \
     > "$runtime_env"
 
   compose_status=0
