@@ -12,7 +12,7 @@ curl -sS https://www.zhuandianmi.com/api/control/version
 
 ## Growth content automation
 
-The growth timer runs daily at 02:00 Asia/Shanghai. It collects Baidu suggestions, generates one review draft, and stores it in `/opt/rabbit-quant-state/growth-content.json`. Configure `OPENAI_API_KEY` in `/etc/default/rabbit-quant-ops` for AI long-form generation; without it, the safe template fallback still runs.
+The growth timer runs daily at 02:00 Asia/Shanghai. It collects Baidu suggestions, generates one article, publishes it to the knowledge base, and submits the public `/knowledge` URL to Baidu. Configure `OPENAI_API_KEY` in `/etc/default/rabbit-quant-ops` for AI long-form generation; without it, the safe template fallback still runs. Configure `BAIDU_SUBMIT_TOKEN` for active push; if it is missing, the article is still published and the push is recorded as skipped.
 
 ```bash
 systemctl status rabbit-quant-growth.timer --no-pager
