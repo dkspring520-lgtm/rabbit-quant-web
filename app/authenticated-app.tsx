@@ -538,6 +538,24 @@ function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinut
     : buildCausalReferencePoints(minutes, observations) as ReplayObservation[];
 }
 
+function compactIntradayPrompt(value:string, fallback="等待确认") {
+  const normalized=value.replace(/[·•\s]/g,"");
+  if(/正T.*(?:候选|观察)/.test(normalized))return "正T候选";
+  if(/反T.*(?:候选|观察)/.test(normalized))return "反T候选";
+  if(/候选卖点|卖点候选/.test(normalized))return "候选卖点";
+  if(/候选买点|买点候选/.test(normalized))return "候选买点";
+  if(/买压.*确认|低位.*买压/.test(normalized))return "买压确认";
+  if(/卖压.*确认|高位.*卖压/.test(normalized))return "卖压确认";
+  if(/低位.*修复加速|修复加速/.test(normalized))return "修复加速";
+  if(/冲高回落.*加速|回落加速/.test(normalized))return "回落加速";
+  if(/前高.*确认/.test(normalized))return "前高确认";
+  if(/前低.*确认/.test(normalized))return "前低确认";
+  if(/转强.*确认/.test(normalized))return "转强确认";
+  if(/转弱.*确认/.test(normalized))return "转弱确认";
+  if(normalized.length===4)return normalized;
+  return normalized.length>4?normalized.slice(0,4):fallback;
+}
+
 function observationConfirmationLabel(observation: ReplayObservation) {
   const rawLabel=observation.confirmationLabel ?? (observation.direction==="正T"?"反弹观察":"回落观察");
   const clearerLabels:Record<string,string>={
@@ -549,20 +567,8 @@ function observationConfirmationLabel(observation: ReplayObservation) {
     "回落参考":"回落确认",
   };
   const label=clearerLabels[rawLabel]??rawLabel;
-  const compactSignalLabel=(value:string)=>{
-    if(/正T.*(候选|观察)/.test(value))return "正T候选";
-    if(/反T.*(候选|观察)/.test(value))return "反T候选";
-    if(/买压.*确认|低位.*买压/.test(value))return "买压确认";
-    if(/卖压.*确认|高位.*卖压/.test(value))return "卖压确认";
-    if(/低位.*修复加速|修复加速/.test(value))return "修复加速";
-    if(/冲高回落.*加速|回落加速/.test(value))return "回落加速";
-    if(/前高.*确认/.test(value))return "前高确认";
-    if(/前低.*确认/.test(value))return "前低确认";
-    const normalized=value.replace(/[·•\s]/g,"");
-    return normalized.length<=4?normalized:`${normalized.slice(0,3)}…`;
-  };
   const resolvedLabel=observation.direction==="正T"&&label==="反弹观察"&&observation.time<="1000"?"修复观察":label;
-  return compactSignalLabel(resolvedLabel);
+  return compactIntradayPrompt(resolvedLabel);
 }
 
 function observationDirectionNote(observation: ReplayObservation) {
@@ -1812,7 +1818,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(displacement?.stage==="displacement-candidate"&&!(positiveTBlockedByFlow&&displacement.direction==="正T")&&isRecentCausalEvent(latestTime,displacement.time,2)){
       return {
         key:`displacement-${displacement.id}`,
-        label:displacement.label,
+        label:compactIntradayPrompt(displacement.label),
         tone:displacement.direction==="反T"?"sell":"buy",
         source:"displacement" as const,
         time:displacement.time,
@@ -1825,7 +1831,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ?? (recentObservation.direction==="反T"?"高位观察":"低位观察");
     return {
       key:`observation-${recentObservation.time}-${rawLabel}`,
-      label:rawLabel.length>8?`${rawLabel.slice(0,7)}…`:rawLabel,
+      label:compactIntradayPrompt(rawLabel),
       tone:"watch",
       source:"observation" as const,
       time:recentObservation.time,
@@ -1947,7 +1953,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const markerPrice=Number.isFinite(alert.price)?Number(alert.price):minute?.price;
       const point=pointPosition(time,markerPrice);
       if(!point)return [];
-      const label=alert.title.replace(`${stock.name} · `,"").replace(`${stock.name} `,"").trim()||"候选提醒";
+      const label=compactIntradayPrompt(alert.title.replace(`${stock.name} · `,"").replace(`${stock.name} `,"").trim(),"候选提醒");
       const isSell=alert.rabbit==="sell";
       const labelWidth=label.length*8+16;
       const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
@@ -1967,7 +1973,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           )||recordedCandidates.some(marker=>marker.key===`recorded-${rabbitTrackerSignal.key}`||marker.label===rabbitTrackerSignal.label&&marker.x===point.x);
           if(duplicate)return [];
           const isSell=rabbitTrackerSignal.tone==="sell";
-          const label=rabbitTrackerSignal.label;
+          const label=compactIntradayPrompt(rabbitTrackerSignal.label);
           const labelWidth=label.length*8+16;
           const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
           return [{...point,...placed,isSell,label,labelWidth,key:rabbitTrackerSignal.key}];
@@ -1980,7 +1986,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
     if(action)return action.label;
     const observation=intradayMarkerLayout.observations.find(marker=>marker.observation.time===intradayCursor.time);
-    return observation?.currentLabel??"无提醒";
+    return observation?.currentLabel??"暂无提醒";
   },[intradayCursor,intradayMarkerLayout]);
   const signalFunnel = (() => {
     const rows=stockList.flatMap(item=>{
@@ -2255,7 +2261,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           ?"tracking"
           :"waiting";
   const rabbitTrackerLabel=rabbitTrackerSignal?.label
-    ??(rabbitTrackerMode==="rest"?"午休":rabbitTrackerMode==="closed"?"今日收盘":rabbitTrackerMode==="waiting"?"等开盘":"");
+    ??(rabbitTrackerMode==="rest"?"午间休市":rabbitTrackerMode==="closed"?"今日收盘":rabbitTrackerMode==="waiting"?"等待开盘":"");
   const chartHud=useMemo(()=>{
     const price=Number(activeQuote?.price);
     const plan=displayedZijinPricePlan;
@@ -3264,7 +3270,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {chartModel?.biasAlert&&<rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.volumeTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.volumeTop} className={`bias-alert-band ${chartModel.latestBias>=0?"up":"down"}`}/>}
               {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x-1.35} y={LIVE_CHART.volumeBottom-bar.height} width="2.7" height={bar.height} rx=".45" className={`${bar.up?'volume':'volume red'}${bar.abnormal?' abnormal':''}`}/>) }
               {indicatorsVisible&&chartModel&&<path d={chartModel.biasPath} className="bias-path"/>}
-              {chartModel&&<g className={`peak-volume-marker ${chartModel.peakVolume.abnormal?"abnormal":""}`}><line x1={chartModel.peakVolume.x} y1={LIVE_CHART.volumeTop-3} x2={chartModel.peakVolume.x} y2={LIVE_CHART.volumeBottom}/><text x={Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4)} y={LIVE_CHART.volumeTop-6} textAnchor={chartModel.peakVolume.x>LIVE_CHART.plotRight-72?"end":"start"}>{chartModel.peakVolume.abnormal&&chartModel.peakVolume.ratio?`爆量 ${chartModel.peakVolume.ratio.toFixed(1)}×`:"峰量"} {chartModel.peakVolume.time.slice(0,2)}:{chartModel.peakVolume.time.slice(2)}</text></g>}
+              {chartModel&&<g className={`peak-volume-marker ${chartModel.peakVolume.abnormal?"abnormal":""}`}><line x1={chartModel.peakVolume.x} y1={LIVE_CHART.volumeTop-3} x2={chartModel.peakVolume.x} y2={LIVE_CHART.volumeBottom}/><text x={Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4)} y={LIVE_CHART.volumeTop-6} textAnchor={chartModel.peakVolume.x>LIVE_CHART.plotRight-72?"end":"start"}>{chartModel.peakVolume.abnormal&&chartModel.peakVolume.ratio?`成交爆量 ${chartModel.peakVolume.ratio.toFixed(1)}×`:"峰值放量"} {chartModel.peakVolume.time.slice(0,2)}:{chartModel.peakVolume.time.slice(2)}</text></g>}
               {intradayCursor&&(()=>{
                 const tooltipWidth=176;
                 const tooltipHeight=isZijinStock?156:139;
