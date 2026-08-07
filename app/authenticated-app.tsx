@@ -1865,6 +1865,27 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=reserveLabel(point.x,isSell?point.y-13:point.y+22,labelWidth,18,isSell?-1:1);
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
+    // Keep the chart readable: each side gets one latest, highest-priority
+    // candidate label. Earlier candidates remain as hoverable dots with their
+    // full text in <title>; formal execution markers are handled separately.
+    const observationLabelSlots=new Set<number>();
+    (['buy','sell'] as const).forEach(side=>{
+      let best:{index:number;priority:number;time:number}|null=null;
+      visibleChartObservations.forEach((candidate,index)=>{
+        const candidateSide=candidate.direction==="反T"?"sell":"buy";
+        if(candidateSide!==side||candidate.stage==="watch")return;
+        const priority=candidate.repairPhase==="repair-confirmed"
+          ?4
+          :candidate.pivotAssessment==="confirmed"
+            ?3
+            :candidate.pivotAssessment==="strong"
+              ?2
+              :candidate.stage==="candidate"?1:0;
+        const time=Number(String(candidate.time??"").replace(/\D/g,"").slice(-4))||0;
+        if(!best||priority>best.priority||(priority===best.priority&&time>=best.time))best={index,priority,time};
+      });
+      if(best)observationLabelSlots.add(best.index);
+    });
     const observations=visibleChartObservations.flatMap((observation,index)=>{
       const markerPrice=observation.coverageOnly&&Number.isFinite(observation.pivotPrice) ? observation.pivotPrice : observation.price;
       const point=pointPosition(observation.time,markerPrice);
@@ -1876,25 +1897,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const rawLabel=observationConfirmationLabel(observation)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const currentLabel=rawLabel;
       const labelWidth=currentLabel.length*8+14;
-      // Keep every causal point, but merge the label of observations that repeat
-      // in the same direction within five minutes. The latest representative
-      // remains in Chinese; older points stay visible and expose their text on
-      // hover. Formal actions are never merged.
-      const minuteOf=(time:string)=>Number(time.slice(0,2))*60+Number(time.slice(2,4));
-      const currentMinute=minuteOf(observation.time);
-      const hasNearbySuccessor=visibleChartObservations.slice(index+1).some(next=>{
-        const gap=minuteOf(next.time)-currentMinute;
-        return next.direction===observation.direction&&gap>=0&&gap<=5;
-      });
-      // Preserve the auditable label contract for every causal marker. Nearby
-      // duplicates may render as hoverable dots, but their label/time remain.
       const labelVisible=true;
-      // Keep watch-only observations as light dots, but surface qualified
-      // candidates as compact labels. This preserves a clean one-second read
-      // while making the signals that need manual follow-up visible on-chart.
-      const labelRendered=uiTheme==="light"
-        ?assessment==="confirmed"
-        :qualified||assessment==="confirmed"||assessment==="strong";
+      const labelRendered=observationLabelSlots.has(index);
       const placed=labelRendered
         ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
         : {labelX:point.x,labelY:point.y};
