@@ -81,11 +81,31 @@ function isReadableKeyword(value: unknown): value is Keyword {
 
 function isReadableDraft(value: unknown): value is Draft {
   const draft = value as Partial<Draft> | null;
-  return Boolean(draft?.id && draft?.title && !hasMojibake(draft.title) && !hasMojibake(draft.description));
+  const text = [draft?.keyword, draft?.title, draft?.description, draft?.body].join(" ");
+  return Boolean(draft?.id && draft?.title && draft?.description && draft?.body && !hasMojibake(text));
+}
+
+function firstReviewDraft(items: Draft[]) {
+  return items.find((draft) => draft.status === "review") ?? items[0];
 }
 
 function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function makeLongBody(keyword: string) {
+  return [
+    `很多人搜索“${keyword}”时，真正想解决的并不是寻找一个神奇指标，而是想知道自己的仓位、成本和当天的价格波动是否适合做T。做T的前提是已有可交易仓位，并且能够接受判断错误后的结果。任何方法都不能保证盈利，本文只用于帮助你建立记录、检查和复盘流程。`,
+    "一、先把做T和追涨杀跌区分开。做T通常建立在底仓和可用仓位已经明确的基础上，目标是利用日内波动改善持仓成本，而不是看到一根快速拉升或下跌的K线就临时改变计划。如果没有底仓、没有可用资金，或者当天无法持续观察，宁可不做，也不要为了交易而交易。",
+    "二、做T前先记录底仓数量、可用数量、持仓成本和交易费用。底仓是愿意继续持有的部分，可用数量决定当天是否有操作空间，持仓成本用于判断结果，交易费用则决定价差是否足以覆盖手续费、滑点和可能产生的税费。只看买卖价差而忽略费用，容易把一次看似成功的操作误判为盈利。",
+    "三、VWAP可以作为观察价格位置的参考，但不是自动生成买卖信号的按钮。价格在VWAP上方，说明近期成交重心相对偏高；价格在VWAP下方，说明成交重心相对偏低。需要同时观察价格位置、成交量变化、分时节奏和自己的持仓计划，不能只凭一次上穿或下破就下结论。",
+    "四、盘前写一张清单：今天最多使用多少仓位、重点观察哪个区间、价格反向时如何退出、当天最多尝试几次。清单不需要预测每一个高点和低点，只要明确什么情况下执行、什么情况下放弃，就能减少临盘时被情绪带着走。",
+    "五、盘中执行时，优先观察成交是否连续、价格是否有足够流动性，以及买卖两侧价差是否过大。价差太大时，即便方向判断正确，滑点也可能吞掉预期空间；成交突然放大时，也要区分正常换手和消息驱动的剧烈波动。对无法解释的急涨急跌，等待确认通常比立即操作更稳妥。",
+    "六、做T不是次数越多越好。每增加一次交易，就会增加手续费、滑点和判断错误的机会。如果已经完成计划中的一次操作，或者价格进入无法判断的区间，就应该停止继续尝试。特别是在开盘和收盘附近，波动更集中，不能因为价格变化更快就默认机会更多。",
+    "七、如果操作后成本上升，先不要急着用下一次交易去弥补。按时间记录买入价、卖出价、数量、费用和判断依据，再对照原来的计划，判断问题属于方向、仓位、执行价格，还是没有遵守退出条件。把原因拆开，比简单归结为运气或指标失效更有利于改进。",
+    "八、复盘时保留事实、假设和结果三类记录。事实包括价格、数量、成交时间和费用；假设包括预计的价格区间；结果包括是否执行退出条件、实际成本有没有下降。连续积累几周后，再统计不同市场状态下的表现，才能知道哪些条件真正对自己有帮助。",
+    "最后，做T应当服务于整体持仓计划，而不是取代风险控制。不要使用影响生活的资金，不要为了摊薄成本无限加仓，也不要把历史结果当成未来承诺。双兔助手可以帮助你整理交易记录、理解VWAP和成本变化，但不提供个股买卖指令，也不承诺收益。",
+  ].join("\n\n");
 }
 
 function makeDraft(keyword: Keyword): Draft {
@@ -95,7 +115,7 @@ function makeDraft(keyword: Keyword): Draft {
     keyword: keyword.text,
     title: `${keyword.text}：股票做T前要先看懂的三个问题`,
     description: `围绕“${keyword.text}”梳理做T的判断顺序、成本变化与风险边界。`,
-    body: `很多人第一次搜索“${keyword.text}”时，真正想解决的不是寻找一个神奇指标，而是想知道自己手里的仓位该如何判断。做T的第一步，是把底仓、可用仓位、持仓成本和交易费用分开记录。\n\n接下来再观察价格相对VWAP的位置、分时量能和自己的交易计划。价格偏离不等于机会，短线波动也不能替代风险控制。只有当预案、仓位和退出条件都清楚时，做T才有复盘价值。\n\n这篇文章先提供一个可执行的检查清单：一是确认今天是否有足够的可交易仓位；二是估算手续费、滑点和可能的税费；三是提前写下做错时的退出条件。双兔助手只用于帮助你理解自己的交易记录，不提供下单，也不承诺收益。`,
+    body: makeLongBody(keyword.text),
     faqs: [
       `${keyword.text}适合所有股票吗？`,
       "做T前需要记录哪些数据？",
@@ -148,7 +168,7 @@ export default function GrowthPage() {
     writeLocal(KEYWORDS_KEY, nextKeywords);
     writeLocal(DRAFTS_KEY, loadedDrafts);
     setSelectedKeywordId(nextKeywords[0]?.id ?? "");
-    setSelectedDraftId(loadedDrafts[0]?.id ?? "");
+    setSelectedDraftId(firstReviewDraft(loadedDrafts)?.id ?? "");
     trackGrowthEvent("page_view");
     setEvents(readGrowthEvents());
     void fetch("/api/growth/content", { cache: "no-store" })
@@ -171,7 +191,7 @@ export default function GrowthPage() {
             writeLocal(DRAFTS_KEY, merged);
             return merged;
           });
-          setSelectedDraftId(serverDrafts[0].id);
+          setSelectedDraftId(firstReviewDraft(serverDrafts)?.id ?? "");
         }
       })
       .catch(() => undefined);
@@ -179,7 +199,7 @@ export default function GrowthPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const selectedKeyword = keywords.find((keyword) => keyword.id === selectedKeywordId) ?? keywords[0];
-  const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0];
+  const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) ?? firstReviewDraft(drafts);
   const recentViews = useMemo(() => countLastSevenDays(events), [events]);
   const maxViews = Math.max(...recentViews.map((item) => item.count), 1);
   const reviewCount = drafts.filter((draft) => draft.status === "review").length;
@@ -222,7 +242,7 @@ export default function GrowthPage() {
         const serverDrafts = content.drafts as Draft[];
         setDrafts(serverDrafts);
         writeLocal(DRAFTS_KEY, serverDrafts);
-        setSelectedDraftId(payload.draft?.id ?? serverDrafts[0]?.id ?? "");
+        setSelectedDraftId(payload.draft?.id ?? firstReviewDraft(serverDrafts)?.id ?? "");
       }
       trackGrowthEvent("draft_created");
       refreshEvents();
@@ -241,6 +261,12 @@ export default function GrowthPage() {
     setDrafts(next);
     writeLocal(DRAFTS_KEY, next);
     setSelectedDraftId(draft.id);
+    setAutomationMessage("已生成长文草稿，当前已进入人工审核；确认内容后点击“发布记录”。");
+    void fetch("/api/growth/content", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ draft }),
+    }).catch(() => undefined);
     trackGrowthEvent("draft_created");
     refreshEvents();
   }
@@ -256,6 +282,12 @@ export default function GrowthPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ draft: updatedDraft }),
     }).catch(() => undefined);
+  }
+
+  function submitForReview() {
+    if (!selectedDraft) return;
+    updateDraft({ status: "review" });
+    setAutomationMessage("已进入人工审核：请检查标题、摘要和正文，确认后点击“发布记录”。");
   }
 
   async function publishDraft() {
@@ -325,7 +357,7 @@ export default function GrowthPage() {
             <div className="selected-topic"><small>当前主题</small><b>{selectedKeyword?.text ?? "请选择关键词"}</b><span>{selectedKeyword?.intent ?? "—"} · 机会分 {selectedKeyword?.score ?? "—"}</span></div>
             {selectedDraft ? <>
               <div className="draft-list">{drafts.slice(0, 5).map((draft) => <button key={draft.id} className={draft.id === selectedDraft.id ? "selected" : ""} onClick={() => setSelectedDraftId(draft.id)}><span>{draft.title}</span><em className={`draft-status ${draft.status}`}>{draft.status === "published" ? "已发布" : draft.status === "review" ? "待审核" : "草稿"}</em></button>)}</div>
-              <div className="draft-editor"><label>SEO标题<input value={selectedDraft.title} onChange={(event) => updateDraft({ title: event.target.value })}/></label><label>摘要<textarea value={selectedDraft.description} onChange={(event) => updateDraft({ description: event.target.value })}/></label><label>正文<textarea className="body-input" value={selectedDraft.body} onChange={(event) => updateDraft({ body: event.target.value })}/></label><div className="draft-actions"><span>创建于 {formatDate(selectedDraft.createdAt)} · FAQ {selectedDraft.faqs.length} 条</span><button onClick={() => updateDraft({ status: "review" })}>送审</button><button className="publish-button" onClick={publishDraft}>发布记录</button></div></div>
+              <div className="draft-editor"><label>SEO标题<input value={selectedDraft.title} onChange={(event) => updateDraft({ title: event.target.value })}/></label><label>摘要<textarea value={selectedDraft.description} onChange={(event) => updateDraft({ description: event.target.value })}/></label><label>正文<textarea className="body-input" value={selectedDraft.body} onChange={(event) => updateDraft({ body: event.target.value })}/></label><div className="draft-actions"><span>创建于 {formatDate(selectedDraft.createdAt)} · FAQ {selectedDraft.faqs.length} 条 · {selectedDraft.status === "review" ? "人工审核中" : selectedDraft.status === "published" ? "已发布" : "草稿"}</span><button onClick={submitForReview}>送审</button><button className="publish-button" onClick={publishDraft}>发布记录</button></div></div>
             </> : <div className="empty-state"><span>✦</span><h3>还没有文章草稿</h3><p>从左侧选择一个关键词，点击“生成草稿”开始。</p></div>}
           </section>
         </section>
