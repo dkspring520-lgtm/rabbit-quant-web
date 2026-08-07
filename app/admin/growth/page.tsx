@@ -25,6 +25,15 @@ type Draft = {
   createdAt: string;
   publishedAt?: string;
   generatedBy?: string;
+  baiduSubmission?: {
+    status: "submitted" | "skipped" | "failed";
+    url: string;
+    submittedAt: string;
+    reason?: string;
+    error?: string;
+    success?: number;
+    remain?: number;
+  };
 };
 
 const KEYWORDS_KEY = "rabbit-growth-keywords-v1";
@@ -59,6 +68,20 @@ function writeLocal(key: string, value: unknown) {
   } catch {
     // The UI remains usable when browser storage is unavailable.
   }
+}
+
+function hasMojibake(value: unknown) {
+  return typeof value === "string" && /[\uFFFD]|鎬庝箞|鑲＄エ|鍋歍/.test(value);
+}
+
+function isReadableKeyword(value: unknown): value is Keyword {
+  const keyword = value as Partial<Keyword> | null;
+  return Boolean(keyword?.id && keyword?.text && !hasMojibake(keyword.text));
+}
+
+function isReadableDraft(value: unknown): value is Draft {
+  const draft = value as Partial<Draft> | null;
+  return Boolean(draft?.id && draft?.title && !hasMojibake(draft.title) && !hasMojibake(draft.description));
 }
 
 function makeId(prefix: string) {
@@ -116,12 +139,15 @@ export default function GrowthPage() {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const storedKeywords = readLocal<Keyword[] | null>(KEYWORDS_KEY, null);
-    const loadedKeywords = Array.isArray(storedKeywords) && storedKeywords.length > 0 ? storedKeywords : seedKeywords;
+    const loadedKeywords = Array.isArray(storedKeywords) ? storedKeywords.filter(isReadableKeyword) : [];
+    const nextKeywords = loadedKeywords.length > 0 ? loadedKeywords : seedKeywords;
     const storedDrafts = readLocal<Draft[] | null>(DRAFTS_KEY, null);
-    const loadedDrafts = Array.isArray(storedDrafts) ? storedDrafts : [];
-    setKeywords(loadedKeywords);
+    const loadedDrafts = Array.isArray(storedDrafts) ? storedDrafts.filter(isReadableDraft) : [];
+    setKeywords(nextKeywords);
     setDrafts(loadedDrafts);
-    setSelectedKeywordId(loadedKeywords[0]?.id ?? "");
+    writeLocal(KEYWORDS_KEY, nextKeywords);
+    writeLocal(DRAFTS_KEY, loadedDrafts);
+    setSelectedKeywordId(nextKeywords[0]?.id ?? "");
     setSelectedDraftId(loadedDrafts[0]?.id ?? "");
     trackGrowthEvent("page_view");
     setEvents(readGrowthEvents());
@@ -130,7 +156,7 @@ export default function GrowthPage() {
       .then((payload) => {
         if (!payload) return;
         if (Array.isArray(payload.keywords) && payload.keywords.length > 0) {
-          const serverKeywords = payload.keywords as Keyword[];
+          const serverKeywords = (payload.keywords as Keyword[]).filter(isReadableKeyword);
           setKeywords((current) => {
             const merged = [...serverKeywords, ...current.filter((item) => !serverKeywords.some((serverItem) => serverItem.id === item.id))];
             writeLocal(KEYWORDS_KEY, merged);
@@ -139,7 +165,7 @@ export default function GrowthPage() {
           setSelectedKeywordId(serverKeywords[0].id);
         }
         if (Array.isArray(payload.drafts) && payload.drafts.length > 0) {
-          const serverDrafts = payload.drafts as Draft[];
+          const serverDrafts = (payload.drafts as Draft[]).filter(isReadableDraft);
           setDrafts((current) => {
             const merged = [...serverDrafts, ...current.filter((item) => !serverDrafts.some((serverItem) => serverItem.id === item.id))];
             writeLocal(DRAFTS_KEY, merged);
@@ -232,9 +258,31 @@ export default function GrowthPage() {
     }).catch(() => undefined);
   }
 
-  function publishDraft() {
+  async function publishDraft() {
     if (!selectedDraft) return;
-    updateDraft({ status: "published", publishedAt: new Date().toISOString() });
+    const updatedDraft = { ...selectedDraft, status: "published" as const, publishedAt: new Date().toISOString() };
+    const next = drafts.map((draft) => (draft.id === selectedDraft.id ? updatedDraft : draft));
+    setDrafts(next);
+    writeLocal(DRAFTS_KEY, next);
+    try {
+      const response = await fetch("/api/growth/content", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ draft: updatedDraft, submitToBaidu: true }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "发布失败");
+      const serverDraft = Array.isArray(payload?.drafts) ? payload.drafts.find((draft: Draft) => draft.id === updatedDraft.id) : null;
+      if (serverDraft) {
+        const serverDrafts = next.map((draft) => (draft.id === serverDraft.id ? serverDraft : draft));
+        setDrafts(serverDrafts);
+        writeLocal(DRAFTS_KEY, serverDrafts);
+        const submission = serverDraft.baiduSubmission;
+        setAutomationMessage(submission?.status === "submitted" ? "已发布，并已提交百度主动推送" : submission?.reason === "missing_token" ? "已发布；百度推送未执行，请在 VPS 配置 BAIDU_SUBMIT_TOKEN" : "已发布；百度主动推送失败，可稍后重试");
+      }
+    } catch (error) {
+      setAutomationMessage(error instanceof Error ? error.message : "发布失败");
+    }
     trackGrowthEvent("draft_published");
     refreshEvents();
   }
