@@ -549,7 +549,20 @@ function observationConfirmationLabel(observation: ReplayObservation) {
     "回落参考":"回落确认",
   };
   const label=clearerLabels[rawLabel]??rawLabel;
-  return observation.direction==="正T"&&label==="反弹观察"&&observation.time<="1000"?"修复观察":label;
+  const compactSignalLabel=(value:string)=>{
+    if(/正T.*(候选|观察)/.test(value))return "正T候选";
+    if(/反T.*(候选|观察)/.test(value))return "反T候选";
+    if(/买压.*确认|低位.*买压/.test(value))return "买压确认";
+    if(/卖压.*确认|高位.*卖压/.test(value))return "卖压确认";
+    if(/低位.*修复加速|修复加速/.test(value))return "修复加速";
+    if(/冲高回落.*加速|回落加速/.test(value))return "回落加速";
+    if(/前高.*确认/.test(value))return "前高确认";
+    if(/前低.*确认/.test(value))return "前低确认";
+    const normalized=value.replace(/[·•\s]/g,"");
+    return normalized.length<=4?normalized:`${normalized.slice(0,3)}…`;
+  };
+  const resolvedLabel=observation.direction==="正T"&&label==="反弹观察"&&observation.time<="1000"?"修复观察":label;
+  return compactSignalLabel(resolvedLabel);
 }
 
 function observationDirectionNote(observation: ReplayObservation) {
