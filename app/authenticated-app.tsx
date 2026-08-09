@@ -506,7 +506,8 @@ type StockUniverseResponse = { provider:string; total:number; fallback:boolean; 
 type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction; exit:ReplayAction; holdingMinutes:number; gross:number; fees:number; executionCost:number; net:number; outcome:"盈利"|"亏损"|"持平"; explanation:string };
 type StockBatchFeedback = { code:string; name:string; date:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; candidates:number; keyObservations:number; strongSellTrendBlocked:number; strongBuyTrendBlocked:number; feedback:string; minutes:ReplayMinute[]; actions:ReplayAction[]; observations:ReplayObservation[]; cycles:StockBatchCycle[] };
 type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; attemptedStocks:number; replacementStocks:number; overlapWithPrevious:number; uniqueSessions:number; noTrade:number; referenceStocks:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; universeSize:number; universeProvider:string; fallbackUniverse:boolean; industries:number; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
-type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[] };
+type MultiDayRunKind = "recent"|"random-10"|"since-2025";
+type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; scopeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[] };
 
 function median(values:number[]) {
   if(!values.length)return 0;
@@ -4829,6 +4830,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [batch, setBatch] = useState<BatchBacktestResult | null>(null);
   const [multiDay, setMultiDay] = useState<MultiDayBacktestResult | null>(null);
   const [multiDayCount, setMultiDayCount] = useState(20);
+  const [multiDayRunKind, setMultiDayRunKind] = useState<MultiDayRunKind>("recent");
   const [source, setSource] = useState<MarketData | null>(null);
   const [l2Replay, setL2Replay] = useState<L2ReplayState>({available:false,source:"idle",minuteCount:0,observations:[],reason:"等待紫金矿业回放"});
   const [error, setError] = useState("");
@@ -4977,32 +4979,42 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       setReplayProgress({value:0,detail:"行情获取失败，本次没有生成结果"});
     } finally { setRunning(false); setRunMode(null); }
   };
-  const runMultiDay = async () => {
+  const runMultiDay = async (kind:MultiDayRunKind="recent") => {
+    const isZijinArchiveRun=stock.code==="601899"&&kind!=="recent";
+    const requestedDays=kind==="random-10"?10:kind==="recent"?multiDayCount:0;
+    const scopeLabel=kind==="random-10"?"2025 至今随机 10 日":kind==="since-2025"?"2025 至今全量":"最近连续交易日";
+    setMultiDayRunKind(kind);
     setLastAction("multi");
     setSingleRunDate("");
     setAccountNotice(`连续回放使用当前账户参数，逐日独立复位；每个交易日只读取当时及此前数据。`);
     setRunning(true); setRunMode("multi"); setError(""); setResult(null); setBatch(null); setMultiDay(null); setSource(null);
     setL2Replay({available:false,source:"multi-day",minuteCount:0,observations:[],reason:"多日汇总按逐分钟因果数据运行；单日详情可另行核验历史 L2"});
-    setReplayProgress({value:5,detail:`正在获取 ${stock.code} 最近 ${multiDayCount} 个交易日`});
+    setReplayProgress({value:5,detail:`正在获取 ${stock.code} ${scopeLabel}`});
     setRunStatus(`正在读取 ${stock.code} 多日真实分时…`);
     try {
-      let fetched=await fetchStock(stock.code,multiDayCount);
+      let fetched=await fetchStock(stock.code,kind==="recent"?multiDayCount:6);
       if(stock.code==="601899"){
-        const archiveResponse=await fetch(`/api/personal-replay-sessions?code=601899&limit=${multiDayCount+20}`,{cache:"no-store"});
+        const archiveQuery=kind==="random-10"
+          ? "startDate=20250101&sample=10"
+          : kind==="since-2025"
+            ? "startDate=20250101&scope=all"
+            : `limit=${multiDayCount+20}`;
+        const archiveResponse=await fetch(`/api/personal-replay-sessions?code=601899&${archiveQuery}`,{cache:"no-store"});
         if(!archiveResponse.ok)throw new Error("Zijin archive unavailable");
-        const archivePayload=await archiveResponse.json() as {sessions?:IntradaySession[]};
+        const archivePayload=await archiveResponse.json() as {sessions?:IntradaySession[];coverage?:{sessions:number;firstDate:string;lastDate:string|null}};
         if(!archivePayload.sessions?.length)throw new Error("Zijin archive is empty");
         fetched={...fetched,intradaySessions:archivePayload.sessions};
       }
       const sessions=[...(fetched.intradaySessions??[])]
         .sort((left,right)=>right.date.localeCompare(left.date))
-        .slice(0,multiDayCount);
+        .slice(0,kind==="since-2025"?undefined:requestedDays);
       if(!sessions.length)throw new Error("no intraday sessions");
       setAvailableSessionDates(sessions.map(session=>session.date));
       setReplayProgress({value:28,detail:`已取得 ${sessions.length} 个完整交易日，开始逐日回放`});
       const configuredQuantity=Math.min(baseShares,sellable);
       const replayCapital=capital>0?capital:200_000;
-      const results=sessions.map((session,index)=>{
+      const results=[] as {date:string;data:MarketData;result:BacktestResult}[];
+      for(const [index,session] of sessions.entries()){
         const data=sessionData(fetched,session);
         const fallbackShares=standardBacktestShares(data,replayCapital);
         const account=configuredQuantity>=300
@@ -5010,8 +5022,12 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           : {capital:replayCapital,baseShares:fallbackShares,sellable:fallbackShares};
         const calculated=replay(data,account);
         if(index===0){setSource(data);setResult(calculated);}
-        return {date:session.date,data,result:calculated};
-      });
+        results.push({date:session.date,data,result:calculated});
+        if(isZijinArchiveRun&&(index+1)%10===0){
+          setReplayProgress({value:28+Math.round((index+1)/sessions.length*48),detail:`已回放 ${index+1} / ${sessions.length} 个交易日`});
+          await new Promise(resolve=>setTimeout(resolve,0));
+        }
+      }
       setReplayProgress({value:78,detail:"逐日回放完成，正在汇总扣费后结果"});
       const cycleNets=results.flatMap(item=>item.result.cycleNets);
       const dayNets=results.map(item=>item.result.net);
@@ -5020,7 +5036,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       const net=dayNets.reduce((sum,value)=>sum+value,0);
       const experiment=resolveBacktestStrategyExperiment(stock.code,strategyExperiment);
       const report:MultiDayBacktestResult={
-        code:stock.code,name:stock.name,modeLabel:experiment.label,requestedDays:multiDayCount,testedDays:results.length,
+        code:stock.code,name:stock.name,modeLabel:experiment.label,scopeLabel,requestedDays:requestedDays||results.length,testedDays:results.length,
         firstDate:results.at(-1)?.date??"",lastDate:results[0]?.date??"",noTrade:results.filter(item=>item.result.trades===0).length,
         averageNet:net/Math.max(1,results.length),samples:results.length,completed:cycleNets.length,wins:cycleNets.filter(value=>value>0).length,
         gross:results.reduce((sum,item)=>sum+item.result.gross,0),fees:results.reduce((sum,item)=>sum+item.result.fees,0),
@@ -5031,7 +5047,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         outcomes:results.map(item=>({date:item.date,trades:item.result.trades,wins:item.result.wins,net:item.result.net,candidates:item.result.diagnostics?.candidates??0})),
       };
       setMultiDay(report);
-      setRunStatus(`连续 ${results.length} 日完成：${report.completed} 个闭环，扣费后胜率 ${report.completed?(report.wins/report.completed*100).toFixed(1):"0.0"}%`);
+      setRunStatus(`${scopeLabel}完成：${report.completed} 个闭环，扣费后胜率 ${report.completed?(report.wins/report.completed*100).toFixed(1):"0.0"}%`);
       setReplayProgress({value:100,detail:`多日报告完成 · ${report.completed} 个闭环 · ${report.tradingRounds}/${report.testedDays} 日有交易`});
       setTimeout(()=>document.getElementById("single-backtest-result")?.scrollIntoView({behavior:"smooth",block:"start"}),0);
     } catch {
@@ -5312,18 +5328,19 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}<span>→</span></button>
-        <div className="multi-day-controls"><label>连续交易日<select value={multiDayCount} onChange={event=>setMultiDayCount(Number(event.target.value))} disabled={running}>{[10,20,60,100].map(value=><option value={value} key={value}>最近 {value} 日</option>)}</select></label><button type="button" onClick={()=>void runMultiDay()} disabled={running}>{runMode==='multi'?`正在连续回放 ${multiDayCount} 日…`:`连续回放最近 ${multiDayCount} 日`}</button></div>
+        <div className="multi-day-controls"><label>连续交易日<select value={multiDayCount} onChange={event=>setMultiDayCount(Number(event.target.value))} disabled={running}>{[10,20,60,100].map(value=><option value={value} key={value}>最近 {value} 日</option>)}</select></label><button type="button" onClick={()=>void runMultiDay("recent")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='recent'?`正在连续回放 ${multiDayCount} 日…`:`连续回放最近 ${multiDayCount} 日`}</button></div>
+        {stock.code==="601899"&&<div className="replay-secondary-actions"><button type="button" onClick={()=>void runMultiDay("random-10")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='random-10'?"正在随机回放 10 日…":"紫金随机 10 个交易日"}</button><button type="button" onClick={()=>void runMultiDay("since-2025")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='since-2025'?"正在回放 2025 至今…":"紫金 2025 至今全量回放"}</button></div>}
         <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:`全A股随机10股 · ${strategyExperiment==="formal-v4"?"正式":"闭环错误审计"}`}</button></div>
         <RabbitProgressMeter
-          label={runMode==='batch'?'全 A 股随机批次测试':runMode==='multi'?`单股连续 ${multiDayCount} 日回测`:'单股完整交易日回测'}
+          label={runMode==='batch'?'全 A 股随机批次测试':runMode==='multi'?(multiDayRunKind==='random-10'?"紫金随机 10 日回测":multiDayRunKind==='since-2025'?"紫金 2025 至今全量回测":`单股连续 ${multiDayCount} 日回测`):'单股完整交易日回测'}
           detail={replayProgress.detail}
           progress={replayProgress.value}
           status={running?'running':error?'error':replayProgress.value===100?'completed':'paused'}
           stages={runMode==='batch'?['读取股票池','获取真实分时','逐股因果回放','成本核算','生成报告']:runMode==='multi'?['获取多日行情','构建历史基线','逐日因果回放','费用核算','生成报告']:['获取行情','校验交易日','逐分钟回放','费用核算','生成报告']}
           compact
         />
-        <div className={`single-run-status ${running?'running':error?'error':result||batch||multiDay?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在测试全A股随机10股批次…':runMode==='multi'?`正在连续回放 ${stock.code} 最近 ${multiDayCount} 日…`:`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='batch'&&batch?`${batch.fallbackUniverse?'代表池回退':'全A股'}随机10股完成 · 正式触发 ${batch.tradingRounds}/${batch.stocks} 股`:lastAction==='multi'&&multiDay?`连续 ${multiDay.testedDays} 日完成 · ${multiDay.completed} 个闭环`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：${result.diagnostics?.candidates ?? 0} 次候选判定，0 个正式闭环`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${formatDate(singleRunDate)} 完整交易日`:''}</small></span></div>
-        <p className="seed-note">单股测试按所选股票回放；批量测试优先从当前全 A 股普通股票列表中无放回随机抽取 10 只，并尽量分散行业。行情缺失会自动补抽；全市场列表不可用时会明确显示“代表池回退”。</p>
+        <div className={`single-run-status ${running?'running':error?'error':result||batch||multiDay?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在测试全A股随机10股批次…':runMode==='multi'?(multiDayRunKind==='random-10'?"正在随机回放紫金 10 个交易日…":multiDayRunKind==='since-2025'?"正在回放紫金 2025 至今全部可用交易日…":`正在连续回放 ${stock.code} 最近 ${multiDayCount} 日…`):`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='batch'&&batch?`${batch.fallbackUniverse?'代表池回退':'全A股'}随机10股完成 · 正式触发 ${batch.tradingRounds}/${batch.stocks} 股`:lastAction==='multi'&&multiDay?`${multiDay.scopeLabel}完成 · ${multiDay.completed} 个闭环`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：${result.diagnostics?.candidates ?? 0} 次候选判定，0 个正式闭环`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${formatDate(singleRunDate)} 完整交易日`:''}</small></span></div>
+        <p className="seed-note">紫金随机测试固定股票为 601899，每次从 2025 年以来的可用历史中无放回抽取 10 个交易日；可反复运行观察稳定性。全量回放用于最终统计，实际日期范围以报告为准。全 A 股随机 10 股仍是另一项独立审计。</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
         <p className="config-note">状态：{runStatus}</p>
         {error&&<p className="config-note">{error}</p>}
@@ -5344,7 +5361,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           </div>}
         </section>}
         {batch&&<BatchReport batch={batch} representativeCode={source?.quote.code}/>}
-        {multiDay&&<section className="multi-day-report"><div><span>连续因果回放</span><strong>{multiDay.testedDays}<small> / {multiDay.requestedDays} 日</small></strong><em>{formatDate(multiDay.firstDate)} — {formatDate(multiDay.lastDate)}</em></div><div><span>正式闭环 / 胜率</span><strong>{multiDay.completed}<small> / {multiDay.completed?(multiDay.wins/multiDay.completed*100).toFixed(1):"0.0"}%</small></strong><em>{multiDay.modeLabel}</em></div><div><span>有交易日 / 空白日</span><strong>{multiDay.tradingRounds}<small> / {multiDay.noTrade}</small></strong><em>逐日独立复位</em></div><div><span>扣费后合计</span><strong className={pnlClass(multiDay.net)}>{money(multiDay.net)}</strong><em>日均 {money(multiDay.averageNet)}</em></div></section>}
+        {multiDay&&<section className="multi-day-report"><div><span>{multiDay.scopeLabel}</span><strong>{multiDay.testedDays}<small> / {multiDay.requestedDays} 日</small></strong><em>{formatDate(multiDay.firstDate)} — {formatDate(multiDay.lastDate)}</em></div><div><span>正式闭环 / 扣费后胜率</span><strong>{multiDay.completed}<small> / {multiDay.completed?(multiDay.wins/multiDay.completed*100).toFixed(1):"0.0"}%</small></strong><em>{multiDay.modeLabel}</em></div><div><span>有交易日 / 空白日</span><strong>{multiDay.tradingRounds}<small> / {multiDay.noTrade}</small></strong><em>逐日独立复位</em></div><div><span>扣费后合计</span><strong className={pnlClass(multiDay.net)}>{money(multiDay.net)}</strong><em>日均 {money(multiDay.averageNet)}</em></div></section>}
         <div className="result-summary">
           <div className="result-primary"><span>{batch?"批次样本净收益":"净收益"}</span><strong className={result?pnlClass(result.net):""}>{result ? money(result.net) : "—"}</strong><em className={result?pnlClass(result.net):""}>{result ? `${(result.net/capital*100).toFixed(3)}%` : "运行后显示"}</em></div>
           <div><span>理论毛收益</span><b className={result?pnlClass(result.gross):""}>{result ? money(result.gross) : "—"}</b><small>未扣费用与滑点</small></div><div><span>费用与滑点</span><b className={result?"pnl-loss":""}>{result ? money(-(result.fees+result.executionCost)) : "—"}</b><small>佣金、印花税及双向滑点</small></div><div><span>最大回撤</span><b className={result&&result.maxDrawdown>0?"pnl-loss":""}>{result ? `-${(result.maxDrawdown*100).toFixed(3)}%` : "—"}</b><small>{source ? "费用进入逐点资金曲线" : "运行后显示"}</small></div>
