@@ -52,7 +52,7 @@ import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminde
 import { explainTrainingRejection } from "@/lib/training-rejection-summary.mjs";
 import { normalizeStrategyProfile, STRATEGY_PROFILES, STRATEGY_PROFILE_META } from "@/lib/strategy-profile.mjs";
 import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from "@/lib/profit-mode.mjs";
-import { resolveBacktestStrategyExperiment, ZIJIN_STRATEGY_EXPERIMENTS } from "@/lib/zijin-strategy-experiments.mjs";
+import { resolveBacktestStrategyExperiment } from "@/lib/zijin-strategy-experiments.mjs";
 import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
 import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining, summarizeTrainingCycles } from "@/lib/personal-replay-training.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
@@ -434,7 +434,6 @@ function ZijinFactorLifecyclePanel({lifecycle,connection}:{lifecycle:ZijinFactor
 
 type StrategyProfile = "稳健档" | "平衡档" | "灵敏档";
 type ProfitMode = "standard" | "zijin-small-spread";
-type ZijinStrategyExperiment = "formal-v4" | "closure-first";
 type ReplayProfitOptions = {
   profileOverrides?: Record<string, number>;
   minimumNetProfitAmount?: number;
@@ -506,7 +505,8 @@ type StockUniverseResponse = { provider:string; total:number; fallback:boolean; 
 type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction; exit:ReplayAction; holdingMinutes:number; gross:number; fees:number; executionCost:number; net:number; outcome:"盈利"|"亏损"|"持平"; explanation:string };
 type StockBatchFeedback = { code:string; name:string; date:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; candidates:number; keyObservations:number; strongSellTrendBlocked:number; strongBuyTrendBlocked:number; feedback:string; minutes:ReplayMinute[]; actions:ReplayAction[]; observations:ReplayObservation[]; cycles:StockBatchCycle[] };
 type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; attemptedStocks:number; replacementStocks:number; overlapWithPrevious:number; uniqueSessions:number; noTrade:number; referenceStocks:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; universeSize:number; universeProvider:string; fallbackUniverse:boolean; industries:number; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
-type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[] };
+type MultiDayRunKind = "recent"|"random-10"|"since-2025";
+type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; scopeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[] };
 
 function median(values:number[]) {
   if(!values.length)return 0;
@@ -628,6 +628,16 @@ function buildBatchCycles(result:BacktestResult, costs:{feeRate:number;slippage:
     else if(direction==="正T"&&/止损/.test(exit.reason??""))explanation="买入后价格继续走弱，没有形成预期反弹，因此触发止损卖出。";
     else if(/时间退出/.test(exit.reason??""))explanation="持有到时间上限仍未形成足够价差，系统按时间纪律退出。";
     else if(/强制恢复/.test(exit.reason??""))explanation="尾盘前仍未形成计划价差，系统强制恢复计划底仓。";
+    if(net<0){
+      const totalCost=fees+executionCost;
+      const breakdown=`毛收益 ${money(gross)}；费用+滑点 ${money(-totalCost)}；净收益 ${money(net)}`;
+      explanation=gross<=0
+        ? `价格没有按${direction==="正T"?"买入后反弹":"卖出后回落"}方向走出价差，先出现价格亏损。${breakdown}`
+        : `价格曾按入场方向运行，但价差不足以覆盖费用与滑点。${breakdown}`;
+      if(/止损/.test(exit.reason??"")) explanation+=" 退出纪律：触发止损。";
+      else if(/时间退出/.test(exit.reason??"")) explanation+=" 退出纪律：达到持有时间上限。";
+      else if(/强制恢复/.test(exit.reason??"")) explanation+=" 退出纪律：尾盘强制恢复底仓。";
+    }
     return [{id,direction,entry,exit,holdingMinutes,gross,fees,executionCost,net,outcome,explanation}];
   });
 }
@@ -783,10 +793,6 @@ const agents = [
   { id: "official", avatar: "/agents/official.png", name: "正式兔", role: "管理影子观察资格" },
 ];
 const strategyProfiles = STRATEGY_PROFILES;
-// The production UI exposes a single closure-first path. Keep the formal V4
-// definition available internally as a benchmark, but do not let a page reload
-// silently switch live monitoring or replay back to the sparse baseline.
-const zijinStrategyExperimentIds: ZijinStrategyExperiment[] = ["closure-first"];
 type UiTheme = "dark" | "light";
 type InitialAuth = {
   localAuth: boolean;
@@ -845,9 +851,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
   const [alertLogOpen,setAlertLogOpen]=useState(false);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
-  // Live Zijin monitoring and replay intentionally share the closure-first path.
-  // A reload must not silently fall back to the sparse formal benchmark.
-  const [zijinExperimentMode,setZijinExperimentMode]=useState<ZijinStrategyExperiment>("closure-first");
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,background:false,...JSON.parse(saved)}:{sound:false,system:false,background:false};}catch{return {sound:false,system:false,background:false};}});
   const [backgroundPushState,setBackgroundPushState]=useState<"idle"|"ready"|"unsupported"|"error">("idle");
   const [backgroundPushTesting,setBackgroundPushTesting]=useState(false);
@@ -1434,55 +1437,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ticks:scale.ticks.map(tick=>({...tick,y:liveChartPriceY(tick.value,min,max)})),
     };
   },[minutePoints,activeQuote?.previousClose]);
-  const nextSessionOutlook=useMemo(()=>{
-    const previousClose=Number(activeQuote?.previousClose);
-    const prices=minutePoints.map(point=>Number(point.price)).filter(price=>Number.isFinite(price)&&price>0);
-    const close=prices.at(-1)??0;
-    if(prices.length<20||!Number.isFinite(previousClose)||previousClose<=0||close<=0){
-      return {ready:false as const,stage:"数据准备中",detail:"至少需要 20 个有效分钟点与昨收，收盘后自动生成下一交易日的概率预判。"};
-    }
-    const high=Math.max(...prices);
-    const low=Math.min(...prices);
-    const vwap=chartModel?.lastVwap??close;
-    const changePct=(close-previousClose)/previousClose*100;
-    const vwapBiasPct=(close-vwap)/Math.max(vwap,.01)*100;
-    const closePosition=(close-low)/Math.max(high-low,.01);
-    const recentStart=prices[Math.max(0,prices.length-20)];
-    const recentMovePct=(close-recentStart)/Math.max(recentStart,.01)*100;
-    const recentVolume=minutePoints.slice(-20).reduce((sum,point)=>sum+Math.max(0,Number(point.volume)||0),0);
-    const priorVolume=minutePoints.slice(Math.max(0,minutePoints.length-40),-20).reduce((sum,point)=>sum+Math.max(0,Number(point.volume)||0),0);
-    const volumeRatio=priorVolume>0?recentVolume/priorVolume:1;
-    const score=(changePct>=.8?2:changePct<=-.8?-2:0)
-      +(vwapBiasPct>=.18?1:vwapBiasPct<=-.18?-1:0)
-      +(closePosition>=.72?1:closePosition<=.28?-1:0)
-      +(recentMovePct>=.15?1:recentMovePct<=-.15?-1:0)
-      +(volumeRatio>=1.15?(recentMovePct>=0?1:-1):0);
-    const direction=score>=2?"偏强":score<=-2?"偏弱":"震荡";
-    const confidence=Math.min(80,Math.max(55,56+Math.abs(score)*5+Math.min(8,Math.abs(vwapBiasPct)*2)));
-    const todayRangePct=(high-low)/Math.max(close,.01);
-    const expectedMovePct=Math.min(.045,Math.max(.012,todayRangePct*.52));
-    const support=close*(1-expectedMovePct*.58);
-    const resistance=close*(1+expectedMovePct*.58);
-    const failure=direction==="偏强"?`跌破 ¥${support.toFixed(2)}，偏强预判失效`:
-      direction==="偏弱"?`收复 ¥${resistance.toFixed(2)}，偏弱预判失效`:
-      `放量突破 ¥${resistance.toFixed(2)} 或跌破 ¥${support.toFixed(2)}，震荡结构改变`;
-    return {
-      ready:true as const,
-      stage:marketSession.live?"盘后定稿中":"下一交易日概率预判",
-      direction,
-      confidence,
-      lower:close*(1-expectedMovePct),
-      upper:close*(1+expectedMovePct),
-      support,
-      resistance,
-      failure,
-      factors:[
-        `日内 ${changePct>=0?"+":""}${changePct.toFixed(2)}%`,
-        `${vwapBiasPct>=0?"均价上方":"均价下方"} ${Math.abs(vwapBiasPct).toFixed(2)}%`,
-        `尾盘 ${recentMovePct>=0?"+":""}${recentMovePct.toFixed(2)}%`,
-      ],
-    };
-  },[activeQuote?.previousClose,chartModel?.lastVwap,marketSession.live,minutePoints]);
   const zijinAhLinkage=useMemo(()=>{
     if(stock?.code!=="601899"||!zijinHkMarket)return analyzeZijinAhLinkage();
     const sourceTime=zijinHkMarket.sourceTimestamp?new Date(zijinHkMarket.sourceTimestamp).getTime():NaN;
@@ -1522,6 +1476,112 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>summarizeZijinMainForceIntent(zijinMainForceTrack.bars),
     [zijinMainForceTrack.bars],
   );
+  const nextSessionOutlook=useMemo(()=>{
+    const previousClose=Number(activeQuote?.previousClose);
+    const prices=minutePoints.map(point=>Number(point.price)).filter(price=>Number.isFinite(price)&&price>0);
+    const close=prices.at(-1)??0;
+    if(prices.length<20||!Number.isFinite(previousClose)||previousClose<=0||close<=0){
+      return {ready:false as const,stage:"数据准备中",detail:"至少需要 20 个有效分钟点与昨收，收盘后自动生成下一交易日结构预判。"};
+    }
+    const high=Math.max(...prices,Number(activeQuote?.high)||0);
+    const low=Math.min(...prices.filter(price=>price>0),Number(activeQuote?.low)>0?Number(activeQuote?.low):Number.POSITIVE_INFINITY);
+    const open=Number(activeQuote?.open)>0?Number(activeQuote?.open):prices[0];
+    const vwap=chartModel?.lastVwap??close;
+    const changePct=(close-previousClose)/previousClose*100;
+    const vwapBiasPct=(close-vwap)/Math.max(vwap,.01)*100;
+    const closePosition=(close-low)/Math.max(high-low,.01);
+    const recentStart=prices[Math.max(0,prices.length-20)];
+    const recentMovePct=(close-recentStart)/Math.max(recentStart,.01)*100;
+    const recentVolume=minutePoints.slice(-20).reduce((sum,point)=>sum+Math.max(0,Number(point.volume)||0),0);
+    const priorVolume=minutePoints.slice(Math.max(0,minutePoints.length-40),-20).reduce((sum,point)=>sum+Math.max(0,Number(point.volume)||0),0);
+    const volumeRatio=priorVolume>0?recentVolume/priorVolume:1;
+    const factors:string[]=[];
+    const signals:number[]=[];
+    const intradayScore=(changePct>=.8?2:changePct<=-.8?-2:0)
+      +(vwapBiasPct>=.18?1:vwapBiasPct<=-.18?-1:0)
+      +(recentMovePct>=.15?1:recentMovePct<=-.15?-1:0)
+      +(volumeRatio>=1.15?(recentMovePct>=0?1:-1):0);
+    signals.push(intradayScore);
+    factors.push(`分时 ${changePct>=0?"+":""}${changePct.toFixed(2)}% · 尾盘 ${recentMovePct>=0?"+":""}${recentMovePct.toFixed(2)}%`);
+
+    const bars=(currentMarket?.bars??[]).filter(bar=>[bar.open,bar.high,bar.low,bar.close].every(value=>Number.isFinite(value)&&value>0)).slice(-20);
+    const closes=bars.map(bar=>bar.close);
+    let dailyScore=0;
+    if(closes.length>=20){
+      const average=(values:number[])=>values.reduce((sum,value)=>sum+value,0)/values.length;
+      const ma5=average(closes.slice(-5));
+      const ma20=average(closes);
+      dailyScore=close>ma5&&ma5>ma20?2:close<ma5&&ma5<ma20?-2:close>=ma20?1:-1;
+      factors.push(`日线 ${dailyScore>=2?"多头排列":dailyScore<=-2?"空头排列":close>=ma20?"站上20日线":"位于20日线下"}`);
+    }
+    const candleRange=Math.max(high-low,.01);
+    const candleBody=(close-open)/candleRange;
+    const upperShadow=(high-Math.max(open,close))/candleRange;
+    const lowerShadow=(Math.min(open,close)-low)/candleRange;
+    const candleScore=closePosition>=.72&&candleBody>=.18?1
+      :closePosition<=.28&&candleBody<=-.18?-1
+      :upperShadow>=.45&&closePosition<.55?-1
+      :lowerShadow>=.45&&closePosition>.45?1:0;
+    signals.push(dailyScore+candleScore);
+    factors.push(`K线 ${candleScore>0?"下影承接":candleScore<0?"上影承压":`收盘位于振幅${Math.round(closePosition*100)}%`}`);
+
+    const contextAverage=(group:"market"|"sector")=>{
+      const values=(currentContext?.items??[])
+        .filter(item=>item.group===group&&Number.isFinite(item.changePercent))
+        .map(item=>Number(item.changePercent));
+      return values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null;
+    };
+    const marketChange=contextAverage("market");
+    const sectorChange=contextAverage("sector");
+    const contextSignal=(marketChange===null?0:marketChange>=.35?1:marketChange<=-.35?-1:0)
+      +(sectorChange===null?0:sectorChange>=.45?1:sectorChange<=-.45?-1:0);
+    if(marketChange!==null)factors.push(`大盘 ${marketChange>=0?"+":""}${marketChange.toFixed(2)}%`);
+    if(sectorChange!==null)factors.push(`板块 ${sectorChange>=0?"+":""}${sectorChange.toFixed(2)}%`);
+    signals.push(contextSignal);
+
+    const l2Ready=isZijinStock&&liveL2PriceUsable&&l2CalculationCoverage>=20&&zijinFundResponse.ready&&zijinMainForceIntent.available;
+    if(l2Ready){
+      const l2Signal=zijinFundResponse.state==="push"||zijinMainForceIntent.state==="accumulation"?1
+        :zijinFundResponse.state==="outflow"||zijinFundResponse.state==="absorbed"||zijinMainForceIntent.state==="outflow"?-1:0;
+      signals.push(l2Signal);
+      factors.push(`L2 ${zijinMainForceIntent.label} · ${zijinFundResponse.label}`);
+    }else if(isZijinStock){
+      factors.push("L2 证据不足，暂不计分");
+    }
+
+    const score=signals.reduce((sum,value)=>sum+value,0);
+    const direction=score>=3?"偏强":score<=-3?"偏弱":"震荡";
+    const evidenceSources=2+Number(closes.length>=20)+Number(marketChange!==null||sectorChange!==null)+Number(l2Ready);
+    const confidenceGrade=evidenceSources>=5&&(Math.abs(score)>=5||direction==="震荡"&&Math.abs(score)<=1)?"较高":evidenceSources>=3?"中等":"观察";
+    const confidenceText=`可信度${confidenceGrade}`;
+    const historicalRanges=bars.slice(-10).map(bar=>(bar.high-bar.low)/Math.max(bar.close,.01)).filter(value=>Number.isFinite(value)&&value>0);
+    const historicalRangePct=historicalRanges.length?historicalRanges.reduce((sum,value)=>sum+value,0)/historicalRanges.length:(high-low)/close;
+    const todayRangePct=(high-low)/Math.max(close,.01);
+    const expectedMovePct=Math.min(.045,Math.max(.012,(historicalRangePct*.6+todayRangePct*.4)*.58));
+    const lowerMultiplier=direction==="偏强"?.75:direction==="偏弱"?1.15:1;
+    const upperMultiplier=direction==="偏强"?1.15:direction==="偏弱"?.75:1;
+    const modelSupport=close*(1-expectedMovePct*.58);
+    const modelResistance=close*(1+expectedMovePct*.58);
+    const nearbySupport=Math.max(0,...bars.slice(-10).map(bar=>bar.low).filter(value=>value<close&&value>=close*(1-expectedMovePct)));
+    const nearbyResistance=Math.min(Number.POSITIVE_INFINITY,...bars.slice(-10).map(bar=>bar.high).filter(value=>value>close&&value<=close*(1+expectedMovePct)));
+    const support=nearbySupport>0?Math.max(modelSupport,nearbySupport):modelSupport;
+    const resistance=Number.isFinite(nearbyResistance)?Math.min(modelResistance,nearbyResistance):modelResistance;
+    const failure=direction==="偏强"?`跌破 ¥${support.toFixed(2)}，偏强结构失效`:
+      direction==="偏弱"?`收复 ¥${resistance.toFixed(2)}，偏弱结构失效`:
+      `放量突破 ¥${resistance.toFixed(2)} 或跌破 ¥${support.toFixed(2)}，震荡结构改变`;
+    return {
+      ready:true as const,
+      stage:marketSession.live?"盘中动态观察":"盘后结构预判",
+      direction,
+      confidenceText,
+      lower:close*(1-expectedMovePct*lowerMultiplier),
+      upper:close*(1+expectedMovePct*upperMultiplier),
+      support,
+      resistance,
+      failure,
+      factors:factors.slice(0,6),
+    };
+  },[activeQuote?.previousClose,activeQuote?.open,activeQuote?.high,activeQuote?.low,chartModel?.lastVwap,currentContext?.items,currentMarket?.bars,isZijinStock,l2CalculationCoverage,liveL2PriceUsable,marketSession.live,minutePoints,zijinFundResponse,zijinMainForceIntent]);
   const zijinMainForceCumulative=useMemo(()=>{
     const bars=zijinMainForceTrack.bars;
     if(!bars.length)return null;
@@ -1961,10 +2021,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ?(()=>{
           const point=pointPosition(rabbitTrackerSignal.time,rabbitTrackerSignal.price);
           if(!point)return [];
-          const duplicate=observations.some(marker=>
-            marker.observation.time===rabbitTrackerSignal.time
-            && marker.currentLabel===rabbitTrackerSignal.label
-          )||recordedCandidates.some(marker=>marker.key===`recorded-${rabbitTrackerSignal.key}`||marker.label===rabbitTrackerSignal.label&&marker.x===point.x);
+          const duplicate=observations.some(marker=>marker.observation.time===rabbitTrackerSignal.time&&marker.currentLabel===rabbitTrackerSignal.label)
+            ||recordedCandidates.some(marker=>marker.key===`recorded-${rabbitTrackerSignal.key}`||marker.label===rabbitTrackerSignal.label&&marker.x===point.x);
           if(duplicate)return [];
           const isSell=rabbitTrackerSignal.tone==="sell";
           const label=rabbitTrackerSignal.label;
@@ -3107,7 +3165,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <span className={`market-open ${marketSession.tone}`} title={`${marketSession.label}：${marketSession.detail}；法定节假日以交易所公告为准`} aria-label={`${marketSession.label}：${marketSession.detail}`}><i /><span className="market-open-label">{marketSession.live?"监控中":marketSession.label}</span></span>
           <span className={`auto-off ${marketSession.live?"running":"paused"}`}><i />{marketSession.live?"自动判断运行中":"自动判断已暂停"} · 下单未连接</span>
           <span className="clock">{currentTrial ? new Date(currentTrial.sourceTimestamp || currentTrial.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : currentMarket ? new Date(currentMarket.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
-          <button className="profile-cycle" onClick={()=>setStrategyOpen(true)} aria-label={`Smart-T V4 当前使用${profile}，点击查看策略档位`} title="操盘台与模拟回测共用此档位"><span>V4 · {profile.replace('档','')}</span><i>⌄</i></button>
+          <button className="profile-cycle" onClick={()=>setStrategyOpen(true)} aria-label={`内置闭环当前使用${profile}，点击查看策略档位`} title="操盘台与模拟回测共用此档位"><span>闭环 · {profile.replace('档','')}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
           <button className="account-button" onClick={()=>setAccountOpen(true)} aria-label="打开账户中心"><span>{accountName.slice(0,1).toUpperCase()}</span><b>{accountName}</b><i>⌄</i></button>
           <button className="icon-button theme-toggle" type="button" onClick={toggleUiTheme} aria-label={uiTheme==='dark'?'切换到白天模式':'切换到黑夜模式'} title={uiTheme==='dark'?'白天模式':'黑夜模式'}><span aria-hidden="true">{uiTheme==='dark'?'☀':'☾'}</span></button>
@@ -3168,7 +3226,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         </div>
         <div className={`next-session-header ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} role="status" aria-label="下一交易日预判" title={nextSessionOutlook.ready?`${nextSessionOutlook.stage}：${nextSessionOutlook.failure}`:nextSessionOutlook.detail}>
           <span>明日预判</span>
-          <b>{nextSessionOutlook.ready?nextSessionOutlook.direction:"待定"}<small>{nextSessionOutlook.ready?` · ${Number(nextSessionOutlook.confidence).toFixed(2)}%`:""}</small></b>
+          <b>{nextSessionOutlook.ready?nextSessionOutlook.direction:"待定"}<small>{nextSessionOutlook.ready?` · ${nextSessionOutlook.confidenceText}`:""}</small></b>
           <em>{nextSessionOutlook.ready?`¥${nextSessionOutlook.lower.toFixed(2)}–${nextSessionOutlook.upper.toFixed(2)}`:"收盘后生成"}</em>
         </div>
         <div className={`l2-console-status ${l2ConsoleStatus.tone}`} role="status" title={l2ConsoleStatus.detail}>
@@ -3194,7 +3252,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <div>
                   {indicatorsVisible&&<span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span>}
                   {stock?.code==="601899"&&<span className={`hk-linkage-legend ${zijinAhLinkage.bias}`} title={zijinAhLinkage.reason}><i/>港股紫金 <b>{zijinAhLinkage.available?`${zijinAhLinkage.hkReturnPercent!>=0?"+":""}${zijinAhLinkage.hkReturnPercent!.toFixed(2)}%`:"--"}</b></span>}
-                  <small>中文提示常驻 · 前低/压力观察不是买卖点</small>
+                  <small>中文提示常驻 · 支撑/压力观察不是买卖点</small>
                 </div>
               </details>
             </div>
@@ -3433,15 +3491,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · 闭环过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
           </div>
           <div className="signal-funnel-note"><span>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`盘前影子许可 · ${zijinPreopenGate.predictedDirection??"等待方向"} · ${zijinPreopenGate.confirmationCount}/${zijinPreopenGate.requiredConfirmations} 确认`:(visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察"))}</span><em>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`${zijinPreopenGate.reason} 仅供影子审计，不影响正式 V4、账户或下单。`:(visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒均由内置闭环运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层")}</em></div>
-          <section className={`next-session-outlook ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} aria-label="下一交易日走势概率预判">
+          <section className={`next-session-outlook ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} aria-label="下一交易日走势结构预判">
             <header><span>下一交易日预判</span><em>{nextSessionOutlook.stage}</em></header>
             {nextSessionOutlook.ready?<>
-              <div className="next-session-outlook-main"><b>{nextSessionOutlook.direction}</b><strong>{Number(nextSessionOutlook.confidence).toFixed(2)}<small>%</small></strong></div>
+              <div className="next-session-outlook-main"><b>{nextSessionOutlook.direction}</b><strong>{nextSessionOutlook.confidenceText}</strong></div>
               <div className="next-session-outlook-range"><span>预计波动</span><b>¥{nextSessionOutlook.lower.toFixed(2)}–{nextSessionOutlook.upper.toFixed(2)}</b></div>
               <div className="next-session-outlook-levels"><span>支撑 ¥{nextSessionOutlook.support.toFixed(2)}</span><span>压力 ¥{nextSessionOutlook.resistance.toFixed(2)}</span></div>
               <p>{nextSessionOutlook.factors.join(" · ")}</p><small>{nextSessionOutlook.failure}</small>
             </>:<p>{nextSessionOutlook.detail}</p>}
-            <i>基于已出现的日内分钟数据生成概率区间，不构成投资建议；盘前消息与大盘变化会使结果失效。</i>
+            <i>综合日线结构、分时、大盘/板块及可用 L2 证据；可信度为证据等级，并非校准概率，不构成投资建议。</i>
           </section>
           {isZijinStock&&displayedZijinPricePlan&&<div className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"} ${premiumEnabled&&!displayedZijinPricePlan.ready?"compact-waiting":""}`} aria-label="紫金矿业预判买入卖出价区间">
             <div className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":"紫金会员 · 实时因果"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":"预判买卖价区间"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":"等待分时"):"会员功能"}</em></div>
@@ -3475,7 +3533,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <p>{visibleStockAgentEvaluation.reasons[0]}</p>
             <small>{visibleStockAgentEvaluation.phase==="opening"?"早盘专属层":"全天因子层"} · 振幅 {visibleStockAgentEvaluation.metrics.rangePct.toFixed(2)}% · 距VWAP {visibleStockAgentEvaluation.metrics.vwapBiasPct>=0?"+":""}{visibleStockAgentEvaluation.metrics.vwapBiasPct.toFixed(2)}% · 量比 {visibleStockAgentEvaluation.metrics.volumeRatio==null?"待数据":`${visibleStockAgentEvaluation.metrics.volumeRatio.toFixed(2)}×`}</small>
             {zijinStructure&&<small className="zijin-structure-summary">多周期 {zijinStructure.direction} {zijinStructure.directionScore>=0?"+":""}{zijinStructure.directionScore} · 缠论 {zijinStructure.chan.location} · 威科夫 {zijinStructure.wyckoff.phase} · 成交密集区 ¥{zijinStructure.volumeProfile.valueAreaLow.toFixed(2)}–{zijinStructure.volumeProfile.valueAreaHigh.toFixed(2)}</small>}
-            <i>{STOCK_AGENTS.zijin.badge} · 与 V4 隔离 · 只给候选和解释，不生成正式成交</i>
+            <i>{STOCK_AGENTS.zijin.badge} · 与内置闭环隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
           <div className={`alert-channel ${marketSession.live?"market-live":""}`}><div><span>提醒</span><small>语音、弹窗与手机后台通知</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时播放简短语音">🔊 {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试"}</button>}</div><details className="mobile-push-guide"><summary>ⓘ 帮助</summary><div><p><b>安卓 Chrome</b><span>菜单 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><p><b>苹果 Safari</b><span>分享 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><small>锁屏通知音由手机系统控制；详细说明可在设置中查看。</small></div></details></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
@@ -3604,17 +3662,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           {agentOpen && <div className="training-console">
             <div className="training-control"><div><span>当前股票 · {stockAgent.name}{stockAgent.canExecute?"":"（研究观察版）"}</span><b>真实证据覆盖度</b></div><button onClick={()=>setActiveView("智能训练")}>查看研究中心</button></div>
             <div className="training-progress"><div style={{width:`${localEvidenceCoverage}%`}}/><span>{localEvidenceCoverage.toFixed(0)}%</span></div>
-            <div className="training-metrics"><p><span>完整样本</span><b>{personalStrategyStats.sessions} 日</b></p><p><span>{stockAgent.canExecute?"正式闭环":"V4 对照闭环"}</span><b>{personalStrategyStats.cycles}</b></p><p><span>{stockAgent.canExecute?"扣费胜率":"V4 对照胜率"}</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b></p><p><span>扣费净盈亏</span><b className={personalStrategyStats.net>=0?'teal':'negative'}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b></p><p><span>最差回撤</span><b>-{(personalStrategyStats.maxDrawdown*100).toFixed(2)}%</b></p></div>
+            <div className="training-metrics"><p><span>完整样本</span><b>{personalStrategyStats.sessions} 日</b></p><p><span>{stockAgent.canExecute?"正式闭环":"研究对照闭环"}</span><b>{personalStrategyStats.cycles}</b></p><p><span>{stockAgent.canExecute?"扣费胜率":"研究对照胜率"}</span><b>{personalStrategyStats.winRate===null?'—':`${(personalStrategyStats.winRate*100).toFixed(1)}%`}</b></p><p><span>扣费净盈亏</span><b className={personalStrategyStats.net>=0?'teal':'negative'}>{personalStrategyStats.cycles?money(personalStrategyStats.net):'—'}</b></p><p><span>最差回撤</span><b>-{(personalStrategyStats.maxDrawdown*100).toFixed(2)}%</b></p></div>
             <div className="training-log"><span>本机证据</span><p>已读取 {personalStrategyStats.sessions} 个完整交易日并核对 {personalStrategyStats.cycles} 个扣费闭环；这不是服务器训练进度。</p><em>自动晋升关闭</em></div>
           </div>}
           {agentOpen&&<div className="agent-grid">{liveAgents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><Image src={agent.avatar} alt={`${agent.name} AI头像`} width={40} height={40}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>}
         </div>
       </section>
-      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} premiumEnabled={premiumEnabled} onOpenAccount={()=>setAccountOpen(true)} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} strategyExperiment={zijinExperimentMode} setStrategyExperiment={setZijinExperimentMode} />}
+      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} premiumEnabled={premiumEnabled} onOpenAccount={()=>setAccountOpen(true)} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
-          <div className="strategy-dialog-head"><div><span>SMART‑T FUSION V4</span><h2>同一套 V4，三个清晰档位</h2><p>稳健、平衡、灵敏只调整 Smart‑T 融合策略 V4 的确认门槛与信号频率，不是三套互不相干的策略；四兔训练只产生候选参数，不作为手动档位。</p></div><button onClick={()=>setStrategyOpen(false)} aria-label="关闭策略说明">×</button></div>
+          <div className="strategy-dialog-head"><div><span>INTRADAY CLOSURE ENGINE</span><h2>内置闭环，三个清晰档位</h2><p>稳健、平衡、灵敏只调整内置闭环策略的确认门槛与信号频率，不是三套互不相干的策略；四兔训练只产生候选参数，不作为手动档位。</p></div><button onClick={()=>setStrategyOpen(false)} aria-label="关闭策略说明">×</button></div>
           <div className="strategy-cards">
             {STRATEGY_PROFILES.map(name=>({name,...STRATEGY_PROFILE_META[name]})).map(item=><button key={item.name} onClick={()=>setProfile(normalizeStrategyProfile(item.name) as StrategyProfile)} className={`strategy-card ${profile===item.name?'selected':''}`}><div><h3>{item.name}</h3><span>{profile===item.name?'当前使用':'选择'}</span></div><strong>{item.tag}</strong><p>{item.fit}</p><ul><li>确认分 ≥ {item.score} · 偏离 ≥ {item.deviationPct.toFixed(2)}%</li><li>候选净空间 ≥ {item.candidateNetPct.toFixed(2)}% · 盈亏比 ≥ {item.minRewardRisk.toFixed(2)}</li><li>买/卖量比 ≥ {item.minBuyVolumeRatio.toFixed(2)} / {item.minSellVolumeRatio.toFixed(2)}</li><li>最短持有 {item.minHoldMinutes} 分钟 · 冷却 {item.cooldownMinutes} 分钟</li><li>每日最多 {item.maxCycles} 个正式闭环</li></ul><em>{item.risk}</em></button>)}
           </div>
@@ -3636,7 +3694,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className={`account-premium-features ${premiumEnabled?"enabled":"locked"}`}><div><span>高级会员能力</span><b>{premiumEnabled?"已全部开启":"购买会员后开启"}</b></div><ul><li>9:25盘前预判</li><li>L2精确价区间</li><li>提醒历史复盘</li><li>个人回放训练</li></ul><a href="/pricing">查看方案与收费标准 →</a></div>
         {!demoMode&&accountRole!=='admin'&&<MembershipRedeem onRedeemed={setAccountMembership}/>}
         {!demoMode&&accountRole!=='admin'&&accountMembership?.referralCode&&<div className="account-referral"><div><span>邀请好友</span><b>有效注册 1 人，+7 天权益</b><small>邀请码 {accountMembership.referralCode} · 已奖励 {accountMembership.referralCredits} 人{accountMembership.referralReviews?` · 待审核 ${accountMembership.referralReviews} 人`:''}</small></div><button onClick={()=>void copyReferralLink()}>复制邀请链接</button>{inviteMessage&&<em>{inviteMessage}</em>}</div>}
-        <div className="account-stats"><div><span>监控股票</span><b>{stockList.length} / {monitorLimit}</b></div><div><span>后台监控</span><b>{demoMode?'关闭':'已连接'}</b></div><div><span>策略版本</span><b>V4</b></div></div>
+        <div className="account-stats"><div><span>监控股票</span><b>{stockList.length} / {monitorLimit}</b></div><div><span>后台监控</span><b>{demoMode?'关闭':'已连接'}</b></div><div><span>策略版本</span><b>闭环</b></div></div>
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>当前股票计划底仓<small>{stock.code} · 用于当日闭环校验</small></span><b>{activePosition.plannedBase.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
         <div className="account-security"><i>✓</i><p><b>{demoMode?'演示边界':'密码与会话安全'}</b><span>{demoMode?'演示不连接券商、不执行下单，也不会冒充正式账户。':'密码使用 scrypt 加盐哈希保存；登录会话使用 HttpOnly Cookie，前端不会读取密码或会话令牌。'}</span></p></div>
         <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button>{accountRole==='admin'&&!demoMode&&<button onClick={()=>{setAccountOpen(false);setMemberAdminOpen(true)}}>会员后台</button>}<button onClick={()=>{void fetch('/api/control/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});try{localStorage.removeItem('rabbit-auth-session');localStorage.removeItem('rabbit-account-role');sessionStorage.removeItem('rabbit-auth-session')}catch{} remoteSyncReady.current=false;setAccountOpen(false);setDemoMode(false);setAuthScreen('landing');setLocalAuth(false);onLogout?.()}}>{demoMode?'退出演示':'退出登录'}</button></div>
@@ -4804,7 +4862,7 @@ function HoldingsView({position,stock,tradingDate,rows,onRowsChange}:{position:S
   </section>;
 }
 
-function BacktestView({ profile, setProfile, profitMode, setProfitMode, position, stock, stocks, activeStock, onSelectStock, strategyExperiment, setStrategyExperiment }: { profile: StrategyProfile; setProfile: (value: StrategyProfile) => void; profitMode:ProfitMode; setProfitMode:(value:ProfitMode)=>void; position:StockPosition; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void; strategyExperiment:ZijinStrategyExperiment; setStrategyExperiment:(value:ZijinStrategyExperiment)=>void }) {
+function BacktestView({ profile, setProfile, profitMode, setProfitMode, position, stock, stocks, activeStock, onSelectStock }: { profile: StrategyProfile; setProfile: (value: StrategyProfile) => void; profitMode:ProfitMode; setProfitMode:(value:ProfitMode)=>void; position:StockPosition; stock:{code:string;name:string;price:string;change:string}; stocks:{code:string;name:string;price:string;change:string}[]; activeStock:number; onSelectStock:(index:number)=>void }) {
   const [capital, setCapital] = useState(200000);
   const [baseShares, setBaseShares] = useState(position.plannedBase);
   const [sellable, setSellable] = useState(position.sellable);
@@ -4823,6 +4881,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [batch, setBatch] = useState<BatchBacktestResult | null>(null);
   const [multiDay, setMultiDay] = useState<MultiDayBacktestResult | null>(null);
   const [multiDayCount, setMultiDayCount] = useState(20);
+  const [multiDayRunKind, setMultiDayRunKind] = useState<MultiDayRunKind>("recent");
   const [source, setSource] = useState<MarketData | null>(null);
   const [l2Replay, setL2Replay] = useState<L2ReplayState>({available:false,source:"idle",minuteCount:0,observations:[],reason:"等待紫金矿业回放"});
   const [error, setError] = useState("");
@@ -4870,7 +4929,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       profileOverrides:{...(profitOptions.profileOverrides??{}),...experiment.profileOverrides},
       positionSizeMode:experiment.positionSizeMode,
       volatilityMode:experiment.volatilityMode,
-      strategyVersion:experiment.experimental?"V4.1-experiment":"V4.1",
+      strategyVersion:"closure-first",
     });
   };
   const replayLegacy=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number})=>runIntradayBlindReplayLegacy(data.minutes ?? [],account?.capital ?? capital,account?.baseShares ?? baseShares,account?.sellable ?? sellable,feeRate,slippage,minCommission,slippageMode,forceCloseTime,0);
@@ -4971,32 +5030,42 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       setReplayProgress({value:0,detail:"行情获取失败，本次没有生成结果"});
     } finally { setRunning(false); setRunMode(null); }
   };
-  const runMultiDay = async () => {
+  const runMultiDay = async (kind:MultiDayRunKind="recent") => {
+    const isZijinArchiveRun=stock.code==="601899"&&kind!=="recent";
+    const requestedDays=kind==="random-10"?10:kind==="recent"?multiDayCount:0;
+    const scopeLabel=kind==="random-10"?"2025 至今随机 10 日":kind==="since-2025"?"2025 至今全量":"最近连续交易日";
+    setMultiDayRunKind(kind);
     setLastAction("multi");
     setSingleRunDate("");
     setAccountNotice(`连续回放使用当前账户参数，逐日独立复位；每个交易日只读取当时及此前数据。`);
     setRunning(true); setRunMode("multi"); setError(""); setResult(null); setBatch(null); setMultiDay(null); setSource(null);
     setL2Replay({available:false,source:"multi-day",minuteCount:0,observations:[],reason:"多日汇总按逐分钟因果数据运行；单日详情可另行核验历史 L2"});
-    setReplayProgress({value:5,detail:`正在获取 ${stock.code} 最近 ${multiDayCount} 个交易日`});
+    setReplayProgress({value:5,detail:`正在获取 ${stock.code} ${scopeLabel}`});
     setRunStatus(`正在读取 ${stock.code} 多日真实分时…`);
     try {
-      let fetched=await fetchStock(stock.code,multiDayCount);
+      let fetched=await fetchStock(stock.code,kind==="recent"?multiDayCount:6);
       if(stock.code==="601899"){
-        const archiveResponse=await fetch(`/api/personal-replay-sessions?code=601899&limit=${multiDayCount+20}`,{cache:"no-store"});
+        const archiveQuery=kind==="random-10"
+          ? "startDate=20250101&sample=10"
+          : kind==="since-2025"
+            ? "startDate=20250101&scope=all"
+            : `limit=${multiDayCount+20}`;
+        const archiveResponse=await fetch(`/api/personal-replay-sessions?code=601899&${archiveQuery}`,{cache:"no-store"});
         if(!archiveResponse.ok)throw new Error("Zijin archive unavailable");
-        const archivePayload=await archiveResponse.json() as {sessions?:IntradaySession[]};
+        const archivePayload=await archiveResponse.json() as {sessions?:IntradaySession[];coverage?:{sessions:number;firstDate:string;lastDate:string|null}};
         if(!archivePayload.sessions?.length)throw new Error("Zijin archive is empty");
         fetched={...fetched,intradaySessions:archivePayload.sessions};
       }
       const sessions=[...(fetched.intradaySessions??[])]
         .sort((left,right)=>right.date.localeCompare(left.date))
-        .slice(0,multiDayCount);
+        .slice(0,kind==="since-2025"?undefined:requestedDays);
       if(!sessions.length)throw new Error("no intraday sessions");
       setAvailableSessionDates(sessions.map(session=>session.date));
       setReplayProgress({value:28,detail:`已取得 ${sessions.length} 个完整交易日，开始逐日回放`});
       const configuredQuantity=Math.min(baseShares,sellable);
       const replayCapital=capital>0?capital:200_000;
-      const results=sessions.map((session,index)=>{
+      const results=[] as {date:string;data:MarketData;result:BacktestResult}[];
+      for(const [index,session] of sessions.entries()){
         const data=sessionData(fetched,session);
         const fallbackShares=standardBacktestShares(data,replayCapital);
         const account=configuredQuantity>=300
@@ -5004,17 +5073,21 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           : {capital:replayCapital,baseShares:fallbackShares,sellable:fallbackShares};
         const calculated=replay(data,account);
         if(index===0){setSource(data);setResult(calculated);}
-        return {date:session.date,data,result:calculated};
-      });
+        results.push({date:session.date,data,result:calculated});
+        if(isZijinArchiveRun&&(index+1)%10===0){
+          setReplayProgress({value:28+Math.round((index+1)/sessions.length*48),detail:`已回放 ${index+1} / ${sessions.length} 个交易日`});
+          await new Promise(resolve=>setTimeout(resolve,0));
+        }
+      }
       setReplayProgress({value:78,detail:"逐日回放完成，正在汇总扣费后结果"});
       const cycleNets=results.flatMap(item=>item.result.cycleNets);
       const dayNets=results.map(item=>item.result.net);
       const positive=cycleNets.filter(value=>value>0).reduce((sum,value)=>sum+value,0);
       const negative=Math.abs(cycleNets.filter(value=>value<0).reduce((sum,value)=>sum+value,0));
       const net=dayNets.reduce((sum,value)=>sum+value,0);
-      const experiment=resolveBacktestStrategyExperiment(stock.code,strategyExperiment);
+      const experiment=resolveBacktestStrategyExperiment(stock.code,"closure-first");
       const report:MultiDayBacktestResult={
-        code:stock.code,name:stock.name,modeLabel:experiment.label,requestedDays:multiDayCount,testedDays:results.length,
+        code:stock.code,name:stock.name,modeLabel:experiment.label,scopeLabel,requestedDays:requestedDays||results.length,testedDays:results.length,
         firstDate:results.at(-1)?.date??"",lastDate:results[0]?.date??"",noTrade:results.filter(item=>item.result.trades===0).length,
         averageNet:net/Math.max(1,results.length),samples:results.length,completed:cycleNets.length,wins:cycleNets.filter(value=>value>0).length,
         gross:results.reduce((sum,item)=>sum+item.result.gross,0),fees:results.reduce((sum,item)=>sum+item.result.fees,0),
@@ -5025,7 +5098,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         outcomes:results.map(item=>({date:item.date,trades:item.result.trades,wins:item.result.wins,net:item.result.net,candidates:item.result.diagnostics?.candidates??0})),
       };
       setMultiDay(report);
-      setRunStatus(`连续 ${results.length} 日完成：${report.completed} 个闭环，扣费后胜率 ${report.completed?(report.wins/report.completed*100).toFixed(1):"0.0"}%`);
+      setRunStatus(`${scopeLabel}完成：${report.completed} 个闭环，扣费后胜率 ${report.completed?(report.wins/report.completed*100).toFixed(1):"0.0"}%`);
       setReplayProgress({value:100,detail:`多日报告完成 · ${report.completed} 个闭环 · ${report.tradingRounds}/${report.testedDays} 日有交易`});
       setTimeout(()=>document.getElementById("single-backtest-result")?.scrollIntoView({behavior:"smooth",block:"start"}),0);
     } catch {
@@ -5134,6 +5207,8 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         const strongSellTrendBlocked=stockResults.reduce((sum,item)=>sum+(item.diagnostics?.strongSellTrendBlocked ?? 0),0);
         const strongBuyTrendBlocked=stockResults.reduce((sum,item)=>sum+(item.diagnostics?.strongBuyTrendBlocked ?? 0),0);
         const net=stockResults.reduce((sum,item)=>sum+item.net,0);
+        const gross=stockResults.reduce((sum,item)=>sum+item.gross,0);
+        const totalCost=stockResults.reduce((sum,item)=>sum+item.fees+item.executionCost,0);
         const primaryTrial=stockTrials[0];
         const referenceObservations=primaryTrial
           ? buildCausalReferencePoints(primaryTrial.selected.data.minutes ?? [],primaryTrial.result.observations ?? []) as ReplayObservation[]
@@ -5143,7 +5218,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           ? net>0
             ? `形成 ${completed} 个闭环，扣费后盈利`
             : net<0
-              ? `形成 ${completed} 个闭环但扣费后亏损，展开查看原因`
+              ? `形成 ${completed} 个闭环但扣费后亏损：${gross<=0?"价格未走出预期价差":"毛收益被费用与滑点吞噬"}（毛收益 ${money(gross)}，成本+滑点 ${money(-totalCost)}）`
               : `形成 ${completed} 个闭环，扣费后持平`
           : rawCandidates===0
             ? "已有买卖观察参考，但未形成条件候补"
@@ -5213,8 +5288,19 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   };
   const fullDayMinutes=source?.minutes ?? [];
   const fullDayPrices=fullDayMinutes.map(point=>point.price);
-  const observedMin=fullDayPrices.length?Math.min(...fullDayPrices):0;
-  const observedMax=fullDayPrices.length?Math.max(...fullDayPrices):1;
+  const fullDayRangePrices=fullDayMinutes.flatMap(point=>[
+    point.price,
+    Number.isFinite(point.high)&&Number(point.high)>0?Number(point.high):point.price,
+    Number.isFinite(point.low)&&Number(point.low)>0?Number(point.low):point.price,
+  ]);
+  const coverageReferencePrices=(result?.observations??[]).flatMap(observation=>
+    observation.coverageOnly&&Number.isFinite(observation.pivotPrice)&&Number(observation.pivotPrice)>0
+      ? [Number(observation.pivotPrice)]
+      : [],
+  );
+  const chartRangePrices=[...fullDayRangePrices,...coverageReferencePrices];
+  const observedMin=chartRangePrices.length?Math.min(...chartRangePrices):0;
+  const observedMax=chartRangePrices.length?Math.max(...chartRangePrices):1;
   const pricePadding=Math.max(.01,(observedMax-observedMin)*.12);
   const chartMin=Math.max(.01,observedMin-pricePadding),chartMax=observedMax+pricePadding;
   const chartTicks=Array.from({length:5},(_,index)=>chartMax-(chartMax-chartMin)*index/4);
@@ -5283,7 +5369,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <div className="config-title"><h2>回测参数</h2><span>{running ? "计算中" : runStatus}</span><button type="button" className="config-collapse-toggle" onClick={()=>setBacktestConfigCollapsed(current=>!current)} aria-expanded={!backtestConfigCollapsed}>{backtestConfigCollapsed?"展开":"收起"}</button></div>
         <div className="config-compact-summary" aria-hidden={!backtestConfigCollapsed}><b>{profile}</b><span>{capital.toLocaleString("zh-CN")} 现金</span><span>万{feeRate.toFixed(3)} 费率</span></div>
         <label>回测股票<select className="backtest-stock-select" value={activeStock} onChange={event=>selectBacktestStock(Number(event.target.value))} aria-label="选择回测股票">{stocks.map((item,index)=><option key={item.code} value={index}>{item.code} {item.name}</option>)}</select></label>
-        <label>买卖逻辑<div className="field static-field"><b>Smart-T 融合策略 V4</b><span>正/反 T + 开盘试单 + 趋势量价 + 成本风控</span></div></label>
+        <label>买卖逻辑<div className="field static-field"><b>内置闭环策略</b><span>正/反 T + 开盘观察 + 趋势量价 + 成本风控</span></div></label>
         <div className="field-pair"><label>样本来源<div className="field static-field date-display"><b>{source ? "公开真实分时" : "运行后显示"}</b><span>{batch ? `${batch.uniqueSessions} 个不重复股票日` : source?.sampleDate ?? "完整交易日"}</span></div></label><label>决策方式<div className="field static-field date-display"><b>全日逐分钟因果判断</b><span>不读未来高低点/收盘价</span></div></label></div>
         <label>回放交易日
           <select value={requestedSessionDate} onChange={event=>setRequestedSessionDate(event.target.value)} disabled={!availableSessionDates.length}>
@@ -5292,8 +5378,8 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           </select>
           <small className="config-inline-help">首次运行会读取可用的完整交易日；随后可选择历史日期重新逐分钟回放。</small>
         </label>
-        <label>V4 策略档位<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item as StrategyProfile)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；同一套 Smart-T 融合策略 V4，仅调整确认门槛与信号频率。</small></label>
-        <label>实验回测版本<div className="profile-picker experiment-picker">{zijinStrategyExperimentIds.map(id=>{const item=ZIJIN_STRATEGY_EXPERIMENTS[id];return <button type="button" className={`${strategyExperiment===id?'active':''} ${item.experimental?'experimental':''}`} onClick={()=>setStrategyExperiment(id)} key={id}>{item.shortLabel}</button>})}</div><small className={`config-inline-help experiment-warning ${strategyExperiment!=="formal-v4"?"active":""}`}>{strategyExperiment==="formal-v4"?"正式 V4.1 基线。":`${ZIJIN_STRATEGY_EXPERIMENTS[strategyExperiment].description} 复盘重点是明显错误、失败原因与因果退出，不以胜率作为调参目标。`}</small></label>
+        <label>闭环灵敏度<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item as StrategyProfile)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；仅调整闭环确认门槛与信号频率。</small></label>
+        <label>回放引擎<div className="profile-picker experiment-picker"><button type="button" className="active experimental" disabled>内置闭环 · 已固定</button></div><small className="config-inline-help experiment-warning active">候选、确认、费用滑点、平仓和审计统一使用闭环策略；V4 当前不参与回放。</small></label>
         {stock.code==="601899"&&<label>紫金利润模式<div className="profile-picker profit-picker"><button type="button" className={profitMode==="standard"?'active':''} onClick={()=>setProfitMode("standard")}>标准价差</button><button type="button" className={profitMode==="zijin-small-spread"?'active':''} onClick={()=>setProfitMode("zijin-small-spread")}>小价差</button></div><small className="config-inline-help">小价差档要求每股至少 ¥0.10、扣费净利至少 ¥30；趋势、VWAP、量价和硬风控不放宽。</small></label>}
         <div className="broker-account-box">
           <div className="broker-account-head"><b>模拟证券账户</b><span>仅用于回测撮合，不连接真实券商</span></div>
@@ -5306,18 +5392,19 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}<span>→</span></button>
-        <div className="multi-day-controls"><label>连续交易日<select value={multiDayCount} onChange={event=>setMultiDayCount(Number(event.target.value))} disabled={running}>{[10,20,60,100].map(value=><option value={value} key={value}>最近 {value} 日</option>)}</select></label><button type="button" onClick={()=>void runMultiDay()} disabled={running}>{runMode==='multi'?`正在连续回放 ${multiDayCount} 日…`:`连续回放最近 ${multiDayCount} 日`}</button></div>
-        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:`全A股随机10股 · ${strategyExperiment==="formal-v4"?"正式":"闭环错误审计"}`}</button></div>
+        <div className="multi-day-controls"><label>连续交易日<select value={multiDayCount} onChange={event=>setMultiDayCount(Number(event.target.value))} disabled={running}>{[10,20,60,100].map(value=><option value={value} key={value}>最近 {value} 日</option>)}</select></label><button type="button" onClick={()=>void runMultiDay("recent")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='recent'?`正在连续回放 ${multiDayCount} 日…`:`连续回放最近 ${multiDayCount} 日`}</button></div>
+        {stock.code==="601899"&&<div className="replay-secondary-actions"><button type="button" onClick={()=>void runMultiDay("random-10")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='random-10'?"正在随机回放 10 日…":"紫金随机 10 个交易日"}</button><button type="button" onClick={()=>void runMultiDay("since-2025")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='since-2025'?"正在回放 2025 至今…":"紫金 2025 至今全量回放"}</button></div>}
+        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:"全A股随机10股 · 内置闭环审计"}</button></div>
         <RabbitProgressMeter
-          label={runMode==='batch'?'全 A 股随机批次测试':runMode==='multi'?`单股连续 ${multiDayCount} 日回测`:'单股完整交易日回测'}
+          label={runMode==='batch'?'全 A 股随机批次测试':runMode==='multi'?(multiDayRunKind==='random-10'?"紫金随机 10 日回测":multiDayRunKind==='since-2025'?"紫金 2025 至今全量回测":`单股连续 ${multiDayCount} 日回测`):'单股完整交易日回测'}
           detail={replayProgress.detail}
           progress={replayProgress.value}
           status={running?'running':error?'error':replayProgress.value===100?'completed':'paused'}
           stages={runMode==='batch'?['读取股票池','获取真实分时','逐股因果回放','成本核算','生成报告']:runMode==='multi'?['获取多日行情','构建历史基线','逐日因果回放','费用核算','生成报告']:['获取行情','校验交易日','逐分钟回放','费用核算','生成报告']}
           compact
         />
-        <div className={`single-run-status ${running?'running':error?'error':result||batch||multiDay?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在测试全A股随机10股批次…':runMode==='multi'?`正在连续回放 ${stock.code} 最近 ${multiDayCount} 日…`:`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='batch'&&batch?`${batch.fallbackUniverse?'代表池回退':'全A股'}随机10股完成 · 正式触发 ${batch.tradingRounds}/${batch.stocks} 股`:lastAction==='multi'&&multiDay?`连续 ${multiDay.testedDays} 日完成 · ${multiDay.completed} 个闭环`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：${result.diagnostics?.candidates ?? 0} 次候选判定，0 个正式闭环`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${formatDate(singleRunDate)} 完整交易日`:''}</small></span></div>
-        <p className="seed-note">单股测试按所选股票回放；批量测试优先从当前全 A 股普通股票列表中无放回随机抽取 10 只，并尽量分散行业。行情缺失会自动补抽；全市场列表不可用时会明确显示“代表池回退”。</p>
+        <div className={`single-run-status ${running?'running':error?'error':result||batch||multiDay?'done':'idle'}`} role="status" aria-live="polite"><i/><span><b>{running?(runMode==='batch'?'正在测试全A股随机10股批次…':runMode==='multi'?(multiDayRunKind==='random-10'?"正在随机回放紫金 10 个交易日…":multiDayRunKind==='since-2025'?"正在回放紫金 2025 至今全部可用交易日…":`正在连续回放 ${stock.code} 最近 ${multiDayCount} 日…`):`正在全日回放 ${stock.code}…`):error?'运行失败':lastAction==='batch'&&batch?`${batch.fallbackUniverse?'代表池回退':'全A股'}随机10股完成 · 正式触发 ${batch.tradingRounds}/${batch.stocks} 股`:lastAction==='multi'&&multiDay?`${multiDay.scopeLabel}完成 · ${multiDay.completed} 个闭环`:lastAction==='single'&&result?(result.trades?`全日回放完成：触发 ${result.trades} 个做T闭环`:`全日回放完成：${result.diagnostics?.candidates ?? 0} 次候选判定，0 个正式闭环`):'等待选择测试'}</b><small>{runStatus}{singleRunDate?` · ${formatDate(singleRunDate)} 完整交易日`:''}</small></span></div>
+        <p className="seed-note">紫金随机测试固定股票为 601899，每次从 2025 年以来的可用历史中无放回抽取 10 个交易日；可反复运行观察稳定性。全量回放用于最终统计，实际日期范围以报告为准。全 A 股随机 10 股仍是另一项独立审计。</p>
         <p className="config-note">连续失败 2 次当日停止；14:30 后不新开 T；{forceCloseTime.slice(0,2)}:{forceCloseTime.slice(2)} 前强制恢复计划底仓，避免尾盘流动性恶化。</p>
         <p className="config-note">状态：{runStatus}</p>
         {error&&<p className="config-note">{error}</p>}
@@ -5338,7 +5425,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           </div>}
         </section>}
         {batch&&<BatchReport batch={batch} representativeCode={source?.quote.code}/>}
-        {multiDay&&<section className="multi-day-report"><div><span>连续因果回放</span><strong>{multiDay.testedDays}<small> / {multiDay.requestedDays} 日</small></strong><em>{formatDate(multiDay.firstDate)} — {formatDate(multiDay.lastDate)}</em></div><div><span>正式闭环 / 胜率</span><strong>{multiDay.completed}<small> / {multiDay.completed?(multiDay.wins/multiDay.completed*100).toFixed(1):"0.0"}%</small></strong><em>{multiDay.modeLabel}</em></div><div><span>有交易日 / 空白日</span><strong>{multiDay.tradingRounds}<small> / {multiDay.noTrade}</small></strong><em>逐日独立复位</em></div><div><span>扣费后合计</span><strong className={pnlClass(multiDay.net)}>{money(multiDay.net)}</strong><em>日均 {money(multiDay.averageNet)}</em></div></section>}
+        {multiDay&&<section className="multi-day-report"><div><span>{multiDay.scopeLabel}</span><strong>{multiDay.testedDays}<small> / {multiDay.requestedDays} 日</small></strong><em>{formatDate(multiDay.firstDate)} — {formatDate(multiDay.lastDate)}</em></div><div><span>正式闭环 / 扣费后胜率</span><strong>{multiDay.completed}<small> / {multiDay.completed?(multiDay.wins/multiDay.completed*100).toFixed(1):"0.0"}%</small></strong><em>{multiDay.modeLabel}</em></div><div><span>有交易日 / 空白日</span><strong>{multiDay.tradingRounds}<small> / {multiDay.noTrade}</small></strong><em>逐日独立复位</em></div><div><span>扣费后合计</span><strong className={pnlClass(multiDay.net)}>{money(multiDay.net)}</strong><em>日均 {money(multiDay.averageNet)}</em></div></section>}
         <div className="result-summary">
           <div className="result-primary"><span>{batch?"批次样本净收益":"净收益"}</span><strong className={result?pnlClass(result.net):""}>{result ? money(result.net) : "—"}</strong><em className={result?pnlClass(result.net):""}>{result ? `${(result.net/capital*100).toFixed(3)}%` : "运行后显示"}</em></div>
           <div><span>理论毛收益</span><b className={result?pnlClass(result.gross):""}>{result ? money(result.gross) : "—"}</b><small>未扣费用与滑点</small></div><div><span>费用与滑点</span><b className={result?"pnl-loss":""}>{result ? money(-(result.fees+result.executionCost)) : "—"}</b><small>佣金、印花税及双向滑点</small></div><div><span>最大回撤</span><b className={result&&result.maxDrawdown>0?"pnl-loss":""}>{result ? `-${(result.maxDrawdown*100).toFixed(3)}%` : "—"}</b><small>{source ? "费用进入逐点资金曲线" : "运行后显示"}</small></div>
@@ -5360,7 +5447,9 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
               {visibleBacktestObservations.map((observation,index)=>{
                 const minuteIndex=fullDayMinutes.findIndex(point=>point.time===observation.time);
                 if(minuteIndex<0)return null;
-                const price=observation.price ?? fullDayMinutes[minuteIndex].price;
+                const price=observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
+                  ? observation.pivotPrice
+                  : observation.price ?? fullDayMinutes[minuteIndex].price;
                 const point=chartPoint(price,minuteIndex);
                 const isSell=observation.direction==="反T";
                 const label=observationConfirmationLabel(observation);
