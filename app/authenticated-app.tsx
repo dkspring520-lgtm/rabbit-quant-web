@@ -2338,6 +2338,44 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
     return {items,readyCount:items.filter(item=>item.ready).length,total:items.length};
   },[activeQuote?.price,chartModel?.lastVwap,currentContext,liveL2HasTicks,liveL2Stale,minutePoints,web4L2Evidence.label,web4L2Evidence.score,zijinAhLinkage.available,zijinAhLinkage.label,zijinMainForceIntent.available,zijinMainForceIntent.label,zijinMainForceTrack.totals.netNotional]);
+  const zijinShadowV2Progress=useMemo(()=>{
+    const review=liveL2Status?.forward?.reverseTShadow?.manualReview;
+    const gates=review?.gates;
+    const gateValues=[
+      gates?.tradingDays,
+      gates?.resolvedCycles,
+      gates?.candidatePromotionRate,
+      gates?.afterCostWinRate,
+      gates?.stress5BpsWinRate,
+      gates?.profitFactor,
+    ];
+    const passed=gateValues.filter(Boolean).length;
+    const ready=Boolean(review?.readyForManualReview&&passed===gateValues.length);
+    const ratio=(value:number|null|undefined,target:number)=>Number.isFinite(value)&&Number(value)>=0?Math.min(1,Number(value)/target):0;
+    const promotionRate=Number(review?.candidatePromotionRate);
+    const promotionProgress=!Number.isFinite(promotionRate)||promotionRate<0
+      ?0
+      :promotionRate<=.4
+        ?Math.min(1,promotionRate/.3)
+        :Math.max(0,1-(promotionRate-.4)/.6);
+    const evidenceProgress=[
+      ratio(review?.tradingDays,60),
+      ratio(review?.resolvedCycles,100),
+      promotionProgress,
+      ratio(review?.afterCostWinRate,.55),
+      ratio(review?.stress5BpsWinRate,.55),
+      ratio(review?.profitFactor,1.2),
+    ];
+    const measured=Math.round(evidenceProgress.reduce((sum,value)=>sum+value,0)/evidenceProgress.length*100);
+    return {
+      available:Boolean(review),
+      ready,
+      passed,
+      progress:ready?100:Math.min(99,measured),
+      tradingDays:Math.max(0,Number(review?.tradingDays)||0),
+      resolvedCycles:Math.max(0,Number(review?.resolvedCycles)||0),
+    };
+  },[liveL2Status?.forward?.reverseTShadow?.manualReview]);
   const web4Monitor=useMemo(()=>evaluateWeb4RealtimeMonitor({
     symbol:stock?.code,
     now:clockNow?.toISOString()??null,
@@ -3551,6 +3589,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div><span>紫金内置闭环策略 · 因果观察</span><b>{liveStrategyExperiment.label}</b><small>候选须经过趋势、成本、盘口和仓位校验；仅辅助人工决策，不自动下单。</small></div>
             <div className="stock-agent-switch-actions experiment-actions"><button className="active experimental" type="button" disabled aria-pressed>闭环已固定</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
           </div>}
+          {isZijinStock&&<section className={`zijin-shadow-v2 ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V2 学习与晋级进度">
+            <header><div><span>紫金影子 V2</span><b>{zijinShadowV2Progress.ready?"可晋级正式":zijinShadowV2Progress.available?"监控中":"等待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></header>
+            <div className="zijin-shadow-v2-meter" role="progressbar" aria-label={`紫金影子 V2 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div>
+            <footer><span>{zijinShadowV2Progress.ready?"六项门槛全部通过":`通过 ${zijinShadowV2Progress.passed}/6 · ${zijinShadowV2Progress.tradingDays}/60日 · ${zijinShadowV2Progress.resolvedCycles}/100闭环`}</span><em>{zijinShadowV2Progress.ready?"确认后可晋级正式":"100% 可晋级正式"}</em></footer>
+            <small>影子监控不影响当前正式闭环，达到 100% 后仍需确认切换。</small>
+          </section>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
             <div className="signal-layer candidate"><span>本股实时观察</span><b>{visibleStockAgentEvaluation?Number(visibleStockAgentEvaluation.status==="candidate"):signalFunnel.currentObservations}<small> 个</small></b><em>{visibleStockAgentEvaluation?`${STOCK_AGENTS.zijin.name} · ${visibleStockAgentEvaluation.title}`:`条件候补 ${signalFunnel.currentCandidates} · 全自选观察 ${signalFunnel.observations}`}</em></div>
             <i>→</i>
@@ -4220,7 +4264,17 @@ type ZijinL2State = {
     evidence?:{count?:number;requiredForReady?:number;fastVolumeOk?:boolean;absorption?:boolean;flowReversal?:boolean;bookAligned?:boolean;priceConclusion?:string;flowConclusion?:string;bookConclusion?:string};
     windows?:Record<string,{seconds?:number;transactions?:number;buyNotional?:number;sellNotional?:number;grossNotional?:number;netNotional?:number;tfi?:number|null}>;
   };
-  forward?:{samples?:number;tradingDays?:number;trainingReady?:boolean;reason?:string};
+  forward?:{
+    samples?:number;tradingDays?:number;trainingReady?:boolean;reason?:string;
+    reverseTShadow?:{
+      strategyId?:string;displayName?:string;mode?:string;affectsProduction?:boolean;automaticPromotion?:boolean;
+      manualReview?:{
+        tradingDays?:number;resolvedCycles?:number;candidatePromotionRate?:number|null;afterCostWinRate?:number|null;stress5BpsWinRate?:number|null;profitFactor?:number|null;
+        gates?:{tradingDays?:boolean;resolvedCycles?:boolean;candidatePromotionRate?:boolean;afterCostWinRate?:boolean;stress5BpsWinRate?:boolean;profitFactor?:boolean};
+        readyForManualReview?:boolean;automaticPromotion?:boolean;affectsProduction?:boolean;
+      };
+    };
+  };
 };
 
 function SingleStockResearchView({accountName,stock,quote,marketData,profile,profitMode,position,manualCount,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;profile:string;profitMode:ProfitMode;position:StockPosition;manualCount:number;onOpenConsole:()=>void}) {
