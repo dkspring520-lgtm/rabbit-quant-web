@@ -3302,9 +3302,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     tShareTechnicalLine,
     `信号分布：正T观察 ${tShareBuyObservations} 个｜反T观察 ${tShareSellObservations} 个｜正式动作 ${tShareFormalActions.length} 个`,
     tShareLatestLine,
-    `${tShareLatestFormal?"确认依据":"观察依据"}：${tShareEvidence}`,
-    `策略状态：闭环策略 · ${profile}｜数据质量：${minutePoints.length} 个有效分钟点${isZijinStock?` · ${l2ConsoleStatus.label}`:""}`,
-    "策略研究记录，不构成投资建议；历史结果不代表未来表现。",
+    `${tShareLatestFormal?"确认依据":"复盘结论"}：${tShareEvidence}`,
+    "仅作策略复盘，不构成投资建议；历史结果不代表未来表现。",
     "#做T复盘 #日内观察 #双兔助手",
   ].join("\n");
   const copyTShareText=async()=>{
