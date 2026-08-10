@@ -49,20 +49,23 @@
 }
 
 .minimal-ui .home-hero {
-  grid-template-columns: minmax(0, 760px);
-  min-height: 300px;
-  justify-content: start;
-  gap: 0;
+  grid-template-columns: minmax(360px, .82fr) minmax(520px, 1.18fr);
+  min-height: 440px;
+  gap: clamp(36px, 5vw, 82px);
 }
 
 .minimal-ui .home-copy h1 {
   max-width: 720px;
-  margin: 0 0 20px;
-  font-size: clamp(34px, 4vw, 52px);
+  margin: 12px 0 14px;
+  font-size: 54px;
 }
 
-.minimal-ui .home-actions { margin-top: 0; }
-.minimal-ui .home-strip { margin-top: 12px; }
+.minimal-ui .product-home .eyebrow { display: inline-flex !important; }
+.minimal-ui .product-home .home-copy > p,
+.minimal-ui .product-home .home-terminal { display: block !important; }
+.minimal-ui .product-home .home-trust { display: flex !important; }
+.minimal-ui .product-home .home-actions { margin-top: 28px; }
+.minimal-ui .product-home .home-strip { margin-top: 18px; }
 
 .minimal-ui .home-strip > div,
 .minimal-ui .watch-summary > div,
@@ -71,9 +74,12 @@
   padding-bottom: 12px;
 }
 
-.minimal-ui .home-workflow { margin-top: 30px; }
-.minimal-ui .workflow-grid button { min-height: 126px; }
+.minimal-ui .home-workflow { margin-top: 52px; }
+.minimal-ui .workflow-grid button { min-height: 180px; }
 .minimal-ui .workflow-grid > button > i { margin: 12px 0; }
+.minimal-ui .product-home .workflow-head > p,
+.minimal-ui .product-home .workflow-grid button > p,
+.minimal-ui .product-home .home-widget small { display: block !important; }
 .minimal-ui .module-head,
 .minimal-ui .holdings-head { margin-bottom: 14px; }
 
@@ -141,6 +147,7 @@
 .public-site .public-workflow small { display: none; }
 
 @media (max-width: 900px) {
+  .minimal-ui .home-hero { grid-template-columns: 1fr; min-height: 0; }
   .minimal-ui .training-purpose { grid-template-columns: 1fr; }
   .minimal-ui .training-role-grid { margin-top: 10px; }
 }
@@ -150,7 +157,7 @@
   .minimal-ui .module-view,
   .minimal-ui .holdings-view,
   .minimal-ui .backtest-view { padding: 14px 12px; }
-  .minimal-ui .home-hero { min-height: 0; }
+  .minimal-ui .home-copy h1 { font-size: 38px; }
   .minimal-ui .home-strip,
   .minimal-ui .watch-summary { grid-template-columns: 1fr 1fr; }
   .minimal-ui .workflow-grid button { min-height: 92px; }
