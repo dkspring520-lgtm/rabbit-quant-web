@@ -2262,6 +2262,82 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       label:web4Microstructure.available?`${zijinFundResponse.label} · 微观待持续`:zijinFundResponse.label,
     };
   },[secondLevelSignal,zijinRepair?.status,web4Microstructure.score,web4Microstructure.state,web4Microstructure.label,web4Microstructure.available,web4Microstructure.absorption.side,zijinFundResponse.state,zijinFundResponse.score,zijinFundResponse.label]);
+  const zijinRealtimeFactors=useMemo(()=>{
+    const contextItems=currentContext?.items??[];
+    const findContextItem=(labels:string[])=>labels
+      .map(label=>contextItems.find(item=>item.label===label))
+      .find(Boolean)??null;
+    const contextValue=(item:(typeof contextItems)[number]|null)=>{
+      const change=item?.changePercent;
+      if(change==null||!Number.isFinite(change))return {value:"待数据",detail:item?.label??"数据源待接入",tone:"waiting"};
+      return {
+        value:`${change>0?"+":""}${change.toFixed(2)}%`,
+        detail:item.label,
+        tone:change>.1?"positive":change<-.1?"negative":"neutral",
+      };
+    };
+    const latestMinute=minutePoints.at(-1)??null;
+    const volumeBaseline=minutePoints.slice(-21,-1)
+      .map(point=>Math.max(0,Number(point.volume)||0))
+      .filter(volume=>volume>0);
+    const averageVolume=volumeBaseline.length
+      ?volumeBaseline.reduce((sum,volume)=>sum+volume,0)/volumeBaseline.length
+      :0;
+    const latestVolume=Math.max(0,Number(latestMinute?.volume)||0);
+    const volumeRatio=averageVolume>0&&latestVolume>0?latestVolume/averageVolume:null;
+    const price=Number(activeQuote?.price);
+    const vwap=Number(chartModel?.lastVwap);
+    const vwapBias=Number.isFinite(price)&&price>0&&Number.isFinite(vwap)&&vwap>0
+      ?(price-vwap)/vwap*100
+      :null;
+    const gold=contextValue(findContextItem(["黄金ETF","沪金连续","纽约黄金"]));
+    const copper=contextValue(findContextItem(["沪铜连续","伦铜"]));
+    const hk=contextValue(findContextItem(["港股紫金矿业"]));
+    const sector=contextValue(findContextItem(["有色金属ETF"]));
+    const l2Ready=liveL2HasTicks&&!liveL2Stale;
+    const flowReady=zijinMainForceIntent.available;
+    const items=[
+      {
+        key:"vwap",label:"分时均价",ready:vwapBias!==null,
+        value:vwapBias===null?"待数据":`${vwapBias>=0?"+":""}${vwapBias.toFixed(2)}%`,
+        detail:vwapBias===null?"等待分时与 VWAP":`现价 ¥${price.toFixed(2)} · VWAP ¥${vwap.toFixed(2)}`,
+        tone:vwapBias===null?"waiting":vwapBias>.2?"positive":vwapBias<-.2?"negative":"neutral",
+      },
+      {
+        key:"volume",label:"成交量能",ready:volumeRatio!==null,
+        value:volumeRatio===null?"待数据":`${volumeRatio.toFixed(2)}x`,
+        detail:volumeRatio===null?"等待连续分钟量":"最新分钟 / 前20分钟均量",
+        tone:volumeRatio===null?"waiting":volumeRatio>=1.5?"positive":volumeRatio<.65?"negative":"neutral",
+      },
+      {
+        key:"l2",label:"盘口强度",ready:l2Ready,
+        value:l2Ready?`${Math.round(web4L2Evidence.score)}/100`:"待数据",
+        detail:l2Ready?web4L2Evidence.label:"L2 逐笔或盘口尚未就绪",
+        tone:!l2Ready?"waiting":web4L2Evidence.score>=70?"positive":web4L2Evidence.score<45?"negative":"neutral",
+      },
+      {
+        key:"flow",label:"主动资金",ready:flowReady,
+        value:flowReady?formatMainForceAmount(zijinMainForceTrack.totals.netNotional):"待数据",
+        detail:flowReady?zijinMainForceIntent.label:"等待有效大额主动成交",
+        tone:!flowReady?"waiting":zijinMainForceTrack.totals.netNotional>0?"positive":zijinMainForceTrack.totals.netNotional<0?"negative":"neutral",
+      },
+      {key:"gold",label:"黄金联动",ready:gold.value!=="待数据",...gold},
+      {key:"copper",label:"铜价联动",ready:copper.value!=="待数据",...copper},
+      {
+        key:"hk",label:"港股联动",ready:zijinAhLinkage.available||hk.value!=="待数据",
+        value:hk.value,
+        detail:zijinAhLinkage.available?zijinAhLinkage.label:hk.detail,
+        tone:hk.tone,
+      },
+      {
+        key:"market",label:"市场环境",ready:Boolean(currentContext),
+        value:sector.value!=="待数据"?sector.value:(currentContext?.gate.label??"待数据"),
+        detail:sector.value!=="待数据"?`${sector.detail} · ${currentContext?.gate.label??"环境加载中"}`:(currentContext?.gate.action??"大盘与板块数据待接入"),
+        tone:currentContext?.gate.hardLock||currentContext?.gate.level==="restricted"?"negative":sector.tone,
+      },
+    ];
+    return {items,readyCount:items.filter(item=>item.ready).length,total:items.length};
+  },[activeQuote?.price,chartModel?.lastVwap,currentContext,liveL2HasTicks,liveL2Stale,minutePoints,web4L2Evidence.label,web4L2Evidence.score,zijinAhLinkage.available,zijinAhLinkage.label,zijinMainForceIntent.available,zijinMainForceIntent.label,zijinMainForceTrack.totals.netNotional]);
   const web4Monitor=useMemo(()=>evaluateWeb4RealtimeMonitor({
     symbol:stock?.code,
     now:clockNow?.toISOString()??null,
@@ -3497,6 +3573,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · 闭环过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
           </div>
           <div className="signal-funnel-note"><span>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`盘前影子许可 · ${zijinPreopenGate.predictedDirection??"等待方向"} · ${zijinPreopenGate.confirmationCount}/${zijinPreopenGate.requiredConfirmations} 确认`:(visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察"))}</span><em>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`${zijinPreopenGate.reason} 仅供影子审计，不影响正式 V4、账户或下单。`:(visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒均由内置闭环运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层")}</em></div>
+          {isZijinStock&&<section className={`zijin-factor-engine ${zijinRealtimeFactors.readyCount>=6?"ready":zijinRealtimeFactors.readyCount>=4?"partial":"waiting"}`} aria-label="紫金矿业多因子T引擎实时确认面板">
+            <header><div><span>紫金矿业多因子T引擎</span><b>实时确认层</b></div><strong>{zijinRealtimeFactors.readyCount}<small>/{zijinRealtimeFactors.total}</small></strong></header>
+            <div className="zijin-factor-engine-meter" role="meter" aria-label={`多因子数据完整度 ${zijinRealtimeFactors.readyCount}/${zijinRealtimeFactors.total}`} aria-valuemin={0} aria-valuemax={zijinRealtimeFactors.total} aria-valuenow={zijinRealtimeFactors.readyCount}><i style={{width:`${zijinRealtimeFactors.readyCount/zijinRealtimeFactors.total*100}%`}}/></div>
+            <div className="zijin-factor-engine-grid">{zijinRealtimeFactors.items.map(item=><div key={item.key} className={item.tone} title={item.detail}><span>{item.label}</span><b>{item.value}</b><small>{item.detail}</small></div>)}</div>
+            <footer><span>仅用于候选确认</span><em>不单独生成买卖信号</em></footer>
+          </section>}
           <section className={`next-session-outlook ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} aria-label="下一交易日走势结构预判">
             <header><span>下一交易日预判</span><em>{nextSessionOutlook.stage}</em></header>
             {nextSessionOutlook.ready?<>
