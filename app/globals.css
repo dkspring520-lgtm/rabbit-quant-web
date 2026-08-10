@@ -48,7 +48,7 @@
 
 /* Keep all eight desk destinations in their own layout column. The previous
    flex row let long account names paint an opaque action block over 训练. */
-@media(min-width:1101px){.topbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:22px}.main-nav{width:100%;justify-content:center;overflow:hidden}.top-actions{margin-left:0}.account-button{min-width:0;max-width:164px}.account-button b{min-width:0;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media(min-width:1101px){.topbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:22px}.main-nav{width:100%;justify-content:flex-end;overflow:hidden}.top-actions{margin-left:0}.account-button{min-width:0;max-width:164px}.account-button b{min-width:0;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 @media(max-width:1900px) and (min-width:1101px){.topbar{padding:0 14px;column-gap:14px}.brand-lockup{min-width:205px!important}.main-nav button{padding-left:10px!important;padding-right:10px!important;font-size:13px}.strategy-help{display:none!important}.account-button{max-width:142px}.account-button b{max-width:92px}}
 @media(max-width:1600px) and (min-width:1101px){.auto-off,.clock{display:none!important}.brand-lockup{min-width:188px!important}.main-nav button{padding-left:8px!important;padding-right:8px!important;font-size:12px}.top-actions{gap:7px}.account-button{max-width:118px}.account-button b{max-width:70px}}
 @media(max-width:1320px) and (min-width:1101px){.brand-type small,.market-open{display:none!important}.brand-lockup{min-width:164px!important}.main-nav button{padding-left:6px!important;padding-right:6px!important;font-size:11px}.profile-cycle{min-width:82px}.account-button b,.account-button i{display:none}}
@@ -2071,3 +2071,11 @@
 .t-share-platform-note{margin:0;color:var(--dim);font-size:8px;line-height:1.55}.t-share-message{display:block;padding:9px 10px;border-radius:7px;background:rgba(43,214,190,.08);color:var(--teal);font-size:9px}
 :root[data-theme="light"] .t-share-overlay{background:rgba(25,42,35,.36)}:root[data-theme="light"] .t-share-dialog{background:#f8fbf9;box-shadow:0 28px 70px rgba(25,42,35,.2)}:root[data-theme="light"] .t-share-head{background:rgba(255,255,255,.92)}:root[data-theme="light"] .t-share-copy{background:#fff}
 @media(max-width:760px){.t-share-overlay{padding:0;place-items:stretch}.t-share-dialog{width:100%;max-height:100vh;border-radius:0}.t-share-head{padding:14px 15px}.t-share-head h2{font-size:18px}.t-share-head p{font-size:9px}.t-share-body{grid-template-columns:1fr;gap:14px;padding:14px}.t-share-preview{min-height:0}.t-share-preview>img{max-height:none}.t-share-actions{grid-template-columns:1fr}.t-share-actions button{min-height:44px}}
+@media(max-width:760px) and (orientation:portrait){
+  .minimal-ui .chart-tools{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;row-gap:6px;width:100%}
+  .minimal-ui .chart-tools .primary-chart-legend{grid-column:1/-1;width:100%;overflow:hidden}
+  .minimal-ui .chart-tools .layer-switches{grid-column:1;min-width:0;margin-left:0;overflow-x:auto;scrollbar-width:none}
+  .minimal-ui .chart-tools .layer-switches::-webkit-scrollbar{display:none}
+  .minimal-ui .chart-tools .t-share-trigger{grid-column:2;white-space:nowrap;flex:none}
+  .minimal-ui .chart-tools .t-share-trigger+.tool-button{grid-column:3;white-space:nowrap;flex:none}
+}
