@@ -3408,27 +3408,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {intradayCursor&&(()=>{
                 const tooltipWidth=176;
                 const tooltipHeight=isZijinStock?156:139;
-                const tooltipGap=12;
                 const chartMid=(LIVE_CHART.plotLeft+LIVE_CHART.plotRight)/2;
-                const priceMid=(LIVE_CHART.priceTop+LIVE_CHART.priceBottom)/2;
-                const tooltipX=Math.max(
-                  LIVE_CHART.plotLeft+6,
-                  Math.min(
-                    LIVE_CHART.plotRight-tooltipWidth-6,
-                    intradayCursor.x>chartMid
-                      ? intradayCursor.x-tooltipWidth-tooltipGap
-                      : intradayCursor.x+tooltipGap,
-                  ),
-                );
-                const tooltipY=Math.max(
-                  LIVE_CHART.priceTop+6,
-                  Math.min(
-                    LIVE_CHART.volumeTop-tooltipHeight-6,
-                    intradayCursor.y<priceMid
-                      ? intradayCursor.y+tooltipGap
-                      : intradayCursor.y-tooltipHeight-tooltipGap,
-                  ),
-                );
+                const tooltipX=intradayCursor.x>chartMid
+                  ? LIVE_CHART.plotLeft+6
+                  : LIVE_CHART.plotRight-tooltipWidth-6;
+                const tooltipY=LIVE_CHART.priceTop+6;
                 const axisTimeX=Math.max(LIVE_CHART.plotLeft+24,Math.min(LIVE_CHART.plotRight-24,intradayCursor.x));
                 const axisPriceY=Math.max(LIVE_CHART.priceTop+9,Math.min(LIVE_CHART.priceBottom-9,intradayCursor.y));
                 const change=intradayCursor.changePercent;
