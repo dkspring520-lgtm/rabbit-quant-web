@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "strategyId": "closure-v2-shadow-zijin-reverse-t",
+  "mode": "shadow-only",
+  "affectsProduction": false,
+  "sendsAlerts": false,
+  "symbol": "601899",
+  "frozenAt": "2026-08-09T00:00:00+08:00",
+  "dataCutoff": "2026-08-07",
+  "selectionPartition": "2025",
+  "retrospectivePartition": "2026-01-01/2026-08-07",
+  "direction": "reverse-t",
+  "maxSignalsPerDay": 1,
+  "quantity": 1600,
+  "signal": {
+    "start": "10:01",
+    "end": "11:00",
+    "activeBuyRatioMax": 0.46,
+    "activeBuyConsecutiveMinutes": 3,
+    "largeOrderNetRatioMax": -0.15,
+    "nearTouchImbalanceMax": 0.1,
+    "vwapExtensionMinBps": 55,
+    "momentum3MaxBps": 0,
+    "pullback5MinBps": 7,
+    "micropriceEdgeMaxBps": 2
+  },
+  "regime": {
+    "lookbackSessions": 5,
+    "zijinReturnMin": -0.12,
+    "zijinReturnMax": 0.02,
+    "sectorReturnMin": -0.12,
+    "sectorReturnMax": 0.01,
+    "marketReturnMin": -0.05,
+    "marketReturnMax": 0.015
+  },
+  "execution": {
+    "entryDelayTradingMinutes": 1,
+    "holdTradingMinutes": 50,
+    "sellAgainst": "bid-depth",
+    "buybackAgainst": "ask-depth",
+    "rejectCrossedOrInvalidBook": true,
+    "rejectInsufficientDepth": true
+  },
+  "costs": {
+    "commissionRate": 0.00025,
+    "minimumCommission": 5,
+    "stampTaxRateOnSell": 0.0005,
+    "transferFeeRateReportedSeparately": 0.00001,
+    "stressImpactBpsPerSide": [2, 5]
+  },
+  "abRiskArm": {
+    "id": "sector-crash-veto",
+    "enabledForShadowComparisonOnly": true,
+    "rule": "skip when prior five-session sector return is below -0.08",
+    "warning": "Defined after retrospective inspection; it has no independent validation and must not gate production before forward evidence."
+  },
+  "forwardGate": {
+    "startAfter": "2026-08-09",
+    "minimumTradingDaysForInterimReview": 20,
+    "preferredTradingDaysForPromotionReview": 60,
+    "minimumSignals": 12,
+    "requiredMetrics": [
+      "after-cost-net-positive",
+      "profit-factor-above-1.5",
+      "five-bps-per-side-stress-net-positive",
+      "maximum-drawdown-within-fixed-risk-budget"
+    ],
+    "automaticPromotion": false
+  }
+}

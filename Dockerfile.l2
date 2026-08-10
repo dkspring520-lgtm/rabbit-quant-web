@@ -7,6 +7,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY requirements.l2.txt ./
 RUN pip install --no-cache-dir -r requirements.l2.txt
-COPY scripts/zijin_l2_collector.py scripts/zijin_l2_forward_labels.py scripts/zijin_l2_second_state.py ./scripts/
+COPY scripts/zijin_l2_collector.py scripts/zijin_l2_forward_labels.py scripts/zijin_l2_second_state.py scripts/zijin_closure_v2_reverse_shadow.py scripts/closure-v2-shadow-forward-config-20260809.json ./scripts/
 
 ENTRYPOINT ["python", "scripts/zijin_l2_collector.py"]

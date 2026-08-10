@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 import nats
 import numpy as np
 from zijin_l2_forward_labels import refresh_labels_and_state
+from zijin_closure_v2_reverse_shadow import ZijinClosureV2ReverseShadow
 from zijin_l2_second_state import (
     ForwardMinuteBuffer,
     SecondLevelSignalMachine,
@@ -162,6 +163,8 @@ class Collector:
         self.second_event_path = os.getenv("L2_SECOND_EVENT_PATH", "/training-state/zijin-l2-second-events.jsonl")
         self.forward_label_path = os.getenv("L2_FORWARD_LABEL_PATH", "/training-state/zijin-l2-forward-labels.jsonl")
         self.forward_research_state_path = os.getenv("L2_FORWARD_RESEARCH_STATE_PATH", "/training-state/zijin-opening-l2-shadow.json")
+        self.reverse_shadow_event_path = os.getenv("L2_REVERSE_SHADOW_EVENT_PATH", "/training-state/zijin-closure-v2-reverse-shadow.jsonl")
+        self.reverse_shadow_state_path = os.getenv("L2_REVERSE_SHADOW_STATE_PATH", "/training-state/zijin-closure-v2-reverse-shadow-state.json")
         self.forward_min_samples = int(os.getenv("L2_FORWARD_MIN_SAMPLES", "1200"))
         self.forward_min_days = int(os.getenv("L2_FORWARD_MIN_DAYS", "10"))
         self.forward_min_opening_labels = int(os.getenv("L2_FORWARD_MIN_OPENING_LABELS", "200"))
@@ -207,6 +210,11 @@ class Collector:
         self.forward_label_count = 0
         self.forward_research_status = "collecting-forward-evidence"
         self.forward_minute_buffer = ForwardMinuteBuffer()
+        self.reverse_shadow = ZijinClosureV2ReverseShadow(
+            event_path=self.reverse_shadow_event_path,
+            state_path=self.reverse_shadow_state_path,
+            config_path=os.getenv("L2_REVERSE_SHADOW_CONFIG_PATH") or None,
+        )
         self.load_intraday_flow_state()
         self.load_intraday_flow_forward_fallback()
         self.load_forward_index()
@@ -380,6 +388,14 @@ class Collector:
     @staticmethod
     def cumulative_average_price(cumulative_turnover, cumulative_volume, last_price):
         """Normalize vendor amount/volume units against the observed L2 price."""
+        try:
+            cumulative_turnover = float(cumulative_turnover)
+            cumulative_volume = float(cumulative_volume)
+            last_price = float(last_price)
+        except (TypeError, ValueError):
+            return None
+        if not all(np.isfinite(value) for value in (cumulative_turnover, cumulative_volume, last_price)):
+            return None
         if cumulative_volume <= 0 or cumulative_turnover <= 0 or last_price <= 0:
             return None
         raw = cumulative_turnover / cumulative_volume
@@ -680,6 +696,7 @@ class Collector:
                 "labeledSamples": self.forward_label_count, "researchStatus": self.forward_research_status, "trainingReady": ready,
                 "minimumSamples": self.forward_min_samples, "minimumTradingDays": self.forward_min_days,
                 "reason": "ready-for-delayed-labeling" if ready else "collecting-genuine-forward-l2",
+                "reverseTShadow": self.reverse_shadow.public_status(),
             },
         }
 
@@ -696,6 +713,11 @@ class Collector:
         self.forward_minutes.add(minute)
         self.forward_days.add(minute[:8])
         self.last_forward_minute = minute
+        try:
+            self.reverse_shadow.observe(record)
+        except Exception:
+            # Shadow research must never interrupt the production L2 collector.
+            pass
         self.refresh_forward_research()
 
     def append_forward_sample(self, state):
@@ -714,10 +736,18 @@ class Collector:
         record = {
             "schemaVersion": 3, "symbol": self.symbol, "source": state["source"], "node": state["node"],
             "observedAt": state["updatedAt"], "exchangeMinute": minute, "marketPhase": phase,
-            "lastPrice": state["book"].get("lastPrice"), "flow": state["flow"], "volatility": state["volatility"], "book": {
+            "lastPrice": state["book"].get("lastPrice"),
+            "minuteHigh": (state.get("volatility") or {}).get("currentBar", {}).get("high"),
+            "cumulativeVwap": self.cumulative_average_price(
+                (state.get("session") or {}).get("amount", 0),
+                (state.get("session") or {}).get("volume", 0),
+                state["book"].get("lastPrice"),
+            ),
+            "flow": state["flow"], "volatility": state["volatility"], "book": {
                 key: state["book"].get(key) for key in (
                     "bid1Volume", "ask1Volume", "nearBidVolume", "nearAskVolume",
-                    "nearTouchImbalance", "spreadBps", "microprice", "micropriceEdgeBps"
+                    "nearTouchImbalance", "spreadBps", "microprice", "micropriceEdgeBps",
+                    "bidPrices", "askPrices", "bidVolumes", "askVolumes"
                 )
             },
             "messages": dict(messages), "target": None,
@@ -774,11 +804,17 @@ class Collector:
             atomic_json(self.state_path, state)
             await asyncio.sleep(self.publish_interval)
 
+    async def refresh_reverse_shadow_regime(self):
+        while True:
+            await asyncio.to_thread(self.reverse_shadow.refresh_market_context)
+            await asyncio.sleep(900)
+
     async def run(self):
         async def error_callback(error):
             if "authorization" in str(error).lower(): self.authorization_error = True
         async def disconnected_callback(): self.connected = False
         writer = asyncio.create_task(self.publish_state())
+        reverse_shadow_regime = asyncio.create_task(self.refresh_reverse_shadow_regime())
         node_index = 0
         try:
             while True:
@@ -858,8 +894,11 @@ class Collector:
                 await asyncio.sleep(0.35 if is_live_a_share_session() else 2)
         finally:
             writer.cancel()
+            reverse_shadow_regime.cancel()
             with suppress(asyncio.CancelledError):
                 await writer
+            with suppress(asyncio.CancelledError):
+                await reverse_shadow_regime
 
 if __name__ == "__main__":
     asyncio.run(Collector().run())
