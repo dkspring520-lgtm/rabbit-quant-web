@@ -851,7 +851,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [openedCycleSide,setOpenedCycleSide]=useState<"buy"|"sell"|null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
-  const [activeView, setActiveView] = useState("操盘台");
+  const [activeView, setActiveView] = useState("首页");
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
