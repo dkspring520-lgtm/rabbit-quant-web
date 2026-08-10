@@ -2057,7 +2057,7 @@
 :root[data-theme="light"] .zijin-factor-engine{background:var(--surface);box-shadow:0 3px 10px rgba(25,42,35,.05)}
 
 /* Intraday review share card. Keep all selectors isolated from desk layout. */
-.t-share-trigger{border-color:color-mix(in srgb,var(--teal) 48%,var(--line))!important;color:var(--teal)!important}
+.t-share-trigger{height:30px!important;padding:0 9px!important;border-color:color-mix(in srgb,var(--teal) 48%,var(--line))!important;color:var(--teal)!important;font-family:"Microsoft YaHei UI","PingFang SC",system-ui,sans-serif;font-size:10px!important;font-weight:600;line-height:1;letter-spacing:0}
 .t-share-overlay{position:fixed;inset:0;z-index:240;display:grid;place-items:center;padding:22px;background:rgba(2,7,6,.78);backdrop-filter:blur(12px)}
 .t-share-dialog{width:min(1020px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;border:1px solid color-mix(in srgb,var(--teal) 34%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--surface) 97%,#06110f);box-shadow:0 30px 80px rgba(0,0,0,.44)}
 .t-share-head{position:sticky;top:0;z-index:2;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:18px 20px;border-bottom:1px solid var(--line-soft);background:color-mix(in srgb,var(--surface) 95%,transparent);backdrop-filter:blur(16px)}
