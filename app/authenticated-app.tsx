@@ -2333,7 +2333,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return {items,readyCount:items.filter(item=>item.ready).length,total:items.length};
   },[activeQuote?.price,chartModel?.lastVwap,currentContext,liveL2HasTicks,liveL2Stale,minutePoints,web4L2Evidence.label,web4L2Evidence.score,zijinAhLinkage.available,zijinAhLinkage.label,zijinMainForceIntent.available,zijinMainForceIntent.label,zijinMainForceTrack.totals.netNotional]);
   const zijinShadowV2Progress=useMemo(()=>{
-    const review=liveL2Status?.forward?.reverseTShadow?.manualReview;
+    const shadow=liveL2Status?.forward?.reverseTShadow;
+    const review=shadow?.manualReview;
     const gates=review?.gates;
     const gateValues=[
       gates?.tradingDays,
@@ -2352,9 +2353,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       :promotionRate<=.4
         ?Math.min(1,promotionRate/.3)
         :Math.max(0,1-(promotionRate-.4)/.6);
+    const tradingDays=Math.max(0,Number(review?.tradingDays??liveL2Status?.forward?.tradingDays)||0);
+    const resolvedCycles=Math.max(0,Number(review?.resolvedCycles??shadow?.counts?.resolved)||0);
     const evidenceProgress=[
-      ratio(review?.tradingDays,60),
-      ratio(review?.resolvedCycles,100),
+      ratio(tradingDays,60),
+      ratio(resolvedCycles,100),
       promotionProgress,
       ratio(review?.afterCostWinRate,.55),
       ratio(review?.stress5BpsWinRate,.55),
@@ -2362,14 +2365,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
     const measured=Math.round(evidenceProgress.reduce((sum,value)=>sum+value,0)/evidenceProgress.length*100);
     return {
-      available:Boolean(review),
+      available:Boolean(shadow),
       ready,
       passed,
       progress:ready?100:Math.min(99,measured),
-      tradingDays:Math.max(0,Number(review?.tradingDays)||0),
-      resolvedCycles:Math.max(0,Number(review?.resolvedCycles)||0),
+      tradingDays,
+      resolvedCycles,
     };
-  },[liveL2Status?.forward?.reverseTShadow?.manualReview]);
+  },[liveL2Status?.forward?.reverseTShadow,liveL2Status?.forward?.tradingDays]);
   const web4Monitor=useMemo(()=>evaluateWeb4RealtimeMonitor({
     symbol:stock?.code,
     now:clockNow?.toISOString()??null,
@@ -4276,6 +4279,7 @@ type ZijinL2State = {
     samples?:number;tradingDays?:number;trainingReady?:boolean;reason?:string;
     reverseTShadow?:{
       strategyId?:string;displayName?:string;mode?:string;affectsProduction?:boolean;automaticPromotion?:boolean;
+      counts?:{candidates?:number;entries?:number;resolved?:number;wins?:number;rejected?:number};
       manualReview?:{
         tradingDays?:number;resolvedCycles?:number;candidatePromotionRate?:number|null;afterCostWinRate?:number|null;stress5BpsWinRate?:number|null;profitFactor?:number|null;
         gates?:{tradingDays?:boolean;resolvedCycles?:boolean;candidatePromotionRate?:boolean;afterCostWinRate?:boolean;stress5BpsWinRate?:boolean;profitFactor?:boolean};
