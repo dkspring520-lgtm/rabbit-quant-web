@@ -928,6 +928,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const workspaceRef = useRef<HTMLElement | null>(null);
   const intradayChartRef = useRef<SVGSVGElement | null>(null);
   const [intradayCursorTime,setIntradayCursorTime]=useState<string|null>(null);
+  const [tShareOpen,setTShareOpen]=useState(false);
+  const [tShareQrEnabled,setTShareQrEnabled]=useState(true);
+  const [tShareBusy,setTShareBusy]=useState(false);
+  const [tShareImage,setTShareImage]=useState("");
+  const [tShareMessage,setTShareMessage]=useState("");
   useEffect(()=>{
     try{localStorage.setItem("rabbit-chart-tracker-visible",String(rabbitTrackerVisible))}catch{}
   },[rabbitTrackerVisible]);
@@ -3232,6 +3237,271 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     try{localStorage.setItem(ledgerStorageKey,JSON.stringify(normalized));}catch{}
   };
 
+  const tShareFormalActions=(liveEngine.actions??[]) as ReplayAction[];
+  const tShareHasClosedCycle=cycleStage==="closed"||tradeLedgerSummary.validCount>=2;
+  const tShareTitle=tShareHasClosedCycle?"今日做T复盘":"今日观察";
+  const tShareStatus=tShareHasClosedCycle
+    ? "闭环完成"
+    : cycleStage==="opened"
+      ? "等待配对"
+      : tShareFormalActions.length
+        ? "正式信号已记录"
+        : "暂无正式信号";
+  const tShareCopy=[
+    `${activeQuote?.name||stock.name}（${stock.code}）· ${activeChartDate||"今日"}`,
+    `${tShareTitle}｜${tShareStatus}`,
+    tShareFormalActions.length
+      ? `正式信号：${tShareFormalActions.slice(-4).map(action=>`${action.time.slice(0,2)}:${action.time.slice(2,4)} ${action.side} ¥${action.price.toFixed(2)}`).join("；")}`
+      : "正式信号：今日尚未形成，候选点仅作观察。",
+    `策略状态：闭环策略 · ${profile}｜数据：${minutePoints.length} 个有效分钟点${isZijinStock?` · ${l2ConsoleStatus.label}`:""}`,
+    "策略研究记录，不构成投资建议；历史结果不代表未来表现。",
+    "#做T复盘 #日内观察 #双兔助手",
+  ].join("\n");
+  const copyTShareText=async()=>{
+    let copied=false;
+    try{
+      if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(tShareCopy);copied=true;}
+    }catch{}
+    if(!copied){
+      const textarea=document.createElement("textarea");
+      textarea.value=tShareCopy;
+      textarea.setAttribute("readonly","");
+      textarea.style.position="fixed";
+      textarea.style.opacity="0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try{copied=document.execCommand("copy");}catch{}
+      textarea.remove();
+    }
+    setTShareMessage(copied?"分享文案已复制":"复制失败，请手动选择文案");
+    return copied;
+  };
+  const downloadTShare=()=>{
+    if(!tShareImage)return;
+    const anchor=document.createElement("a");
+    anchor.href=tShareImage;
+    anchor.download=`${activeQuote?.name||stock.name}-${activeChartDate||"今日"}-做T复盘.png`;
+    anchor.click();
+    setTShareMessage("分享图已保存");
+  };
+  const generateTShareCard=async(qrEnabled=tShareQrEnabled)=>{
+    setTShareBusy(true);
+    setTShareMessage("");
+    try{
+      const canvas=document.createElement("canvas");
+      canvas.width=1080;
+      canvas.height=1440;
+      const ctx=canvas.getContext("2d");
+      if(!ctx)throw new Error("canvas unavailable");
+      const wrapText=(text:string,x:number,y:number,maxWidth:number,lineHeight:number,maxLines=2)=>{
+        let line="";
+        let lineIndex=0;
+        for(const char of text){
+          const next=line+char;
+          if(line&&ctx.measureText(next).width>maxWidth){
+            ctx.fillText(line,x,y+lineIndex*lineHeight);
+            line=char;
+            lineIndex+=1;
+            if(lineIndex>=maxLines)return;
+          }else line=next;
+        }
+        if(lineIndex<maxLines)ctx.fillText(line,x,y+lineIndex*lineHeight);
+      };
+      const loadImage=(src:string)=>new Promise<HTMLImageElement>((resolve,reject)=>{
+        const image=new window.Image();
+        image.onload=()=>resolve(image);
+        image.onerror=reject;
+        image.src=src;
+      });
+
+      ctx.fillStyle="#07110f";
+      ctx.fillRect(0,0,1080,1440);
+      const glow=ctx.createRadialGradient(890,70,10,770,220,640);
+      glow.addColorStop(0,"rgba(43,214,190,.18)");
+      glow.addColorStop(1,"rgba(43,214,190,0)");
+      ctx.fillStyle=glow;
+      ctx.fillRect(0,0,1080,620);
+      ctx.strokeStyle="rgba(211,178,103,.34)";
+      ctx.lineWidth=2;
+      ctx.strokeRect(42,42,996,1356);
+      ctx.strokeStyle="rgba(211,178,103,.1)";
+      ctx.strokeRect(58,58,964,1324);
+
+      try{
+        const logo=await loadImage(`${window.location.origin}/rabbit-logo-compact.png`);
+        ctx.drawImage(logo,82,78,74,74);
+      }catch{}
+      ctx.fillStyle="#e8cf93";
+      ctx.font='700 25px "Microsoft YaHei",sans-serif';
+      ctx.fillText("双兔助手 · 做T神器",176,108);
+      ctx.fillStyle="#668077";
+      ctx.font='17px "Microsoft YaHei",sans-serif';
+      ctx.fillText("RABBIT SMART-T · INTRADAY REVIEW",176,140);
+      ctx.textAlign="right";
+      ctx.fillStyle="#779087";
+      ctx.font='20px "Microsoft YaHei",sans-serif';
+      ctx.fillText(activeChartDate||"今日",988,110);
+      ctx.textAlign="left";
+
+      ctx.fillStyle="#f2f4ef";
+      ctx.font='800 68px "Microsoft YaHei",sans-serif';
+      ctx.fillText(tShareTitle,82,252);
+      ctx.fillStyle="#9eb0aa";
+      ctx.font='24px "Microsoft YaHei",sans-serif';
+      ctx.fillText(`${activeQuote?.name||stock.name}  ${stock.code}`,84,302);
+      ctx.fillStyle=tShareHasClosedCycle?"#28d7c4":tShareFormalActions.length?"#e5bd69":"#8b9994";
+      ctx.font='700 24px "Microsoft YaHei",sans-serif';
+      ctx.fillText(tShareStatus,790,264);
+      ctx.fillStyle="#667a73";
+      ctx.font='17px "Microsoft YaHei",sans-serif';
+      ctx.fillText(`${tShareFormalActions.length} 个正式动作 · 候选点不计入`,790,297);
+
+      const chartLeft=84;
+      const chartTop=356;
+      const chartWidth=912;
+      const chartHeight=430;
+      ctx.fillStyle="rgba(255,255,255,.025)";
+      ctx.fillRect(chartLeft,chartTop,chartWidth,chartHeight);
+      ctx.strokeStyle="rgba(128,155,145,.2)";
+      ctx.strokeRect(chartLeft,chartTop,chartWidth,chartHeight);
+      ctx.setLineDash([5,9]);
+      ctx.lineWidth=1;
+      for(let index=1;index<4;index+=1){
+        const y=chartTop+chartHeight*index/4;
+        ctx.beginPath();ctx.moveTo(chartLeft,y);ctx.lineTo(chartLeft+chartWidth,y);ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      const prices=minutePoints.map(point=>Number(point.price)).filter(price=>Number.isFinite(price)&&price>0);
+      const chartMin=prices.length?Math.min(...prices):0;
+      const chartMax=prices.length?Math.max(...prices):1;
+      const chartRange=Math.max(chartMax-chartMin,.01);
+      const shareX=(time:string)=>chartLeft+(liveChartX(time)-LIVE_CHART.plotLeft)/(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)*chartWidth;
+      const shareY=(price:number)=>chartTop+34+(chartMax-price)/chartRange*(chartHeight-68);
+      if(minutePoints.length>1){
+        ctx.beginPath();
+        minutePoints.forEach((point,index)=>{
+          const x=shareX(point.time);
+          const y=shareY(point.price);
+          if(index===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+        });
+        ctx.strokeStyle="#f3f4ee";
+        ctx.lineWidth=4;
+        ctx.lineJoin="round";
+        ctx.lineCap="round";
+        ctx.stroke();
+      }
+      ctx.fillStyle="#698078";
+      ctx.font='16px "Microsoft YaHei",sans-serif';
+      ctx.fillText(chartMax?`¥${chartMax.toFixed(2)}`:"--",chartLeft+12,chartTop+27);
+      ctx.fillText(chartMin?`¥${chartMin.toFixed(2)}`:"--",chartLeft+12,chartTop+chartHeight-12);
+      ctx.textAlign="right";
+      ctx.fillText("09:30",chartLeft+52,chartTop+chartHeight-12);
+      ctx.fillText("15:00",chartLeft+chartWidth-14,chartTop+chartHeight-12);
+      ctx.textAlign="left";
+
+      tShareFormalActions.forEach((action,index)=>{
+        const x=shareX(action.time);
+        const y=shareY(action.price);
+        const sell=action.side==="卖出";
+        const labelY=sell?Math.max(chartTop+28,y-58):Math.min(chartTop+chartHeight-32,y+58);
+        ctx.setLineDash([8,8]);
+        ctx.strokeStyle=sell?"rgba(255,102,97,.78)":"rgba(43,214,190,.78)";
+        ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,labelY);ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);
+        ctx.fillStyle=sell?"#ff6661":"#2bd6be";
+        ctx.fill();
+        ctx.fillStyle="#07110f";
+        ctx.font='800 14px "Microsoft YaHei",sans-serif';
+        ctx.textAlign="center";
+        ctx.fillText(sell?"卖":"买",x,y+5);
+        ctx.fillStyle=sell?"#ff8d89":"#69e6d5";
+        ctx.font='700 16px "Microsoft YaHei",sans-serif';
+        ctx.fillText(`${action.time.slice(0,2)}:${action.time.slice(2,4)} ¥${action.price.toFixed(2)}`,Math.max(chartLeft+82,Math.min(chartLeft+chartWidth-82,x)),labelY+(sell?-8:20));
+        ctx.textAlign="left";
+        void index;
+      });
+
+      ctx.fillStyle="#789087";
+      ctx.font='18px "Microsoft YaHei",sans-serif';
+      ctx.fillText("正式信号解释",84,850);
+      const explanations=tShareFormalActions.length?tShareFormalActions.slice(-4):[];
+      if(explanations.length){
+        explanations.forEach((action,index)=>{
+          const y=900+index*72;
+          const sell=action.side==="卖出";
+          ctx.fillStyle=sell?"#ff7772":"#43dbc8";
+          ctx.font='700 21px "Microsoft YaHei",sans-serif';
+          ctx.fillText(`${action.side} · ${action.time.slice(0,2)}:${action.time.slice(2,4)} · ¥${action.price.toFixed(2)}`,84,y);
+          ctx.fillStyle="#91a39d";
+          ctx.font='17px "Microsoft YaHei",sans-serif';
+          wrapText(action.reason||"正式闭环过滤已通过，等待人工核对价格与仓位。",84,y+30,740,26,1);
+        });
+      }else{
+        ctx.fillStyle="#a4b1ac";
+        ctx.font='24px "Microsoft YaHei",sans-serif';
+        ctx.fillText("今日尚未形成正式买卖点",84,914);
+        ctx.fillStyle="#6f817a";
+        ctx.font='18px "Microsoft YaHei",sans-serif';
+        ctx.fillText("候选提示仅用于观察，不作为本卡片的正式成交记录。",84,950);
+      }
+
+      const statusTop=1190;
+      ctx.strokeStyle="rgba(128,155,145,.2)";
+      ctx.beginPath();ctx.moveTo(84,statusTop-34);ctx.lineTo(996,statusTop-34);ctx.stroke();
+      const statusItems=[
+        ["闭环状态",tShareStatus],
+        ["策略状态",`闭环策略 · ${profile}`],
+        ["数据状态",`${minutePoints.length} 分钟点${isZijinStock?` · ${l2ConsoleStatus.label}`:""}`],
+      ];
+      statusItems.forEach(([label,value],index)=>{
+        const y=statusTop+index*46;
+        ctx.fillStyle="#60756d";ctx.font='17px "Microsoft YaHei",sans-serif';ctx.fillText(label,84,y);
+        ctx.fillStyle="#d8dfda";ctx.font='700 19px "Microsoft YaHei",sans-serif';ctx.fillText(value,196,y);
+      });
+
+      if(qrEnabled){
+        try{
+          const {default:QRCode}=await import("qrcode/lib/browser.js");
+          const qrSource=await QRCode.toDataURL(window.location.origin,{width:320,margin:2,errorCorrectionLevel:"H",color:{dark:"#10231d",light:"#f4f2e9"}});
+          const qrImage=await loadImage(qrSource);
+          ctx.fillStyle="#f4f2e9";ctx.fillRect(820,1190,150,150);ctx.drawImage(qrImage,830,1200,130,130);
+          ctx.fillStyle="#70857d";ctx.font='15px "Microsoft YaHei",sans-serif';ctx.textAlign="center";ctx.fillText("扫码查看双兔助手",895,1361);ctx.textAlign="left";
+        }catch{}
+      }
+      ctx.fillStyle="#5f746c";
+      ctx.font='16px "Microsoft YaHei",sans-serif';
+      ctx.fillText("策略研究记录，不构成投资建议；历史结果不代表未来表现。",84,1364);
+      setTShareImage(canvas.toDataURL("image/png"));
+    }catch{
+      setTShareMessage("分享图生成失败，请刷新后重试");
+    }finally{
+      setTShareBusy(false);
+    }
+  };
+  const openTShare=()=>{
+    setTShareOpen(true);
+    void generateTShareCard(tShareQrEnabled);
+  };
+  const systemTShare=async()=>{
+    if(!tShareImage)return;
+    try{
+      const blob=await (await window.fetch(tShareImage)).blob();
+      const file=new File([blob],`${activeQuote?.name||stock.name}-做T复盘.png`,{type:"image/png"});
+      if(navigator.share&&navigator.canShare?.({files:[file]})){
+        await navigator.share({title:`${activeQuote?.name||stock.name} ${tShareTitle}`,text:tShareCopy,files:[file]});
+        setTShareMessage("已打开系统分享面板");
+      }else{
+        downloadTShare();
+        await copyTShareText();
+        setTShareMessage("浏览器不支持图片直分享，已保存图片并复制文案");
+      }
+    }catch(error){
+      if((error as Error).name!=="AbortError")setTShareMessage("分享未完成，可先保存图片并复制文案");
+    }
+  };
+
   const handleCycleAction=()=>{
     if(cycleStage==="ready"){
       if(decisionModel.status!=="ready"||!decisionActionSide||!latestFormalActionMarked)return;
@@ -3383,7 +3653,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
-             <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏中文信号提示" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button><button title="一键隐藏均价、信号、区间和成交量辅助层" className={!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible?"active minimal-layer-toggle":"minimal-layer-toggle"} onClick={()=>{const restore=!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible;setIndicatorsVisible(restore);setSignalLayerVisible(restore);setPricePlanLayerVisible(restore);setVolumeLayerVisible(restore)}}>简洁</button></div><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
+             <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏中文信号提示" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button><button title="一键隐藏均价、信号、区间和成交量辅助层" className={!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible?"active minimal-layer-toggle":"minimal-layer-toggle"} onClick={()=>{const restore=!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible;setIndicatorsVisible(restore);setSignalLayerVisible(restore);setPricePlanLayerVisible(restore);setVolumeLayerVisible(restore)}}>简洁</button></div><button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日做T复盘分享图">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
           <div className="chart-wrap">
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
@@ -3821,6 +4091,22 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       {memberAdminOpen&&<MemberAdminView onClose={()=>setMemberAdminOpen(false)}/>}
       {alertLogOpen&&premiumEnabled&&<AlertLogView stocks={stockList} activeCode={stock.code} localHistory={alertHistory} onClose={()=>setAlertLogOpen(false)}/>}
       {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole,accountMembership?.active===true,accountMembership?.planId);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
+      {tShareOpen&&<div className="t-share-overlay" role="dialog" aria-modal="true" aria-label="今日做T复盘分享" onMouseDown={event=>{if(event.target===event.currentTarget)setTShareOpen(false)}}>
+        <section className="t-share-dialog">
+          <header className="t-share-head"><div><span>RABBIT SMART-T · SHARE</span><h2>{tShareTitle}</h2><p>只展示正式闭环动作，候选观察点不会冒充买卖信号。</p></div><button type="button" onClick={()=>setTShareOpen(false)} aria-label="关闭分享卡">×</button></header>
+          <div className="t-share-body">
+            <div className={`t-share-preview ${tShareBusy?"loading":""}`}>{tShareImage?<Image src={tShareImage} alt={`${activeQuote?.name||stock.name}${tShareTitle}分享图预览`} width={540} height={720} unoptimized/>:<span>{tShareBusy?"正在生成分享图…":"暂无预览"}</span>}</div>
+            <aside className="t-share-controls">
+              <div className="t-share-summary"><span>{activeQuote?.name||stock.name} · {stock.code}</span><b>{tShareStatus}</b><small>{tShareFormalActions.length} 个正式动作 · {minutePoints.length} 个有效分钟点</small></div>
+              <label className="t-share-qr"><span><b>附带官网二维码</b><small>二维码只跳转公开官网，不包含账户信息</small></span><input type="checkbox" checked={tShareQrEnabled} onChange={event=>{const checked=event.target.checked;setTShareQrEnabled(checked);void generateTShareCard(checked)}}/></label>
+              <textarea className="t-share-copy" value={tShareCopy} readOnly aria-label="分享文案"/>
+              <div className="t-share-actions"><button type="button" className="primary" disabled={!tShareImage||tShareBusy} onClick={()=>void systemTShare()}>系统分享</button><button type="button" disabled={!tShareImage||tShareBusy} onClick={downloadTShare}>保存图片</button><button type="button" onClick={()=>void copyTShareText()}>复制文案</button></div>
+              <p className="t-share-platform-note">抖音、小红书、雪球需在对应平台内自行发布；网页不会代替用户自动发帖。</p>
+              {tShareMessage&&<output className="t-share-message">{tShareMessage}</output>}
+            </aside>
+          </div>
+        </section>
+      </div>}
 
       <footer className="trade-footer"><span><i className="online"/>策略研究工具 · 非交易级</span><ReleaseVersion/></footer>
     </main>
