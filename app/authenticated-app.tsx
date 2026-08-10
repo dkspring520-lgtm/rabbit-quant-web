@@ -3249,6 +3249,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         label:compactIntradayPrompt(marker.currentLabel,"候选观察"),
         isSell:marker.isSell,
         qualified:marker.qualified,
+        reason:marker.observation.reason,
       })),
       ...intradayMarkerLayout.rabbitCandidates.map(marker=>({
         time:marker.time,
@@ -3256,6 +3257,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         label:compactIntradayPrompt(marker.label,"候选观察"),
         isSell:marker.isSell,
         qualified:false,
+        reason:"",
       })),
     ].flatMap(signal=>{
       const minute=minutePoints.find(point=>point.time===signal.time);
@@ -3275,14 +3277,33 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       : tShareFormalActions.length
         ? "正式信号已记录"
         : "暂无正式信号";
+  const tSharePrice=Number(minutePoints.at(-1)?.price??activeQuote?.price);
+  const tShareVwap=Number(chartModel?.lastVwap);
+  const tShareVwapBias=Number.isFinite(tSharePrice)&&tSharePrice>0&&Number.isFinite(tShareVwap)&&tShareVwap>0
+    ?(tSharePrice-tShareVwap)/tShareVwap*100
+    :null;
+  const tShareBuyObservations=tShareObservationSignals.filter(signal=>!signal.isSell).length;
+  const tShareSellObservations=tShareObservationSignals.length-tShareBuyObservations;
+  const tShareLatestFormal=tShareFormalActions.at(-1)??null;
+  const tShareLatestObservation=[...tShareObservationSignals].sort((left,right)=>left.time.localeCompare(right.time)).at(-1)??null;
+  const formatTShareTime=(time:string)=>/^\d{4}$/.test(time)?`${time.slice(0,2)}:${time.slice(2,4)}`:time;
+  const tShareTechnicalLine=tShareVwapBias===null
+    ? "技术结构：现价或 VWAP 数据不足，暂不判定分时位置。"
+    : `技术结构：现价 ¥${tSharePrice.toFixed(2)}｜VWAP ¥${tShareVwap.toFixed(2)}｜偏离 ${tShareVwapBias>=0?"+":""}${tShareVwapBias.toFixed(2)}%`;
+  const tShareLatestLine=tShareLatestFormal
+    ? `最新确认：${formatTShareTime(tShareLatestFormal.time)} ${tShareLatestFormal.direction??"闭环"}${tShareLatestFormal.side}，¥${tShareLatestFormal.price.toFixed(2)}`
+    : tShareLatestObservation
+      ? `最新观察：${formatTShareTime(tShareLatestObservation.time)} ${tShareLatestObservation.label}，¥${tShareLatestObservation.price.toFixed(2)}`
+      : "最新观察：今日暂无有效信号点。";
+  const tShareEvidence=tShareLatestFormal?.reason||tShareLatestObservation?.reason||"候选尚未通过成本、趋势、量价与风控联合校验。";
   const tShareCopy=[
     `${activeQuote?.name||stock.name}（${stock.code}）· ${activeChartDate||"今日"}`,
     `${tShareTitle}｜${tShareStatus}`,
-    tShareFormalActions.length
-      ? `正式信号：${tShareFormalActions.slice(-4).map(action=>`${action.time.slice(0,2)}:${action.time.slice(2,4)} ${action.side} ¥${action.price.toFixed(2)}`).join("；")}`
-      : "正式信号：今日尚未形成，候选点仅作观察。",
-    `观察信号：${tShareObservationSignals.length} 个，已用空心点标记于日内图，仅作观察。`,
-    `策略状态：闭环策略 · ${profile}｜数据：${minutePoints.length} 个有效分钟点${isZijinStock?` · ${l2ConsoleStatus.label}`:""}`,
+    tShareTechnicalLine,
+    `信号分布：正T观察 ${tShareBuyObservations} 个｜反T观察 ${tShareSellObservations} 个｜正式动作 ${tShareFormalActions.length} 个`,
+    tShareLatestLine,
+    `${tShareLatestFormal?"确认依据":"观察依据"}：${tShareEvidence}`,
+    `策略状态：闭环策略 · ${profile}｜数据质量：${minutePoints.length} 个有效分钟点${isZijinStock?` · ${l2ConsoleStatus.label}`:""}`,
     "策略研究记录，不构成投资建议；历史结果不代表未来表现。",
     "#做T复盘 #日内观察 #双兔助手",
   ].join("\n");
