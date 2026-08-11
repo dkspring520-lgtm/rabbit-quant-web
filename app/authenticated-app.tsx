@@ -1855,9 +1855,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(
     ()=>{
-      const latestTime=minutePoints.at(-1)?.time;
-      const eligible=positiveTBlockedByFlow&&latestTime
-        ? currentObservations.filter(observation=>observation.direction!=="正T"||!isRecentCausalEvent(latestTime,observation.time,3))
+      const eligible=positiveTBlockedByFlow
+        ? currentObservations.filter(observation=>observation.direction!=="正T")
         : currentObservations;
       return compactChartObservations(eligible,isZijinStock?45:30,{mergeRepairPhases:isZijinStock}) as ReplayObservation[];
     },
@@ -2344,7 +2343,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return {items,readyCount:items.filter(item=>item.ready).length,total:items.length};
   },[activeQuote?.price,chartModel?.lastVwap,currentContext,liveL2HasTicks,liveL2Stale,minutePoints,web4L2Evidence.label,web4L2Evidence.score,zijinAhLinkage.available,zijinAhLinkage.label,zijinMainForceIntent.available,zijinMainForceIntent.label,zijinMainForceTrack.totals.netNotional]);
   const zijinShadowV2Progress=useMemo(()=>{
-    const shadow=liveL2Status?.forward?.reverseTShadow;
+    const shadow=liveL2Status?.forward?.multiFactorTShadow??liveL2Status?.forward?.reverseTShadow;
     const review=shadow?.manualReview;
     const gates=review?.gates;
     const gateValues=[
@@ -2364,7 +2363,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       :promotionRate<=.4
         ?Math.min(1,promotionRate/.3)
         :Math.max(0,1-(promotionRate-.4)/.6);
-    const tradingDays=Math.max(0,Number(review?.tradingDays??liveL2Status?.forward?.tradingDays)||0);
+    const tradingDays=Math.max(0,Number(review?.tradingDays)||0);
     const resolvedCycles=Math.max(0,Number(review?.resolvedCycles??shadow?.counts?.resolved)||0);
     const evidenceProgress=[
       ratio(tradingDays,60),
@@ -2383,7 +2382,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       tradingDays,
       resolvedCycles,
     };
-  },[liveL2Status?.forward?.reverseTShadow,liveL2Status?.forward?.tradingDays]);
+  },[liveL2Status?.forward?.multiFactorTShadow,liveL2Status?.forward?.reverseTShadow]);
   const web4Monitor=useMemo(()=>evaluateWeb4RealtimeMonitor({
     symbol:stock?.code,
     now:clockNow?.toISOString()??null,
@@ -3718,7 +3717,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <div className="opening-assessment"><span>开盘状态</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {openingAssessment.confirmation}</small></div>
         </div>
         <div className="quote-metrics">
-          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{isZijinStock&&liveL2PriceUsable ? "L2 主源" : currentTrial ? "1 秒试用" : currentMarket ? "公开兜底" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? isZijinStock ? `${minutePoints.length} 点 · L2 ${l2CalculationCoverage}` : `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
+          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{isZijinStock&&liveL2PriceUsable ? "L2 主源" : currentTrial ? "1 秒试用" : currentMarket ? "公开兜底" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? isZijinStock ? `${minutePoints.length} 点 · 盘口 ${l2CalculationCoverage} · 资金 ${zijinMainForceTrack.bars.length}` : `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
         </div>
         <div className={`next-session-header ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} role="status" aria-label="下一交易日预判" title={nextSessionOutlook.ready?`${nextSessionOutlook.stage}：${nextSessionOutlook.failure}`:nextSessionOutlook.detail}>
           <span>明日预判</span>
@@ -4625,6 +4624,15 @@ const EXTERNAL_FACTOR_PLAIN_COPY:Record<string,string>={
 };
 type AutoResearchSample = { date:string; cycles:number; wins:number; net:number; status:string };
 type ZijinResearchBundle = typeof import("@/lib/zijin-research-bundle")["zijinResearchBundle"];
+type ZijinShadowProgressStatus = {
+  strategyId?:string;displayName?:string;mode?:string;affectsProduction?:boolean;automaticPromotion?:boolean;
+  counts?:{candidates?:number;entries?:number;resolved?:number;wins?:number;rejected?:number};
+  manualReview?:{
+    tradingDays?:number;resolvedCycles?:number;candidatePromotionRate?:number|null;afterCostWinRate?:number|null;stress5BpsWinRate?:number|null;profitFactor?:number|null;
+    gates?:{tradingDays?:boolean;resolvedCycles?:boolean;candidatePromotionRate?:boolean;afterCostWinRate?:boolean;stress5BpsWinRate?:boolean;profitFactor?:boolean};
+    readyForManualReview?:boolean;automaticPromotion?:boolean;affectsProduction?:boolean;
+  };
+};
 type ZijinL2State = {
   node?:string; error?:string; lastExchangeTime?:string;
   status?:{connected?:boolean;transportConnected?:boolean;authorized?:boolean;collectorAlive?:boolean;collectorStale?:boolean;heartbeatAgeSeconds?:number|null;feedAgeSeconds?:number|null;stale?:boolean;ageSeconds?:number};
@@ -4658,15 +4666,8 @@ type ZijinL2State = {
   };
   forward?:{
     samples?:number;tradingDays?:number;trainingReady?:boolean;reason?:string;
-    reverseTShadow?:{
-      strategyId?:string;displayName?:string;mode?:string;affectsProduction?:boolean;automaticPromotion?:boolean;
-      counts?:{candidates?:number;entries?:number;resolved?:number;wins?:number;rejected?:number};
-      manualReview?:{
-        tradingDays?:number;resolvedCycles?:number;candidatePromotionRate?:number|null;afterCostWinRate?:number|null;stress5BpsWinRate?:number|null;profitFactor?:number|null;
-        gates?:{tradingDays?:boolean;resolvedCycles?:boolean;candidatePromotionRate?:boolean;afterCostWinRate?:boolean;stress5BpsWinRate?:boolean;profitFactor?:boolean};
-        readyForManualReview?:boolean;automaticPromotion?:boolean;affectsProduction?:boolean;
-      };
-    };
+    reverseTShadow?:ZijinShadowProgressStatus;
+    multiFactorTShadow?:ZijinShadowProgressStatus;
   };
 };
 

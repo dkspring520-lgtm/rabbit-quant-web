@@ -1152,7 +1152,6 @@ class ZijinClosureV2ReverseShadow:
                     self._reject_pending(minute, "trading-date-ended")
                 self.minutes.clear()
             self.current_date = date
-            self.observed_dates.add(date)
             self.last_minute = minute
 
             event = self._advance_pending(record)
@@ -1162,6 +1161,10 @@ class ZijinClosureV2ReverseShadow:
             if features is None:
                 self._save()
                 return event
+            if features["consecutiveValidL2Minutes"] >= int(
+                self.config["l2Quality"]["minimumConsecutiveValidMinutes"]
+            ):
+                self.observed_dates.add(date)
 
             def rounded(value: Any) -> Any:
                 if isinstance(value, list):
