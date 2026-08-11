@@ -37,6 +37,9 @@ test("production compose and image expose commit-aware health", () => {
   assert.match(dockerfile, /APP_BUILD_TIME/);
   assert.match(dockerfile, /HEALTHCHECK/);
   assert.match(route, /APP_COMMIT_SHA/);
+  assert.match(route, /APP_RELEASE_STATE_PATH/);
+  assert.match(route, /releaseShortCommit/);
+  assert.match(route, /process\.getBuiltinModule\?\.\("fs"\)/);
   assert.match(route, /cache-control/);
 });
 
@@ -47,9 +50,21 @@ test("the site footer displays and refreshes the deployed version", () => {
   assert.match(page, /function ReleaseVersion\(\)/);
   assert.match(page, /fetch\("\/api\/control\/version",\{cache:"no-store"\}\)/);
   assert.match(page, /window\.setInterval\(load,60_000\)/);
-  assert.match(page, /版本 V4-\{shortCommit\}/);
+  assert.match(page, /版本 闭环-\{shortCommit\}/);
+  assert.match(page, /releaseShortCommit/);
   assert.match(page, /<ReleaseVersion\/>/);
   assert.match(css, /\.release-version\{/);
+});
+
+test("production deploy publishes the accepted release separately from the Web image commit", () => {
+  const script = read("scripts/deploy-production.sh");
+  const publishFunction = script.indexOf("write_public_release_state() {");
+  const healthGate = script.indexOf('wait_for_release "$expected_web_sha"');
+  const publishAfterHealth = script.indexOf('write_public_release_state "$target_sha" "$build_time"', healthGate);
+
+  assert.ok(publishFunction > 0);
+  assert.match(script, /\/opt\/rabbit-quant-state\/deployed-release\.json/);
+  assert.ok(publishAfterHealth > healthGate);
 });
 
 test("production deploy uses blue-green Web slots and switches traffic only after candidate health", () => {

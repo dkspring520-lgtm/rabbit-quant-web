@@ -6,6 +6,7 @@ REMOTE="${RABBIT_QUANT_REMOTE:-origin}"
 BRANCH="${RABBIT_QUANT_BRANCH:-codex/vps-production-20260716}"
 STATE_DIR="${RABBIT_QUANT_DEPLOY_STATE:-/var/lib/rabbit-quant-deploy}"
 LOG_DIR="${RABBIT_QUANT_DEPLOY_LOG_DIR:-/var/log/rabbit-quant-deploy}"
+PUBLIC_RELEASE_STATE_FILE="${RABBIT_QUANT_PUBLIC_RELEASE_STATE_FILE:-/opt/rabbit-quant-state/deployed-release.json}"
 LOCK_FILE="${RABBIT_QUANT_DEPLOY_LOCK:-/run/lock/rabbit-quant-deploy.lock}"
 OPS_ASSETS_STATE_FILE="$STATE_DIR/ops-assets-v2-sha"
 HEALTH_TIMEOUT="${RABBIT_QUANT_HEALTH_TIMEOUT:-300}"
@@ -87,6 +88,15 @@ record_result() {
     "$(date --utc --iso-8601=seconds)" "$status" "$target_sha" "$current_stage" "$message" \
     >> "$LOG_DIR/deploy-history.jsonl"
   notify_ops "$status" "$message"
+}
+
+write_public_release_state() {
+  local commit="$1" build_time="$2" temp_file
+  mkdir -p "$(dirname "$PUBLIC_RELEASE_STATE_FILE")"
+  temp_file="$(mktemp "$(dirname "$PUBLIC_RELEASE_STATE_FILE")/.deployed-release.XXXXXX")"
+  printf '{"commit":"%s","buildTime":"%s"}\n' "$commit" "$build_time" > "$temp_file"
+  chmod 0644 "$temp_file"
+  mv -f "$temp_file" "$PUBLIC_RELEASE_STATE_FILE"
 }
 
 prune_release_images() {
@@ -607,6 +617,7 @@ else
   cp "$compose_file" "$STATE_DIR/last-good-compose.yml"
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
+  write_public_release_state "$target_sha" "$build_time"
   log "本次提交没有运行时文件变化，跳过容器更新。"
   record_result "success" "无运行时变化，复用现有镜像"
   exit 0
@@ -766,6 +777,7 @@ if (( switch_failed == 0 )) && wait_for_release "$expected_web_sha" "$candidate_
   printf '%s\n' "$web_runtime_sha" > "$STATE_DIR/last-good-web-sha"
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
+  write_public_release_state "$target_sha" "$build_time"
   prune_release_images
   log "部署成功：$short_sha；版本接口与四个容器健康检查均通过。"
   record_result "success" "四个容器和版本接口健康"
