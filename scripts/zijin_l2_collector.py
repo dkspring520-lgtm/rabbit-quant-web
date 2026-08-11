@@ -373,7 +373,8 @@ class Collector:
             price = float(row["last"]) / 10000
             if minute and price > 0:
                 self.update_minute_bar(
-                    minute, price, int(row["volume"]), int(row["turnover"])
+                    minute, price, int(row["volume"]), int(row["turnover"]),
+                    price_source="snapshot",
                 )
             book = weighted_book(row)
             self.book_samples.append({
@@ -403,19 +404,65 @@ class Collector:
         average = min(candidates, key=lambda value: abs(value - last_price))
         return average if abs(average - last_price) / last_price <= 0.1 else None
 
-    def update_minute_bar(self, minute, price, cumulative_volume=0, cumulative_turnover=0):
+    def update_minute_bar(
+        self,
+        minute,
+        price,
+        cumulative_volume=None,
+        cumulative_turnover=None,
+        *,
+        price_source="snapshot",
+        trade_volume=0,
+        trade_turnover=0,
+    ):
+        """Merge snapshot counters with transaction-derived minute OHLC.
+
+        Snapshots remain the authoritative source for cumulative volume and
+        turnover. Once a real transaction is observed in a minute, snapshot
+        prices can no longer change that minute's OHLC.
+        """
         bar = self.current_minute_bar
         if bar is not None and bar["minute"] == minute:
-            bar["high"] = max(bar["high"], price)
-            bar["low"] = min(bar["low"], price)
-            bar["close"] = price
-            bar["endVolume"] = cumulative_volume
-            bar["endTurnover"] = cumulative_turnover
-            bar["volume"] = max(0, cumulative_volume - bar["startVolume"])
-            bar["turnover"] = max(0, cumulative_turnover - bar["startTurnover"])
-            bar["averagePrice"] = self.cumulative_average_price(
-                cumulative_turnover, cumulative_volume, price
-            )
+            if price_source == "transaction":
+                if bar.get("priceSource") != "tick-trades":
+                    bar["open"] = bar["high"] = bar["low"] = bar["close"] = price
+                    bar["priceSource"] = "tick-trades"
+                    bar["observedTradeVolume"] = 0
+                    bar["observedTradeTurnover"] = 0
+                    bar["tradeCount"] = 0
+                else:
+                    bar["high"] = max(bar["high"], price)
+                    bar["low"] = min(bar["low"], price)
+                    bar["close"] = price
+                bar["observedTradeVolume"] += max(0, int(trade_volume or 0))
+                bar["observedTradeTurnover"] += max(0, float(trade_turnover or 0))
+                bar["tradeCount"] += 1
+            elif bar.get("priceSource") != "tick-trades":
+                bar["high"] = max(bar["high"], price)
+                bar["low"] = min(bar["low"], price)
+                bar["close"] = price
+
+            if cumulative_volume is not None and cumulative_turnover is not None:
+                if not bar.get("hasCumulativeBaseline"):
+                    bar["startVolume"] = max(
+                        0,
+                        int(cumulative_volume) - int(bar.get("observedTradeVolume", 0) or 0),
+                    )
+                    bar["startTurnover"] = max(
+                        0.0,
+                        float(cumulative_turnover) - float(bar.get("observedTradeTurnover", 0) or 0),
+                    )
+                    bar["hasCumulativeBaseline"] = True
+                bar["endVolume"] = int(cumulative_volume)
+                bar["endTurnover"] = float(cumulative_turnover)
+                bar["volume"] = max(0, bar["endVolume"] - bar["startVolume"])
+                bar["turnover"] = max(0, bar["endTurnover"] - bar["startTurnover"])
+                bar["averagePrice"] = self.cumulative_average_price(
+                    cumulative_turnover, cumulative_volume, price
+                )
+            elif bar.get("endVolume") is None:
+                bar["volume"] = bar.get("observedTradeVolume", 0)
+                bar["turnover"] = bar.get("observedTradeTurnover", 0)
             return
         if bar is not None:
             self.minute_bars.append(bar)
@@ -425,16 +472,37 @@ class Collector:
         # as a zero-based minute creates one giant fake volume bar. Bootstrap
         # the first minute from the current counters; later snapshots add only
         # the genuinely observed increment.
+        has_cumulative = cumulative_volume is not None and cumulative_turnover is not None
         first_observed_minute = bar is None
-        start_volume = cumulative_volume if first_observed_minute else (bar["endVolume"] if same_day else 0)
-        start_turnover = cumulative_turnover if first_observed_minute else (bar["endTurnover"] if same_day else 0)
-        average = self.cumulative_average_price(cumulative_turnover, cumulative_volume, price)
+        prior_end_volume = bar.get("endVolume") if same_day else 0
+        prior_end_turnover = bar.get("endTurnover") if same_day else 0
+        start_volume = (
+            int(cumulative_volume)
+            if first_observed_minute and has_cumulative else int(prior_end_volume or 0)
+        )
+        start_turnover = (
+            float(cumulative_turnover)
+            if first_observed_minute and has_cumulative else float(prior_end_turnover or 0)
+        )
+        end_volume = int(cumulative_volume) if has_cumulative else None
+        end_turnover = float(cumulative_turnover) if has_cumulative else None
+        average = (
+            self.cumulative_average_price(cumulative_turnover, cumulative_volume, price)
+            if has_cumulative else None
+        )
+        observed_trade_volume = max(0, int(trade_volume or 0)) if price_source == "transaction" else 0
+        observed_trade_turnover = max(0, float(trade_turnover or 0)) if price_source == "transaction" else 0
         self.current_minute_bar = {
             "minute": minute, "open": price, "high": price, "low": price, "close": price,
-            "startVolume": start_volume, "endVolume": cumulative_volume,
-            "startTurnover": start_turnover, "endTurnover": cumulative_turnover,
-            "volume": max(0, cumulative_volume - start_volume),
-            "turnover": max(0, cumulative_turnover - start_turnover),
+            "priceSource": "tick-trades" if price_source == "transaction" else "snapshot-fallback",
+            "tradeCount": 1 if price_source == "transaction" else 0,
+            "observedTradeVolume": observed_trade_volume,
+            "observedTradeTurnover": observed_trade_turnover,
+            "hasCumulativeBaseline": has_cumulative,
+            "startVolume": start_volume, "endVolume": end_volume,
+            "startTurnover": start_turnover, "endTurnover": end_turnover,
+            "volume": max(0, end_volume - start_volume) if end_volume is not None else observed_trade_volume,
+            "turnover": max(0, end_turnover - start_turnover) if end_turnover is not None else observed_trade_turnover,
             "averagePrice": average,
         }
 
@@ -442,17 +510,19 @@ class Collector:
         bars = list(self.minute_bars)
         if self.current_minute_bar is not None:
             bars.append(dict(self.current_minute_bar))
-        if not bars:
+        active_date = bars[-1]["minute"][:8] if bars else ""
+        tick_bars = [
+            bar for bar in bars
+            if bar["minute"][:8] == active_date and bar.get("priceSource") == "tick-trades"
+        ]
+        if not tick_bars:
             return {
-                "source": "broker-l2-derived", "period": period, "samples": 0,
+                "source": "broker-l2-tick-trades", "period": period, "samples": 0,
                 "ready": False, "atr14": None, "atrPct14": None,
             }
         true_ranges = []
         previous_close = None
-        active_date = bars[-1]["minute"][:8]
-        for bar in bars:
-            if bar["minute"][:8] != active_date:
-                continue
+        for bar in tick_bars:
             high, low = bar["high"], bar["low"]
             true_range = high - low if previous_close is None else max(
                 high - low, abs(high - previous_close), abs(low - previous_close)
@@ -462,12 +532,12 @@ class Collector:
         sample = true_ranges[-period:]
         ready = len(sample) >= minimum_samples
         atr = sum(sample) / len(sample) if ready else None
-        close = bars[-1]["close"]
+        close = tick_bars[-1]["close"]
         return {
-            "source": "broker-l2-derived", "period": period, "samples": len(sample),
+            "source": "broker-l2-tick-trades", "period": period, "samples": len(sample),
             "ready": ready, "atr14": None if atr is None else round(atr, 6),
             "atrPct14": None if atr is None or close <= 0 else round(atr / close * 100, 6),
-            "currentBar": bars[-1],
+            "currentBar": tick_bars[-1],
         }
 
     def update_minute_flow(self, minute, side, volume, notional):
@@ -564,6 +634,14 @@ class Collector:
             minute = exchange_minute(self.last_exchange_time)
             if minute:
                 self.update_minute_flow(minute, side, volume, notional)
+                if price > 0:
+                    self.update_minute_bar(
+                        minute,
+                        price,
+                        price_source="transaction",
+                        trade_volume=volume,
+                        trade_turnover=notional,
+                    )
         self.last_message_at = received
 
     async def on_order(self, message):
@@ -742,6 +820,7 @@ class Collector:
             "previousClose": (state.get("session") or {}).get("previousClose"),
             "sessionOpen": (state.get("session") or {}).get("open"),
             "minuteHigh": (state.get("volatility") or {}).get("currentBar", {}).get("high"),
+            "minuteLow": (state.get("volatility") or {}).get("currentBar", {}).get("low"),
             "cumulativeVwap": self.cumulative_average_price(
                 (state.get("session") or {}).get("amount", 0),
                 (state.get("session") or {}).get("volume", 0),

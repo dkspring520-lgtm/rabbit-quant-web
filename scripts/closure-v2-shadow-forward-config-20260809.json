@@ -60,6 +60,10 @@
     "peerResonanceWeight": 15,
     "missingPeerDataScore": 0
   },
+  "historicalMfe": {
+    "minimumSamples": 5,
+    "minimumCoverageRate": 0.55
+  },
   "directions": {
     "positive-t": {
       "signal": {
@@ -124,6 +128,11 @@
   "execution": {
     "entryDelayTradingMinutes": 1,
     "minimumCostCoverageMultiple": 2,
+    "shadowComparisonCostCoverageMultiple": 1.5,
+    "minimumAbsoluteTargetYuan": 0.08,
+    "depthSizingLevels": 5,
+    "maximumVisibleDepthParticipation": 0.1,
+    "lotSize": 100,
     "rejectCrossedOrInvalidBook": true,
     "rejectInsufficientDepth": true
   },

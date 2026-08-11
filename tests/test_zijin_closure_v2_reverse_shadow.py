@@ -8,6 +8,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from zijin_closure_v2_reverse_shadow import (  # noqa: E402
+    COMPARISON_COHORT,
+    CONSERVATIVE_COHORT,
     ZijinClosureV2ReverseShadow,
     is_continuous_minute,
     next_continuous_minute,
@@ -34,12 +36,12 @@ def minute_record(
     direction="reverse-t",
     active_buy_ratio=None,
     symbol="601899",
-    previous_close=10.0,
+    previous_close=35.0,
     session_open=None,
 ):
     positive = direction == "positive-t"
     ratio = active_buy_ratio if active_buy_ratio is not None else (0.56 if positive else 0.44)
-    open_price = session_open if session_open is not None else (9.9 if positive else 10.1)
+    open_price = session_open if session_open is not None else (34.65 if positive else 35.35)
     return {
         "schemaVersion": 3,
         "symbol": symbol,
@@ -48,7 +50,8 @@ def minute_record(
         "previousClose": previous_close,
         "sessionOpen": open_price,
         "minuteHigh": price,
-        "cumulativeVwap": 10.0,
+        "minuteLow": price,
+        "cumulativeVwap": previous_close,
         "flow": {
             "activeBuyRatio60s": ratio,
             "activeBuyNotional60s": ratio * 1_000_000,
@@ -70,7 +73,7 @@ def minute_record(
 
 
 class ZijinMultiFactorShadowTest(unittest.TestCase):
-    def make_observer(self, directory):
+    def make_observer(self, directory, *, seed_history=True):
         observer = ZijinClosureV2ReverseShadow(
             event_path=Path(directory) / "events.jsonl",
             state_path=Path(directory) / "state.json",
@@ -80,6 +83,9 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
             "sector": 0.0,
             "market": 0.0,
         }, source="unit-test")
+        if seed_history:
+            for direction in observer.mfe_evidence:
+                observer.mfe_evidence[direction] = {"samples": 5, "covered": 5}
         return observer
 
     @staticmethod
@@ -97,7 +103,10 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
     @staticmethod
     def feed_candidate(observer, direction, *, peers=True):
         positive = direction == "positive-t"
-        prices = [9.90, 9.91, 9.92, 9.93, 9.94] if positive else [10.10, 10.09, 10.08, 10.07, 10.06]
+        prices = (
+            [34.65, 34.70, 34.75, 34.80, 34.85]
+            if positive else [35.35, 35.32, 35.29, 35.26, 35.23]
+        )
         ratios = [0.50, 0.53, 0.54, 0.55, 0.56] if positive else [0.50, 0.47, 0.46, 0.45, 0.44]
         if peers:
             ZijinMultiFactorShadowTest.add_peer_resonance(observer, direction)
@@ -121,9 +130,9 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
             self.assertTrue(candidate["shadowOnly"])
             self.assertFalse(candidate["affectsProduction"])
 
-            entry = observer.observe(minute_record("20260810-0940", 9.95, direction="positive-t"))
+            entry = observer.observe(minute_record("20260810-0940", 34.86, direction="positive-t"))
             self.assertEqual(entry["event"], "entry")
-            resolved = observer.observe(minute_record("20260810-0941", 10.03, direction="positive-t"))
+            resolved = observer.observe(minute_record("20260810-0941", 34.97, direction="positive-t"))
             self.assertEqual(resolved["event"], "resolved")
             self.assertEqual(resolved["direction"], "positive-t")
             self.assertGreater(resolved["actual"]["net"], 0)
@@ -136,9 +145,9 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
             self.assertEqual(candidate["direction"], "reverse-t")
             self.assertEqual(candidate["factorScore"]["score"], 100)
 
-            entry = observer.observe(minute_record("20260810-0940", 10.05, direction="reverse-t"))
+            entry = observer.observe(minute_record("20260810-0940", 35.22, direction="reverse-t"))
             self.assertEqual(entry["event"], "entry")
-            resolved = observer.observe(minute_record("20260810-0941", 9.96, direction="reverse-t"))
+            resolved = observer.observe(minute_record("20260810-0941", 35.10, direction="reverse-t"))
             self.assertEqual(resolved["event"], "resolved")
             self.assertEqual(resolved["direction"], "reverse-t")
             self.assertGreater(resolved["actual"]["net"], 0)
@@ -147,11 +156,11 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             observer = self.make_observer(directory)
             observer.set_peer_snapshot("20260810-0937", {"sh601899": -60})
-            for clock, price in (("0935", 9.90), ("0936", 9.91), ("0937", 9.92)):
+            for clock, price in (("0935", 34.65), ("0936", 34.66), ("0937", 34.70)):
                 observer.observe(minute_record(f"20260810-{clock}", price, direction="positive-t"))
             self.assertIsNone(observer.public_status()["multiFactor"])
-            observer.observe(minute_record("20260810-0938", 9.93, direction="positive-t"))
-            observer.observe(minute_record("20260810-0939", 9.94, direction="positive-t"))
+            observer.observe(minute_record("20260810-0938", 34.71, direction="positive-t"))
+            observer.observe(minute_record("20260810-0939", 34.72, direction="positive-t"))
             opening = observer.public_status()["multiFactor"]["features"]["openingStructure"]["positive-t"]
             self.assertTrue(opening["passed"])
             self.assertGreaterEqual(opening["maximumAlignedMinutes"], 3)
@@ -198,6 +207,7 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
             self.assertEqual(candidate["factorScore"]["score"], 85)
             evaluation = observer.public_status()["multiFactor"]["directions"]["positive-t"]
             self.assertTrue(evaluation["gates"]["costCoverage"])
+            self.assertTrue(evaluation["gates"]["historicalMfeCoverage"])
             self.assertTrue(evaluation["gates"]["vwapLocation"])
 
     def test_symbol_scope_and_daily_direction_cap_are_enforced(self):
@@ -207,17 +217,17 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
                 "20260810-0934", 9.90, direction="positive-t", symbol="601012"
             )))
             self.feed_candidate(observer, "positive-t")
-            observer.observe(minute_record("20260810-0940", 9.95, direction="positive-t"))
+            observer.observe(minute_record("20260810-0940", 34.86, direction="positive-t"))
             self.assertEqual(observer.counts["candidates"], 1)
-            observer.observe(minute_record("20260810-0941", 9.96, direction="positive-t"))
+            observer.observe(minute_record("20260810-0941", 34.87, direction="positive-t"))
             self.assertEqual(observer.counts["candidates"], 1)
 
     def test_events_and_review_status_remain_shadow_only(self):
         with tempfile.TemporaryDirectory() as directory:
             observer = self.make_observer(directory)
             self.feed_candidate(observer, "reverse-t")
-            observer.observe(minute_record("20260810-0940", 10.05, direction="reverse-t"))
-            observer.observe(minute_record("20260810-0941", 9.96, direction="reverse-t"))
+            observer.observe(minute_record("20260810-0940", 35.22, direction="reverse-t"))
+            observer.observe(minute_record("20260810-0941", 35.12, direction="reverse-t"))
             ledger = [
                 json.loads(line)
                 for line in (Path(directory) / "events.jsonl").read_text(encoding="utf-8").splitlines()
@@ -265,6 +275,92 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
             "future": {"exchangeMinute": "20260811-0951", "returnBps": 80},
         }, "20260811-0950", 1)
         self.assertEqual(returns, {"sh601899": -30.0, "sh512400": 10.0})
+
+    def test_dynamic_target_uses_atr_absolute_floor_and_actual_cost(self):
+        with tempfile.TemporaryDirectory() as directory:
+            observer = self.make_observer(directory, seed_history=False)
+            record = minute_record("20260810-0939", 35.0, direction="positive-t")
+            evaluation = observer._cost_evaluation(record, "positive-t", {"price": 35.0, "atr14": 0.2})
+            self.assertTrue(evaluation["passed"])
+            self.assertEqual(evaluation["quantity"] % 100, 0)
+            self.assertEqual(evaluation["quantity"], 1600)
+            for cohort, multiple in ((CONSERVATIVE_COHORT, 2.0), (COMPARISON_COHORT, 1.5)):
+                details = evaluation["cohorts"][cohort]
+                self.assertAlmostEqual(details["targetMove"], max(
+                    evaluation["atrTargetMove"],
+                    0.08,
+                    evaluation["actualRoundTripCostPerShare"] * multiple,
+                ))
+            self.assertGreaterEqual(
+                evaluation["cohorts"][CONSERVATIVE_COHORT]["targetMove"],
+                evaluation["cohorts"][COMPARISON_COHORT]["targetMove"],
+            )
+
+    def test_depth_sizing_rejects_shallow_or_commission_inefficient_books(self):
+        with tempfile.TemporaryDirectory() as directory:
+            observer = self.make_observer(directory, seed_history=False)
+            shallow = minute_record("20260810-0939", 35.0)
+            shallow["book"]["bidVolumes"] = [50] * 10
+            shallow["book"]["askVolumes"] = [50] * 10
+            self.assertEqual(observer._depth_sizing(shallow)["reason"], "insufficient-depth")
+
+            inefficient = minute_record("20260810-0939", 35.0)
+            inefficient["book"]["bidVolumes"] = [1_000] * 10
+            inefficient["book"]["askVolumes"] = [1_000] * 10
+            sizing = observer._depth_sizing(inefficient)
+            self.assertEqual(sizing["quantity"], 500)
+            self.assertEqual(sizing["quantity"] % 100, 0)
+            self.assertEqual(sizing["reason"], "minimum-commission-erosion")
+
+    def test_historical_mfe_gate_observes_before_it_can_promote(self):
+        with tempfile.TemporaryDirectory() as directory:
+            observer = self.make_observer(directory, seed_history=False)
+            result = self.feed_candidate(observer, "positive-t")[-1]
+            self.assertEqual(result["event"], "observation")
+            evaluation = observer.public_status()["multiFactor"]["directions"]["positive-t"]
+            self.assertFalse(evaluation["gates"]["historicalMfeCoverage"])
+            self.assertEqual(observer.counts["candidates"], 0)
+            self.assertEqual(len(observer.mfe_trackers), 1)
+
+    def test_positive_and_reverse_mfe_use_45_and_50_future_minutes(self):
+        for direction, horizon, favorable_price in (
+            ("positive-t", 45, 35.09),
+            ("reverse-t", 50, 34.90),
+        ):
+            with self.subTest(direction=direction), tempfile.TemporaryDirectory() as directory:
+                observer = self.make_observer(directory, seed_history=False)
+                start = minute_record("20260810-0935", 35.0, direction=direction)
+                cost = observer._cost_evaluation(start, direction, {"price": 35.0, "atr14": 0.1})
+                observer._start_mfe_tracker(start, direction, cost)
+                minute = "20260810-0935"
+                labels = []
+                for index in range(1, horizon + 1):
+                    minute = next_continuous_minute(minute)
+                    record = minute_record(minute, favorable_price, direction=direction)
+                    labels = observer._advance_mfe_trackers(record)
+                    if index < horizon:
+                        self.assertEqual(labels, [])
+                self.assertEqual(len(labels), 1)
+                self.assertEqual(labels[0]["horizonMinutes"], horizon)
+                self.assertTrue(labels[0]["causality"]["futureMinutesUsedOnlyForRetrospectiveLabel"])
+                summary = observer.public_status()["cohortComparison"]
+                for cohort in (CONSERVATIVE_COHORT, COMPARISON_COHORT):
+                    self.assertEqual(summary[cohort]["resolved"], 1)
+                    self.assertGreater(summary[cohort]["afterCostNet"], 0)
+                    self.assertGreaterEqual(summary[cohort]["profitFactor"], 1.2)
+                    self.assertEqual(summary[cohort]["maximumDrawdown"], 0)
+
+    def test_missing_future_minute_is_not_recorded_as_zero_mfe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            observer = self.make_observer(directory, seed_history=False)
+            start = minute_record("20260810-0935", 35.0, direction="positive-t")
+            cost = observer._cost_evaluation(start, "positive-t", {"price": 35.0, "atr14": 0.1})
+            observer._start_mfe_tracker(start, "positive-t", cost)
+            self.assertEqual(observer._advance_mfe_trackers(
+                minute_record("20260810-0937", 35.1, direction="positive-t")
+            ), [])
+            self.assertEqual(observer.mfe_evidence["positive-t"]["samples"], 0)
+            self.assertEqual(observer.mfe_trackers, [])
 
 
 if __name__ == "__main__":
