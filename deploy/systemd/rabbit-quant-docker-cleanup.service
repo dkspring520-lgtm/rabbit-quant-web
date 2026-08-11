@@ -1,0 +1,12 @@
+[Unit]
+Description=Rabbit Quant safe Docker artifact cleanup
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/rabbit-quant-ops
+Environment=RABBIT_QUANT_REPO=/opt/rabbit-quant-web
+ExecStart=/usr/local/sbin/rabbit-quant-docker-cleanup
+TimeoutStartSec=20min
+Nice=15

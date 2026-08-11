@@ -1,0 +1,11 @@
+[Unit]
+Description=Clean Rabbit Quant Docker build artifacts daily
+
+[Timer]
+OnCalendar=*-*-* 04:15:00 Asia/Shanghai
+RandomizedDelaySec=15m
+Persistent=true
+Unit=rabbit-quant-docker-cleanup.service
+
+[Install]
+WantedBy=timers.target
