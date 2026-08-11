@@ -657,6 +657,7 @@ class Collector:
         )
         second_state["marketMode"] = market_mode
         ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
+        shadow_status = self.reverse_shadow.public_status()
         return {
             "schemaVersion": 5, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
             "symbol": self.symbol, "updatedAt": utc_now(),
@@ -696,7 +697,8 @@ class Collector:
                 "labeledSamples": self.forward_label_count, "researchStatus": self.forward_research_status, "trainingReady": ready,
                 "minimumSamples": self.forward_min_samples, "minimumTradingDays": self.forward_min_days,
                 "reason": "ready-for-delayed-labeling" if ready else "collecting-genuine-forward-l2",
-                "reverseTShadow": self.reverse_shadow.public_status(),
+                "reverseTShadow": shadow_status,
+                "multiFactorTShadow": shadow_status,
             },
         }
 
@@ -737,6 +739,8 @@ class Collector:
             "schemaVersion": 3, "symbol": self.symbol, "source": state["source"], "node": state["node"],
             "observedAt": state["updatedAt"], "exchangeMinute": minute, "marketPhase": phase,
             "lastPrice": state["book"].get("lastPrice"),
+            "previousClose": (state.get("session") or {}).get("previousClose"),
+            "sessionOpen": (state.get("session") or {}).get("open"),
             "minuteHigh": (state.get("volatility") or {}).get("currentBar", {}).get("high"),
             "cumulativeVwap": self.cumulative_average_price(
                 (state.get("session") or {}).get("amount", 0),
@@ -809,12 +813,21 @@ class Collector:
             await asyncio.to_thread(self.reverse_shadow.refresh_market_context)
             await asyncio.sleep(900)
 
+    async def refresh_reverse_shadow_peers(self):
+        while True:
+            if is_live_a_share_session():
+                await asyncio.to_thread(self.reverse_shadow.refresh_peer_context)
+                await asyncio.sleep(self.reverse_shadow.peer_refresh_seconds())
+            else:
+                await asyncio.sleep(60)
+
     async def run(self):
         async def error_callback(error):
             if "authorization" in str(error).lower(): self.authorization_error = True
         async def disconnected_callback(): self.connected = False
         writer = asyncio.create_task(self.publish_state())
         reverse_shadow_regime = asyncio.create_task(self.refresh_reverse_shadow_regime())
+        reverse_shadow_peers = asyncio.create_task(self.refresh_reverse_shadow_peers())
         node_index = 0
         try:
             while True:
@@ -895,10 +908,13 @@ class Collector:
         finally:
             writer.cancel()
             reverse_shadow_regime.cancel()
+            reverse_shadow_peers.cancel()
             with suppress(asyncio.CancelledError):
                 await writer
             with suppress(asyncio.CancelledError):
                 await reverse_shadow_regime
+            with suppress(asyncio.CancelledError):
+                await reverse_shadow_peers
 
 if __name__ == "__main__":
     asyncio.run(Collector().run())
