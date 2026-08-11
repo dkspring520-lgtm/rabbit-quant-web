@@ -5,6 +5,10 @@ dist
 renders
 videos
 marketing
+agent
+tests
+docs
+.github
 *.log
 *.tar.gz
 tsconfig.tsbuildinfo

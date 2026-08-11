@@ -113,6 +113,41 @@ test("systemd timer and installer enable recurring safe deploys", () => {
   assert.match(installer, /systemctl enable --now rabbit-quant-backup\.timer/);
 });
 
+test("production deployment prevents Docker disk exhaustion", () => {
+  const deploy = read("scripts/deploy-production.sh");
+  const cleanup = read("deploy/cleanup-docker-artifacts.sh");
+  const service = read("deploy/systemd/rabbit-quant-docker-cleanup.service");
+  const timer = read("deploy/systemd/rabbit-quant-docker-cleanup.timer");
+  const installer = read("scripts/install-production-deployer.sh");
+  const dockerfile = read("Dockerfile.server");
+  const dockerignore = read(".dockerignore");
+  const environment = read("deploy/rabbit-quant-ops.env.example");
+
+  assert.match(dockerignore, /^agent$/m);
+  assert.match(deploy, /RABBIT_QUANT_MIN_FREE_DISK_GB:-8/);
+  assert.match(deploy, /IMAGE_RETENTION <= 2/);
+  assert.match(deploy, /ops-assets-v2-sha/);
+  assert.match(deploy, /last-good-web-sha/);
+  assert.match(deploy, /ensure_build_space/);
+  assert.match(deploy, /cleanup_failed_build_artifacts/);
+  assert.match(deploy, /docker image prune --force/);
+  assert.match(deploy, /docker builder prune --all --force/);
+  assert.match(deploy, /docker buildx build --load/);
+  assert.match(deploy, /docker_build_image --pull/);
+  assert.match(dockerfile, /FROM node:22-bookworm-slim AS dependencies/);
+  assert.match(dockerfile, /COPY --from=dependencies \/app\/node_modules \.\/node_modules/);
+  assert.doesNotMatch(dockerfile, /COPY --from=build \/app \/app/);
+  assert.match(environment, /RABBIT_QUANT_IMAGE_RETENTION=2/);
+  assert.match(cleanup, /flock --nonblock 9/);
+  assert.match(cleanup, /find "\$STATE_DIR\/releases"[^\n]+-mmin \+120/);
+  assert.doesNotMatch(cleanup, /docker system prune/);
+  assert.doesNotMatch(cleanup, /--volumes/);
+  assert.doesNotMatch(cleanup, /docker-cleanup\.log/);
+  assert.match(service, /rabbit-quant-docker-cleanup/);
+  assert.match(timer, /OnCalendar=.*04:15:00 Asia\/Shanghai/);
+  assert.match(installer, /systemctl enable --now rabbit-quant-docker-cleanup\.timer/);
+});
+
 test("production backup snapshots SQLite and verifies every archive", () => {
   const script = read("scripts/backup-production.sh");
   const service = read("deploy/systemd/rabbit-quant-backup.service");
