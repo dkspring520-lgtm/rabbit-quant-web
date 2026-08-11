@@ -167,6 +167,19 @@ class ZijinMultiFactorShadowTest(unittest.TestCase):
             self.assertGreaterEqual(response["priceResponse3MinBps"], 0)
             self.assertGreaterEqual(response["consecutiveAlignedMinutes"], 3)
 
+    def test_learning_days_require_consecutive_valid_l2_minutes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            observer = self.make_observer(directory)
+            for clock in ("0935", "0936", "0937", "0938", "0939"):
+                record = minute_record(f"20260810-{clock}", 10.0)
+                record["book"] = {}
+                observer.observe(record)
+            self.assertEqual(observer.public_status()["manualReview"]["tradingDays"], 0)
+
+            for clock in ("0935", "0936", "0937", "0938", "0939"):
+                observer.observe(minute_record(f"20260811-{clock}", 10.0))
+            self.assertEqual(observer.public_status()["manualReview"]["tradingDays"], 1)
+
     def test_peer_resonance_uses_only_current_or_prior_snapshots(self):
         with tempfile.TemporaryDirectory() as directory:
             observer = self.make_observer(directory)
