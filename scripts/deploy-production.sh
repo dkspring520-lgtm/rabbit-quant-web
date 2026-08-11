@@ -117,7 +117,7 @@ docker_build_image() {
   if docker buildx version >/dev/null 2>&1; then
     docker buildx build --load "$@"
   else
-    docker build "$@"
+    DOCKER_BUILDKIT=1 docker build "$@"
   fi
 }
 

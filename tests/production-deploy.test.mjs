@@ -133,6 +133,7 @@ test("production deployment prevents Docker disk exhaustion", () => {
   assert.match(deploy, /docker image prune --force/);
   assert.match(deploy, /docker builder prune --all --force/);
   assert.match(deploy, /docker buildx build --load/);
+  assert.match(deploy, /DOCKER_BUILDKIT=1 docker build/);
   assert.match(deploy, /docker_build_image --pull/);
   assert.match(dockerfile, /FROM node:22-bookworm-slim AS dependencies/);
   assert.match(dockerfile, /COPY --from=dependencies \/app\/node_modules \.\/node_modules/);
