@@ -28,6 +28,8 @@ REGIME_SYMBOLS = {
     "sector": "sh512400",
     "market": "sh000001",
 }
+CONSERVATIVE_COHORT = "cost-2x"
+COMPARISON_COHORT = "cost-1.5x"
 
 
 def utc_now() -> str:
@@ -156,8 +158,11 @@ def execute_t(
     direction: str,
     impact_bps: float = 0,
     include_transfer_fee: bool = False,
+    quantity: int | None = None,
 ) -> dict[str, Any] | None:
-    quantity = int(config["quantity"])
+    quantity = int(quantity if quantity is not None else config["quantity"])
+    if quantity <= 0:
+        return None
     if direction not in {"positive-t", "reverse-t"}:
         raise ValueError(f"unsupported shadow direction: {direction}")
     entry_side = "buy" if direction == "positive-t" else "sell"
@@ -205,8 +210,17 @@ def execute_reverse_t(
     config: dict[str, Any],
     impact_bps: float = 0,
     include_transfer_fee: bool = False,
+    quantity: int | None = None,
 ) -> dict[str, Any] | None:
-    return execute_t(entry_record, exit_record, config, "reverse-t", impact_bps, include_transfer_fee)
+    return execute_t(
+        entry_record,
+        exit_record,
+        config,
+        "reverse-t",
+        impact_bps,
+        include_transfer_fee,
+        quantity,
+    )
 
 
 class ZijinClosureV2ReverseShadow:
@@ -236,6 +250,7 @@ class ZijinClosureV2ReverseShadow:
         self.last_minute = ""
         self.observed_dates: set[str] = set()
         self.observed_candidate_keys: set[str] = set()
+        self.mfe_started_keys: set[str] = set()
         self.signaled_keys: set[str] = set()
         self.pending: dict[str, Any] | None = None
         self.regime_context: dict[str, Any] | None = None
@@ -243,6 +258,24 @@ class ZijinClosureV2ReverseShadow:
         self.legacy_state: dict[str, Any] | None = None
         self.latest_evaluation: dict[str, Any] | None = None
         self.latest_event: dict[str, Any] | None = None
+        self.mfe_trackers: list[dict[str, Any]] = []
+        self.mfe_evidence = {
+            direction: {"samples": 0, "covered": 0}
+            for direction in self.config["directions"]
+        }
+        self.cohort_stats = {
+            cohort: {
+                "resolved": 0,
+                "wins": 0,
+                "covered": 0,
+                "winningNet": 0.0,
+                "losingNet": 0.0,
+                "equity": 0.0,
+                "peakEquity": 0.0,
+                "maximumDrawdown": 0.0,
+            }
+            for cohort in (CONSERVATIVE_COHORT, COMPARISON_COHORT)
+        }
         self.counts = {
             "candidateWaves": 0,
             "promotedCandidates": 0,
@@ -277,6 +310,7 @@ class ZijinClosureV2ReverseShadow:
         self.last_minute = str(payload.get("lastMinute") or "")
         self.observed_dates = set(payload.get("observedDates") or [])
         self.observed_candidate_keys = set(payload.get("observedCandidateKeys") or [])
+        self.mfe_started_keys = set(payload.get("mfeStartedKeys") or [])
         self.signaled_keys = set(payload.get("signaledKeys") or [])
         self.pending = payload.get("pending") if isinstance(payload.get("pending"), dict) else None
         self.regime_context = payload.get("regime") if isinstance(payload.get("regime"), dict) else None
@@ -289,10 +323,90 @@ class ZijinClosureV2ReverseShadow:
             }
         self.latest_evaluation = payload.get("latestEvaluation") if isinstance(payload.get("latestEvaluation"), dict) else None
         self.latest_event = payload.get("latestEvent") if isinstance(payload.get("latestEvent"), dict) else None
+        restored_trackers = payload.get("mfeTrackers") or []
+        if isinstance(restored_trackers, list):
+            self.mfe_trackers = [item for item in restored_trackers if isinstance(item, dict)]
+        restored_evidence = payload.get("mfeEvidence") or {}
+        for direction in self.mfe_evidence:
+            item = restored_evidence.get(direction) or {}
+            self.mfe_evidence[direction] = {
+                "samples": int(item.get("samples", 0) or 0),
+                "covered": int(item.get("covered", 0) or 0),
+            }
+        restored_cohorts = payload.get("cohortStats") or {}
+        for cohort, defaults in self.cohort_stats.items():
+            item = restored_cohorts.get(cohort) or {}
+            for key, default in defaults.items():
+                value = item.get(key, default)
+                defaults[key] = (
+                    float(value or 0)
+                    if key in {"winningNet", "losingNet", "equity", "peakEquity", "maximumDrawdown"}
+                    else int(value or 0)
+                )
         restored_counts = payload.get("counts") or {}
         for key in self.counts:
             value = restored_counts.get(key, self.counts[key])
             self.counts[key] = float(value or 0) if key in {"winningNet", "losingNet"} else int(value or 0)
+
+    def _cohort_summary(self) -> dict[str, Any]:
+        summary = {}
+        for cohort, item in self.cohort_stats.items():
+            resolved = int(item["resolved"])
+            winning_net = float(item["winningNet"])
+            losing_net = float(item["losingNet"])
+            summary[cohort] = {
+                "resolved": resolved,
+                "afterCostWins": int(item["wins"]),
+                "afterCostWinRate": int(item["wins"]) / resolved if resolved else None,
+                "mfeCoverageRate": int(item["covered"]) / resolved if resolved else None,
+                "afterCostNet": float(item["equity"]),
+                "profitFactor": (
+                    winning_net / abs(losing_net)
+                    if losing_net < 0 else (999999.0 if winning_net > 0 else None)
+                ),
+                "maximumDrawdown": float(item["maximumDrawdown"]),
+            }
+        return summary
+
+    def _historical_mfe_status(self, direction: str | None = None) -> dict[str, Any]:
+        config = self.config.get("historicalMfe") or {}
+        minimum_samples = int(config.get("minimumSamples", 5))
+        minimum_rate = float(config.get("minimumCoverageRate", 0.55))
+        directions = [direction] if direction else list(self.config["directions"])
+        result = {}
+        for key in directions:
+            evidence = self.mfe_evidence[key]
+            samples = int(evidence["samples"])
+            rate = int(evidence["covered"]) / samples if samples else None
+            result[key] = {
+                "samples": samples,
+                "covered": int(evidence["covered"]),
+                "coverageRate": rate,
+                "minimumSamples": minimum_samples,
+                "minimumCoverageRate": minimum_rate,
+                "passed": samples >= minimum_samples and rate is not None and rate >= minimum_rate,
+                "usesOnlyMaturedPriorObservations": True,
+            }
+        return result[direction] if direction else result
+
+    def _update_cohort_stats(self, cohort: str, covered: bool, result: dict[str, Any] | None) -> None:
+        if result is None:
+            return
+        item = self.cohort_stats[cohort]
+        net = float(result["net"])
+        item["resolved"] += 1
+        item["covered"] += int(covered)
+        item["equity"] += net
+        item["peakEquity"] = max(float(item["peakEquity"]), float(item["equity"]))
+        item["maximumDrawdown"] = max(
+            float(item["maximumDrawdown"]),
+            float(item["peakEquity"]) - float(item["equity"]),
+        )
+        if net > 0:
+            item["wins"] += 1
+            item["winningNet"] += net
+        elif net < 0:
+            item["losingNet"] += net
 
     def _review_evaluation(self) -> dict[str, Any]:
         gate = self.config["forwardGate"]
@@ -329,6 +443,7 @@ class ZijinClosureV2ReverseShadow:
             "afterCostWinRate": after_cost_win_rate,
             "stress5BpsWinRate": stress_win_rate,
             "profitFactor": profit_factor,
+            "cohortComparison": self._cohort_summary(),
             "gates": gates,
             "readyForManualReview": all(gates.values()),
             "automaticPromotion": False,
@@ -351,10 +466,14 @@ class ZijinClosureV2ReverseShadow:
             "displayName": self.config.get("displayName"),
             "observedDates": sorted(self.observed_dates)[-500:],
             "observedCandidateKeys": sorted(self.observed_candidate_keys)[-1000:],
+            "mfeStartedKeys": sorted(self.mfe_started_keys)[-1000:],
             "signaledKeys": sorted(self.signaled_keys)[-1000:],
             "pending": self.pending,
             "regime": self.regime_context,
             "peerSnapshots": dict(sorted(self.peer_snapshots.items())[-260:]),
+            "mfeTrackers": self.mfe_trackers,
+            "mfeEvidence": self.mfe_evidence,
+            "cohortStats": self.cohort_stats,
             "legacyReverseShadow": self.legacy_state,
             "latestEvaluation": self.latest_evaluation,
             "counts": dict(self.counts),
@@ -377,6 +496,8 @@ class ZijinClosureV2ReverseShadow:
                 "counts": dict(self.counts),
                 "pending": None if self.pending is None else self.pending.get("stage"),
                 "multiFactor": self.latest_evaluation,
+                "mfeEvidence": self._historical_mfe_status(),
+                "cohortComparison": self._cohort_summary(),
                 "manualReview": self._review_evaluation(),
             }
 
@@ -939,31 +1060,236 @@ class ZijinClosureV2ReverseShadow:
             },
         }
 
+    def _depth_sizing(self, record: dict[str, Any]) -> dict[str, Any]:
+        execution = self.config["execution"]
+        costs = self.config["costs"]
+        book = record.get("book") or {}
+        levels = int(execution.get("depthSizingLevels", 5))
+        participation = float(execution.get("maximumVisibleDepthParticipation", 0.10))
+        lot_size = int(execution.get("lotSize", 100))
+        desired = int(self.config["quantity"])
+        price = finite_number(record.get("lastPrice"))
+        bid_volumes = [finite_number(value) for value in book.get("bidVolumes", [])[:levels]]
+        ask_volumes = [finite_number(value) for value in book.get("askVolumes", [])[:levels]]
+        visible_bid = sum(value or 0 for value in bid_volumes)
+        visible_ask = sum(value or 0 for value in ask_volumes)
+        depth_capacity = math.floor(min(visible_bid, visible_ask) * participation / lot_size) * lot_size
+        selected = min(desired, depth_capacity)
+        minimum_commission = float(costs["minimumCommission"])
+        commission_rate = float(costs["commissionRate"])
+        efficient_quantity = (
+            math.ceil(minimum_commission / (price * commission_rate) / lot_size) * lot_size
+            if price is not None and price > 0 and commission_rate > 0 else None
+        )
+        passed = (
+            selected >= lot_size
+            and efficient_quantity is not None
+            and selected >= efficient_quantity
+        )
+        return {
+            "passed": passed,
+            "quantity": selected if selected >= lot_size else None,
+            "desiredQuantity": desired,
+            "minimumCommissionEfficientQuantity": efficient_quantity,
+            "visibleBidQuantity": visible_bid,
+            "visibleAskQuantity": visible_ask,
+            "maximumVisibleDepthParticipation": participation,
+            "depthSizingLevels": levels,
+            "lotSize": lot_size,
+            "reason": (
+                "ok" if passed else
+                "insufficient-depth" if selected < lot_size else
+                "minimum-commission-erosion"
+            ),
+        }
+
     def _cost_evaluation(self, record: dict[str, Any], direction: str, features: dict[str, Any]) -> dict[str, Any]:
         exit_config = self.config["directions"][direction]["exit"]
         price = finite_number(features.get("price"))
         atr = finite_number(features.get("atr14"))
-        same_book = execute_t(record, record, self.config, direction, 0, True)
-        expected_move = (
-            max(atr * float(exit_config["targetAtrMultiple"]), price * float(exit_config["minimumTargetBps"]) / 10_000)
-            if atr is not None and atr > 0 and price is not None and price > 0 else None
+        sizing = self._depth_sizing(record)
+        quantity = sizing.get("quantity")
+        same_book = (
+            execute_t(record, record, self.config, direction, 0, True, int(quantity))
+            if sizing["passed"] and quantity is not None else None
         )
-        expected_gross = expected_move * int(self.config["quantity"]) if expected_move is not None else None
         estimated_cost = abs(float(same_book["net"])) if same_book is not None else None
-        coverage = (
-            expected_gross / estimated_cost
-            if expected_gross is not None and estimated_cost is not None and estimated_cost > 0 else None
+        cost_per_share = (
+            estimated_cost / int(quantity)
+            if estimated_cost is not None and estimated_cost > 0 and quantity else None
         )
-        minimum = float(self.config["execution"]["minimumCostCoverageMultiple"])
+        atr_target = (
+            atr * float(exit_config["targetAtrMultiple"])
+            if atr is not None and atr > 0 else None
+        )
+        absolute_floor = float(self.config["execution"].get("minimumAbsoluteTargetYuan", 0.08))
+        conservative_multiple = float(self.config["execution"]["minimumCostCoverageMultiple"])
+        comparison_multiple = float(self.config["execution"].get("shadowComparisonCostCoverageMultiple", 1.5))
+        cohorts = {}
+        for cohort, multiple in (
+            (CONSERVATIVE_COHORT, conservative_multiple),
+            (COMPARISON_COHORT, comparison_multiple),
+        ):
+            target_move = (
+                max(atr_target, absolute_floor, cost_per_share * multiple)
+                if atr_target is not None and cost_per_share is not None else None
+            )
+            expected_gross = target_move * int(quantity) if target_move is not None and quantity else None
+            coverage = (
+                expected_gross / estimated_cost
+                if expected_gross is not None and estimated_cost is not None and estimated_cost > 0 else None
+            )
+            cohorts[cohort] = {
+                "passed": coverage is not None and coverage >= multiple,
+                "targetMove": target_move,
+                "expectedGross": expected_gross,
+                "costCoverageMultiple": coverage,
+                "requiredCostCoverageMultiple": multiple,
+            }
+        conservative = cohorts[CONSERVATIVE_COHORT]
         return {
-            "passed": coverage is not None and coverage >= minimum,
+            "passed": bool(sizing["passed"] and conservative["passed"]),
             "atr14": atr,
-            "expectedMove": expected_move,
-            "expectedGross": expected_gross,
+            "atrTargetMove": atr_target,
+            "minimumAbsoluteTargetYuan": absolute_floor,
+            "expectedMove": conservative["targetMove"],
+            "expectedGross": conservative["expectedGross"],
             "estimatedRoundTripCost": estimated_cost,
-            "costCoverageMultiple": coverage,
-            "minimumCostCoverageMultiple": minimum,
+            "actualRoundTripCostPerShare": cost_per_share,
+            "costCoverageMultiple": conservative["costCoverageMultiple"],
+            "minimumCostCoverageMultiple": conservative_multiple,
+            "quantity": quantity,
+            "depthSizing": sizing,
+            "cohorts": cohorts,
         }
+
+    def _start_mfe_tracker(
+        self,
+        record: dict[str, Any],
+        direction: str,
+        cost_evaluation: dict[str, Any],
+    ) -> None:
+        quantity = cost_evaluation.get("quantity")
+        entry_side = "buy" if direction == "positive-t" else "sell"
+        entry_fill = (
+            consume_book(record, entry_side, int(quantity))
+            if quantity is not None else None
+        )
+        if entry_fill is None:
+            return
+        minute = str(record["exchangeMinute"])
+        horizon = int(self.config["directions"][direction]["exit"]["maxHoldTradingMinutes"])
+        self.mfe_trackers.append({
+            "observationId": f"{STRATEGY_ID}:{minute}:{direction}:mfe",
+            "direction": direction,
+            "signalMinute": minute,
+            "entryMinute": minute,
+            "lastMinute": minute,
+            "entryPrice": float(entry_fill["executionPrice"]),
+            "entryRecord": self._compact_record(record),
+            "quantity": int(quantity),
+            "horizonMinutes": horizon,
+            "elapsedMinutes": 0,
+            "maximumFavorableMove": 0.0,
+            "cohorts": {
+                cohort: {
+                    "targetMove": float(details["targetMove"]),
+                    "targetHitMinute": None,
+                    "targetHitRecord": None,
+                }
+                for cohort, details in cost_evaluation["cohorts"].items()
+                if details.get("targetMove") is not None
+            },
+        })
+
+    def _advance_mfe_trackers(self, record: dict[str, Any]) -> list[dict[str, Any]]:
+        if not self.mfe_trackers:
+            return []
+        minute = str(record.get("exchangeMinute") or "")
+        last_price = finite_number(record.get("lastPrice"))
+        if last_price is None:
+            return []
+        remaining = []
+        completed = []
+        for tracker in self.mfe_trackers:
+            expected = next_continuous_minute(str(tracker["lastMinute"]))
+            if minute == tracker["lastMinute"]:
+                remaining.append(tracker)
+                continue
+            if expected != minute:
+                # An incomplete future chain remains unavailable; it is never
+                # converted to a zero-MFE loss.
+                continue
+            tracker["lastMinute"] = minute
+            tracker["elapsedMinutes"] += 1
+            entry_price = float(tracker["entryPrice"])
+            direction = str(tracker["direction"])
+            favorable_price = (
+                finite_number(record.get("minuteHigh"))
+                if direction == "positive-t" else finite_number(record.get("minuteLow"))
+            )
+            if favorable_price is None:
+                favorable_price = last_price
+            favorable_move = (
+                favorable_price - entry_price
+                if direction == "positive-t" else entry_price - favorable_price
+            )
+            tracker["maximumFavorableMove"] = max(
+                float(tracker["maximumFavorableMove"]),
+                favorable_move,
+            )
+            for details in tracker["cohorts"].values():
+                if (
+                    details["targetHitMinute"] is None
+                    and favorable_move >= float(details["targetMove"])
+                ):
+                    details["targetHitMinute"] = minute
+                    details["targetHitRecord"] = self._compact_record(record)
+            if int(tracker["elapsedMinutes"]) < int(tracker["horizonMinutes"]):
+                remaining.append(tracker)
+                continue
+
+            outcomes = {}
+            for cohort, details in tracker["cohorts"].items():
+                covered = float(tracker["maximumFavorableMove"]) >= float(details["targetMove"])
+                exit_record = details["targetHitRecord"] or self._compact_record(record)
+                result = execute_t(
+                    tracker["entryRecord"],
+                    exit_record,
+                    self.config,
+                    direction,
+                    0,
+                    True,
+                    int(tracker["quantity"]),
+                )
+                self._update_cohort_stats(cohort, covered, result)
+                outcomes[cohort] = {
+                    "covered": covered,
+                    "targetMove": details["targetMove"],
+                    "targetHitMinute": details["targetHitMinute"],
+                    "afterCost": result,
+                }
+            conservative_covered = bool(outcomes.get(CONSERVATIVE_COHORT, {}).get("covered"))
+            evidence = self.mfe_evidence[direction]
+            evidence["samples"] += 1
+            evidence["covered"] += int(conservative_covered)
+            completed.append({
+                "observationId": tracker["observationId"],
+                "signalMinute": tracker["signalMinute"],
+                "entryMinute": tracker["entryMinute"],
+                "direction": direction,
+                "quantity": int(tracker["quantity"]),
+                "horizonMinutes": int(tracker["horizonMinutes"]),
+                "maximumFavorableMove": float(tracker["maximumFavorableMove"]),
+                "outcomes": outcomes,
+                "causality": {
+                    "futureMinutesUsedOnlyForRetrospectiveLabel": True,
+                    "futureMinutesUsedBySignalFeatures": False,
+                    "requiresConsecutiveTradingMinutes": True,
+                },
+            })
+        self.mfe_trackers = remaining
+        return completed
 
     def _factor_score(
         self,
@@ -1056,22 +1382,30 @@ class ZijinClosureV2ReverseShadow:
         if self.pending["stage"] == "candidate":
             direction = str(self.pending["direction"])
             entry_side = "buy" if direction == "positive-t" else "sell"
-            entry_fill = consume_book(record, entry_side, int(self.config["quantity"]))
+            signal_cost = self.pending["costEvaluation"]
+            entry_features = {
+                "price": record.get("lastPrice"),
+                "atr14": (record.get("volatility") or {}).get("atr14") or signal_cost.get("atr14"),
+            }
+            entry_cost = self._cost_evaluation(record, direction, entry_features)
+            quantity = entry_cost.get("quantity")
+            if not entry_cost["passed"] or quantity is None:
+                return self._reject_pending(minute, "entry-cost-or-depth-unavailable")
+            entry_fill = consume_book(record, entry_side, int(quantity))
             if entry_fill is None:
                 return self._reject_pending(minute, "entry-book-unavailable")
             exit_config = self.config["directions"][direction]["exit"]
-            atr = float(self.pending["costEvaluation"]["atr14"])
+            atr = float(entry_cost["atr14"])
             entry_price = float(entry_fill["executionPrice"])
-            target_move = max(
-                atr * float(exit_config["targetAtrMultiple"]),
-                entry_price * float(exit_config["minimumTargetBps"]) / 10_000,
-            )
+            target_move = float(entry_cost["cohorts"][CONSERVATIVE_COHORT]["targetMove"])
             stop_move = atr * float(exit_config["stopAtrMultiple"])
             self.pending.update({
                 "stage": "entered",
                 "entryMinute": minute,
                 "entryRecord": self._compact_record(record),
                 "entryPrice": entry_price,
+                "quantity": int(quantity),
+                "costEvaluation": entry_cost,
                 "targetPrice": entry_price + target_move if direction == "positive-t" else entry_price - target_move,
                 "stopPrice": entry_price - stop_move if direction == "positive-t" else entry_price + stop_move,
                 "remainingHoldMinutes": int(exit_config["maxHoldTradingMinutes"]),
@@ -1081,7 +1415,7 @@ class ZijinClosureV2ReverseShadow:
             return self._emit("entry", minute, {
                 "signalMinute": self.pending["signalMinute"],
                 "direction": direction,
-                "quantity": int(self.config["quantity"]),
+                "quantity": int(quantity),
                 "entryPrice": entry_price,
                 "targetPrice": self.pending["targetPrice"],
                 "stopPrice": self.pending["stopPrice"],
@@ -1107,10 +1441,11 @@ class ZijinClosureV2ReverseShadow:
             return None
 
         entry_record = self.pending["entryRecord"]
-        actual = execute_t(entry_record, record, self.config, direction)
-        stress2 = execute_t(entry_record, record, self.config, direction, 2)
-        stress5 = execute_t(entry_record, record, self.config, direction, 5)
-        transfer = execute_t(entry_record, record, self.config, direction, 0, True)
+        quantity = int(self.pending["quantity"])
+        actual = execute_t(entry_record, record, self.config, direction, quantity=quantity)
+        stress2 = execute_t(entry_record, record, self.config, direction, 2, quantity=quantity)
+        stress5 = execute_t(entry_record, record, self.config, direction, 5, quantity=quantity)
+        transfer = execute_t(entry_record, record, self.config, direction, 0, True, quantity)
         if not all((actual, stress2, stress5, transfer)):
             return self._reject_pending(minute, "exit-book-unavailable")
         payload = {
@@ -1119,7 +1454,7 @@ class ZijinClosureV2ReverseShadow:
             "exitMinute": minute,
             "direction": direction,
             "exitReason": exit_reason,
-            "quantity": int(self.config["quantity"]),
+            "quantity": quantity,
             "features": self.pending["features"],
             "regime": self.pending["regime"],
             "factorScore": self.pending.get("factorScore"),
@@ -1154,13 +1489,16 @@ class ZijinClosureV2ReverseShadow:
             self.current_date = date
             self.last_minute = minute
 
+            mfe_event = None
+            for label in self._advance_mfe_trackers(record):
+                mfe_event = self._emit("mfe-label", minute, label)
             event = self._advance_pending(record)
             self.minutes.append(record)
             self.minutes = self.minutes[-260:]
             features = self._features()
             if features is None:
                 self._save()
-                return event
+                return event or mfe_event
             if features["consecutiveValidL2Minutes"] >= int(
                 self.config["l2Quality"]["minimumConsecutiveValidMinutes"]
             ):
@@ -1193,10 +1531,12 @@ class ZijinClosureV2ReverseShadow:
                 factor_gates = self._factor_gates(direction, features, regime_passes)
                 cost_evaluation = self._cost_evaluation(record, direction, features)
                 factor_score = self._factor_score(direction, features, cost_evaluation)
+                historical_mfe = self._historical_mfe_status(direction)
                 all_gates = {
                     "timeWindow": in_window,
                     **factor_gates,
                     "costCoverage": bool(cost_evaluation["passed"]),
+                    "historicalMfeCoverage": bool(historical_mfe["passed"]),
                     "factorScore": bool(factor_score["passed"]),
                 }
                 evaluations[direction] = {
@@ -1205,19 +1545,29 @@ class ZijinClosureV2ReverseShadow:
                     "totalCount": len(all_gates),
                     "gates": all_gates,
                     "costEvaluation": rounded(cost_evaluation),
+                    "historicalMfe": rounded(historical_mfe),
                     "factorScore": rounded(factor_score),
                 }
                 candidate_key = f"{date}:{direction}"
                 base_gate_names = ("timeWindow", "marketRegime", "l2Quality", "vwapLocation", "momentum3", "priceTurn5")
                 base_passes = all(all_gates[name] for name in base_gate_names)
+                if (
+                    base_passes
+                    and cost_evaluation["passed"]
+                    and candidate_key not in self.mfe_started_keys
+                ):
+                    self.mfe_started_keys.add(candidate_key)
+                    self._start_mfe_tracker(record, direction, cost_evaluation)
                 if base_passes and candidate_key not in self.observed_candidate_keys:
                     self.observed_candidate_keys.add(candidate_key)
                     self.counts["candidateWaves"] += 1
                     observation_event = self._emit("observation", minute, {
                         "direction": direction,
-                        "quantity": int(self.config["quantity"]),
+                        "quantity": cost_evaluation.get("quantity"),
                         "features": rounded_features,
                         "gates": all_gates,
+                        "costEvaluation": rounded(cost_evaluation),
+                        "historicalMfe": rounded(historical_mfe),
                         "factorScore": rounded(factor_score),
                     })
 
@@ -1229,7 +1579,7 @@ class ZijinClosureV2ReverseShadow:
             }
             self._save()
             if event is not None or self.pending is not None:
-                return event or observation_event
+                return event or observation_event or mfe_event
 
             for direction, evaluation in evaluations.items():
                 candidate_key = f"{date}:{direction}"
@@ -1243,6 +1593,7 @@ class ZijinClosureV2ReverseShadow:
                     "direction": direction,
                     "signalMinute": minute,
                     "lastMinute": minute,
+                    "quantity": evaluation["costEvaluation"].get("quantity"),
                     "features": rounded_features,
                     "regime": regime,
                     "costEvaluation": evaluation["costEvaluation"],
@@ -1250,10 +1601,10 @@ class ZijinClosureV2ReverseShadow:
                 }
                 return self._emit("candidate", minute, {
                     "direction": direction,
-                    "quantity": int(self.config["quantity"]),
+                    "quantity": evaluation["costEvaluation"].get("quantity"),
                     "features": rounded_features,
                     "regime": regime,
                     "costEvaluation": evaluation["costEvaluation"],
                     "factorScore": evaluation["factorScore"],
                 })
-            return event or observation_event
+            return event or observation_event or mfe_event
