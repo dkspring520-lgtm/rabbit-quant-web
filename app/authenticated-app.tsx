@@ -809,19 +809,27 @@ type InitialAuth = {
 };
 
 function ReleaseVersion() {
-  const [release,setRelease]=useState<{shortCommit?:string;buildTime?:string|null}|null>(null);
+  const [release,setRelease]=useState<{
+    shortCommit?:string;
+    buildTime?:string|null;
+    releaseShortCommit?:string;
+    releaseBuildTime?:string|null;
+  }|null>(null);
   useEffect(()=>{
     let active=true;
     const load=()=>void fetch("/api/control/version",{cache:"no-store"})
       .then(response=>response.ok?response.json():Promise.reject(new Error("version unavailable")))
-      .then((payload:{shortCommit?:string;buildTime?:string|null})=>{if(active)setRelease(payload)})
+      .then((payload:{shortCommit?:string;buildTime?:string|null;releaseShortCommit?:string;releaseBuildTime?:string|null})=>{if(active)setRelease(payload)})
       .catch(()=>{});
     load();
     const timer=window.setInterval(load,60_000);
     return()=>{active=false;window.clearInterval(timer)};
   },[]);
-  const shortCommit=!release?"检测中":release.shortCommit&&release.shortCommit!=="development"?release.shortCommit.slice(0,8):"本地";
-  const title=release?.buildTime?`构建时间 ${new Date(release.buildTime).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai"})}`:"正在核对服务器版本";
+  const displayedCommit=release?.releaseShortCommit||release?.shortCommit;
+  const displayedTime=release?.releaseBuildTime||release?.buildTime;
+  const shortCommit=!release?"检测中":displayedCommit&&displayedCommit!=="development"?displayedCommit.slice(0,8):"本地";
+  const webCommit=release?.shortCommit&&release.shortCommit!==displayedCommit?` · Web ${release.shortCommit.slice(0,8)}`:"";
+  const title=displayedTime?`发布时间 ${new Date(displayedTime).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai"})}${webCommit}`:"正在核对服务器版本";
   return <span className="release-version" title={title}><b>版本 闭环-{shortCommit}</b><span><a href="/terms">协议</a> · <a href="/privacy">隐私</a></span></span>;
 }
 
