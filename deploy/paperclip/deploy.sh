@@ -85,7 +85,12 @@ chmod 0600 "$ENV_FILE" "$CONFIG_ROOT/dataset-catalog.json" "$CONFIG_ROOT/tokens.
 compose=(docker compose --env-file "$ENV_FILE" --project-name "$PROJECT_NAME" --project-directory "$RELEASE_ROOT" -f "$RELEASE_ROOT/deploy/paperclip/compose.yml")
 APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" config --quiet
 APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" pull paperclip
-APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" build research-bridge
+if docker buildx version >/dev/null 2>&1; then
+  APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" build research-bridge
+else
+  DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 APP_COMMIT_SHA="$EXPECTED_COMMIT" \
+    "${compose[@]}" build research-bridge
+fi
 APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" up -d --no-deps paperclip research-bridge
 
 deadline=$((SECONDS + 180))
