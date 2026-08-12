@@ -38,6 +38,7 @@ test("bridge source imports no trading, account, production database or deployme
 test("Paperclip deployment stays pinned, private and isolated from production", async () => {
   const compose = await readFile(path.join(process.cwd(), "deploy", "paperclip", "compose.yml"), "utf8");
   const dockerfile = await readFile(path.join(process.cwd(), "deploy", "paperclip", "Dockerfile.bridge"), "utf8");
+  const deploy = await readFile(path.join(process.cwd(), "deploy", "paperclip", "deploy.sh"), "utf8");
 
   assert.match(compose, /ghcr\.io\/paperclipai\/paperclip:sha-67001ec/);
   assert.doesNotMatch(compose, /paperclipai\/paperclip:(?:latest|master)\b/);
@@ -48,6 +49,11 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.match(compose, /PAPERCLIP_BRIDGE_BIND_HOST:-127\.0\.0\.1/);
   assert.match(compose, /research-control:\s*\r?\n\s+internal:\s*true/);
   assert.match(compose, /PAPERCLIP_DATASET_ROOT[^\r\n]*:\/datasets:ro/);
+  assert.match(compose, /127\.0\.0\.1:3100\/health/);
+  assert.doesNotMatch(compose, /127\.0\.0\.1:3100\/api\/health/);
   assert.doesNotMatch(compose, /docker\.sock|control\.sqlite|trading-adapter|\.env:\/|OPENAI_API_KEY|ANTHROPIC_API_KEY/i);
   assert.doesNotMatch(dockerfile, /COPY\s+\.\s+\.|trading-adapter|control-store|app\/api/i);
+  assert.doesNotMatch(deploy, /trading-adapter|account-store|production.?db|control\.sqlite|docker\.sock/i);
+  assert.match(deploy, /127\.0\.0\.1:3100\/health/);
+  assert.match(deploy, /127\.0\.0\.1:3210\/health/);
 });

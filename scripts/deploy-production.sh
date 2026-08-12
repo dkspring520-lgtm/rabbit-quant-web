@@ -9,6 +9,8 @@ LOG_DIR="${RABBIT_QUANT_DEPLOY_LOG_DIR:-/var/log/rabbit-quant-deploy}"
 PUBLIC_RELEASE_STATE_FILE="${RABBIT_QUANT_PUBLIC_RELEASE_STATE_FILE:-/opt/rabbit-quant-state/deployed-release.json}"
 LOCK_FILE="${RABBIT_QUANT_DEPLOY_LOCK:-/run/lock/rabbit-quant-deploy.lock}"
 OPS_ASSETS_STATE_FILE="$STATE_DIR/ops-assets-v2-sha"
+PAPERCLIP_STATE_FILE="$STATE_DIR/paperclip-deployed-sha"
+PAPERCLIP_PENDING_FILE="$STATE_DIR/paperclip-pending-sha"
 HEALTH_TIMEOUT="${RABBIT_QUANT_HEALTH_TIMEOUT:-300}"
 IMAGE_RETENTION="${RABBIT_QUANT_IMAGE_RETENTION:-2}"
 MIN_FREE_DISK_GB="${RABBIT_QUANT_MIN_FREE_DISK_GB:-8}"
@@ -178,6 +180,7 @@ sync_operations_assets() {
     install -m "$mode" "$temp_dir/asset" "$target"
   done <<'ASSETS'
 scripts/backup-production.sh|/usr/local/sbin/rabbit-quant-backup|0755
+deploy/paperclip/deploy.sh|/usr/local/sbin/rabbit-quant-paperclip-deploy|0755
 deploy/cleanup-docker-artifacts.sh|/usr/local/sbin/rabbit-quant-docker-cleanup|0755
 deploy/systemd/rabbit-quant-deploy.service|/etc/systemd/system/rabbit-quant-deploy.service|0644
 deploy/systemd/rabbit-quant-deploy.timer|/etc/systemd/system/rabbit-quant-deploy.timer|0644
@@ -204,6 +207,9 @@ ASSETS
 classify_changed_path() {
   local path="$1"
   case "$path" in
+    deploy/paperclip/*|services/paperclip-bridge/*|lib/factor-research/*|scripts/run-factor-research.mjs)
+      paperclip_update_needed=1
+      ;;
     Dockerfile.l2|requirements.l2.txt|scripts/zijin_l2_collector.py|scripts/zijin_l2_forward_labels.py|scripts/zijin_l2_second_state.py)
       l2_build_needed=1
       l2_service_needed=1
@@ -240,6 +246,33 @@ classify_changed_path() {
       trainer_service_needed=1
       ;;
   esac
+}
+
+deploy_paperclip_release() {
+  local commit="$1" paperclip_release_dir status=0
+  resolved_paperclip_commit="$commit"
+  paperclip_release_dir="$STATE_DIR/paperclip-releases/$commit"
+  mkdir -p "$(dirname "$paperclip_release_dir")"
+  rm -rf "$paperclip_release_dir"
+  if ! git -C "$REPO_DIR" cat-file -e "$commit^{commit}" 2>/dev/null; then
+    log "Paperclip 待更新提交 $commit 不在本地对象库，改用当前版本 $target_sha。"
+    commit="$target_sha"
+    resolved_paperclip_commit="$commit"
+    paperclip_release_dir="$STATE_DIR/paperclip-releases/$commit"
+  fi
+  git -C "$REPO_DIR" worktree prune
+  git -C "$REPO_DIR" worktree add --detach "$paperclip_release_dir" "$commit" >/dev/null
+  "$paperclip_release_dir/deploy/paperclip/deploy.sh" deploy "$paperclip_release_dir" "$commit" || status=$?
+  git -C "$REPO_DIR" worktree remove --force "$paperclip_release_dir" >/dev/null 2>&1 || true
+  return "$status"
+}
+
+queue_paperclip_update() {
+  local commit="$1"
+  if (( paperclip_update_needed == 1 )); then
+    printf '%s\n' "$commit" > "$PAPERCLIP_PENDING_FILE"
+    log "Paperclip 研究控制面已列入下一轮独立更新。"
+  fi
 }
 
 on_error() {
@@ -523,6 +556,15 @@ ensure_nginx_compression || log "保留现有 Nginx 压缩设置，继续部署�
 if [[ "$target_sha" == "$deployed_sha" && -n "$previous_sha" && "$previous_sha" == "$expected_active_web_sha" ]]; then
   printf '%s\n' "$previous_sha" > "$STATE_DIR/last-good-web-sha"
   sync_operations_assets "$deployed_sha"
+  paperclip_commit="$(cat "$PAPERCLIP_PENDING_FILE" 2>/dev/null || cat "$PAPERCLIP_STATE_FILE" 2>/dev/null || printf '%s' "$target_sha")"
+  [[ "$paperclip_commit" =~ ^[0-9a-f]{40}$ ]] || paperclip_commit="$target_sha"
+  current_stage="更新 Paperclip 研究控制面"
+  if ! /usr/local/sbin/rabbit-quant-paperclip-deploy check "" "$paperclip_commit"; then
+    log "Paperclip 未启动、状态异常或存在待更新版本，开始独立更新。"
+    deploy_paperclip_release "$paperclip_commit"
+    printf '%s\n' "${resolved_paperclip_commit:-$paperclip_commit}" > "$PAPERCLIP_STATE_FILE"
+  fi
+  rm -f "$PAPERCLIP_PENDING_FILE"
   log "线上已是 $short_sha，无需部署。"
   exit 0
 fi
@@ -543,6 +585,7 @@ trainer_service_needed=0
 l2_service_needed=0
 compose_changed=0
 web_support_services_needed=0
+paperclip_update_needed=0
 
 if [[ -z "$deployed_sha" ]] || ! git -C "$REPO_DIR" cat-file -e "$deployed_sha^{commit}" 2>/dev/null; then
   force_full_release=1
@@ -560,6 +603,7 @@ if (( force_full_release == 1 )); then
   trainer_service_needed=1
   l2_service_needed=1
   web_support_services_needed=1
+  paperclip_update_needed=1
 else
   while IFS= read -r changed_path; do
     [[ -n "$changed_path" ]] || continue
@@ -617,6 +661,7 @@ else
   cp "$compose_file" "$STATE_DIR/last-good-compose.yml"
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
+  queue_paperclip_update "$target_sha"
   write_public_release_state "$target_sha" "$build_time"
   log "本次提交没有运行时文件变化，跳过容器更新。"
   record_result "success" "无运行时变化，复用现有镜像"
@@ -777,6 +822,7 @@ if (( switch_failed == 0 )) && wait_for_release "$expected_web_sha" "$candidate_
   printf '%s\n' "$web_runtime_sha" > "$STATE_DIR/last-good-web-sha"
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
+  queue_paperclip_update "$target_sha"
   write_public_release_state "$target_sha" "$build_time"
   prune_release_images
   log "部署成功：$short_sha；版本接口与四个容器健康检查均通过。"
