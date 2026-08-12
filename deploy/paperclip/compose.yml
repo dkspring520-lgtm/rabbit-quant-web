@@ -2,6 +2,7 @@ name: rabbit-quant-paperclip-research
 
 services:
   paperclip:
+    container_name: rabbit-quant-paperclip
     image: ghcr.io/paperclipai/paperclip:sha-67001ec
     restart: unless-stopped
     environment:
@@ -23,16 +24,19 @@ services:
       - paperclip-home:/paperclip
     networks:
       - research-control
+    labels:
+      rabbit-quant.research.commit: ${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3100/api/health >/dev/null"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 30s
 
   research-bridge:
+    container_name: rabbit-quant-research-bridge
     build:
       context: ../..
       dockerfile: deploy/paperclip/Dockerfile.bridge
@@ -56,6 +60,8 @@ services:
       - bridge-state:/state
     networks:
       - research-control
+    labels:
+      rabbit-quant.research.commit: ${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777

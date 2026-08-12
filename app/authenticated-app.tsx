@@ -4702,11 +4702,46 @@ const AI_FACTOR_CATEGORIES=[
 
 const AI_RESEARCH_FLOW=["数据核验","因子研究","组合策略","离线回测","风险审核","QA验收","人工批准"] as const;
 
+type PaperclipRuntimeStatus={
+  status:"running"|"degraded"|"stopped";
+  services:{paperclip:"healthy"|"unavailable";bridge:"healthy"|"unavailable"};
+  checkedAt:string|null;
+  message:string;
+};
+
 function AIQuantResearchInstituteView(){
+  const [runtime,setRuntime]=useState<PaperclipRuntimeStatus|null>(null);
+  useEffect(()=>{
+    let active=true;
+    let timer:number|undefined;
+    const load=async()=>{
+      if(document.visibilityState!=="visible"){
+        if(active)timer=window.setTimeout(()=>void load(),30_000);
+        return;
+      }
+      try{
+        const response=await fetch(`/api/research/paperclip-status?t=${Date.now()}`,{cache:"no-store"});
+        if(!response.ok)throw new Error(`HTTP ${response.status}`);
+        const payload=await response.json() as PaperclipRuntimeStatus;
+        if(active)setRuntime(payload);
+      }catch{
+        if(active)setRuntime({status:"degraded",services:{paperclip:"unavailable",bridge:"unavailable"},checkedAt:null,message:"状态连接暂不可用"});
+      }
+      if(active)timer=window.setTimeout(()=>void load(),15_000);
+    };
+    void load();
+    const onVisibility=()=>{if(document.visibilityState==="visible"){if(timer!==undefined)window.clearTimeout(timer);void load();}};
+    document.addEventListener("visibilitychange",onVisibility);
+    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer);document.removeEventListener("visibilitychange",onVisibility);};
+  },[]);
+  const running=runtime?.status==="running"&&runtime.services.paperclip==="healthy"&&runtime.services.bridge==="healthy";
+  const runtimeTitle=running?"控制面运行中":runtime?.status==="degraded"?"控制面异常":"离线研究就绪";
+  const runtimeDetail=running?"Paperclip / 研究桥均健康":runtime?.message??"正在读取服务器状态";
+  const checkedTime=runtime?.checkedAt?new Date(runtime.checkedAt).toLocaleTimeString("zh-CN",{hour12:false}):null;
   return <main className="ai-institute-view">
     <header className="ai-institute-head">
       <div><span>AI QUANT RESEARCH INSTITUTE</span><h1>AI量化研究院</h1><p>把做T因子研究、样本外验证与人工审批放进同一条可审计流程。</p></div>
-      <div className="ai-institute-status"><i/><span>研究状态</span><b>离线研究就绪</b><small>实时控制面未启动</small></div>
+      <div className="ai-institute-status"><i/><span>研究状态</span><b>{runtimeTitle}</b><small>{runtimeDetail}</small></div>
     </header>
 
     <section className="ai-institute-metrics" aria-label="研究院概况">
@@ -4723,7 +4758,7 @@ function AIQuantResearchInstituteView(){
 
     <div className="ai-institute-grid">
       <section className="ai-institute-agents" aria-labelledby="ai-agent-title">
-        <div className="ai-institute-section-head"><div><span>AGENT TEAM</span><h2 id="ai-agent-title">七兔研究团队</h2></div><small>离线待命</small></div>
+        <div className="ai-institute-section-head"><div><span>AGENT TEAM</span><h2 id="ai-agent-title">七兔研究团队</h2></div><small>{running?"控制面在线":"离线待命"}</small></div>
         <div className="ai-agent-grid">{AI_RESEARCH_AGENTS.map((agent,index)=><article key={agent.name} className={`${agent.tone}${agent.disabled?" disabled":""}`}>
           <div className="ai-agent-avatar"><span>{index+1}</span><i/><i/></div>
           <div><h3>{agent.name}</h3><b>{agent.role}</b><p>{agent.task}</p></div>
@@ -4741,7 +4776,7 @@ function AIQuantResearchInstituteView(){
     <section className="ai-safety-panel" aria-labelledby="ai-safety-title">
       <div><span>SAFETY BOUNDARY</span><h2 id="ai-safety-title">安全边界</h2><p>研究成果只能成为候选，无法自行进入正式策略。</p></div>
       <ul><li><i/>不连接真实交易</li><li><i/>不写生产数据库</li><li><i/>不自动修改正式策略</li><li><i/>不自动部署</li></ul>
-      <aside><span>当前控制面</span><b>尚未启动</b><small>因此暂无实时任务、心跳和预算记录</small></aside>
+      <aside><span>当前控制面</span><b>{running?"运行中":runtime?.status==="degraded"?"状态异常":"尚未启动"}</b><small>{running?`双服务健康${checkedTime?` · ${checkedTime} 检查`:""}`:runtimeDetail}</small></aside>
     </section>
   </main>;
 }
