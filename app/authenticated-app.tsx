@@ -3657,7 +3657,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <span className="brand-type brand-type-fallback"><strong aria-hidden="true"><span>双兔助手</span></strong><small>做<span className="brand-ascii-t">T</span>神器 · SMART-T</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
-          {['首页','操盘台','单股智研','量化工具','模拟回测','邀请中心'].map((item) => {
+          {['首页','操盘台','单股智研','AI量化研究院','量化工具','模拟回测','邀请中心'].map((item) => {
             const groupedToolViews=['量化工具','多股监控','策略市场','持仓对账','智能训练'];
             const active=item==='量化工具' ? groupedToolViews.includes(activeView) : activeView===item;
             return <button onClick={() => setActiveView(item)} className={active ? 'active' : ''} key={item}>{item}</button>;
@@ -4165,7 +4165,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           {agentOpen&&<div className="agent-grid">{liveAgents.map((agent,i)=><button className="agent" key={agent.name} onClick={()=>setActiveView("智能训练")} aria-label={`查看${agent.name}训练详情`}><span className={`agent-icon a${i}`}><Image src={agent.avatar} alt={`${agent.name} AI头像`} width={40} height={40}/></span><span><b>{agent.name}</b><small>{agent.role}</small></span><em><i/>{agent.state}</em><strong>{agent.value}</strong></button>)}</div>}
         </div>
       </section>
-      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} premiumEnabled={premiumEnabled} onOpenAccount={()=>setAccountOpen(true)} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
+      </> : activeView === "单股智研" ? <SingleStockResearchView key={`${accountName}:${stock.code}`} accountName={accountName} stock={stock} quote={activeQuote} marketData={marketData} profile={profile} profitMode={activeProfitMode} position={activePosition} manualCount={tradeLedgerSummary.validCount} onOpenConsole={()=>setActiveView('操盘台')} /> : activeView === "AI量化研究院" ? <AIQuantResearchInstituteView /> : activeView === "多股监控" ? <MultiWatchView stocks={stockList} onManage={()=>setOnboardingOpen(true)} onOpen={(index)=>{selectActiveStock(index);setActiveView('操盘台')}} /> : activeView === "策略市场" ? <StrategyMarketView key={accountName} accountName={accountName} /> : activeView === "持仓对账" ? <HoldingsView key={`${accountName}:${stock.code}:${tradingDate}`} position={activePosition} stock={stock} tradingDate={tradingDate} rows={tradeLedgerRows} onRowsChange={saveTradeLedgerRows} /> : activeView === "智能训练" ? <TrainingView evidence={personalStrategyStats} accountName={accountName} stock={stock} position={activePosition} premiumEnabled={premiumEnabled} onOpenAccount={()=>setAccountOpen(true)} /> : <BacktestView key={`${stock.code}:${activePosition.plannedBase}:${activePosition.sellable}`} profile={profile} setProfile={setProfile} profitMode={activeProfitMode} setProfitMode={setProfitMode} position={activePosition} stock={stock} stocks={stockList} activeStock={activeStock} onSelectStock={selectActiveStock} />}
 
       {strategyOpen && <div className="strategy-overlay" role="dialog" aria-modal="true" aria-label="策略选择与说明">
         <div className="strategy-dialog">
@@ -4676,6 +4676,75 @@ type ZijinL2State = {
     multiFactorTShadow?:ZijinShadowProgressStatus;
   };
 };
+
+const AI_RESEARCH_AGENTS=[
+  {name:"探因兔",role:"量化研究",task:"发现与解释做T因子",tone:"teal",disabled:false},
+  {name:"净源兔",role:"数据治理",task:"核验样本、时序与质量",tone:"blue",disabled:false},
+  {name:"组策兔",role:"策略组合",task:"组合因子与候选参数",tone:"amber",disabled:false},
+  {name:"验真兔",role:"离线回测",task:"滚动样本外验证",tone:"purple",disabled:false},
+  {name:"守界兔",role:"风险审核",task:"检查回撤、成本与泄漏",tone:"coral",disabled:false},
+  {name:"铸码兔",role:"开发执行",task:"等待人工授权，当前关闭",tone:"muted",disabled:true},
+  {name:"质检兔",role:"质量验收",task:"测试结果与版本证据",tone:"green",disabled:false},
+] as const;
+
+const AI_FACTOR_CATEGORIES=[
+  {name:"VWAP",count:7,tone:"teal"},
+  {name:"动量",count:5,tone:"coral"},
+  {name:"成交量",count:5,tone:"amber"},
+  {name:"波动率",count:5,tone:"purple"},
+  {name:"技术指标",count:5,tone:"blue"},
+  {name:"分时结构",count:5,tone:"green"},
+  {name:"价格",count:4,tone:"red"},
+  {name:"市场环境",count:4,tone:"cyan"},
+  {name:"订单流",count:4,tone:"orange"},
+  {name:"时间",count:4,tone:"gray"},
+] as const;
+
+const AI_RESEARCH_FLOW=["数据核验","因子研究","组合策略","离线回测","风险审核","QA验收","人工批准"] as const;
+
+function AIQuantResearchInstituteView(){
+  return <main className="ai-institute-view">
+    <header className="ai-institute-head">
+      <div><span>AI QUANT RESEARCH INSTITUTE</span><h1>AI量化研究院</h1><p>把做T因子研究、样本外验证与人工审批放进同一条可审计流程。</p></div>
+      <div className="ai-institute-status"><i/><span>研究状态</span><b>离线研究就绪</b><small>实时控制面未启动</small></div>
+    </header>
+
+    <section className="ai-institute-metrics" aria-label="研究院概况">
+      <article><span>研究角色</span><b>7</b><small>职责独立</small></article>
+      <article><span>基础因子</span><b>48</b><small>不可变 V1</small></article>
+      <article><span>验证测试</span><b>25/25</b><small>因子 18 · 安全 7</small></article>
+      <article className="safe"><span>自动生产权限</span><b>0</b><small>必须人工批准</small></article>
+    </section>
+
+    <section className="ai-institute-flow" aria-labelledby="ai-research-flow-title">
+      <div className="ai-institute-section-head"><div><span>RESEARCH PIPELINE</span><h2 id="ai-research-flow-title">研究闭环</h2></div><small>Paperclip 仅负责任务编排，不进入交易链路</small></div>
+      <ol>{AI_RESEARCH_FLOW.map((step,index)=><li key={step} className={index===AI_RESEARCH_FLOW.length-1?"approval":"ready"}><i>{String(index+1).padStart(2,"0")}</i><b>{step}</b><span>{index===AI_RESEARCH_FLOW.length-1?"人工闸门":"可复现"}</span></li>)}</ol>
+    </section>
+
+    <div className="ai-institute-grid">
+      <section className="ai-institute-agents" aria-labelledby="ai-agent-title">
+        <div className="ai-institute-section-head"><div><span>AGENT TEAM</span><h2 id="ai-agent-title">七兔研究团队</h2></div><small>离线待命</small></div>
+        <div className="ai-agent-grid">{AI_RESEARCH_AGENTS.map((agent,index)=><article key={agent.name} className={`${agent.tone}${agent.disabled?" disabled":""}`}>
+          <div className="ai-agent-avatar"><span>{index+1}</span><i/><i/></div>
+          <div><h3>{agent.name}</h3><b>{agent.role}</b><p>{agent.task}</p></div>
+          <em>{agent.disabled?"权限关闭":"研究就绪"}</em>
+        </article>)}</div>
+      </section>
+
+      <aside className="ai-factor-panel" aria-labelledby="ai-factor-title">
+        <div className="ai-institute-section-head"><div><span>FACTOR LIBRARY</span><h2 id="ai-factor-title">因子构成</h2></div><b>48</b></div>
+        <div className="ai-factor-total" aria-hidden="true">{AI_FACTOR_CATEGORIES.map(item=><i key={item.name} className={item.tone} style={{width:`${item.count/48*100}%`}}/>)}</div>
+        <div className="ai-factor-list">{AI_FACTOR_CATEGORIES.map(item=><div key={item.name}><span><i className={item.tone}/>{item.name}</span><b>{item.count}</b><em><i className={item.tone} style={{width:`${item.count/7*100}%`}}/></em></div>)}</div>
+      </aside>
+    </div>
+
+    <section className="ai-safety-panel" aria-labelledby="ai-safety-title">
+      <div><span>SAFETY BOUNDARY</span><h2 id="ai-safety-title">安全边界</h2><p>研究成果只能成为候选，无法自行进入正式策略。</p></div>
+      <ul><li><i/>不连接真实交易</li><li><i/>不写生产数据库</li><li><i/>不自动修改正式策略</li><li><i/>不自动部署</li></ul>
+      <aside><span>当前控制面</span><b>尚未启动</b><small>因此暂无实时任务、心跳和预算记录</small></aside>
+    </section>
+  </main>;
+}
 
 function SingleStockResearchView({accountName,stock,quote,marketData,profile,profitMode,position,manualCount,onOpenConsole}:{accountName:string;stock:{code:string;name:string;price:string;change:string};quote:MarketData['quote']|undefined;marketData:MarketData|null;profile:string;profitMode:ProfitMode;position:StockPosition;manualCount:number;onOpenConsole:()=>void}) {
   const [zijinResearchBundle,setZijinResearchBundle]=useState<ZijinResearchBundle|null>(null);
