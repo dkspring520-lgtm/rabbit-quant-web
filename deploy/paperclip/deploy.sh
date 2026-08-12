@@ -36,7 +36,7 @@ service_healthy() {
 
 check_runtime() {
   local paperclip="unavailable" bridge="unavailable"
-  service_healthy rabbit-quant-paperclip http://127.0.0.1:3100/health && paperclip="healthy"
+  service_healthy rabbit-quant-paperclip http://127.0.0.1:3100/api/health && paperclip="healthy"
   service_healthy rabbit-quant-research-bridge http://127.0.0.1:3210/health && bridge="healthy"
   if [[ "$paperclip" == "healthy" && "$bridge" == "healthy" ]]; then
     write_status "running" "$paperclip" "$bridge" "研究控制面运行正常"
@@ -91,7 +91,7 @@ APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" up -d --no-deps paperclip rese
 deadline=$((SECONDS + 180))
 until check_runtime; do
   if (( SECONDS >= deadline )); then
-    write_status "degraded" "unavailable" "unavailable" "研究控制面启动超时"
+    check_runtime || true
     exit 1
   fi
   sleep 3
