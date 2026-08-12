@@ -10,6 +10,10 @@ STATUS_FILE="${PAPERCLIP_STATUS_FILE:-/opt/rabbit-quant-state/paperclip-status.j
 ENV_FILE="$RUNTIME_ROOT/.env"
 CONFIG_ROOT="$RUNTIME_ROOT/config"
 PROJECT_NAME="rabbit-quant-paperclip-research"
+MIN_FREE_DISK_GB="${PAPERCLIP_MIN_FREE_DISK_GB:-6}"
+
+[[ "$MIN_FREE_DISK_GB" =~ ^[0-9]+$ ]] || MIN_FREE_DISK_GB=6
+(( MIN_FREE_DISK_GB >= 4 )) || MIN_FREE_DISK_GB=4
 
 [[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
   printf 'Paperclip deployment requires a full Git commit.\n' >&2
@@ -32,6 +36,25 @@ service_healthy() {
   [[ "$commit" == "$EXPECTED_COMMIT" ]] \
     && [[ "$(docker inspect "$container" --format '{{.State.Status}}' 2>/dev/null || true)" == "running" ]] \
     && curl --fail --silent --show-error --max-time 5 "$url" >/dev/null
+}
+
+ensure_pull_space() {
+  local docker_root available_kb required_kb
+  docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+  docker_root="${docker_root:-/var/lib/docker}"
+  available_kb="$(df -Pk "$docker_root" | awk 'NR == 2 { print $4 }')"
+  required_kb=$((MIN_FREE_DISK_GB * 1024 * 1024))
+  if [[ "$available_kb" =~ ^[0-9]+$ ]] && (( available_kb >= required_kb )); then
+    return 0
+  fi
+
+  docker image prune --force
+  docker builder prune --all --force --filter "until=${RABBIT_QUANT_BUILD_CACHE_MAX_AGE:-24h}"
+  available_kb="$(df -Pk "$docker_root" | awk 'NR == 2 { print $4 }')"
+  [[ "$available_kb" =~ ^[0-9]+$ ]] && (( available_kb >= required_kb )) || {
+    printf 'Paperclip deployment requires at least %sGB free Docker space after safe cleanup.\n' "$MIN_FREE_DISK_GB" >&2
+    return 1
+  }
 }
 
 check_runtime() {
@@ -82,6 +105,7 @@ chown -R 10001:10001 "$CONFIG_ROOT"
 chmod 0700 "$CONFIG_ROOT"
 chmod 0600 "$ENV_FILE" "$CONFIG_ROOT/dataset-catalog.json" "$CONFIG_ROOT/tokens.json"
 
+ensure_pull_space
 compose=(docker compose --env-file "$ENV_FILE" --project-name "$PROJECT_NAME" --project-directory "$RELEASE_ROOT" -f "$RELEASE_ROOT/deploy/paperclip/compose.yml")
 APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" config --quiet
 APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" pull paperclip

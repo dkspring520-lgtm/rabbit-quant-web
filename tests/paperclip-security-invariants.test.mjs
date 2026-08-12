@@ -57,6 +57,9 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.match(deploy, /127\.0\.0\.1:3100\/api\/health/);
   assert.match(deploy, /127\.0\.0\.1:3210\/health/);
   assert.match(deploy, /docker buildx version/);
+  assert.match(deploy, /PAPERCLIP_MIN_FREE_DISK_GB:-6/);
+  assert.match(deploy, /docker image prune --force/);
+  assert.match(deploy, /docker builder prune --all --force/);
   assert.match(deploy, /DOCKER_BUILDKIT=0 docker build/);
   assert.match(deploy, /up -d --no-deps paperclip/);
   assert.match(deploy, /up -d --no-deps --no-build research-bridge/);
