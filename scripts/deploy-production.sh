@@ -275,6 +275,28 @@ queue_paperclip_update() {
   fi
 }
 
+reconcile_paperclip_runtime() {
+  local fallback_commit="$1" paperclip_commit
+  paperclip_commit="$(cat "$PAPERCLIP_PENDING_FILE" 2>/dev/null || cat "$PAPERCLIP_STATE_FILE" 2>/dev/null || printf '%s' "$fallback_commit")"
+  [[ "$paperclip_commit" =~ ^[0-9a-f]{40}$ ]] || paperclip_commit="$fallback_commit"
+  current_stage="update Paperclip research control plane"
+
+  if /usr/local/sbin/rabbit-quant-paperclip-deploy check "" "$paperclip_commit"; then
+    rm -f "$PAPERCLIP_PENDING_FILE"
+    return 0
+  fi
+
+  log "Paperclip research control plane is unavailable or pending; starting isolated deployment."
+  if deploy_paperclip_release "$paperclip_commit"; then
+    printf '%s\n' "${resolved_paperclip_commit:-$paperclip_commit}" > "$PAPERCLIP_STATE_FILE"
+    rm -f "$PAPERCLIP_PENDING_FILE"
+    log "Paperclip research control plane is healthy."
+  else
+    printf '%s\n' "$paperclip_commit" > "$PAPERCLIP_PENDING_FILE"
+    log "Paperclip isolated deployment failed; the Web release remains active and the next timer run will retry."
+  fi
+}
+
 on_error() {
   local exit_code=$?
   if [[ "${build_started:-0}" == "1" && "${deployment_succeeded:-0}" != "1" ]]; then
@@ -556,15 +578,7 @@ ensure_nginx_compression || log "保留现有 Nginx 压缩设置，继续部署�
 if [[ "$target_sha" == "$deployed_sha" && -n "$previous_sha" && "$previous_sha" == "$expected_active_web_sha" ]]; then
   printf '%s\n' "$previous_sha" > "$STATE_DIR/last-good-web-sha"
   sync_operations_assets "$deployed_sha"
-  paperclip_commit="$(cat "$PAPERCLIP_PENDING_FILE" 2>/dev/null || cat "$PAPERCLIP_STATE_FILE" 2>/dev/null || printf '%s' "$target_sha")"
-  [[ "$paperclip_commit" =~ ^[0-9a-f]{40}$ ]] || paperclip_commit="$target_sha"
-  current_stage="更新 Paperclip 研究控制面"
-  if ! /usr/local/sbin/rabbit-quant-paperclip-deploy check "" "$paperclip_commit"; then
-    log "Paperclip 未启动、状态异常或存在待更新版本，开始独立更新。"
-    deploy_paperclip_release "$paperclip_commit"
-    printf '%s\n' "${resolved_paperclip_commit:-$paperclip_commit}" > "$PAPERCLIP_STATE_FILE"
-  fi
-  rm -f "$PAPERCLIP_PENDING_FILE"
+  reconcile_paperclip_runtime "$target_sha"
   log "线上已是 $short_sha，无需部署。"
   exit 0
 fi
@@ -662,6 +676,7 @@ else
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
   queue_paperclip_update "$target_sha"
+  reconcile_paperclip_runtime "$target_sha"
   write_public_release_state "$target_sha" "$build_time"
   log "本次提交没有运行时文件变化，跳过容器更新。"
   record_result "success" "无运行时变化，复用现有镜像"
@@ -823,6 +838,7 @@ if (( switch_failed == 0 )) && wait_for_release "$expected_web_sha" "$candidate_
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
   queue_paperclip_update "$target_sha"
+  reconcile_paperclip_runtime "$target_sha"
   write_public_release_state "$target_sha" "$build_time"
   prune_release_images
   log "部署成功：$short_sha；版本接口与四个容器健康检查均通过。"
