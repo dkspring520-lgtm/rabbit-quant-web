@@ -849,6 +849,20 @@
     overflow-x: auto;
   }
 
+  .research-overview {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .research-progress-ring {
+    width: 82px;
+  }
+
+  .research-gates,
+  .lab-visual-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
   .research-status,
   .research-grid,
   .research-bottom {

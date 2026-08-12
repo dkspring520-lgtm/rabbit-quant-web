@@ -708,6 +708,7 @@
   .research-card,
   .training-purpose,
   .training-scope-strip p,
+  .research-overview,
   .lab-results,
   .lab-agent,
   .personal-training,
@@ -726,6 +727,16 @@
   border-color: #eee2e8;
   background: rgba(255, 255, 255, .94);
   box-shadow: 0 9px 28px rgba(111, 79, 99, .065);
+}
+
+:root[data-theme="light"] .research-progress-ring:before,
+:root[data-theme="light"] .metric-dial:before {
+  background: #fff;
+}
+
+:root[data-theme="light"] :is(.research-gates > div, .lab-visual-metrics article, .promotion-checks span) {
+  border-color: #eee2e8;
+  background: rgba(255, 255, 255, .72);
 }
 
 :root[data-theme="light"] :is(
