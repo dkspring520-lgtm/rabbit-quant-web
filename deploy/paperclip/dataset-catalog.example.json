@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "datasets": [
+    {
+      "datasetId": "zijin-601899-minute-v1",
+      "description": "紫金矿业版本化分钟研究数据集",
+      "inputPath": "zijin/601899/sessions.jsonl",
+      "manifestPath": "zijin/601899/manifest.json",
+      "datasetChecksum": "REPLACE_WITH_SESSIONS_FILE_SHA256"
+    }
+  ]
+}
