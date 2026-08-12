@@ -1,0 +1,80 @@
+name: rabbit-quant-paperclip-research
+
+services:
+  paperclip:
+    image: ghcr.io/paperclipai/paperclip:sha-67001ec
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3100"
+      SERVE_UI: "true"
+      PAPERCLIP_HOME: /paperclip
+      PAPERCLIP_INSTANCE_ID: double-rabbit-research
+      PAPERCLIP_DEPLOYMENT_MODE: authenticated
+      PAPERCLIP_DEPLOYMENT_EXPOSURE: private
+      PAPERCLIP_PUBLIC_URL: ${PAPERCLIP_PUBLIC_URL:-http://127.0.0.1:3100}
+      PAPERCLIP_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}
+      PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: ${PAPERCLIP_TOOL_ACTION_SIGNING_SECRET:?PAPERCLIP_TOOL_ACTION_SIGNING_SECRET must be set}
+    ports:
+      - "${PAPERCLIP_BIND_HOST:-127.0.0.1}:${PAPERCLIP_PORT:-3100}:3100"
+    volumes:
+      - paperclip-home:/paperclip
+    networks:
+      - research-control
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3100/api/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  research-bridge:
+    build:
+      context: ../..
+      dockerfile: deploy/paperclip/Dockerfile.bridge
+      args:
+        APP_COMMIT_SHA: ${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
+    restart: unless-stopped
+    environment:
+      PAPERCLIP_BRIDGE_HOST: 0.0.0.0
+      PAPERCLIP_BRIDGE_PORT: "3210"
+      PAPERCLIP_BRIDGE_DATASET_ROOT: /datasets
+      PAPERCLIP_BRIDGE_DATASET_CATALOG: /config/dataset-catalog.json
+      PAPERCLIP_BRIDGE_ARTIFACT_ROOT: /artifacts
+      PAPERCLIP_BRIDGE_STATE_ROOT: /state
+      PAPERCLIP_BRIDGE_TOKENS_FILE: /config/tokens.json
+    ports:
+      - "${PAPERCLIP_BRIDGE_BIND_HOST:-127.0.0.1}:${PAPERCLIP_BRIDGE_PORT:-3210}:3210"
+    volumes:
+      - "${PAPERCLIP_DATASET_ROOT:?PAPERCLIP_DATASET_ROOT must be set}:/datasets:ro"
+      - "${PAPERCLIP_BRIDGE_CONFIG_ROOT:-./config}:/config:ro"
+      - bridge-artifacts:/artifacts
+      - bridge-state:/state
+    networks:
+      - research-control
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3210/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+networks:
+  research-control:
+    internal: true
+
+volumes:
+  paperclip-home:
+  bridge-artifacts:
+  bridge-state:

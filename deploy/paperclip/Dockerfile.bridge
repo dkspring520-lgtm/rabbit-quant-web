@@ -1,0 +1,26 @@
+FROM node:22.13.1-alpine
+
+ARG APP_COMMIT_SHA=unknown
+
+WORKDIR /app
+
+COPY lib/factor-research ./lib/factor-research
+COPY lib/personal-replay-training.mjs lib/qmt-orderflow-confirmation.mjs ./lib/
+COPY scripts/run-factor-research.mjs ./scripts/run-factor-research.mjs
+COPY services/paperclip-bridge ./services/paperclip-bridge
+
+RUN addgroup -S -g 10001 bridge \
+  && adduser -S -D -H -u 10001 -G bridge bridge \
+  && mkdir -p /artifacts /state \
+  && chown -R bridge:bridge /artifacts /state
+
+ENV NODE_ENV=production \
+  FACTOR_RESEARCH_GIT_COMMIT=${APP_COMMIT_SHA} \
+  PAPERCLIP_BRIDGE_HOST=0.0.0.0 \
+  PAPERCLIP_BRIDGE_PORT=3210
+
+USER bridge
+
+EXPOSE 3210
+
+CMD ["node", "services/paperclip-bridge/server.mjs"]

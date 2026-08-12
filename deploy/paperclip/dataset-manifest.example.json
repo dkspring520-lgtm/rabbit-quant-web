@@ -1,0 +1,11 @@
+{
+  "datasetId": "zijin-601899-minute-v1",
+  "datasetChecksum": "REPLACE_WITH_SESSIONS_FILE_SHA256",
+  "sourceDateRange": {
+    "from": "2025-01-02",
+    "to": "2026-08-12"
+  },
+  "sessions": 0,
+  "researchOnly": true,
+  "canPromoteAutomatically": false
+}
