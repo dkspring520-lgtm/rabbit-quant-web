@@ -198,6 +198,13 @@ test("deployment keeps rollback images and emits optional webhook notifications"
   assert.match(script, /rabbit-quant-backup\.timer/);
 });
 
+test("Paperclip deployment retries independently without rolling back Web", () => {
+  const script = read("scripts/deploy-production.sh");
+  assert.match(script, /reconcile_paperclip_runtime/);
+  assert.match(script, /the Web release remains active and the next timer run will retry/);
+  assert.match(script, /printf '%s\\n' "\$paperclip_commit" > "\$PAPERCLIP_PENDING_FILE"/);
+});
+
 test("production deploy starts and verifies the Zijin L2 evidence audit", () => {
   const compose = read("compose.web.yml");
   const script = read("scripts/deploy-production.sh");
