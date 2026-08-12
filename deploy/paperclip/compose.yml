@@ -37,6 +37,7 @@ services:
 
   research-bridge:
     container_name: rabbit-quant-research-bridge
+    image: rabbit-quant-research-bridge:${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
     build:
       context: ../..
       dockerfile: deploy/paperclip/Dockerfile.bridge

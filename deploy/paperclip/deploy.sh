@@ -85,13 +85,17 @@ chmod 0600 "$ENV_FILE" "$CONFIG_ROOT/dataset-catalog.json" "$CONFIG_ROOT/tokens.
 compose=(docker compose --env-file "$ENV_FILE" --project-name "$PROJECT_NAME" --project-directory "$RELEASE_ROOT" -f "$RELEASE_ROOT/deploy/paperclip/compose.yml")
 APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" config --quiet
 APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" pull paperclip
+APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" up -d --no-deps paperclip
 if docker buildx version >/dev/null 2>&1; then
   APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" build research-bridge
 else
-  DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 APP_COMMIT_SHA="$EXPECTED_COMMIT" \
-    "${compose[@]}" build research-bridge
+  DOCKER_BUILDKIT=0 docker build \
+    --build-arg "APP_COMMIT_SHA=$EXPECTED_COMMIT" \
+    --file "$RELEASE_ROOT/deploy/paperclip/Dockerfile.bridge" \
+    --tag "rabbit-quant-research-bridge:$EXPECTED_COMMIT" \
+    "$RELEASE_ROOT"
 fi
-APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" up -d --no-deps paperclip research-bridge
+APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" up -d --no-deps --no-build research-bridge
 
 deadline=$((SECONDS + 180))
 until check_runtime; do
