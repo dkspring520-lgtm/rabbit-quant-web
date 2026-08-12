@@ -3755,11 +3755,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <div>
                   {indicatorsVisible&&<span className={`bias-legend ${(chartModel?.latestBias??0)>=0?"up":"down"}`} title="BIAS：当前价格相对均价的偏离幅度"><i/>BIAS {(chartModel?.latestBias??0)>=0?"+":""}{(chartModel?.latestBias??0).toFixed(2)}%</span>}
                   {stock?.code==="601899"&&<span className={`hk-linkage-legend ${zijinAhLinkage.bias}`} title={zijinAhLinkage.reason}><i/>港股紫金 <b>{zijinAhLinkage.available?`${zijinAhLinkage.hkReturnPercent!>=0?"+":""}${zijinAhLinkage.hkReturnPercent!.toFixed(2)}%`:"--"}</b></span>}
-                  <small>中文提示常驻 · 支撑/压力观察不是买卖点</small>
                 </div>
               </details>
             </div>
-            <span className={`live-scan ${marketSession.live?"":"paused"}`}><i/>{marketSession.live?(currentTrial ? "1 秒轮询试用 · 实时行情源" : trialError || (currentMarket ? `公开行情 · ${currentMarket.delayed ? "延迟数据" : "已更新"}` : marketError || "连接行情中")):"复盘模式"}</span>
+            <span className={`live-scan ${marketSession.live?"":"paused"}`} title={marketSession.live?(currentTrial?"1 秒轮询试用 · 实时行情源":trialError||(currentMarket?`公开行情 · ${currentMarket.delayed?"延迟数据":"已更新"}`:marketError||"连接行情中")):"当前为收盘复盘模式"}><i/>{marketSession.live?(currentTrial?"实时行情":currentMarket?currentMarket.delayed?"行情延迟":"行情已更新":"连接行情"):"复盘模式"}</span>
             <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
               <i/>当日分时 <small>1分钟</small>
             </div>
@@ -3943,7 +3942,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <b>{reverseTSignalLabel}</b>
               <small>{reverseTSignalDetail}</small>
             </div>
-            <details className="decision-audit-details" open={uiTheme!=="light"||decisionAuditOpen} onToggle={event=>setDecisionAuditOpen(event.currentTarget.open)}>
+            <details className="decision-audit-details" open={decisionAuditOpen} onToggle={event=>setDecisionAuditOpen(event.currentTarget.open)}>
               <summary>条件与依据 <b>{decisionConditionsConfirmed}/4</b></summary>
               <small className="global-decision-summary">{positiveTBlockedByFlow?"主动净卖与价格走弱同向，卖压解除前不提示正T买入。":signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
              <div className="decision-condition-grid" aria-label="全局决策条件进度" aria-valuemin={0} aria-valuemax={4} aria-valuenow={decisionConditionsConfirmed} role="progressbar">
@@ -3972,34 +3971,33 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div><span>紫金内置闭环策略 · 因果观察</span><b>{liveStrategyExperiment.label}</b><small>候选须经过趋势、成本、盘口和仓位校验；仅辅助人工决策，不自动下单。</small></div>
             <div className="stock-agent-switch-actions experiment-actions"><button className="active experimental" type="button" disabled aria-pressed>闭环已固定</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
           </div>}
-          {isZijinStock&&<section className={`zijin-shadow-v2 ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V2 学习与晋级进度">
-            <header><div><span>紫金影子 V2</span><b>{zijinShadowV2Progress.ready?"可晋级正式":zijinShadowV2Progress.available?"监控中":"等待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></header>
+          {isZijinStock&&<details className={`zijin-shadow-v2 research-fold ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V2 学习与晋级进度">
+            <summary><div><span>紫金影子 V2</span><b>{zijinShadowV2Progress.ready?"可晋级正式":zijinShadowV2Progress.available?"监控中":"等待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></summary>
             <div className="zijin-shadow-v2-meter" role="progressbar" aria-label={`紫金影子 V2 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div>
             <footer><span>{zijinShadowV2Progress.ready?"六项门槛全部通过":`通过 ${zijinShadowV2Progress.passed}/6 · ${zijinShadowV2Progress.tradingDays}/60日 · ${zijinShadowV2Progress.resolvedCycles}/100闭环`}</span><em>{zijinShadowV2Progress.ready?"确认后可晋级正式":"100% 可晋级正式"}</em></footer>
-            <small>影子监控不影响当前正式闭环，达到 100% 后仍需确认切换。</small>
-          </section>}
+          </details>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
             <div className="signal-layer candidate"><span>本股实时观察</span><b>{visibleStockAgentEvaluation?Number(visibleStockAgentEvaluation.status==="candidate"):signalFunnel.currentObservations}<small> 个</small></b><em>{visibleStockAgentEvaluation?`${STOCK_AGENTS.zijin.name} · ${visibleStockAgentEvaluation.title}`:`条件候补 ${signalFunnel.currentCandidates} · 全自选观察 ${signalFunnel.observations}`}</em></div>
             <i>→</i>
             <div className="signal-layer formal"><span>本股正式闭环</span><b>{stockAgent.canExecute?signalFunnel.currentFormal:0}<small> 个</small></b><em>{stockAgent.canExecute?`全部自选 ${signalFunnel.formal} · 闭环过滤后保留`:"研究观察版 · 尚未开放正式执行"}</em></div>
           </div>
           <div className="signal-funnel-note"><span>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`盘前影子许可 · ${zijinPreopenGate.predictedDirection??"等待方向"} · ${zijinPreopenGate.confirmationCount}/${zijinPreopenGate.requiredConfirmations} 确认`:(visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察"))}</span><em>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`${zijinPreopenGate.reason} 仅供影子审计，不影响正式 V4、账户或下单。`:(visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒均由内置闭环运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层")}</em></div>
-          {isZijinStock&&<section className={`zijin-factor-engine ${zijinRealtimeFactors.readyCount>=6?"ready":zijinRealtimeFactors.readyCount>=4?"partial":"waiting"}`} aria-label="紫金矿业多因子T引擎实时确认面板">
-            <header><div><span>紫金矿业多因子T引擎</span><b>实时确认层</b></div><strong>{zijinRealtimeFactors.readyCount}<small>/{zijinRealtimeFactors.total}</small></strong></header>
+          {isZijinStock&&<details className={`zijin-factor-engine research-fold ${zijinRealtimeFactors.readyCount>=6?"ready":zijinRealtimeFactors.readyCount>=4?"partial":"waiting"}`} aria-label="紫金矿业多因子T引擎实时确认面板">
+            <summary><div><span>紫金多因子</span><b>实时确认</b></div><strong>{zijinRealtimeFactors.readyCount}<small>/{zijinRealtimeFactors.total}</small></strong></summary>
             <div className="zijin-factor-engine-meter" role="meter" aria-label={`多因子数据完整度 ${zijinRealtimeFactors.readyCount}/${zijinRealtimeFactors.total}`} aria-valuemin={0} aria-valuemax={zijinRealtimeFactors.total} aria-valuenow={zijinRealtimeFactors.readyCount}><i style={{width:`${zijinRealtimeFactors.readyCount/zijinRealtimeFactors.total*100}%`}}/></div>
             <div className="zijin-factor-engine-grid">{zijinRealtimeFactors.items.map(item=><div key={item.key} className={item.tone} title={item.detail}><span>{item.label}</span><b>{item.value}</b><small>{item.detail}</small></div>)}</div>
-            <footer><span>仅用于候选确认</span><em>不单独生成买卖信号</em></footer>
-          </section>}
-          <section className={`next-session-outlook ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} aria-label="下一交易日走势结构预判">
-            <header><span>下一交易日预判</span><em>{nextSessionOutlook.stage}</em></header>
+          </details>}
+          <details className={`next-session-outlook research-fold ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} aria-label="下一交易日走势结构预判">
+            <summary><span>明日预判 <small>{nextSessionOutlook.stage}</small></span><b>{nextSessionOutlook.ready?nextSessionOutlook.direction:"待定"}<em>{nextSessionOutlook.ready?nextSessionOutlook.confidenceText:""}</em></b></summary>
+            <div className="next-session-outlook-body">
             {nextSessionOutlook.ready?<>
               <div className="next-session-outlook-main"><b>{nextSessionOutlook.direction}</b><strong>{nextSessionOutlook.confidenceText}</strong></div>
               <div className="next-session-outlook-range"><span>预计波动</span><b>¥{nextSessionOutlook.lower.toFixed(2)}–{nextSessionOutlook.upper.toFixed(2)}</b></div>
               <div className="next-session-outlook-levels"><span>支撑 ¥{nextSessionOutlook.support.toFixed(2)}</span><span>压力 ¥{nextSessionOutlook.resistance.toFixed(2)}</span></div>
               <p>{nextSessionOutlook.factors.join(" · ")}</p><small>{nextSessionOutlook.failure}</small>
             </>:<p>{nextSessionOutlook.detail}</p>}
-            <i>综合日线结构、分时、大盘/板块及可用 L2 证据；可信度为证据等级，并非校准概率，不构成投资建议。</i>
-          </section>
+            </div>
+          </details>
           {isZijinStock&&displayedZijinPricePlan&&<div className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"} ${premiumEnabled&&!displayedZijinPricePlan.ready?"compact-waiting":""}`} aria-label="紫金矿业预判买入卖出价区间">
             <div className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":"紫金会员 · 实时因果"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":"预判买卖价区间"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":"等待分时"):"会员功能"}</em></div>
             {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
@@ -4036,7 +4034,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </div>}
           <div className={`alert-channel ${marketSession.live?"market-live":""}`}><div><span>提醒</span><small>语音、弹窗与手机后台通知</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时播放简短语音">🔊 {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试"}</button>}</div><details className="mobile-push-guide"><summary>ⓘ 帮助</summary><div><p><b>安卓 Chrome</b><span>菜单 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><p><b>苹果 Safari</b><span>分享 → 添加到主屏幕 → 从桌面打开 → 开启手机后台并允许通知。</span></p><small>锁屏通知音由手机系统控制；详细说明可在设置中查看。</small></div></details></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
-          <details className="t-calculator" aria-label="日内做T试算" open={uiTheme!=="light"||tCalculatorOpen} onToggle={event=>setTCalculatorOpen(event.currentTarget.open)}>
+          <details className="t-calculator" aria-label="日内做T试算" open={tCalculatorOpen} onToggle={event=>setTCalculatorOpen(event.currentTarget.open)}>
             <summary><span>日内做T试算</span><b>{tCalculatorOpen?"收起":"展开"}</b></summary>
             <div className="t-calculator-body">
             <header><div><span>日内做T试算</span><b>实时估算收益与成本变化</b></div><small>空格快速定位</small></header>
