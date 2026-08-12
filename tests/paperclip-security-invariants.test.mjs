@@ -47,6 +47,7 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.match(compose, /PAPERCLIP_TELEMETRY_DISABLED:\s*"1"/);
   assert.match(compose, /PAPERCLIP_BIND_HOST:-127\.0\.0\.1/);
   assert.match(compose, /PAPERCLIP_BRIDGE_BIND_HOST:-127\.0\.0\.1/);
+  assert.match(compose, /image:\s*rabbit-quant-research-bridge:\$\{APP_COMMIT_SHA/);
   assert.match(compose, /research-control:\s*\r?\n\s+internal:\s*true/);
   assert.match(compose, /PAPERCLIP_DATASET_ROOT[^\r\n]*:\/datasets:ro/);
   assert.match(compose, /127\.0\.0\.1:3100\/api\/health/);
@@ -56,5 +57,7 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.match(deploy, /127\.0\.0\.1:3100\/api\/health/);
   assert.match(deploy, /127\.0\.0\.1:3210\/health/);
   assert.match(deploy, /docker buildx version/);
-  assert.match(deploy, /DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0/);
+  assert.match(deploy, /DOCKER_BUILDKIT=0 docker build/);
+  assert.match(deploy, /up -d --no-deps paperclip/);
+  assert.match(deploy, /up -d --no-deps --no-build research-bridge/);
 });
