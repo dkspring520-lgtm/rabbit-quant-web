@@ -127,6 +127,56 @@ class CandidateL2OverlayTest(unittest.TestCase):
         self.assertEqual(result["exitDecisionSecond"], self.start + 4)
         self.assertEqual(result["exitSecond"], self.start + 5)
 
+    def test_v22_three_opposing_seconds_warn_but_do_not_exit(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00)}
+        quotes = {}
+        for offset in range(2, 5):
+            trades[self.start + offset] = trade(14.98, buy=100, sell=900)
+            quotes[self.start + offset] = quote(14.98, positive=False)
+        trades[self.start + 5] = MODULE.SECOND.TradeBucket(
+            15.00, 15.08, 15.09, 15.00, 900, 100, 1
+        )
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v22"
+        )
+
+        self.assertEqual(result["exitReason"], "target")
+        self.assertIsNotNone(result["warningSecond"])
+
+    def test_v22_exits_only_after_sustained_l2_and_price_deterioration(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00, buy=900, sell=100)}
+        quotes = {}
+        prices = (14.995, 14.990, 14.985, 14.980, 14.975, 14.970, 14.969)
+        for offset, price in enumerate(prices, start=2):
+            trades[self.start + offset] = trade(price, buy=50, sell=950)
+            quotes[self.start + offset] = quote(price, positive=False)
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v22"
+        )
+
+        self.assertEqual(result["exitReason"], "l2PriceInvalidation")
+        self.assertGreaterEqual(result["exitDecisionSecond"], self.start + 7)
+        self.assertEqual(result["exitSecond"], result["exitDecisionSecond"] + 1)
+        self.assertGreaterEqual(result["exitConfirmation"]["confirmations"], 2)
+
+    def test_post_exit_audit_detects_target_recovery(self):
+        trades = {
+            self.start + 5: trade(14.95),
+            self.start + 6: MODULE.SECOND.TradeBucket(15.00, 15.08, 15.09, 15.00, 500, 500, 1),
+        }
+
+        audit = MODULE.post_exit_audit(
+            "positiveT", 15.00, 0.08, self.start + 4, self.start + 10, trades
+        )
+
+        self.assertTrue(audit["targetRecoveredAfterExit"])
+        self.assertEqual(audit["targetRecoveredSecond"], self.start + 6)
+        self.assertEqual(audit["secondsUntilTargetRecovery"], 2)
+
     def test_adaptive_stop_is_wider_than_tight_cost_budget_stop(self):
         tight, _ = MODULE.loss_budget_stop_gap("positiveT", 15.00, 0.08, 0.50)
         adaptive, context = MODULE.adaptive_emergency_stop_gap("positiveT", 15.00, 0.08, 0.50)
