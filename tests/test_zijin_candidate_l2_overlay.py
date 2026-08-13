@@ -163,6 +163,106 @@ class CandidateL2OverlayTest(unittest.TestCase):
         self.assertEqual(result["exitSecond"], result["exitDecisionSecond"] + 1)
         self.assertGreaterEqual(result["exitConfirmation"]["confirmations"], 2)
 
+    def test_v23_positive_tail_stop_is_inactive_during_grace_period(self):
+        trades = {
+            self.start: trade(15.00),
+            self.start + 1: trade(15.00),
+            self.start + 2: MODULE.SECOND.TradeBucket(
+                14.85, 14.85, 14.86, 14.84, 100, 900, 1
+            ),
+            self.start + 17: MODULE.SECOND.TradeBucket(
+                15.00, 15.08, 15.09, 15.00, 900, 100, 1
+            ),
+        }
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, prior_atr=0.50,
+            risk_managed=True, exit_model="v23"
+        )
+
+        self.assertEqual(result["exitReason"], "target")
+        self.assertEqual(result["entrySecond"], self.start + 1)
+
+    def test_v23_positive_tail_stop_activates_after_grace_period(self):
+        trades = {
+            self.start: trade(15.00),
+            self.start + 1: trade(15.00),
+            self.start + 16: MODULE.SECOND.TradeBucket(
+                14.85, 14.85, 14.86, 14.84, 100, 900, 1
+            ),
+        }
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, prior_atr=0.50,
+            risk_managed=True, exit_model="v23"
+        )
+
+        self.assertEqual(result["exitReason"], "hardStop")
+        self.assertEqual(result["exitSecond"], self.start + 16)
+        self.assertEqual(result["stopGap"], 0.12)
+
+    def test_v24_positive_recovery_cancels_pending_exit(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00)}
+        quotes = {}
+        for offset, price in enumerate(
+            (14.995, 14.990, 14.985, 14.980, 14.975, 14.970), start=2
+        ):
+            trades[self.start + offset] = trade(price, buy=50, sell=950)
+            quotes[self.start + offset] = quote(price, positive=False)
+        for offset in range(8, 11):
+            trades[self.start + offset] = trade(14.995, buy=950, sell=50)
+            quotes[self.start + offset] = quote(14.995, positive=True)
+        trades[self.start + 11] = MODULE.SECOND.TradeBucket(
+            15.00, 15.08, 15.09, 15.00, 900, 100, 1
+        )
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v24"
+        )
+
+        self.assertEqual(result["exitReason"], "target")
+
+    def test_v24_positive_sustained_deterioration_exits_on_later_trade(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00)}
+        quotes = {}
+        for offset in range(2, 14):
+            price = 15.00 - offset * 0.005
+            trades[self.start + offset] = trade(price, buy=50, sell=950)
+            quotes[self.start + offset] = quote(price, positive=False)
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v24"
+        )
+
+        self.assertEqual(result["exitReason"], "l2PriceInvalidation")
+        self.assertGreaterEqual(
+            result["exitConfirmation"]["recoveryObservationSeconds"],
+            MODULE.V24_RECOVERY_OBSERVATION_SECONDS,
+        )
+        self.assertEqual(result["exitSecond"], result["exitDecisionSecond"] + 1)
+
+    def test_v24_reverse_t_preserves_v22_exit_behavior(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00)}
+        quotes = {}
+        for offset in range(2, 10):
+            price = 15.00 + offset * 0.005
+            trades[self.start + offset] = trade(price, buy=950, sell=50)
+            quotes[self.start + offset] = quote(price, positive=True)
+
+        v22 = MODULE.simulate_round_trip(
+            self.candidate("reverseT"), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v22"
+        )
+        v24 = MODULE.simulate_round_trip(
+            self.candidate("reverseT"), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v24"
+        )
+
+        for key in ("entrySecond", "exitSecond", "exitMarketPrice", "exitReason", "netPnl"):
+            self.assertEqual(v24[key], v22[key])
+
     def test_post_exit_audit_detects_target_recovery(self):
         trades = {
             self.start + 5: trade(14.95),
