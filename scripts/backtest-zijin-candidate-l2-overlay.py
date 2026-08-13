@@ -30,8 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-2.json")
-ENGINE_VERSION = "2.2.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-4.json")
+ENGINE_VERSION = "2.4.0"
 CONFIRMATION_WINDOW_SECONDS = 10
 OPENING_GAP_THRESHOLD_PCT = 0.50
 HORIZON_SECONDS = {"positiveT": 45 * 60, "reverseT": 50 * 60}
@@ -47,6 +47,12 @@ V22_FLOW_WINDOW_SECONDS = 3
 V22_MIN_OFI_DETERIORATION = 0.10
 V22_MIN_ADVERSE_RESPONSE_BPS = 0.50
 V22_MIN_ADVERSE_ACCELERATION_BPS = 0.25
+V23_POSITIVE_GRACE_SECONDS = 15
+V23_POSITIVE_TARGET_MULTIPLE = 1.50
+V24_RECOVERY_OBSERVATION_SECONDS = 5
+V24_EXIT_ADVERSE_TARGET_FRACTION = 0.30
+V24_RELEASE_CONSECUTIVE_SECONDS = 3
+V24_RECOVERED_ADVERSE_TARGET_FRACTION = 0.10
 EMERGENCY_ATR_FRACTION = 0.15
 EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
 EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
@@ -383,6 +389,11 @@ def adaptive_emergency_stop_gap(direction: str, entry_market: float, target_gap:
     }
 
 
+def v23_positive_tail_stop_gap(target_gap: float) -> float:
+    """Freeze the research-only positive-T tail cap before replay starts."""
+    return max(0.01, round(target_gap * V23_POSITIVE_TARGET_MULTIPLE + 1e-9, 2))
+
+
 def exit_pressure(candidate: dict[str, Any], entry_market: float, current_price: float,
                   trade_flow: deque[tuple[int, int, int]], quote: Any) -> tuple[int, float]:
     buy_volume = sum(item[1] for item in trade_flow)
@@ -510,6 +521,13 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
         if stop_model == "tight"
         else adaptive_emergency_stop_gap(direction, entry_market, gap, prior_atr)
     )
+    if risk_managed and exit_model == "v23" and direction == "positiveT":
+        stop_gap = v23_positive_tail_stop_gap(gap)
+        stop_context = {
+            **stop_context,
+            "positiveTailGraceSeconds": V23_POSITIVE_GRACE_SECONDS,
+            "positiveTailTargetMultiple": V23_POSITIVE_TARGET_MULTIPLE,
+        }
     target_second = None
     exit_second = None
     exit_market = None
@@ -525,6 +543,8 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
     exit_confirmation = None
     active_buy_history: deque[tuple[int, float]] = deque()
     price_history: dict[int, float] = {}
+    recovery_watch_second = None
+    recovery_release_seconds = 0
     for index in range(entry_index + 1, horizon_index + 1):
         second = trade_seconds[index]
         trade = trades[second]
@@ -533,7 +553,12 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
             break
         target_touched = (trade.high >= entry_market + gap if direction == "positiveT"
                           else trade.low <= entry_market - gap)
-        stop_touched = risk_managed and (
+        stop_is_active = not (
+            exit_model == "v23"
+            and direction == "positiveT"
+            and second - entry_second < V23_POSITIVE_GRACE_SECONDS
+        )
+        stop_touched = risk_managed and stop_is_active and (
             trade.low <= entry_market - stop_gap if direction == "positiveT"
             else trade.high >= entry_market + stop_gap
         )
@@ -570,7 +595,7 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
             1 if opposing_votes >= 3 else 0
         )
         last_pressure_second = second
-        if exit_model == "v22":
+        if exit_model in {"v22", "v23", "v24"}:
             current_ratio = active_buy_ratio(trade_flow)
             if current_ratio is not None:
                 active_buy_history.append((second, current_ratio))
@@ -586,11 +611,48 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
                 warning_second = second
             if opposing_votes < 3:
                 warning_second = None
-            if (opposing_seconds >= V22_CONFIRM_OPPOSING_SECONDS[direction]
-                    and adverse_distance >= max(
-                        0.01, gap * V22_ADVERSE_TARGET_FRACTION[direction]
+            exit_is_confirmed = (
+                opposing_seconds >= V22_CONFIRM_OPPOSING_SECONDS[direction]
+                and adverse_distance >= max(
+                    0.01, gap * V22_ADVERSE_TARGET_FRACTION[direction]
+                )
+                and confirmation["confirmed"]
+            )
+            if exit_model == "v24" and direction == "positiveT":
+                if recovery_watch_second is None:
+                    if exit_is_confirmed:
+                        recovery_watch_second = second
+                        recovery_release_seconds = 0
+                else:
+                    recovered_price = (
+                        adverse_distance
+                        <= gap * V24_RECOVERED_ADVERSE_TARGET_FRACTION
                     )
-                    and confirmation["confirmed"]):
+                    recovery_release_seconds = (
+                        recovery_release_seconds + 1
+                        if opposing_votes < 3 and consecutive
+                        else (1 if opposing_votes < 3 else 0)
+                    )
+                    if (recovered_price
+                            or recovery_release_seconds >= V24_RELEASE_CONSECUTIVE_SECONDS):
+                        recovery_watch_second = None
+                        recovery_release_seconds = 0
+                        opposing_seconds = 0
+                    elif (second - recovery_watch_second
+                          >= V24_RECOVERY_OBSERVATION_SECONDS
+                          and adverse_distance >= max(
+                              0.01, gap * V24_EXIT_ADVERSE_TARGET_FRACTION
+                          )
+                          and confirmation["confirmed"]):
+                        pending_exit = True
+                        exit_decision_second = second
+                        exit_confirmation = {
+                            **confirmation,
+                            "recoveryWatchSecond": recovery_watch_second,
+                            "recoveryObservationSeconds": second - recovery_watch_second,
+                            "recoveryReleaseSeconds": recovery_release_seconds,
+                        }
+            elif exit_is_confirmed:
                 pending_exit = True
                 exit_decision_second = second
                 exit_confirmation = confirmation
@@ -615,6 +677,7 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
         "exitReason": exit_reason,
         "exitDecisionSecond": exit_decision_second,
         "warningSecond": warning_second,
+        "recoveryWatchSecond": recovery_watch_second,
         "exitConfirmation": exit_confirmation,
         "postExitAudit": exit_audit,
         "targetGap": gap,
@@ -795,6 +858,8 @@ def main() -> None:
 
     cohort_rows = {name: [] for name in COHORTS}
     risk_managed_rows = {name: [] for name in COHORTS}
+    v23_risk_managed_rows = {name: [] for name in COHORTS}
+    v24_risk_managed_rows = {name: [] for name in COHORTS}
     v21_risk_managed_rows = {name: [] for name in COHORTS}
     tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
@@ -845,6 +910,24 @@ def main() -> None:
                     risk_managed=True,
                     exit_model="v22",
                 ) if execute else None
+                v23_risk_managed_simulation = simulate_round_trip(
+                    candidate,
+                    decision_second,
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                    exit_model="v23",
+                ) if execute else None
+                v24_risk_managed_simulation = simulate_round_trip(
+                    candidate,
+                    decision_second,
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                    exit_model="v24",
+                ) if execute else None
                 tight_stop_simulation = simulate_round_trip(
                     candidate,
                     decision_second,
@@ -874,6 +957,16 @@ def main() -> None:
                     "executed": bool(risk_managed_simulation),
                     "simulation": risk_managed_simulation,
                 })
+                v23_risk_managed_rows[cohort].append({
+                    **row,
+                    "executed": bool(v23_risk_managed_simulation),
+                    "simulation": v23_risk_managed_simulation,
+                })
+                v24_risk_managed_rows[cohort].append({
+                    **row,
+                    "executed": bool(v24_risk_managed_simulation),
+                    "simulation": v24_risk_managed_simulation,
+                })
                 tight_stop_rows[cohort].append({
                     **row,
                     "executed": bool(tight_stop_simulation),
@@ -886,6 +979,8 @@ def main() -> None:
                     "simulation": simulation,
                     "v21RiskManagedSimulation": v21_risk_managed_simulation,
                     "riskManagedSimulation": risk_managed_simulation,
+                    "v23RiskManagedSimulation": v23_risk_managed_simulation,
+                    "v24RiskManagedSimulation": v24_risk_managed_simulation,
                     "tightStopSimulation": tight_stop_simulation,
                 }
             ledger.append(sample)
@@ -898,7 +993,9 @@ def main() -> None:
     tight_stop_summaries = {cohort: summarize(rows, dates) for cohort, rows in tight_stop_rows.items()}
     v21_summaries = {cohort: summarize(rows, dates) for cohort, rows in v21_risk_managed_rows.items()}
     summaries = {cohort: summarize(rows, dates) for cohort, rows in risk_managed_rows.items()}
-    promotion = promotion_evaluation(summaries["l2ConfirmAndVeto"])
+    v23_summaries = {cohort: summarize(rows, dates) for cohort, rows in v23_risk_managed_rows.items()}
+    v24_summaries = {cohort: summarize(rows, dates) for cohort, rows in v24_risk_managed_rows.items()}
+    promotion = promotion_evaluation(v24_summaries["l2ConfirmAndVeto"])
     ledger_path = args.ledger_output or args.output.with_name(args.output.stem + "-samples.jsonl")
     ledger_checksum = write_jsonl(ledger_path, ledger)
     config = {
@@ -910,6 +1007,8 @@ def main() -> None:
             "tightStopCounterexample": "target or net loss budget capped stop; retained as a failed-control cohort",
             "riskManagedV21": "target, three-second L2/price invalidation, entry-frozen ATR emergency stop, or horizon",
             "riskManagedV22": "three-second warning; sustained direction-specific L2, OFI and adverse-price confirmation before exit",
+            "riskManagedV23": "positive-T delayed tail-loss cap; reverse-T delegates to V2.2",
+            "riskManagedV24": "positive-T V2.2 confirmation enters a recovery watch before sustained deterioration exits; reverse-T delegates to V2.2",
         },
         "atrPeriod": ATR_PERIOD,
         "atrStopFraction": ATR_STOP_FRACTION,
@@ -923,6 +1022,12 @@ def main() -> None:
         "v22MinimumOfiDeterioration": V22_MIN_OFI_DETERIORATION,
         "v22MinimumAdverseResponseBps": V22_MIN_ADVERSE_RESPONSE_BPS,
         "v22MinimumAdverseAccelerationBps": V22_MIN_ADVERSE_ACCELERATION_BPS,
+        "v23PositiveGraceSeconds": V23_POSITIVE_GRACE_SECONDS,
+        "v23PositiveTargetMultiple": V23_POSITIVE_TARGET_MULTIPLE,
+        "v24RecoveryObservationSeconds": V24_RECOVERY_OBSERVATION_SECONDS,
+        "v24ExitAdverseTargetFraction": V24_EXIT_ADVERSE_TARGET_FRACTION,
+        "v24ReleaseConsecutiveSeconds": V24_RELEASE_CONSECUTIVE_SECONDS,
+        "v24RecoveredAdverseTargetFraction": V24_RECOVERED_ADVERSE_TARGET_FRACTION,
         "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
         "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
         "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
@@ -969,6 +1074,9 @@ def main() -> None:
         "config": config,
         "quality": {**quality, "candidateCount": len(candidates), "ledgerSamples": len(ledger)},
         "results": summaries,
+        "v22RiskManagedResults": summaries,
+        "v23RiskManagedResults": v23_summaries,
+        "v24RiskManagedResults": v24_summaries,
         "v21RiskManagedResults": v21_summaries,
         "tightStopCounterexampleResults": tight_stop_summaries,
         "baselineResults": baseline_summaries,
@@ -982,6 +1090,8 @@ def main() -> None:
         "dataset": report["dataset"],
         "quality": report["quality"],
         "all": {cohort: summary["all"] for cohort, summary in summaries.items()},
+        "v23RiskManagedAll": {cohort: summary["all"] for cohort, summary in v23_summaries.items()},
+        "v24RiskManagedAll": {cohort: summary["all"] for cohort, summary in v24_summaries.items()},
         "v21RiskManagedAll": {cohort: summary["all"] for cohort, summary in v21_summaries.items()},
         "tightStopCounterexampleAll": {
             cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()
