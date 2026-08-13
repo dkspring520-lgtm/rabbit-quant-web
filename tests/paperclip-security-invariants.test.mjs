@@ -57,6 +57,10 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.doesNotMatch(deploy, /trading-adapter|account-store|production.?db|control\.sqlite|docker\.sock/i);
   assert.match(deploy, /127\.0\.0\.1:3100\/api\/health/);
   assert.match(deploy, /127\.0\.0\.1:3210\/health/);
+  assert.match(deploy, /restart_matching_container rabbit-quant-paperclip/);
+  assert.match(deploy, /restart_matching_container rabbit-quant-research-bridge/);
+  assert.match(deploy, /commit.*==.*EXPECTED_COMMIT/);
+  assert.match(deploy, /check_runtime \|\| recover_runtime/);
   assert.match(deploy, /docker buildx version/);
   assert.match(deploy, /PAPERCLIP_MIN_FREE_DISK_GB:-6/);
   assert.match(deploy, /docker image prune --force/);
