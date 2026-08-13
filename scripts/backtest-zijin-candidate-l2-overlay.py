@@ -30,8 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-4.json")
-ENGINE_VERSION = "2.4.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-5.json")
+ENGINE_VERSION = "2.5.0"
 CONFIRMATION_WINDOW_SECONDS = 10
 OPENING_GAP_THRESHOLD_PCT = 0.50
 HORIZON_SECONDS = {"positiveT": 45 * 60, "reverseT": 50 * 60}
@@ -53,6 +53,8 @@ V24_RECOVERY_OBSERVATION_SECONDS = 5
 V24_EXIT_ADVERSE_TARGET_FRACTION = 0.30
 V24_RELEASE_CONSECUTIVE_SECONDS = 3
 V24_RECOVERED_ADVERSE_TARGET_FRACTION = 0.10
+V25_POSITIVE_MIN_ACTIVE_BUY_RATIO = 0.25
+V25_REVERSE_MAX_PRICE_RESPONSE_BPS = -3.0
 EMERGENCY_ATR_FRACTION = 0.15
 EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
 EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
@@ -335,6 +337,33 @@ def cohort_decision(cohort: str, l2_status: str, candidate_second: int,
     if cohort == "l2ConfirmAndVeto":
         return l2_status == "confirmed", l2_decision_second, f"L2 {l2_status}"
     raise KeyError(cohort)
+
+
+def v25_entry_gate(candidate: dict[str, Any], l2: dict[str, Any]) -> dict[str, Any]:
+    """Apply direction-specific quality gates frozen on train plus validation data."""
+    evidence = l2.get("evidence") or []
+    latest = evidence[-1] if evidence else {}
+    direction = candidate["direction"]
+    active_buy_ratio = latest.get("activeBuyRatio")
+    price_response_bps = latest.get("priceResponseBps")
+    if l2.get("status") != "confirmed" or not evidence:
+        passed, reason = False, "requires-confirmed-l2"
+    elif direction == "positiveT":
+        passed = (active_buy_ratio is not None
+                  and active_buy_ratio >= V25_POSITIVE_MIN_ACTIVE_BUY_RATIO)
+        reason = "positive-buy-flow-confirmed" if passed else "positive-buy-flow-too-weak"
+    else:
+        passed = (price_response_bps is not None
+                  and price_response_bps <= V25_REVERSE_MAX_PRICE_RESPONSE_BPS)
+        reason = "reverse-price-response-confirmed" if passed else "reverse-price-response-too-weak"
+    return {
+        "passed": passed,
+        "reason": reason,
+        "direction": direction,
+        "evidenceSecond": latest.get("second"),
+        "activeBuyRatio": active_buy_ratio,
+        "priceResponseBps": price_response_bps,
+    }
 
 
 def loss_budget_stop_gap(direction: str, entry_market: float, target_gap: float,
@@ -760,6 +789,58 @@ def metric(rows: list[dict[str, Any]], direction: str | None = None) -> dict[str
     }
 
 
+def loss_attribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    trades = [row["simulation"] for row in rows if row.get("executed") and row.get("simulation")]
+    losses = [trade for trade in trades if trade["netPnl"] <= 0]
+    gross_loss = abs(sum(trade["netPnl"] for trade in losses))
+
+    def grouped(field: str) -> dict[str, Any]:
+        values = {}
+        for row in rows:
+            trade = row.get("simulation")
+            if not row.get("executed") or not trade or trade["netPnl"] > 0:
+                continue
+            key = row["candidate"]["direction"] if field == "direction" else trade["exitReason"]
+            group = values.setdefault(key, {"losses": 0, "netPnl": 0.0, "worstLoss": None})
+            group["losses"] += 1
+            group["netPnl"] += trade["netPnl"]
+            group["worstLoss"] = (trade["netPnl"] if group["worstLoss"] is None
+                                  else min(group["worstLoss"], trade["netPnl"]))
+        return values
+
+    tail_losses = [trade for trade in losses if trade["netPnl"] <= -200]
+    return {
+        "losses": len(losses),
+        "grossLoss": gross_loss,
+        "worstLoss": min((trade["netPnl"] for trade in losses), default=None),
+        "tailLossThreshold": -200,
+        "tailLosses": len(tail_losses),
+        "tailLossShare": (abs(sum(trade["netPnl"] for trade in tail_losses)) / gross_loss
+                          if gross_loss else None),
+        "byDirection": grouped("direction"),
+        "byExitReason": grouped("exitReason"),
+    }
+
+
+def filtered_counterfactual(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    filtered = [
+        row for row in rows
+        if row.get("counterfactualSimulation")
+        and row.get("entryGate")
+        and not row["entryGate"]["passed"]
+    ]
+    trades = [row["counterfactualSimulation"] for row in filtered]
+    return {
+        "filteredSignals": len(filtered),
+        "counterfactualClosedTrades": len(trades),
+        "counterfactualWins": sum(trade["netPnl"] > 0 for trade in trades),
+        "counterfactualNetPnl": sum(trade["netPnl"] for trade in trades),
+        "counterfactualGrossLossAvoided": abs(sum(
+            trade["netPnl"] for trade in trades if trade["netPnl"] <= 0
+        )),
+    }
+
+
 def split_dates(dates: list[str]) -> dict[str, set[str]]:
     train_end = max(1, int(len(dates) * 0.6))
     validation_end = max(train_end + 1, int(len(dates) * 0.8)) if len(dates) > 2 else len(dates)
@@ -860,6 +941,7 @@ def main() -> None:
     risk_managed_rows = {name: [] for name in COHORTS}
     v23_risk_managed_rows = {name: [] for name in COHORTS}
     v24_risk_managed_rows = {name: [] for name in COHORTS}
+    v25_risk_managed_rows = {name: [] for name in COHORTS}
     v21_risk_managed_rows = {name: [] for name in COHORTS}
     tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
@@ -879,6 +961,7 @@ def main() -> None:
         quality["candidateDays"] += 1
         for candidate in day_candidates:
             l2 = classify_l2(candidate, trades, quotes)
+            v25_gate = v25_entry_gate(candidate, l2)
             sample = {
                 "schemaVersion": 1,
                 "researchOnly": True,
@@ -928,6 +1011,18 @@ def main() -> None:
                     risk_managed=True,
                     exit_model="v24",
                 ) if execute else None
+                v25_risk_managed_simulation = (
+                    simulate_round_trip(
+                        candidate,
+                        decision_second,
+                        trades,
+                        quotes,
+                        atr_by_date.get(date),
+                        risk_managed=True,
+                        exit_model="v24",
+                    )
+                    if execute and v25_gate["passed"] else None
+                )
                 tight_stop_simulation = simulate_round_trip(
                     candidate,
                     decision_second,
@@ -967,6 +1062,13 @@ def main() -> None:
                     "executed": bool(v24_risk_managed_simulation),
                     "simulation": v24_risk_managed_simulation,
                 })
+                v25_risk_managed_rows[cohort].append({
+                    **row,
+                    "executed": bool(v25_risk_managed_simulation),
+                    "simulation": v25_risk_managed_simulation,
+                    "entryGate": v25_gate,
+                    "counterfactualSimulation": v24_risk_managed_simulation,
+                })
                 tight_stop_rows[cohort].append({
                     **row,
                     "executed": bool(tight_stop_simulation),
@@ -981,6 +1083,8 @@ def main() -> None:
                     "riskManagedSimulation": risk_managed_simulation,
                     "v23RiskManagedSimulation": v23_risk_managed_simulation,
                     "v24RiskManagedSimulation": v24_risk_managed_simulation,
+                    "v25EntryGate": v25_gate,
+                    "v25RiskManagedSimulation": v25_risk_managed_simulation,
                     "tightStopSimulation": tight_stop_simulation,
                 }
             ledger.append(sample)
@@ -995,7 +1099,27 @@ def main() -> None:
     summaries = {cohort: summarize(rows, dates) for cohort, rows in risk_managed_rows.items()}
     v23_summaries = {cohort: summarize(rows, dates) for cohort, rows in v23_risk_managed_rows.items()}
     v24_summaries = {cohort: summarize(rows, dates) for cohort, rows in v24_risk_managed_rows.items()}
-    promotion = promotion_evaluation(v24_summaries["l2ConfirmAndVeto"])
+    v25_summaries = {cohort: summarize(rows, dates) for cohort, rows in v25_risk_managed_rows.items()}
+    promotion = promotion_evaluation(v25_summaries["l2ConfirmAndVeto"])
+    primary_v25_rows = v25_risk_managed_rows["l2ConfirmAndVeto"]
+    date_splits = split_dates(dates)
+    v25_audit = {
+        "all": {
+            "lossAttribution": loss_attribution(primary_v25_rows),
+            "filteredCounterfactual": filtered_counterfactual(primary_v25_rows),
+        },
+        "splits": {
+            name: {
+                "lossAttribution": loss_attribution([
+                    row for row in primary_v25_rows if row["candidate"]["date"] in split
+                ]),
+                "filteredCounterfactual": filtered_counterfactual([
+                    row for row in primary_v25_rows if row["candidate"]["date"] in split
+                ]),
+            }
+            for name, split in date_splits.items()
+        },
+    }
     ledger_path = args.ledger_output or args.output.with_name(args.output.stem + "-samples.jsonl")
     ledger_checksum = write_jsonl(ledger_path, ledger)
     config = {
@@ -1009,6 +1133,7 @@ def main() -> None:
             "riskManagedV22": "three-second warning; sustained direction-specific L2, OFI and adverse-price confirmation before exit",
             "riskManagedV23": "positive-T delayed tail-loss cap; reverse-T delegates to V2.2",
             "riskManagedV24": "positive-T V2.2 confirmation enters a recovery watch before sustained deterioration exits; reverse-T delegates to V2.2",
+            "riskManagedV25": "V2.4 exits plus direction-specific entry-quality gates frozen on train and validation data",
         },
         "atrPeriod": ATR_PERIOD,
         "atrStopFraction": ATR_STOP_FRACTION,
@@ -1028,6 +1153,8 @@ def main() -> None:
         "v24ExitAdverseTargetFraction": V24_EXIT_ADVERSE_TARGET_FRACTION,
         "v24ReleaseConsecutiveSeconds": V24_RELEASE_CONSECUTIVE_SECONDS,
         "v24RecoveredAdverseTargetFraction": V24_RECOVERED_ADVERSE_TARGET_FRACTION,
+        "v25PositiveMinimumActiveBuyRatio": V25_POSITIVE_MIN_ACTIVE_BUY_RATIO,
+        "v25ReverseMaximumPriceResponseBps": V25_REVERSE_MAX_PRICE_RESPONSE_BPS,
         "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
         "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
         "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
@@ -1077,6 +1204,8 @@ def main() -> None:
         "v22RiskManagedResults": summaries,
         "v23RiskManagedResults": v23_summaries,
         "v24RiskManagedResults": v24_summaries,
+        "v25RiskManagedResults": v25_summaries,
+        "v25Audit": v25_audit,
         "v21RiskManagedResults": v21_summaries,
         "tightStopCounterexampleResults": tight_stop_summaries,
         "baselineResults": baseline_summaries,
@@ -1092,6 +1221,7 @@ def main() -> None:
         "all": {cohort: summary["all"] for cohort, summary in summaries.items()},
         "v23RiskManagedAll": {cohort: summary["all"] for cohort, summary in v23_summaries.items()},
         "v24RiskManagedAll": {cohort: summary["all"] for cohort, summary in v24_summaries.items()},
+        "v25RiskManagedAll": {cohort: summary["all"] for cohort, summary in v25_summaries.items()},
         "v21RiskManagedAll": {cohort: summary["all"] for cohort, summary in v21_summaries.items()},
         "tightStopCounterexampleAll": {
             cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()

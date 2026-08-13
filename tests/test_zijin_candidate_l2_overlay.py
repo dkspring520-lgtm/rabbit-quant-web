@@ -263,6 +263,76 @@ class CandidateL2OverlayTest(unittest.TestCase):
         for key in ("entrySecond", "exitSecond", "exitMarketPrice", "exitReason", "netPnl"):
             self.assertEqual(v24[key], v22[key])
 
+    def test_v25_positive_gate_requires_minimum_active_buy_ratio(self):
+        l2 = {
+            "status": "confirmed",
+            "evidence": [{
+                "second": self.start + 3,
+                "activeBuyRatio": MODULE.V25_POSITIVE_MIN_ACTIVE_BUY_RATIO - 0.001,
+                "priceResponseBps": 10,
+            }],
+        }
+
+        rejected = MODULE.v25_entry_gate(self.candidate("positiveT"), l2)
+        l2["evidence"][0]["activeBuyRatio"] = MODULE.V25_POSITIVE_MIN_ACTIVE_BUY_RATIO
+        accepted = MODULE.v25_entry_gate(self.candidate("positiveT"), l2)
+
+        self.assertFalse(rejected["passed"])
+        self.assertEqual(rejected["reason"], "positive-buy-flow-too-weak")
+        self.assertTrue(accepted["passed"])
+
+    def test_v25_reverse_gate_requires_downward_price_response(self):
+        l2 = {
+            "status": "confirmed",
+            "evidence": [{
+                "second": self.start + 3,
+                "activeBuyRatio": 0.20,
+                "priceResponseBps": MODULE.V25_REVERSE_MAX_PRICE_RESPONSE_BPS + 0.01,
+            }],
+        }
+
+        rejected = MODULE.v25_entry_gate(self.candidate("reverseT"), l2)
+        l2["evidence"][0]["priceResponseBps"] = MODULE.V25_REVERSE_MAX_PRICE_RESPONSE_BPS
+        accepted = MODULE.v25_entry_gate(self.candidate("reverseT"), l2)
+
+        self.assertFalse(rejected["passed"])
+        self.assertEqual(rejected["reason"], "reverse-price-response-too-weak")
+        self.assertTrue(accepted["passed"])
+
+    def test_v25_gate_never_accepts_unconfirmed_l2(self):
+        l2 = {
+            "status": "neutral",
+            "evidence": [{
+                "second": self.start + 3,
+                "activeBuyRatio": 0.90,
+                "priceResponseBps": -20,
+            }],
+        }
+
+        result = MODULE.v25_entry_gate(self.candidate("positiveT"), l2)
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "requires-confirmed-l2")
+
+    def test_v25_counterfactual_counts_only_otherwise_executable_signals(self):
+        trade = {"netPnl": -120.0}
+        rows = [
+            {
+                "entryGate": {"passed": False},
+                "counterfactualSimulation": trade,
+            },
+            {
+                "entryGate": {"passed": False},
+                "counterfactualSimulation": None,
+            },
+        ]
+
+        result = MODULE.filtered_counterfactual(rows)
+
+        self.assertEqual(result["filteredSignals"], 1)
+        self.assertEqual(result["counterfactualClosedTrades"], 1)
+        self.assertEqual(result["counterfactualNetPnl"], -120.0)
+
     def test_post_exit_audit_detects_target_recovery(self):
         trades = {
             self.start + 5: trade(14.95),
