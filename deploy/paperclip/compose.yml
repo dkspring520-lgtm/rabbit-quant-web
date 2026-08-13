@@ -39,7 +39,7 @@ services:
     container_name: rabbit-quant-research-bridge
     image: rabbit-quant-research-bridge:${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
     build:
-      context: ../..
+      context: ${PAPERCLIP_RELEASE_ROOT:?PAPERCLIP_RELEASE_ROOT must be the absolute release root}
       dockerfile: deploy/paperclip/Dockerfile.bridge
       args:
         APP_COMMIT_SHA: ${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
