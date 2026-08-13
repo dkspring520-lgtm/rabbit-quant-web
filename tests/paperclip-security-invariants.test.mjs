@@ -48,6 +48,7 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.match(compose, /PAPERCLIP_BIND_HOST:-127\.0\.0\.1/);
   assert.match(compose, /PAPERCLIP_BRIDGE_BIND_HOST:-127\.0\.0\.1/);
   assert.match(compose, /image:\s*rabbit-quant-research-bridge:\$\{APP_COMMIT_SHA/);
+  assert.match(compose, /context:\s*\$\{PAPERCLIP_RELEASE_ROOT:/);
   assert.match(compose, /research-control:\s*\r?\n\s+internal:\s*true/);
   assert.match(compose, /PAPERCLIP_DATASET_ROOT[^\r\n]*:\/datasets:ro/);
   assert.match(compose, /127\.0\.0\.1:3100\/api\/health/);
@@ -61,6 +62,8 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.match(deploy, /docker image prune --force/);
   assert.match(deploy, /docker builder prune --all --force/);
   assert.match(deploy, /DOCKER_BUILDKIT=0 docker build/);
-  assert.match(deploy, /up -d --no-deps paperclip/);
+  assert.match(deploy, /export PAPERCLIP_RELEASE_ROOT="\$RELEASE_ROOT"/);
+  assert.match(deploy, /docker image inspect ghcr\.io\/paperclipai\/paperclip:sha-67001ec/);
+  assert.match(deploy, /up -d --no-deps --force-recreate paperclip/);
   assert.match(deploy, /up -d --no-deps --no-build research-bridge/);
 });

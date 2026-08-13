@@ -106,10 +106,13 @@ chmod 0700 "$CONFIG_ROOT"
 chmod 0600 "$ENV_FILE" "$CONFIG_ROOT/dataset-catalog.json" "$CONFIG_ROOT/tokens.json"
 
 ensure_pull_space
+export PAPERCLIP_RELEASE_ROOT="$RELEASE_ROOT"
 compose=(docker compose --env-file "$ENV_FILE" --project-name "$PROJECT_NAME" --project-directory "$RELEASE_ROOT" -f "$RELEASE_ROOT/deploy/paperclip/compose.yml")
 APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" config --quiet
-APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" pull paperclip
-APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" up -d --no-deps paperclip
+if ! docker image inspect ghcr.io/paperclipai/paperclip:sha-67001ec >/dev/null 2>&1; then
+  APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" pull paperclip
+fi
+APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" up -d --no-deps --force-recreate paperclip
 if docker buildx version >/dev/null 2>&1; then
   APP_COMMIT_SHA="$EXPECTED_COMMIT" "${compose[@]}" build research-bridge
 else
