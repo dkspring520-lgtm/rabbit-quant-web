@@ -1155,56 +1155,86 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   };
   const [liveL2ByMinute,setLiveL2ByMinute]=useState<Record<string,ZijinL2State>>({});
   const [liveL2Status,setLiveL2Status]=useState<ZijinL2State|null>(null);
+  const [liveL2Transport,setLiveL2Transport]=useState<"connecting"|"stream"|"polling">("connecting");
+  const [liveL2PushLatencyMs,setLiveL2PushLatencyMs]=useState<number|null>(null);
   useEffect(()=>{
     if(!localAuth||stock?.code!=="601899"||!shouldRunTradingDeskPolling(activeView,document.visibilityState))return;
     let active=true;
     let timer:number|undefined;
+    let source:EventSource|null=null;
+    const applyPayload=(payload:ZijinL2State)=>{
+      const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
+      const stale=payload.status?.stale||payload.meta?.stale;
+      if(!active)return;
+      const servedAt=Date.parse(payload.meta?.servedAt??"");
+      setLiveL2PushLatencyMs(Number.isFinite(servedAt)?Math.max(0,Date.now()-servedAt):null);
+      setLiveL2Status(payload);
+      if(payload.status?.connected&&!stale){
+        setLiveL2ByMinute(current=>{
+          const next={...current};
+          for(const bar of payload.recentMinutes??[]){
+            if(!/^\d{4}$/.test(bar.time))continue;
+            const isCurrent=bar.time===minute;
+            next[bar.time]=isCurrent
+              ? {...payload,l2Bar:bar}
+              : {
+                status:{...payload.status,stale:false},
+                meta:{...payload.meta,stale:false},
+                flow:{
+                  activeBuyRatio60s:bar.activeBuyRatio,
+                  netActiveNotional60s:bar.netActiveNotional,
+                  bigOrderNetNotional60s:bar.bigOrderNetNotional,
+                  activeBuyVolume60s:bar.activeBuyVolume,
+                  activeSellVolume60s:bar.activeSellVolume,
+                  activeBuyNotional60s:bar.activeBuyNotional,
+                  activeSellNotional60s:bar.activeSellNotional,
+                  bigBuyNotional60s:bar.bigBuyNotional,
+                  bigSellNotional60s:bar.bigSellNotional,
+                  bigBuyVolume60s:bar.bigBuyVolume,
+                  bigSellVolume60s:bar.bigSellVolume,
+                },
+                book:{lastPrice:bar.price},
+                l2Bar:bar,
+              };
+          }
+          if(minute&&!next[minute])next[minute]=payload;
+          return next;
+        });
+      }
+    };
     const poll=async()=>{
       try{
         const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"});
         const payload=await response.json() as ZijinL2State;
-        const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
-        const stale=payload.status?.stale||payload.meta?.stale;
-        if(active){
-          setLiveL2Status(payload);
-          if(payload.status?.connected&&!stale){
-            setLiveL2ByMinute(current=>{
-              const next={...current};
-              for(const bar of payload.recentMinutes??[]){
-                if(!/^\d{4}$/.test(bar.time))continue;
-                const isCurrent=bar.time===minute;
-                next[bar.time]=isCurrent
-                  ? {...payload,l2Bar:bar}
-                  : {
-                    status:{...payload.status,stale:false},
-                    meta:{...payload.meta,stale:false},
-                    flow:{
-                      activeBuyRatio60s:bar.activeBuyRatio,
-                      netActiveNotional60s:bar.netActiveNotional,
-                      bigOrderNetNotional60s:bar.bigOrderNetNotional,
-                      activeBuyVolume60s:bar.activeBuyVolume,
-                      activeSellVolume60s:bar.activeSellVolume,
-                      activeBuyNotional60s:bar.activeBuyNotional,
-                      activeSellNotional60s:bar.activeSellNotional,
-                      bigBuyNotional60s:bar.bigBuyNotional,
-                      bigSellNotional60s:bar.bigSellNotional,
-                      bigBuyVolume60s:bar.bigBuyVolume,
-                      bigSellVolume60s:bar.bigSellVolume,
-                    },
-                    book:{lastPrice:bar.price},
-                    l2Bar:bar,
-                  };
-              }
-              if(minute&&!next[minute])next[minute]=payload;
-              return next;
-            });
-          }
-        }
+        applyPayload(payload);
       }catch{if(active)setLiveL2Status({error:"L2 status endpoint unavailable",status:{connected:false,stale:true}})}
       if(active)timer=window.setTimeout(()=>void poll(),marketDataActive?300:60_000);
     };
-    void poll();
-    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer)};
+    const startPolling=()=>{
+      if(!active||timer!==undefined)return;
+      setLiveL2Transport("polling");
+      void poll();
+    };
+    if(marketDataActive&&typeof EventSource!=="undefined"){
+      setLiveL2Transport("connecting");
+      source=new EventSource(`/api/research/zijin-l2-orderflow?stream=1&t=${Date.now()}`);
+      source.addEventListener("snapshot",event=>{
+        try{
+          applyPayload(JSON.parse((event as MessageEvent<string>).data) as ZijinL2State);
+          if(active)setLiveL2Transport("stream");
+        }catch{}
+      });
+      source.onerror=()=>{
+        source?.close();
+        source=null;
+        startPolling();
+      };
+    }else startPolling();
+    return()=>{
+      active=false;
+      source?.close();
+      if(timer!==undefined)window.clearTimeout(timer);
+    };
   },[localAuth,activeView,stock?.code,marketDataActive]);
   const liveL2CollectorAlive=Boolean(liveL2Status&&(liveL2Status.status?.collectorAlive!==false&&liveL2Status.meta?.collectorStale!==true));
   const liveL2Stale=Boolean(!liveL2CollectorAlive||liveL2Status?.status?.stale||liveL2Status?.meta?.stale);
@@ -1216,6 +1246,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ? Math.max(0,Math.round((liveL2FeedAgeSeconds??0)*1000))
     : null;
   const liveL2LatencyText=liveL2LatencyMs===null?"行情年龄待测":`行情年龄 ${liveL2LatencyMs} ms`;
+  const liveL2TransportText=liveL2Transport==="stream"
+    ? `主动推送${liveL2PushLatencyMs===null?"":` ${liveL2PushLatencyMs} ms`}`
+    : liveL2Transport==="polling"
+      ? "轮询降级"
+      : "推送连接中";
   const liveL2HeartbeatSeconds=Number.isFinite(liveL2Status?.status?.heartbeatAgeSeconds)
     ? Math.max(0,Math.round(liveL2Status?.status?.heartbeatAgeSeconds??0))
     : null;
@@ -1266,7 +1301,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : liveL2Status?.status?.authorized===false
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
     : liveL2Status?.status?.connected&&!liveL2Stale
-      ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2LatencyText}`}
+      ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2TransportText} · ${liveL2LatencyText}`}
     : marketSession.live
       ? {tone:"stale",label:"L2：行情中断",detail:`${l2ConsoleNode} · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
@@ -4064,10 +4099,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </header>
             <div className="web4-monitor-meter" role="meter" aria-label={`WEB 4.0 多源置信度 ${web4Monitor.confidence} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={web4Monitor.confidence}><i style={{width:`${web4Monitor.confidence}%`}}/></div>
             {web4Monitor.status!=="degraded"&&secondLevelSignal&&<div className={`second-level-state ${secondLevelSignal.state}`}>
-              <span>秒级状态</span>
+              <span>秒级预警</span>
               <b>{secondLevelSignal.label}</b>
               <strong>{secondLevelSignal.direction==="buy"?"正T":secondLevelSignal.direction==="sell"?"反T":"扫描"} · {secondLevelSignal.score}/100</strong>
-              <small>{secondLevelSignal.plan?.action??"暂不操作"}{secondLevelSignal.plan?.triggerPrice?` · 触发 ¥${secondLevelSignal.plan.triggerPrice.toFixed(2)}`:""}{secondLevelSignal.plan?.invalidPrice?` · 失效 ¥${secondLevelSignal.plan.invalidPrice.toFixed(2)}`:""}</small>
+              <small>{secondLevelSignal.plan?.action??"仅作候选"}{secondLevelSignal.plan?.triggerPrice?` · 触发 ¥${secondLevelSignal.plan.triggerPrice.toFixed(2)}`:""}{secondLevelSignal.plan?.invalidPrice?` · 失效 ¥${secondLevelSignal.plan.invalidPrice.toFixed(2)}`:""} · 正式信号仍需闭环确认</small>
               {secondLevelSignal.timeline?.lastReason&&<small>{secondLevelSignal.timeline.lastReason}{secondLevelSignal.timeline.confirmationDelaySeconds!=null?` · 确认延迟 ${secondLevelSignal.timeline.confirmationDelaySeconds.toFixed(1)} 秒`:""} · {secondLevelSignal.timeline.confirmationPolicy}</small>}
             </div>}
             {web4Monitor.status!=="degraded"&&<div className="web4-monitor-votes">
