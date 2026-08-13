@@ -4,7 +4,10 @@ type ServiceState = "healthy" | "unavailable";
 type RuntimeState = "running" | "degraded" | "stopped";
 
 const STATUS_PATH = process.env.PAPERCLIP_STATUS_PATH || "/training-state/paperclip-status.json";
-const STALE_AFTER_MS = 2 * 60 * 1000;
+// The deployment watchdog writes this snapshot on deploy and recovery checks;
+// it is not a per-request heartbeat. Keep genuine degraded states immediate
+// without turning a healthy, unchanged runtime stale after two minutes.
+const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 function serviceState(value: unknown): ServiceState {
   return value === "healthy" ? "healthy" : "unavailable";

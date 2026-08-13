@@ -38,6 +38,35 @@ service_healthy() {
     && curl --fail --silent --show-error --max-time 5 "$url" >/dev/null
 }
 
+restart_matching_container() {
+  local container="$1" commit
+  commit="$(docker inspect "$container" --format '{{index .Config.Labels "rabbit-quant.research.commit"}}' 2>/dev/null || true)"
+  [[ "$commit" == "$EXPECTED_COMMIT" ]] || return 1
+  docker restart "$container" >/dev/null
+}
+
+recover_runtime() {
+  local paperclip_url="http://127.0.0.1:3100/api/health"
+  local bridge_url="http://127.0.0.1:3210/health"
+  local restarted=0 deadline
+
+  if ! service_healthy rabbit-quant-paperclip "$paperclip_url"; then
+    restart_matching_container rabbit-quant-paperclip && restarted=1 || true
+  fi
+  if ! service_healthy rabbit-quant-research-bridge "$bridge_url"; then
+    restart_matching_container rabbit-quant-research-bridge && restarted=1 || true
+  fi
+  (( restarted == 1 )) || return 1
+
+  deadline=$((SECONDS + 45))
+  until service_healthy rabbit-quant-paperclip "$paperclip_url" \
+    && service_healthy rabbit-quant-research-bridge "$bridge_url"; do
+    (( SECONDS < deadline )) || return 1
+    sleep 3
+  done
+  check_runtime
+}
+
 ensure_pull_space() {
   local docker_root available_kb required_kb
   docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
@@ -70,7 +99,7 @@ check_runtime() {
 }
 
 if [[ "$MODE" == "check" ]]; then
-  check_runtime
+  check_runtime || recover_runtime
   exit $?
 fi
 
