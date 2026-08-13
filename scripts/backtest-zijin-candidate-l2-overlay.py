@@ -30,11 +30,19 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v1.json")
-ENGINE_VERSION = "1.0.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2.json")
+ENGINE_VERSION = "2.1.0"
 CONFIRMATION_WINDOW_SECONDS = 10
 OPENING_GAP_THRESHOLD_PCT = 0.50
 HORIZON_SECONDS = {"positiveT": 45 * 60, "reverseT": 50 * 60}
+ATR_PERIOD = 14
+ATR_STOP_FRACTION = 0.10
+STOP_LOSS_MULTIPLE = {"positiveT": 1.25, "reverseT": 1.10}
+EXIT_OPPOSING_SECONDS = 3
+EXIT_ADVERSE_TARGET_FRACTION = 0.20
+EMERGENCY_ATR_FRACTION = 0.15
+EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
+EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
 PROMOTION_THRESHOLDS = {
     "minimumClosedTrades": 100,
     "minimumOutOfSampleWinRate": 0.52,
@@ -175,6 +183,33 @@ def opening_candidates(path: Path, allowed_dates: set[str]) -> list[dict[str, An
     return output
 
 
+def prior_atr_by_date(path: Path, allowed_dates: set[str]) -> dict[str, float | None]:
+    """Calculate ATR14 from completed sessions only; the current day is never included."""
+    output: dict[str, float | None] = {}
+    true_ranges: deque[float] = deque(maxlen=ATR_PERIOD)
+    with path.open("r", encoding="utf-8-sig") as source:
+        for line in source:
+            if not line.strip():
+                continue
+            day = json.loads(line)
+            date = str(day.get("date") or "").replace("-", "")
+            if date in allowed_dates:
+                output[date] = statistics.mean(true_ranges) if true_ranges else None
+            minutes = day.get("minutes") if isinstance(day.get("minutes"), list) else []
+            highs = [float(minute.get("high") or 0) for minute in minutes if float(minute.get("high") or 0) > 0]
+            lows = [float(minute.get("low") or 0) for minute in minutes if float(minute.get("low") or 0) > 0]
+            previous_close = float(day.get("previousClose") or 0)
+            if not highs or not lows or previous_close <= 0:
+                continue
+            day_high, day_low = max(highs), min(lows)
+            true_ranges.append(max(
+                day_high - day_low,
+                abs(day_high - previous_close),
+                abs(day_low - previous_close),
+            ))
+    return output
+
+
 def price_at_or_before(trades: dict[int, Any], second: int) -> float | None:
     available = [value for value in trades if value <= second]
     return trades[max(available)].last if available else None
@@ -289,8 +324,93 @@ def cohort_decision(cohort: str, l2_status: str, candidate_second: int,
     raise KeyError(cohort)
 
 
+def loss_budget_stop_gap(direction: str, entry_market: float, target_gap: float,
+                         prior_atr: float | None) -> tuple[float, dict[str, float | None]]:
+    """Freeze an ATR stop at entry, capped by a predeclared net loss/profit ratio."""
+    target_market = entry_market + target_gap if direction == "positiveT" else entry_market - target_gap
+    target_net = max(0.0, SECOND.pnl(direction, entry_market, target_market)[0])
+    loss_budget = target_net * STOP_LOSS_MULTIPLE[direction]
+    atr_gap = prior_atr * ATR_STOP_FRACTION if prior_atr and prior_atr > 0 else target_gap
+    upper_bound = max(0.01, min(atr_gap, target_gap * STOP_LOSS_MULTIPLE[direction]))
+    allowed_gap = 0.0
+    tick = 0.01
+    steps = max(1, int(upper_bound / tick + 1e-9))
+    for step in range(1, steps + 1):
+        gap = round(step * tick, 2)
+        stop_market = entry_market - gap if direction == "positiveT" else entry_market + gap
+        stop_net = SECOND.pnl(direction, entry_market, stop_market)[0]
+        if -stop_net <= loss_budget:
+            allowed_gap = gap
+        else:
+            break
+    stop_gap = allowed_gap or tick
+    return stop_gap, {
+        "priorAtr14": prior_atr,
+        "atrStopGap": atr_gap,
+        "targetNetPnl": target_net,
+        "maximumPlannedNetLoss": loss_budget,
+        "maximumLossToTargetProfit": STOP_LOSS_MULTIPLE[direction],
+    }
+
+
+def adaptive_emergency_stop_gap(direction: str, entry_market: float, target_gap: float,
+                                prior_atr: float | None) -> tuple[float, dict[str, float | None]]:
+    """Use L2 invalidation for normal exits and reserve this wider stop for tail risk."""
+    atr_gap = prior_atr * EMERGENCY_ATR_FRACTION if prior_atr and prior_atr > 0 else 0.0
+    lower_bound = target_gap * EMERGENCY_TARGET_MULTIPLE_MIN
+    upper_bound = target_gap * EMERGENCY_TARGET_MULTIPLE_MAX
+    stop_gap = round(min(max(lower_bound, atr_gap), upper_bound) + 1e-9, 2)
+    stop_gap = max(0.01, stop_gap)
+    stop_market = entry_market - stop_gap if direction == "positiveT" else entry_market + stop_gap
+    target_market = entry_market + target_gap if direction == "positiveT" else entry_market - target_gap
+    target_net = SECOND.pnl(direction, entry_market, target_market)[0]
+    stop_net = SECOND.pnl(direction, entry_market, stop_market)[0]
+    return stop_gap, {
+        "priorAtr14": prior_atr,
+        "atrStopGap": atr_gap,
+        "targetNetPnl": target_net,
+        "estimatedStopNetPnl": stop_net,
+        "estimatedLossToTargetProfit": (-stop_net / target_net) if target_net > 0 else None,
+        "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
+        "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
+    }
+
+
+def exit_pressure(candidate: dict[str, Any], entry_market: float, current_price: float,
+                  trade_flow: deque[tuple[int, int, int]], quote: Any) -> tuple[int, float]:
+    buy_volume = sum(item[1] for item in trade_flow)
+    sell_volume = sum(item[2] for item in trade_flow)
+    active_total = buy_volume + sell_volume
+    if active_total <= 0:
+        return 0, 0.0
+    active_buy_ratio = buy_volume / active_total
+    depth, microprice_edge, spread = SECOND.quote_features(quote, current_price)
+    if depth is None or microprice_edge is None or spread is None or spread > 18:
+        return 0, 0.0
+    response_bps = (current_price / entry_market - 1) * 10_000
+    positive_votes = sum((
+        active_buy_ratio >= 0.55,
+        depth >= 0.04,
+        microprice_edge > 0,
+        response_bps >= 0,
+    ))
+    reverse_votes = sum((
+        active_buy_ratio <= 0.45,
+        depth <= -0.04,
+        microprice_edge < 0,
+        response_bps <= 0,
+    ))
+    opposing_votes = reverse_votes if candidate["direction"] == "positiveT" else positive_votes
+    adverse_distance = (entry_market - current_price if candidate["direction"] == "positiveT"
+                        else current_price - entry_market)
+    return opposing_votes, max(0.0, adverse_distance)
+
+
 def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
-                        trades: dict[int, Any]) -> dict[str, Any] | None:
+                        trades: dict[int, Any], quotes: dict[int, Any] | None = None,
+                        prior_atr: float | None = None,
+                        risk_managed: bool = False,
+                        stop_model: str = "adaptive") -> dict[str, Any] | None:
     trade_seconds = sorted(second for second in trades if SECOND.is_market_second(second))
     entry_index = bisect.bisect_right(trade_seconds, decision_second)
     if entry_index >= len(trade_seconds):
@@ -303,19 +423,74 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
     if horizon_index >= len(trade_seconds):
         horizon_index = len(trade_seconds) - 1
     gap = SECOND.target_gap(entry_market)
+    stop_gap, stop_context = (
+        loss_budget_stop_gap(direction, entry_market, gap, prior_atr)
+        if stop_model == "tight"
+        else adaptive_emergency_stop_gap(direction, entry_market, gap, prior_atr)
+    )
     target_second = None
-    target_market = None
+    exit_second = None
+    exit_market = None
+    exit_reason = None
+    exit_decision_second = None
+    latest_quote = None
+    latest_quote_second = None
+    trade_flow: deque[tuple[int, int, int]] = deque()
+    opposing_seconds = 0
+    last_pressure_second = None
+    pending_exit = False
     for index in range(entry_index + 1, horizon_index + 1):
         second = trade_seconds[index]
         trade = trades[second]
-        if direction == "positiveT" and trade.high >= entry_market + gap:
-            target_second, target_market = second, entry_market + gap
+        if pending_exit:
+            exit_second, exit_market, exit_reason = second, trade.first, "l2PriceInvalidation"
             break
-        if direction == "reverseT" and trade.low <= entry_market - gap:
-            target_second, target_market = second, entry_market - gap
+        target_touched = (trade.high >= entry_market + gap if direction == "positiveT"
+                          else trade.low <= entry_market - gap)
+        stop_touched = risk_managed and (
+            trade.low <= entry_market - stop_gap if direction == "positiveT"
+            else trade.high >= entry_market + stop_gap
+        )
+        if stop_touched:
+            stop_market = entry_market - stop_gap if direction == "positiveT" else entry_market + stop_gap
+            exit_second = second
+            exit_market = min(stop_market, trade.first) if direction == "positiveT" else max(stop_market, trade.first)
+            exit_reason = "hardStop"
             break
-    exit_second = target_second if target_second is not None else trade_seconds[horizon_index]
-    exit_market = target_market if target_market is not None else trades[exit_second].first
+        if target_touched:
+            target_second = second
+            exit_second = second
+            exit_market = entry_market + gap if direction == "positiveT" else entry_market - gap
+            exit_reason = "target"
+            break
+        if not risk_managed or not quotes:
+            continue
+        quote = quotes.get(second)
+        if quote is not None:
+            latest_quote = quote
+            latest_quote_second = second
+        trade_flow.append((second, trade.buy_volume, trade.sell_volume))
+        while trade_flow and trade_flow[0][0] < second - 4:
+            trade_flow.popleft()
+        if latest_quote is None or latest_quote_second is None or second - latest_quote_second > 3:
+            opposing_seconds = 0
+            continue
+        opposing_votes, adverse_distance = exit_pressure(
+            candidate, entry_market, trade.last, trade_flow, latest_quote
+        )
+        consecutive = last_pressure_second is None or second == last_pressure_second + 1
+        opposing_seconds = opposing_seconds + 1 if opposing_votes >= 3 and consecutive else (
+            1 if opposing_votes >= 3 else 0
+        )
+        last_pressure_second = second
+        if (opposing_seconds >= EXIT_OPPOSING_SECONDS
+                and adverse_distance >= max(0.01, gap * EXIT_ADVERSE_TARGET_FRACTION)):
+            pending_exit = True
+            exit_decision_second = second
+    if exit_second is None:
+        exit_second = trade_seconds[horizon_index]
+        exit_market = trades[exit_second].first
+        exit_reason = "time"
     net_pnl, gross_pnl, fees = SECOND.pnl(direction, entry_market, exit_market)
     return {
         "status": "closed",
@@ -323,9 +498,14 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
         "entryMarketPrice": entry_market,
         "exitSecond": exit_second,
         "exitMarketPrice": exit_market,
-        "exitReason": "target" if target_second is not None else "time",
+        "exitReason": exit_reason,
+        "exitDecisionSecond": exit_decision_second,
         "targetGap": gap,
         "targetReached": target_second is not None,
+        "stopGap": stop_gap if risk_managed else None,
+        "stopContext": stop_context if risk_managed else None,
+        "exitModel": (f"risk-managed-v2-{stop_model}" if risk_managed
+                      else "time-exit-baseline"),
         "horizonSeconds": horizon,
         "quantity": SECOND.QUANTITY,
         "slippagePerSideBps": SECOND.SLIPPAGE_RATE * 10_000,
@@ -353,6 +533,13 @@ def metric(rows: list[dict[str, Any]], direction: str | None = None) -> dict[str
     pnl_values = [trade["netPnl"] for trade in trades]
     gains = sum(value for value in pnl_values if value > 0)
     losses = abs(sum(value for value in pnl_values if value < 0))
+    winners = [value for value in pnl_values if value > 0]
+    losers = [value for value in pnl_values if value <= 0]
+    exit_reasons = {
+        reason: sum(trade.get("exitReason") == reason for trade in trades)
+        for reason in ("target", "hardStop", "l2PriceInvalidation", "time")
+        if any(trade.get("exitReason") == reason for trade in trades)
+    }
     return {
         "candidates": len(selected),
         "confirmed": sum(row["l2Decision"]["status"] == "confirmed" for row in selected),
@@ -365,10 +552,13 @@ def metric(rows: list[dict[str, Any]], direction: str | None = None) -> dict[str
         "targetHitRate": sum(trade["targetReached"] for trade in trades) / len(trades) if trades else None,
         "winRate": sum(value > 0 for value in pnl_values) / len(pnl_values) if pnl_values else None,
         "averageNetPnl": statistics.mean(pnl_values) if pnl_values else None,
+        "averageWinner": statistics.mean(winners) if winners else None,
+        "averageLoser": statistics.mean(losers) if losers else None,
         "netPnl": sum(pnl_values),
         "fees": sum(trade["fees"] for trade in trades),
         "profitFactor": gains / losses if losses > 0 else None,
         "maximumDrawdown": maximum_drawdown(pnl_values),
+        "exitReasons": exit_reasons,
     }
 
 
@@ -463,11 +653,14 @@ def main() -> None:
     candidates = (load_external_candidates(args.candidates) if args.candidates
                   else opening_candidates(args.minute_data, allowed_dates))
     candidates = [candidate for candidate in candidates if candidate["date"] in allowed_dates]
+    atr_by_date = prior_atr_by_date(args.minute_data, allowed_dates)
     candidates_by_date: dict[str, list[dict[str, Any]]] = {}
     for candidate in candidates:
         candidates_by_date.setdefault(candidate["date"], []).append(candidate)
 
     cohort_rows = {name: [] for name in COHORTS}
+    risk_managed_rows = {name: [] for name in COHORTS}
+    tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
     processed_dates: list[str] = []
     source_hash = hashlib.sha256()
@@ -499,6 +692,23 @@ def main() -> None:
                     cohort, l2["status"], candidate["second"], l2["decisionSecond"]
                 )
                 simulation = simulate_round_trip(candidate, decision_second, trades) if execute else None
+                risk_managed_simulation = simulate_round_trip(
+                    candidate,
+                    decision_second,
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                ) if execute else None
+                tight_stop_simulation = simulate_round_trip(
+                    candidate,
+                    decision_second,
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                    stop_model="tight",
+                ) if execute else None
                 row = {
                     "candidate": candidate,
                     "l2Decision": l2,
@@ -509,11 +719,23 @@ def main() -> None:
                     "simulation": simulation,
                 }
                 cohort_rows[cohort].append(row)
+                risk_managed_rows[cohort].append({
+                    **row,
+                    "executed": bool(risk_managed_simulation),
+                    "simulation": risk_managed_simulation,
+                })
+                tight_stop_rows[cohort].append({
+                    **row,
+                    "executed": bool(tight_stop_simulation),
+                    "simulation": tight_stop_simulation,
+                })
                 sample["cohorts"][cohort] = {
                     "executed": row["executed"],
                     "decisionSecond": decision_second,
                     "decisionReason": row["decisionReason"],
                     "simulation": simulation,
+                    "riskManagedSimulation": risk_managed_simulation,
+                    "tightStopSimulation": tight_stop_simulation,
                 }
             ledger.append(sample)
         processed_dates.append(date)
@@ -521,7 +743,9 @@ def main() -> None:
             print(f"processed {index}/{len(archives)} sessions", flush=True)
 
     dates = sorted(set(processed_dates))
-    summaries = {cohort: summarize(rows, dates) for cohort, rows in cohort_rows.items()}
+    baseline_summaries = {cohort: summarize(rows, dates) for cohort, rows in cohort_rows.items()}
+    tight_stop_summaries = {cohort: summarize(rows, dates) for cohort, rows in tight_stop_rows.items()}
+    summaries = {cohort: summarize(rows, dates) for cohort, rows in risk_managed_rows.items()}
     promotion = promotion_evaluation(summaries["l2ConfirmAndVeto"])
     ledger_path = args.ledger_output or args.output.with_name(args.output.stem + "-samples.jsonl")
     ledger_checksum = write_jsonl(ledger_path, ledger)
@@ -529,6 +753,19 @@ def main() -> None:
         "confirmationWindowSeconds": CONFIRMATION_WINDOW_SECONDS,
         "openingGapThresholdPct": OPENING_GAP_THRESHOLD_PCT,
         "horizonSecondsByDirection": HORIZON_SECONDS,
+        "exitModels": {
+            "timeExitBaseline": "target or direction-specific fixed horizon; no stop loss",
+            "tightStopCounterexample": "target or net loss budget capped stop; retained as a failed-control cohort",
+            "riskManagedV2": "target, continuous L2/price invalidation, entry-frozen ATR emergency stop, or horizon",
+        },
+        "atrPeriod": ATR_PERIOD,
+        "atrStopFraction": ATR_STOP_FRACTION,
+        "maximumLossToTargetProfitByDirection": STOP_LOSS_MULTIPLE,
+        "exitOpposingSeconds": EXIT_OPPOSING_SECONDS,
+        "exitAdverseTargetFraction": EXIT_ADVERSE_TARGET_FRACTION,
+        "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
+        "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
+        "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
         "cohorts": COHORTS,
         "promotionThresholds": PROMOTION_THRESHOLDS,
         "quantity": SECOND.QUANTITY,
@@ -572,6 +809,8 @@ def main() -> None:
         "config": config,
         "quality": {**quality, "candidateCount": len(candidates), "ledgerSamples": len(ledger)},
         "results": summaries,
+        "tightStopCounterexampleResults": tight_stop_summaries,
+        "baselineResults": baseline_summaries,
         "promotion": promotion,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -582,6 +821,10 @@ def main() -> None:
         "dataset": report["dataset"],
         "quality": report["quality"],
         "all": {cohort: summary["all"] for cohort, summary in summaries.items()},
+        "tightStopCounterexampleAll": {
+            cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()
+        },
+        "baselineAll": {cohort: summary["all"] for cohort, summary in baseline_summaries.items()},
         "promotion": promotion,
     }, ensure_ascii=False, indent=2))
 
