@@ -333,6 +333,130 @@ class CandidateL2OverlayTest(unittest.TestCase):
         self.assertEqual(result["counterfactualClosedTrades"], 1)
         self.assertEqual(result["counterfactualNetPnl"], -120.0)
 
+    def test_v26_positive_gate_rejects_confirmed_negative_price_response(self):
+        l2 = {
+            "status": "confirmed",
+            "evidence": [{
+                "second": self.start + 1,
+                "activeBuyRatio": 0.70,
+                "priceResponseBps": -0.01,
+            }, {
+                "second": self.start + 3,
+                "activeBuyRatio": 0.70,
+                "priceResponseBps": -0.01,
+            }],
+        }
+
+        result = MODULE.v26_entry_gate(self.candidate("positiveT"), l2, 0.50)
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "positive-price-flow-divergence")
+
+    def test_v26_positive_gate_rejects_buy_flow_collapse(self):
+        l2 = {
+            "status": "confirmed",
+            "evidence": [{
+                "second": self.start + 1,
+                "activeBuyRatio": 0.60,
+                "priceResponseBps": 0,
+            }, {
+                "second": self.start + 3,
+                "activeBuyRatio": 0.39,
+                "priceResponseBps": 1,
+            }],
+        }
+
+        result = MODULE.v26_entry_gate(self.candidate("positiveT"), l2, 0.50)
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "positive-buy-flow-collapse")
+
+    def test_v26_regime_context_does_not_fill_missing_market_data(self):
+        result = MODULE.v26_entry_gate(
+            self.candidate("positiveT"),
+            {
+                "status": "confirmed",
+                "evidence": [{
+                    "second": self.start + 3,
+                    "activeBuyRatio": 0.70,
+                    "priceResponseBps": 1,
+                }],
+            },
+            0.50,
+        )
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["regimeContext"]["market"]["status"], "unavailable")
+        self.assertIsNone(result["regimeContext"]["market"]["value"])
+        self.assertEqual(result["regimeContext"]["sector"]["status"], "unavailable")
+
+    def test_v26_positive_gate_honors_available_negative_market_regime(self):
+        candidate = self.candidate("positiveT")
+        candidate["factors"] = {"marketRegime": "bearish"}
+        result = MODULE.v26_entry_gate(
+            candidate,
+            {
+                "status": "confirmed",
+                "evidence": [{
+                    "second": self.start + 3,
+                    "activeBuyRatio": 0.70,
+                    "priceResponseBps": 1,
+                }],
+            },
+            0.50,
+        )
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "positive-negative-market-regime")
+
+    def test_v26_positive_t_preserves_v24_recovery_exit_behavior(self):
+        trades = {
+            self.start: trade(15.00),
+            self.start + 1: trade(15.00, buy=900, sell=100),
+            self.start + 2: trade(14.99, buy=900, sell=100),
+            self.start + 3: trade(14.99, buy=900, sell=100),
+            self.start + 4: trade(14.98, buy=900, sell=100),
+            self.start + 5: MODULE.SECOND.TradeBucket(
+                15.00, 15.08, 15.09, 15.00, 900, 100, 1
+            ),
+        }
+        quotes = {
+            self.start + offset: quote(15.00, positive=True)
+            for offset in range(2, 5)
+        }
+
+        v24 = MODULE.simulate_round_trip(
+            self.candidate("positiveT"), self.start, trades, quotes,
+            prior_atr=0.50, risk_managed=True, exit_model="v24",
+        )
+        v26 = MODULE.simulate_round_trip(
+            self.candidate("positiveT"), self.start, trades, quotes,
+            prior_atr=0.50, risk_managed=True, exit_model="v26",
+        )
+
+        for key in ("entrySecond", "exitSecond", "exitMarketPrice", "exitReason", "netPnl"):
+            self.assertEqual(v26[key], v24[key])
+
+    def test_v26_reverse_t_preserves_v22_exit_behavior(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00)}
+        quotes = {}
+        for offset in range(2, 10):
+            price = 15.00 + offset * 0.005
+            trades[self.start + offset] = trade(price, buy=950, sell=50)
+            quotes[self.start + offset] = quote(price, positive=True)
+
+        v22 = MODULE.simulate_round_trip(
+            self.candidate("reverseT"), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v22",
+        )
+        v26 = MODULE.simulate_round_trip(
+            self.candidate("reverseT"), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v26",
+        )
+
+        for key in ("entrySecond", "exitSecond", "exitMarketPrice", "exitReason", "netPnl"):
+            self.assertEqual(v26[key], v22[key])
+
     def test_post_exit_audit_detects_target_recovery(self):
         trades = {
             self.start + 5: trade(14.95),
@@ -412,6 +536,21 @@ class CandidateL2OverlayTest(unittest.TestCase):
 
         result = MODULE.promotion_evaluation(summary)
 
+        self.assertTrue(result["eligibleForHumanReview"])
+        self.assertFalse(result["automaticPromotion"])
+
+    def test_promotion_treats_profitable_no_loss_test_as_unbounded_profit_factor(self):
+        passing = {
+            "closedTrades": 100,
+            "winRate": 1,
+            "netPnl": 100,
+            "profitFactor": None,
+        }
+        summary = {"all": {"combined": passing}, "splits": {"test": {"combined": passing}}}
+
+        result = MODULE.promotion_evaluation(summary)
+
+        self.assertTrue(result["checks"]["outOfSampleProfitFactor"])
         self.assertTrue(result["eligibleForHumanReview"])
         self.assertFalse(result["automaticPromotion"])
 
