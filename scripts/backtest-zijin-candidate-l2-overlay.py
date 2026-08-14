@@ -31,8 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-7.json")
-ENGINE_VERSION = "2.7.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-8.json")
+ENGINE_VERSION = "2.8.0"
 CONFIRMATION_WINDOW_SECONDS = 10
 OPENING_GAP_THRESHOLD_PCT = 0.50
 HORIZON_SECONDS = {"positiveT": 45 * 60, "reverseT": 50 * 60}
@@ -74,11 +74,15 @@ V27_TARGET_FIRST_SECONDS = 15 * 60
 V27_SHORT_REBOUND_TARGET_FRACTION = 0.25
 V27_EXIT_MAX_TARGET_FIRST_PROBABILITY = 0.40
 V27_EXIT_LOW_CONFIDENCE_SECONDS = 6
+V28_REVERSE_MAX_ACTIVE_BUY_RATIO_CHANGE = 0.05
+V28_REVERSE_MIN_RESPONSE_PERSISTENCE_SECONDS = 3
+V28_REVERSE_MAX_RECOVERY_BPS = 1.0
 EMERGENCY_ATR_FRACTION = 0.15
 EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
 EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
 PROMOTION_THRESHOLDS = {
     "minimumClosedTrades": 100,
+    "minimumOutOfSampleClosedTrades": 20,
     "minimumOutOfSampleWinRate": 0.52,
     "minimumOutOfSampleProfitFactor": 1.20,
     "minimumOutOfSampleNetPnl": 0.0,
@@ -567,10 +571,11 @@ def wilson_lower_bound(successes: int, samples: int, z: float = 1.96) -> float |
 
 
 def v27_probability_estimate(outcome: str, features: dict[str, float | None],
-                             history: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
+                             history: list[dict[str, Any]], as_of_date: str,
+                             direction: str = "positiveT") -> dict[str, Any]:
     prior_rows = [
         row for row in history
-        if row.get("direction") == "positiveT" and str(row.get("date") or "") < as_of_date
+        if row.get("direction") == direction and str(row.get("date") or "") < as_of_date
     ]
     weights = [v27_similarity(features, row["features"]) for row in prior_rows]
     weighted_successes = sum(
@@ -608,10 +613,11 @@ def v27_l2_aligned_tail(l2: dict[str, Any]) -> int:
 
 
 def v27_empirical_expected_pnl(features: dict[str, float | None],
-                               history: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
+                               history: list[dict[str, Any]], as_of_date: str,
+                               direction: str = "positiveT") -> dict[str, Any]:
     prior_rows = [
         row for row in history
-        if row.get("direction") == "positiveT" and str(row.get("date") or "") < as_of_date
+        if row.get("direction") == direction and str(row.get("date") or "") < as_of_date
     ]
     weighted_pnl = 0.0
     effective_samples = 0.0
@@ -709,6 +715,135 @@ def v27_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
     }
 
 
+def v28_reverse_l2_quality(l2: dict[str, Any]) -> dict[str, Any]:
+    """Measure reverse-T persistence for audit without overriding entry calibration."""
+    aligned_tail: list[dict[str, Any]] = []
+    previous_second = None
+    for snapshot in reversed(l2.get("evidence") or []):
+        second = snapshot.get("second")
+        if snapshot.get("alignedVotes", 0) < 3:
+            break
+        if previous_second is not None and second != previous_second - 1:
+            break
+        aligned_tail.append(snapshot)
+        previous_second = second
+    aligned_tail.reverse()
+    persistence = aligned_tail[-V28_REVERSE_MIN_RESPONSE_PERSISTENCE_SECONDS:]
+    ratios = [finite_float(item.get("activeBuyRatio")) for item in persistence]
+    responses = [finite_float(item.get("priceResponseBps")) for item in persistence]
+    complete = (
+        len(persistence) >= V28_REVERSE_MIN_RESPONSE_PERSISTENCE_SECONDS
+        and all(value is not None for value in ratios + responses)
+    )
+    ratio_change = ratios[-1] - ratios[0] if complete else None
+    response_recovery = responses[-1] - responses[0] if complete else None
+    sell_flow_persistent = (
+        complete
+        and ratios[-1] <= 0.45
+        and ratio_change <= V28_REVERSE_MAX_ACTIVE_BUY_RATIO_CHANGE
+    )
+    price_response_persistent = (
+        complete
+        and all(value <= 0 for value in responses)
+        and response_recovery <= V28_REVERSE_MAX_RECOVERY_BPS
+    )
+    return {
+        "passed": bool(sell_flow_persistent and price_response_persistent),
+        "entryGateRole": "audit-only",
+        "alignedTailSeconds": len(aligned_tail),
+        "evaluatedTailSeconds": len(persistence),
+        "activeBuyRatioChange": ratio_change,
+        "priceResponseRecoveryBps": response_recovery,
+        "sellFlowPersistent": bool(sell_flow_persistent),
+        "priceResponsePersistent": bool(price_response_persistent),
+    }
+
+
+def v28_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
+                   prior_atr: float | None, trades: dict[int, Any],
+                   history: list[dict[str, Any]]) -> dict[str, Any]:
+    """Keep V2.7 positive-T and add prior-date calibrated reverse-T entry quality."""
+    if candidate["direction"] == "positiveT":
+        result = v27_entry_gate(candidate, l2, prior_atr, trades, history)
+        return {
+            **result,
+            "model": "v28-positive-delegates-v27",
+            "delegatedModel": result.get("model"),
+        }
+
+    base = v26_entry_gate(candidate, l2, prior_atr)
+    features = v27_entry_features(candidate, l2, prior_atr)
+    probabilities = {
+        "shortDecline60s": v27_probability_estimate(
+            "shortDecline60s", features, history, candidate["date"], "reverseT"
+        ),
+        "targetBeforeStop15m": v27_probability_estimate(
+            "targetBeforeStop15m", features, history, candidate["date"], "reverseT"
+        ),
+        "closureWithin50m": v27_probability_estimate(
+            "closureWithin50m", features, history, candidate["date"], "reverseT"
+        ),
+    }
+    entry = entry_trade_after(trades, int(l2.get("decisionSecond") or candidate["second"]))
+    expected = None
+    if entry is not None:
+        _, entry_market = entry
+        target_gap = SECOND.target_gap(entry_market)
+        stop_gap, _ = adaptive_emergency_stop_gap(
+            "reverseT", entry_market, target_gap, prior_atr
+        )
+        target_market = entry_market - target_gap
+        stop_market = entry_market + stop_gap
+        target_net = SECOND.pnl("reverseT", entry_market, target_market)[0]
+        stop_net = SECOND.pnl("reverseT", entry_market, stop_market)[0]
+        target_probability = probabilities["targetBeforeStop15m"]["probability"]
+        theoretical = target_probability * target_net + (1 - target_probability) * stop_net
+        empirical = v27_empirical_expected_pnl(
+            features, history, candidate["date"], "reverseT"
+        )
+        expected = {
+            "targetNetPnl": target_net,
+            "emergencyStopNetPnl": stop_net,
+            "breakEvenProbability": (-stop_net / (target_net - stop_net)
+                                      if target_net > stop_net else None),
+            "theoreticalNetPnl": theoretical,
+            "empiricalNetPnl": empirical["netPnl"],
+            "conservativeNetPnl": min(theoretical, empirical["netPnl"]),
+            "decisionNetPnl": empirical["netPnl"],
+            "decisionBasis": "prior-date-reverse-empirical-after-costs",
+            "includesFeesAndSlippage": True,
+        }
+    target = probabilities["targetBeforeStop15m"]
+    l2_quality = v28_reverse_l2_quality(l2)
+    calibration_ready = target["sampleCount"] >= V27_CALIBRATION_MIN_SAMPLES
+    if not base["passed"]:
+        passed, reason = False, base["reason"]
+    elif not calibration_ready:
+        passed, reason = True, "v28-reverse-confidence-learning-v26-fallback"
+    elif target["probability"] < V27_MIN_TARGET_FIRST_PROBABILITY:
+        passed, reason = False, "reverse-target-first-probability-too-low"
+    elif (target["lowerBound95"] is None
+          or target["lowerBound95"] < V27_MIN_TARGET_FIRST_LOWER_BOUND):
+        passed, reason = False, "reverse-confidence-lower-bound-too-low"
+    elif expected is None or expected["decisionNetPnl"] <= 0:
+        passed, reason = False, "reverse-expected-value-not-positive"
+    else:
+        passed, reason = True, "v28-calibrated-reverse-entry-confirmed"
+    return {
+        **base,
+        "passed": passed,
+        "reason": reason,
+        "model": "v28-online-calibrated-reverse-entry",
+        "calibrationApplied": calibration_ready,
+        "confidenceState": "calibrated" if calibration_ready else "learning",
+        "features": features,
+        "probabilities": probabilities,
+        "expectedValue": expected,
+        "l2Persistence": l2_quality,
+        "calibrationAsOf": candidate["date"],
+    }
+
+
 def v27_calibration_observation(candidate: dict[str, Any], decision_second: int,
                                 trades: dict[int, Any], prior_atr: float | None,
                                 l2: dict[str, Any], simulation: dict[str, Any] | None
@@ -755,6 +890,63 @@ def v27_calibration_observation(candidate: dict[str, Any], decision_second: int,
             "shortRebound60s": short_rebound,
             "targetBeforeStop15m": target_before_stop,
             "closureWithin45m": closure,
+        },
+        "netPnl": simulation["netPnl"],
+        "entrySecond": entry_second,
+        "usesOutcomeAfterDecisionOnly": True,
+    }
+
+
+def v28_calibration_observation(candidate: dict[str, Any], decision_second: int,
+                                trades: dict[int, Any], prior_atr: float | None,
+                                l2: dict[str, Any], simulation: dict[str, Any] | None
+                                ) -> dict[str, Any] | None:
+    if candidate["direction"] == "positiveT":
+        return v27_calibration_observation(
+            candidate, decision_second, trades, prior_atr, l2, simulation
+        )
+    entry = entry_trade_after(trades, decision_second)
+    if entry is None or simulation is None:
+        return None
+    entry_second, entry_market = entry
+    target_gap = SECOND.target_gap(entry_market)
+    stop_gap, _ = adaptive_emergency_stop_gap("reverseT", entry_market, target_gap, prior_atr)
+    target_price = entry_market - target_gap
+    stop_price = entry_market + stop_gap
+    short_end = entry_second + V27_SHORT_REBOUND_SECONDS
+    target_first_end = entry_second + V27_TARGET_FIRST_SECONDS
+    horizon_end = entry_second + HORIZON_SECONDS["reverseT"]
+    future_seconds = sorted(
+        second for second in trades
+        if entry_second < second <= horizon_end and SECOND.is_market_second(second)
+    )
+    short_decline = any(
+        trades[second].low <= entry_market - max(
+            0.01, target_gap * V27_SHORT_REBOUND_TARGET_FRACTION
+        )
+        for second in future_seconds if second <= short_end
+    )
+    target_second = next((
+        second for second in future_seconds
+        if second <= target_first_end and trades[second].low <= target_price
+    ), None)
+    stop_second = next((
+        second for second in future_seconds
+        if second <= target_first_end and trades[second].high >= stop_price
+    ), None)
+    target_before_stop = (
+        target_second is not None
+        and (stop_second is None or target_second < stop_second)
+    )
+    closure = any(trades[second].low <= target_price for second in future_seconds)
+    return {
+        "date": candidate["date"],
+        "direction": "reverseT",
+        "features": v27_entry_features(candidate, l2, prior_atr),
+        "outcomes": {
+            "shortDecline60s": short_decline,
+            "targetBeforeStop15m": target_before_stop,
+            "closureWithin50m": closure,
         },
         "netPnl": simulation["netPnl"],
         "entrySecond": entry_second,
@@ -1342,17 +1534,23 @@ def summarize(rows: list[dict[str, Any]], dates: list[str]) -> dict[str, Any]:
 def promotion_evaluation(summary: dict[str, Any]) -> dict[str, Any]:
     full = summary["all"]["combined"]
     test = summary["splits"]["test"]["combined"]
+    out_of_sample_sample_ready = (
+        test["closedTrades"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleClosedTrades"]
+    )
     out_of_sample_profit_factor_passed = (
-        test["profitFactor"] is not None
+        out_of_sample_sample_ready
+        and test["profitFactor"] is not None
         and test["profitFactor"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleProfitFactor"]
     ) or (
-        test["closedTrades"] > 0
+        out_of_sample_sample_ready
         and test["profitFactor"] is None
         and test["netPnl"] > 0
     )
     checks = {
         "closedTrades": full["closedTrades"] >= PROMOTION_THRESHOLDS["minimumClosedTrades"],
+        "outOfSampleClosedTrades": out_of_sample_sample_ready,
         "outOfSampleWinRate": test["winRate"] is not None
+            and out_of_sample_sample_ready
             and test["winRate"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleWinRate"],
         "outOfSampleProfitFactor": out_of_sample_profit_factor_passed,
         "outOfSampleNetPnl": test["netPnl"] > PROMOTION_THRESHOLDS["minimumOutOfSampleNetPnl"],
@@ -1420,6 +1618,7 @@ def main() -> None:
     v25_risk_managed_rows = {name: [] for name in COHORTS}
     v26_risk_managed_rows = {name: [] for name in COHORTS}
     v27_risk_managed_rows = {name: [] for name in COHORTS}
+    v28_risk_managed_rows = {name: [] for name in COHORTS}
     v21_risk_managed_rows = {name: [] for name in COHORTS}
     tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
@@ -1427,6 +1626,7 @@ def main() -> None:
     source_hash = hashlib.sha256()
     quality = {"rawTradeRows": 0, "rawQuoteRows": 0, "candidateDays": 0}
     v27_calibration_history: list[dict[str, Any]] = []
+    v28_calibration_history: list[dict[str, Any]] = []
     for index, archive in enumerate(archives, start=1):
         date = str(archive["date"])
         source_hash.update(f"{date}:{archive.get('sha256', '')}\n".encode())
@@ -1439,12 +1639,16 @@ def main() -> None:
         quality["rawQuoteRows"] += day_quality["rawQuoteRows"]
         quality["candidateDays"] += 1
         day_calibration_observations: list[dict[str, Any]] = []
+        day_v28_calibration_observations: list[dict[str, Any]] = []
         for candidate in day_candidates:
             l2 = classify_l2(candidate, trades, quotes)
             v25_gate = v25_entry_gate(candidate, l2)
             v26_gate = v26_entry_gate(candidate, l2, atr_by_date.get(date))
             v27_gate = v27_entry_gate(
                 candidate, l2, atr_by_date.get(date), trades, v27_calibration_history
+            )
+            v28_gate = v28_entry_gate(
+                candidate, l2, atr_by_date.get(date), trades, v28_calibration_history
             )
             v27_reference_simulation = (
                 simulate_round_trip(
@@ -1547,6 +1751,19 @@ def main() -> None:
                     )
                     if execute and v27_gate["passed"] else None
                 )
+                v28_risk_managed_simulation = (
+                    simulate_round_trip(
+                        candidate,
+                        decision_second,
+                        trades,
+                        quotes,
+                        atr_by_date.get(date),
+                        risk_managed=True,
+                        exit_model="v27",
+                        entry_confidence=v28_gate,
+                    )
+                    if execute and v28_gate["passed"] else None
+                )
                 tight_stop_simulation = simulate_round_trip(
                     candidate,
                     decision_second,
@@ -1607,6 +1824,13 @@ def main() -> None:
                     "entryGate": v27_gate,
                     "counterfactualSimulation": v27_reference_simulation,
                 })
+                v28_risk_managed_rows[cohort].append({
+                    **row,
+                    "executed": bool(v28_risk_managed_simulation),
+                    "simulation": v28_risk_managed_simulation,
+                    "entryGate": v28_gate,
+                    "counterfactualSimulation": v27_reference_simulation,
+                })
                 tight_stop_rows[cohort].append({
                     **row,
                     "executed": bool(tight_stop_simulation),
@@ -1629,6 +1853,9 @@ def main() -> None:
                     "v27EntryGate": v27_gate,
                     "v27RiskManagedSimulation": v27_risk_managed_simulation,
                     "v27CounterfactualSimulation": v27_reference_simulation,
+                    "v28EntryGate": v28_gate,
+                    "v28RiskManagedSimulation": v28_risk_managed_simulation,
+                    "v28CounterfactualSimulation": v27_reference_simulation,
                     "tightStopSimulation": tight_stop_simulation,
                 }
             ledger.append(sample)
@@ -1642,7 +1869,18 @@ def main() -> None:
             )
             if observation is not None:
                 day_calibration_observations.append(observation)
+            v28_observation = v28_calibration_observation(
+                candidate,
+                l2["decisionSecond"],
+                trades,
+                atr_by_date.get(date),
+                l2,
+                v27_reference_simulation,
+            )
+            if v28_observation is not None:
+                day_v28_calibration_observations.append(v28_observation)
         v27_calibration_history.extend(day_calibration_observations)
+        v28_calibration_history.extend(day_v28_calibration_observations)
         processed_dates.append(date)
         if index % 20 == 0 or index == len(archives):
             print(f"processed {index}/{len(archives)} sessions", flush=True)
@@ -1657,7 +1895,8 @@ def main() -> None:
     v25_summaries = {cohort: summarize(rows, dates) for cohort, rows in v25_risk_managed_rows.items()}
     v26_summaries = {cohort: summarize(rows, dates) for cohort, rows in v26_risk_managed_rows.items()}
     v27_summaries = {cohort: summarize(rows, dates) for cohort, rows in v27_risk_managed_rows.items()}
-    promotion = promotion_evaluation(v27_summaries["l2ConfirmAndVeto"])
+    v28_summaries = {cohort: summarize(rows, dates) for cohort, rows in v28_risk_managed_rows.items()}
+    promotion = promotion_evaluation(v28_summaries["l2ConfirmAndVeto"])
     primary_v25_rows = v25_risk_managed_rows["l2ConfirmAndVeto"]
     date_splits = split_dates(dates)
     v25_audit = {
@@ -1725,6 +1964,47 @@ def main() -> None:
             for name, split in date_splits.items()
         },
     }
+    primary_v28_rows = v28_risk_managed_rows["l2ConfirmAndVeto"]
+    reverse_v28_history = [
+        row for row in v28_calibration_history if row["direction"] == "reverseT"
+    ]
+    v28_audit = {
+        "calibration": {
+            "observations": len(v28_calibration_history),
+            "positiveTObservations": sum(
+                row["direction"] == "positiveT" for row in v28_calibration_history
+            ),
+            "reverseTObservations": len(reverse_v28_history),
+            "minimumSamplesBeforeEntryByDirection": V27_CALIBRATION_MIN_SAMPLES,
+            "sameDayObservationsAvailableToEntry": False,
+            "futureObservationsAvailableToEntry": False,
+        },
+        "reverseTailRisk": {
+            "lossAttribution": loss_attribution([
+                row for row in primary_v28_rows
+                if row["candidate"]["direction"] == "reverseT"
+            ]),
+            "filteredCounterfactual": filtered_counterfactual([
+                row for row in primary_v28_rows
+                if row["candidate"]["direction"] == "reverseT"
+            ]),
+        },
+        "all": {
+            "lossAttribution": loss_attribution(primary_v28_rows),
+            "filteredCounterfactual": filtered_counterfactual(primary_v28_rows),
+        },
+        "splits": {
+            name: {
+                "lossAttribution": loss_attribution([
+                    row for row in primary_v28_rows if row["candidate"]["date"] in split
+                ]),
+                "filteredCounterfactual": filtered_counterfactual([
+                    row for row in primary_v28_rows if row["candidate"]["date"] in split
+                ]),
+            }
+            for name, split in date_splits.items()
+        },
+    }
     ledger_path = args.ledger_output or args.output.with_name(args.output.stem + "-samples.jsonl")
     ledger_checksum = write_jsonl(ledger_path, ledger)
     config = {
@@ -1741,6 +2021,7 @@ def main() -> None:
             "riskManagedV25": "V2.4 exits plus direction-specific entry-quality gates frozen on train and validation data",
             "riskManagedV26": "V2.5 exits plus positive-T regime and price-flow entry vetoes; no broad early-exit override",
             "riskManagedV27": "V2.6 entry gates plus prior-date calibrated positive-T confidence and sustained low-confidence exit; reverse-T unchanged",
+            "riskManagedV28": "V2.7 exits plus prior-date reverse-T calibration and after-cost expected value; L2 persistence remains audit-only",
         },
         "atrPeriod": ATR_PERIOD,
         "atrStopFraction": ATR_STOP_FRACTION,
@@ -1775,6 +2056,10 @@ def main() -> None:
         "v27TargetFirstSeconds": V27_TARGET_FIRST_SECONDS,
         "v27ExitMaximumTargetFirstProbability": V27_EXIT_MAX_TARGET_FIRST_PROBABILITY,
         "v27ExitLowConfidenceSeconds": V27_EXIT_LOW_CONFIDENCE_SECONDS,
+        "v28ReverseMaximumActiveBuyRatioChange": V28_REVERSE_MAX_ACTIVE_BUY_RATIO_CHANGE,
+        "v28ReverseMinimumResponsePersistenceSeconds": V28_REVERSE_MIN_RESPONSE_PERSISTENCE_SECONDS,
+        "v28ReverseMaximumRecoveryBps": V28_REVERSE_MAX_RECOVERY_BPS,
+        "v28ReverseL2PersistenceEntryGateRole": "audit-only",
         "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
         "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
         "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
@@ -1819,6 +2104,8 @@ def main() -> None:
             "chronologicalTrainValidationTest": True,
             "v27CalibrationUsesPriorDatesOnly": True,
             "v27CalibrationUpdatesAfterEntireSession": True,
+            "v28CalibrationUsesPriorDatesOnly": True,
+            "v28CalibrationUpdatesAfterEntireSession": True,
         },
         "config": config,
         "quality": {**quality, "candidateCount": len(candidates), "ledgerSamples": len(ledger)},
@@ -1832,6 +2119,8 @@ def main() -> None:
         "v26Audit": v26_audit,
         "v27RiskManagedResults": v27_summaries,
         "v27Audit": v27_audit,
+        "v28RiskManagedResults": v28_summaries,
+        "v28Audit": v28_audit,
         "v21RiskManagedResults": v21_summaries,
         "tightStopCounterexampleResults": tight_stop_summaries,
         "baselineResults": baseline_summaries,
@@ -1850,6 +2139,7 @@ def main() -> None:
         "v25RiskManagedAll": {cohort: summary["all"] for cohort, summary in v25_summaries.items()},
         "v26RiskManagedAll": {cohort: summary["all"] for cohort, summary in v26_summaries.items()},
         "v27RiskManagedAll": {cohort: summary["all"] for cohort, summary in v27_summaries.items()},
+        "v28RiskManagedAll": {cohort: summary["all"] for cohort, summary in v28_summaries.items()},
         "v21RiskManagedAll": {cohort: summary["all"] for cohort, summary in v21_summaries.items()},
         "tightStopCounterexampleAll": {
             cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()
