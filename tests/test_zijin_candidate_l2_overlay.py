@@ -1047,6 +1047,55 @@ class CandidateL2OverlayTest(unittest.TestCase):
         self.assertEqual(result["byConfirmationPath"]["delayedConfirmed"]["netPnl"], -5)
         self.assertEqual(result["byConfirmationPath"]["notConfirmed"]["closedTrades"], 0)
 
+    def test_v28_expansion_audit_groups_filtered_counterfactuals(self):
+        def filtered_row(source, initial_status, delayed, reason, pnl):
+            candidate = self.candidate("positiveT")
+            candidate["factorCombinationId"] = source
+            simulation = {
+                "status": "closed",
+                "targetReached": pnl > 0,
+                "netPnl": pnl,
+                "fees": 2,
+                "exitReason": "target" if pnl > 0 else "hardStop",
+                "postExitAudit": None,
+            }
+            return {
+                "candidate": candidate,
+                "initialL2Decision": {"status": initial_status},
+                "l2Decision": {
+                    "status": "confirmed",
+                    "delayedPromotion": delayed,
+                },
+                "executed": False,
+                "simulation": None,
+                "counterfactualSimulation": simulation,
+                "entryGate": {"reason": reason},
+            }
+
+        rows = [
+            filtered_row(
+                "v28-intraday-pullback-v1", "confirmed", False,
+                "intraday-calibration-learning-observation-only", 10,
+            ),
+            filtered_row(
+                "opening-gap-v1", "neutral", True,
+                "delayed-confirmation-observation-only", -5,
+            ),
+        ]
+
+        result = MODULE.v28_expansion_audit(rows)
+
+        self.assertTrue(result["researchOnly"])
+        self.assertTrue(result["currentGateUnchanged"])
+        self.assertEqual(result["byGroup"]["allFiltered"]["closedTrades"], 2)
+        self.assertEqual(result["byGroup"]["intradayPullback"]["netPnl"], 10)
+        self.assertEqual(result["byGroup"]["delayedConfirmed"]["netPnl"], -5)
+        self.assertEqual(
+            result["byEntryGateReason"]
+            ["intraday-calibration-learning-observation-only"]["winRate"],
+            1.0,
+        )
+
     def test_promotion_never_enables_automatic_upgrade(self):
         passing = {
             "candidates": 100,
