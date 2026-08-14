@@ -1536,6 +1536,58 @@ def v28_performance_attribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def v28_counterfactual_metric(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    projected = []
+    for row in rows:
+        simulation = row.get("counterfactualSimulation")
+        projected.append({
+            **row,
+            "executed": simulation is not None,
+            "simulation": simulation,
+        })
+    return metric(projected)
+
+
+def v28_expansion_audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    filtered = [
+        row for row in rows
+        if not row.get("executed") and row.get("counterfactualSimulation") is not None
+    ]
+    by_reason: dict[str, list[dict[str, Any]]] = {}
+    for row in filtered:
+        reason = str((row.get("entryGate") or {}).get("reason") or "unknown")
+        by_reason.setdefault(reason, []).append(row)
+    groups = {
+        "allFiltered": filtered,
+        "intradayPullback": [
+            row for row in filtered
+            if row["candidate"].get("factorCombinationId") == "v28-intraday-pullback-v1"
+        ],
+        "openingGap": [
+            row for row in filtered
+            if row["candidate"].get("factorCombinationId") != "v28-intraday-pullback-v1"
+        ],
+        "delayedConfirmed": [
+            row for row in filtered if row["l2Decision"].get("delayedPromotion") is True
+        ],
+        "initialConfirmed": [
+            row for row in filtered
+            if row["initialL2Decision"].get("status") == "confirmed"
+        ],
+    }
+    return {
+        "researchOnly": True,
+        "currentGateUnchanged": True,
+        "byGroup": {
+            name: v28_counterfactual_metric(group) for name, group in groups.items()
+        },
+        "byEntryGateReason": {
+            reason: v28_counterfactual_metric(group)
+            for reason, group in sorted(by_reason.items())
+        },
+    }
+
+
 def loss_attribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
     trades = [row["simulation"] for row in rows if row.get("executed") and row.get("simulation")]
     losses = [trade for trade in trades if trade["netPnl"] <= 0]
@@ -2113,6 +2165,7 @@ def main() -> None:
         return {
             "candidatesBySource": source_counts,
             "performanceAttribution": performance_attribution,
+            "expansionCounterfactual": v28_expansion_audit(rows),
             "initialL2Statuses": initial_statuses,
             "delayedNeutralReviews": sum(
                 row["l2Decision"].get("delayedReview") is True for row in rows
