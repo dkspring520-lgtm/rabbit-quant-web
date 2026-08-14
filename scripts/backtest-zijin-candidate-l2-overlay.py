@@ -90,6 +90,7 @@ EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
 EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
 PROMOTION_THRESHOLDS = {
     "minimumClosedTrades": 100,
+    "minimumOutOfSampleClosedTrades": 20,
     "minimumOutOfSampleWinRate": 0.52,
     "minimumOutOfSampleProfitFactor": 1.20,
     "minimumOutOfSampleNetPnl": 0.0,
@@ -900,6 +901,13 @@ def v28_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
     causal_history = calibration_history_before_date(history, candidate["date"])
     base = v27_entry_gate(candidate, l2, prior_atr, trades, causal_history)
     reverse_risk = v28_reverse_risk_context(candidate)
+    target_probability = finite_float(
+        (((base.get("probabilities") or {}).get("targetBeforeStop15m") or {})
+         .get("probability"))
+    )
+    expected_value = base.get("expectedValue") or {}
+    break_even_probability = finite_float(expected_value.get("breakEvenProbability"))
+    conservative_net_pnl = finite_float(expected_value.get("conservativeNetPnl"))
     causal_intraday = not is_intraday or factors.get(
         "usesCompletedMinuteAndPriorMinutesOnly"
     ) is True
@@ -907,6 +915,22 @@ def v28_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
         passed, reason = False, base["reason"]
     elif not causal_intraday:
         passed, reason = False, "intraday-candidate-missing-causal-audit"
+    elif l2.get("delayedPromotion") is True:
+        passed, reason = False, "delayed-confirmation-observation-only"
+    elif is_intraday and base.get("calibrationApplied") is not True:
+        passed, reason = False, "intraday-calibration-learning-observation-only"
+    elif is_intraday and expected_value.get("includesFeesAndSlippage") is not True:
+        passed, reason = False, "intraday-cost-model-not-audited"
+    elif is_intraday and (
+        target_probability is None
+        or break_even_probability is None
+        or target_probability < break_even_probability
+    ):
+        passed, reason = False, "intraday-probability-below-costed-break-even"
+    elif is_intraday and (
+        conservative_net_pnl is None or conservative_net_pnl <= 0
+    ):
+        passed, reason = False, "intraday-conservative-net-pnl-not-positive"
     elif candidate["direction"] == "reverseT" and reverse_risk["veto"]:
         passed, reason = False, "reverse-bullish-environment-veto"
     else:
@@ -1479,6 +1503,39 @@ def metric(rows: list[dict[str, Any]], direction: str | None = None) -> dict[str
     }
 
 
+def v28_performance_attribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    by_source = {
+        "openingGap": [
+            row for row in rows
+            if row["candidate"].get("factorCombinationId") != "v28-intraday-pullback-v1"
+        ],
+        "intradayPullback": [
+            row for row in rows
+            if row["candidate"].get("factorCombinationId") == "v28-intraday-pullback-v1"
+        ],
+    }
+    by_confirmation = {
+        "initialConfirmed": [
+            row for row in rows
+            if row["initialL2Decision"]["status"] == "confirmed"
+        ],
+        "delayedConfirmed": [
+            row for row in rows
+            if row["initialL2Decision"]["status"] == "neutral"
+            and row["l2Decision"]["status"] == "confirmed"
+        ],
+        "notConfirmed": [
+            row for row in rows if row["l2Decision"]["status"] != "confirmed"
+        ],
+    }
+    return {
+        "bySource": {name: metric(group) for name, group in by_source.items()},
+        "byConfirmationPath": {
+            name: metric(group) for name, group in by_confirmation.items()
+        },
+    }
+
+
 def loss_attribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
     trades = [row["simulation"] for row in rows if row.get("executed") and row.get("simulation")]
     losses = [trade for trade in trades if trade["netPnl"] <= 0]
@@ -1573,6 +1630,10 @@ def promotion_evaluation(summary: dict[str, Any]) -> dict[str, Any]:
     )
     checks = {
         "closedTrades": full["closedTrades"] >= PROMOTION_THRESHOLDS["minimumClosedTrades"],
+        "outOfSampleClosedTrades": (
+            test["closedTrades"]
+            >= PROMOTION_THRESHOLDS["minimumOutOfSampleClosedTrades"]
+        ),
         "outOfSampleWinRate": test["winRate"] is not None
             and test["winRate"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleWinRate"],
         "outOfSampleProfitFactor": out_of_sample_profit_factor_passed,
@@ -2048,8 +2109,10 @@ def main() -> None:
                 for row in rows
             ),
         }
+        performance_attribution = v28_performance_attribution(rows)
         return {
             "candidatesBySource": source_counts,
+            "performanceAttribution": performance_attribution,
             "initialL2Statuses": initial_statuses,
             "delayedNeutralReviews": sum(
                 row["l2Decision"].get("delayedReview") is True for row in rows
