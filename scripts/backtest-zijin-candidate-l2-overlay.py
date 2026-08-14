@@ -18,6 +18,7 @@ import bisect
 import hashlib
 import importlib.util
 import json
+import math
 import statistics
 import subprocess
 import sys
@@ -30,8 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-6.json")
-ENGINE_VERSION = "2.6.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-7.json")
+ENGINE_VERSION = "2.7.0"
 CONFIRMATION_WINDOW_SECONDS = 10
 OPENING_GAP_THRESHOLD_PCT = 0.50
 HORIZON_SECONDS = {"positiveT": 45 * 60, "reverseT": 50 * 60}
@@ -62,6 +63,17 @@ V26_NEGATIVE_REGIMES = {
     "bearish", "downtrend", "risk-off", "riskoff", "weak", "declining",
     "空头", "下跌", "弱势", "风险规避",
 }
+V27_CALIBRATION_MIN_SAMPLES = 8
+V27_PROBABILITY_PRIOR = 0.50
+V27_PRIOR_STRENGTH = 4.0
+V27_MIN_TARGET_FIRST_PROBABILITY = 0.62
+V27_MIN_TARGET_FIRST_LOWER_BOUND = 0.52
+V27_MIN_L2_ALIGNED_SECONDS = 3
+V27_SHORT_REBOUND_SECONDS = 60
+V27_TARGET_FIRST_SECONDS = 15 * 60
+V27_SHORT_REBOUND_TARGET_FRACTION = 0.25
+V27_EXIT_MAX_TARGET_FIRST_PROBABILITY = 0.40
+V27_EXIT_LOW_CONFIDENCE_SECONDS = 6
 EMERGENCY_ATR_FRACTION = 0.15
 EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
 EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
@@ -476,6 +488,280 @@ def v26_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
     }
 
 
+V27_FEATURE_SCALES = {
+    "activeBuyRatio": 0.25,
+    "activeBuyRatioChange": 0.20,
+    "depthImbalance": 0.20,
+    "micropriceEdgeBps": 5.0,
+    "priceResponseBps": 10.0,
+    "openingGapPct": 2.0,
+    "priorAtrPct": 2.0,
+    "candidateScore": 25.0,
+}
+
+
+def finite_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def entry_trade_after(trades: dict[int, Any], decision_second: int) -> tuple[int, float] | None:
+    seconds = sorted(second for second in trades if SECOND.is_market_second(second))
+    index = bisect.bisect_right(seconds, decision_second)
+    if index >= len(seconds):
+        return None
+    second = seconds[index]
+    return second, trades[second].first
+
+
+def v27_entry_features(candidate: dict[str, Any], l2: dict[str, Any],
+                       prior_atr: float | None) -> dict[str, float | None]:
+    evidence = l2.get("evidence") or []
+    first = evidence[0] if evidence else {}
+    latest = evidence[-1] if evidence else {}
+    factors = candidate.get("factors") if isinstance(candidate.get("factors"), dict) else {}
+    first_ratio = finite_float(first.get("activeBuyRatio"))
+    latest_ratio = finite_float(latest.get("activeBuyRatio"))
+    reference_price = finite_float(candidate.get("candidatePrice") or factors.get("openingPrice"))
+    return {
+        "activeBuyRatio": latest_ratio,
+        "activeBuyRatioChange": (
+            latest_ratio - first_ratio
+            if latest_ratio is not None and first_ratio is not None else None
+        ),
+        "depthImbalance": finite_float(latest.get("depthImbalance")),
+        "micropriceEdgeBps": finite_float(latest.get("micropriceEdgeBps")),
+        "priceResponseBps": finite_float(latest.get("priceResponseBps")),
+        "openingGapPct": finite_float(factors.get("openingGapPct")),
+        "priorAtrPct": (
+            prior_atr / reference_price * 100
+            if prior_atr is not None and reference_price and reference_price > 0 else None
+        ),
+        "candidateScore": finite_float(candidate.get("candidateScore")),
+    }
+
+
+def v27_similarity(left: dict[str, float | None],
+                   right: dict[str, float | None]) -> float:
+    distances = []
+    for key, scale in V27_FEATURE_SCALES.items():
+        left_value = left.get(key)
+        right_value = right.get(key)
+        if left_value is None or right_value is None:
+            continue
+        distances.append(min(3.0, abs(left_value - right_value) / scale))
+    return 1.0 / (1.0 + statistics.mean(distances)) if distances else 0.25
+
+
+def wilson_lower_bound(successes: int, samples: int, z: float = 1.96) -> float | None:
+    if samples <= 0:
+        return None
+    rate = successes / samples
+    denominator = 1 + z * z / samples
+    centre = rate + z * z / (2 * samples)
+    margin = z * math.sqrt((rate * (1 - rate) + z * z / (4 * samples)) / samples)
+    return max(0.0, (centre - margin) / denominator)
+
+
+def v27_probability_estimate(outcome: str, features: dict[str, float | None],
+                             history: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
+    prior_rows = [
+        row for row in history
+        if row.get("direction") == "positiveT" and str(row.get("date") or "") < as_of_date
+    ]
+    weights = [v27_similarity(features, row["features"]) for row in prior_rows]
+    weighted_successes = sum(
+        weight * float(bool(row["outcomes"].get(outcome)))
+        for row, weight in zip(prior_rows, weights)
+    )
+    effective_samples = sum(weights)
+    probability = (
+        V27_PROBABILITY_PRIOR * V27_PRIOR_STRENGTH + weighted_successes
+    ) / (V27_PRIOR_STRENGTH + effective_samples)
+    successes = sum(bool(row["outcomes"].get(outcome)) for row in prior_rows)
+    return {
+        "probability": probability,
+        "lowerBound95": wilson_lower_bound(successes, len(prior_rows)),
+        "sampleCount": len(prior_rows),
+        "effectiveSampleCount": effective_samples,
+        "successes": successes,
+        "latestCalibrationDate": max((row["date"] for row in prior_rows), default=None),
+        "usesPriorDatesOnly": True,
+    }
+
+
+def v27_l2_aligned_tail(l2: dict[str, Any]) -> int:
+    aligned = 0
+    previous_second = None
+    for evidence in reversed(l2.get("evidence") or []):
+        second = evidence.get("second")
+        if evidence.get("alignedVotes", 0) < 3:
+            break
+        if previous_second is not None and second != previous_second - 1:
+            break
+        aligned += 1
+        previous_second = second
+    return aligned
+
+
+def v27_empirical_expected_pnl(features: dict[str, float | None],
+                               history: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
+    prior_rows = [
+        row for row in history
+        if row.get("direction") == "positiveT" and str(row.get("date") or "") < as_of_date
+    ]
+    weighted_pnl = 0.0
+    effective_samples = 0.0
+    for row in prior_rows:
+        weight = v27_similarity(features, row["features"])
+        weighted_pnl += weight * float(row.get("netPnl") or 0.0)
+        effective_samples += weight
+    return {
+        "netPnl": weighted_pnl / (V27_PRIOR_STRENGTH + effective_samples),
+        "sampleCount": len(prior_rows),
+        "effectiveSampleCount": effective_samples,
+    }
+
+
+def v27_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
+                   prior_atr: float | None, trades: dict[int, Any],
+                   history: list[dict[str, Any]]) -> dict[str, Any]:
+    """Online positive-T confidence layer; reverse-T remains exactly on V2.6."""
+    base = v26_entry_gate(candidate, l2, prior_atr)
+    if candidate["direction"] != "positiveT":
+        return {
+            **base,
+            "model": "v26-reverse-unchanged",
+            "calibrationApplied": False,
+        }
+    features = v27_entry_features(candidate, l2, prior_atr)
+    probabilities = {
+        "shortRebound60s": v27_probability_estimate(
+            "shortRebound60s", features, history, candidate["date"]
+        ),
+        "targetBeforeStop15m": v27_probability_estimate(
+            "targetBeforeStop15m", features, history, candidate["date"]
+        ),
+        "closureWithin45m": v27_probability_estimate(
+            "closureWithin45m", features, history, candidate["date"]
+        ),
+    }
+    entry = entry_trade_after(trades, int(l2.get("decisionSecond") or candidate["second"]))
+    expected = None
+    if entry is not None:
+        _, entry_market = entry
+        target_gap = SECOND.target_gap(entry_market)
+        stop_gap, _ = adaptive_emergency_stop_gap(
+            candidate["direction"], entry_market, target_gap, prior_atr
+        )
+        target_market = entry_market + target_gap
+        stop_market = entry_market - stop_gap
+        target_net = SECOND.pnl("positiveT", entry_market, target_market)[0]
+        stop_net = SECOND.pnl("positiveT", entry_market, stop_market)[0]
+        target_probability = probabilities["targetBeforeStop15m"]["probability"]
+        theoretical = target_probability * target_net + (1 - target_probability) * stop_net
+        empirical = v27_empirical_expected_pnl(features, history, candidate["date"])
+        expected = {
+            "targetNetPnl": target_net,
+            "emergencyStopNetPnl": stop_net,
+            "breakEvenProbability": (-stop_net / (target_net - stop_net)
+                                      if target_net > stop_net else None),
+            "theoreticalNetPnl": theoretical,
+            "empiricalNetPnl": empirical["netPnl"],
+            "conservativeNetPnl": min(theoretical, empirical["netPnl"]),
+            "decisionNetPnl": empirical["netPnl"],
+            "decisionBasis": "prior-date-empirical-after-costs",
+            "includesFeesAndSlippage": True,
+        }
+    target = probabilities["targetBeforeStop15m"]
+    aligned_tail = v27_l2_aligned_tail(l2)
+    calibration_ready = target["sampleCount"] >= V27_CALIBRATION_MIN_SAMPLES
+    if not base["passed"]:
+        passed, reason = False, base["reason"]
+    elif not calibration_ready:
+        passed, reason = True, "v27-confidence-learning-v26-fallback"
+    elif target["probability"] < V27_MIN_TARGET_FIRST_PROBABILITY:
+        passed, reason = False, "positive-target-first-probability-too-low"
+    elif (target["lowerBound95"] is None
+          or target["lowerBound95"] < V27_MIN_TARGET_FIRST_LOWER_BOUND):
+        passed, reason = False, "positive-confidence-lower-bound-too-low"
+    elif aligned_tail < V27_MIN_L2_ALIGNED_SECONDS:
+        passed, reason = False, "positive-l2-persistence-too-short"
+    elif expected is None or expected["decisionNetPnl"] <= 0:
+        passed, reason = False, "positive-expected-value-not-positive"
+    else:
+        passed, reason = True, "v27-calibrated-positive-entry-confirmed"
+    return {
+        **base,
+        "passed": passed,
+        "reason": reason,
+        "model": "v27-online-calibrated-positive-entry",
+        "calibrationApplied": calibration_ready,
+        "confidenceState": "calibrated" if calibration_ready else "learning",
+        "features": features,
+        "probabilities": probabilities,
+        "expectedValue": expected,
+        "l2AlignedTailSeconds": aligned_tail,
+        "calibrationAsOf": candidate["date"],
+    }
+
+
+def v27_calibration_observation(candidate: dict[str, Any], decision_second: int,
+                                trades: dict[int, Any], prior_atr: float | None,
+                                l2: dict[str, Any], simulation: dict[str, Any] | None
+                                ) -> dict[str, Any] | None:
+    entry = entry_trade_after(trades, decision_second)
+    if candidate["direction"] != "positiveT" or entry is None or simulation is None:
+        return None
+    entry_second, entry_market = entry
+    target_gap = SECOND.target_gap(entry_market)
+    stop_gap, _ = adaptive_emergency_stop_gap("positiveT", entry_market, target_gap, prior_atr)
+    target_price = entry_market + target_gap
+    stop_price = entry_market - stop_gap
+    short_end = entry_second + V27_SHORT_REBOUND_SECONDS
+    target_first_end = entry_second + V27_TARGET_FIRST_SECONDS
+    horizon_end = entry_second + HORIZON_SECONDS["positiveT"]
+    future_seconds = sorted(
+        second for second in trades
+        if entry_second < second <= horizon_end and SECOND.is_market_second(second)
+    )
+    short_rebound = any(
+        trades[second].high >= entry_market + max(
+            0.01, target_gap * V27_SHORT_REBOUND_TARGET_FRACTION
+        )
+        for second in future_seconds if second <= short_end
+    )
+    target_second = next((
+        second for second in future_seconds
+        if second <= target_first_end and trades[second].high >= target_price
+    ), None)
+    stop_second = next((
+        second for second in future_seconds
+        if second <= target_first_end and trades[second].low <= stop_price
+    ), None)
+    target_before_stop = (
+        target_second is not None
+        and (stop_second is None or target_second < stop_second)
+    )
+    closure = any(trades[second].high >= target_price for second in future_seconds)
+    return {
+        "date": candidate["date"],
+        "direction": candidate["direction"],
+        "features": v27_entry_features(candidate, l2, prior_atr),
+        "outcomes": {
+            "shortRebound60s": short_rebound,
+            "targetBeforeStop15m": target_before_stop,
+            "closureWithin45m": closure,
+        },
+        "netPnl": simulation["netPnl"],
+        "entrySecond": entry_second,
+        "usesOutcomeAfterDecisionOnly": True,
+    }
+
+
 def loss_budget_stop_gap(direction: str, entry_market: float, target_gap: float,
                          prior_atr: float | None) -> tuple[float, dict[str, float | None]]:
     """Freeze an ATR stop at entry, capped by a predeclared net loss/profit ratio."""
@@ -607,6 +893,47 @@ def v22_exit_confirmation(direction: str, entry_market: float, current_price: fl
     }
 
 
+def v27_dynamic_reassessment(entry_confidence: dict[str, Any] | None,
+                             entry_market: float, current_price: float,
+                             target_gap: float, stop_gap: float,
+                             current_active_buy_ratio: float | None,
+                             opposing_votes: int) -> dict[str, Any]:
+    probability = finite_float(
+        (((entry_confidence or {}).get("probabilities") or {})
+         .get("targetBeforeStop15m") or {}).get("probability")
+    )
+    base_probability = probability if probability is not None else V27_PROBABILITY_PRIOR
+    target_bps = target_gap / entry_market * 10_000 if entry_market > 0 else 1.0
+    response_bps = (current_price / entry_market - 1) * 10_000 if entry_market > 0 else 0.0
+    progress_adjustment = max(-0.25, min(0.25, response_bps / target_bps * 0.25))
+    flow_adjustment = (
+        max(-0.18, min(0.18, (current_active_buy_ratio - 0.50) * 0.40))
+        if current_active_buy_ratio is not None else 0.0
+    )
+    pressure_adjustment = -0.06 * max(0, opposing_votes - 2)
+    reassessed_probability = max(0.01, min(
+        0.99,
+        base_probability + progress_adjustment + flow_adjustment + pressure_adjustment,
+    ))
+    target_net = SECOND.pnl("positiveT", entry_market, entry_market + target_gap)[0]
+    stop_net = SECOND.pnl("positiveT", entry_market, entry_market - stop_gap)[0]
+    expected_net = reassessed_probability * target_net + (1 - reassessed_probability) * stop_net
+    return {
+        "baseProbability": base_probability,
+        "targetBeforeStopProbability": reassessed_probability,
+        "expectedNetPnl": expected_net,
+        "responseBps": response_bps,
+        "activeBuyRatio": current_active_buy_ratio,
+        "opposingVotes": opposing_votes,
+        "lowConfidence": (
+            reassessed_probability <= V27_EXIT_MAX_TARGET_FIRST_PROBABILITY
+            and expected_net < 0
+            and opposing_votes >= 3
+        ),
+        "includesFeesAndSlippage": True,
+    }
+
+
 def post_exit_audit(direction: str, entry_market: float, target_gap: float,
                     exit_second: int, horizon_second: int,
                     trades: dict[int, Any]) -> dict[str, Any] | None:
@@ -642,7 +969,8 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
                         prior_atr: float | None = None,
                         risk_managed: bool = False,
                         stop_model: str = "adaptive",
-                        exit_model: str = "v21") -> dict[str, Any] | None:
+                        exit_model: str = "v21",
+                        entry_confidence: dict[str, Any] | None = None) -> dict[str, Any] | None:
     trade_seconds = sorted(second for second in trades if SECOND.is_market_second(second))
     entry_index = bisect.bisect_right(trade_seconds, decision_second)
     if entry_index >= len(trade_seconds):
@@ -684,6 +1012,9 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
     price_history: dict[int, float] = {}
     recovery_watch_second = None
     recovery_release_seconds = 0
+    v27_low_confidence_seconds = 0
+    v27_latest_reassessment = None
+    v27_minimum_probability = None
     for index in range(entry_index + 1, horizon_index + 1):
         second = trade_seconds[index]
         trade = trades[second]
@@ -734,7 +1065,7 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
             1 if opposing_votes >= 3 else 0
         )
         last_pressure_second = second
-        if exit_model in {"v22", "v23", "v24", "v26"}:
+        if exit_model in {"v22", "v23", "v24", "v26", "v27"}:
             current_ratio = active_buy_ratio(trade_flow)
             if current_ratio is not None:
                 active_buy_history.append((second, current_ratio))
@@ -757,7 +1088,24 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
                 )
                 and confirmation["confirmed"]
             )
-            if exit_model in {"v24", "v26"} and direction == "positiveT":
+            if exit_model in {"v24", "v26", "v27"} and direction == "positiveT":
+                reassessment = None
+                if exit_model == "v27":
+                    reassessment = v27_dynamic_reassessment(
+                        entry_confidence, entry_market, trade.last, gap, stop_gap,
+                        current_ratio, opposing_votes,
+                    )
+                    v27_latest_reassessment = {"second": second, **reassessment}
+                    probability = reassessment["targetBeforeStopProbability"]
+                    v27_minimum_probability = (
+                        probability if v27_minimum_probability is None
+                        else min(v27_minimum_probability, probability)
+                    )
+                    v27_low_confidence_seconds = (
+                        v27_low_confidence_seconds + 1
+                        if reassessment["lowConfidence"] and consecutive
+                        else (1 if reassessment["lowConfidence"] else 0)
+                    )
                 if recovery_watch_second is None:
                     if exit_is_confirmed:
                         recovery_watch_second = second
@@ -777,12 +1125,18 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
                         recovery_watch_second = None
                         recovery_release_seconds = 0
                         opposing_seconds = 0
+                        v27_low_confidence_seconds = 0
                     elif (second - recovery_watch_second
                           >= V24_RECOVERY_OBSERVATION_SECONDS
                           and adverse_distance >= max(
                               0.01, gap * V24_EXIT_ADVERSE_TARGET_FRACTION
                           )
-                          and confirmation["confirmed"]):
+                          and confirmation["confirmed"]
+                          and (exit_model != "v27" or (
+                              reassessment is not None
+                              and v27_low_confidence_seconds
+                              >= V27_EXIT_LOW_CONFIDENCE_SECONDS
+                          ))):
                         pending_exit = True
                         exit_decision_second = second
                         exit_confirmation = {
@@ -790,6 +1144,8 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
                             "recoveryWatchSecond": recovery_watch_second,
                             "recoveryObservationSeconds": second - recovery_watch_second,
                             "recoveryReleaseSeconds": recovery_release_seconds,
+                            "v27LowConfidenceSeconds": v27_low_confidence_seconds,
+                            "v27Reassessment": reassessment,
                         }
             elif exit_is_confirmed:
                 pending_exit = True
@@ -819,6 +1175,9 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
         "recoveryWatchSecond": recovery_watch_second,
         "exitConfirmation": exit_confirmation,
         "postExitAudit": exit_audit,
+        "entryConfidence": entry_confidence if exit_model == "v27" else None,
+        "v27LatestReassessment": v27_latest_reassessment,
+        "v27MinimumTargetFirstProbability": v27_minimum_probability,
         "targetGap": gap,
         "targetReached": target_second is not None,
         "stopGap": stop_gap if risk_managed else None,
@@ -1060,12 +1419,14 @@ def main() -> None:
     v24_risk_managed_rows = {name: [] for name in COHORTS}
     v25_risk_managed_rows = {name: [] for name in COHORTS}
     v26_risk_managed_rows = {name: [] for name in COHORTS}
+    v27_risk_managed_rows = {name: [] for name in COHORTS}
     v21_risk_managed_rows = {name: [] for name in COHORTS}
     tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
     processed_dates: list[str] = []
     source_hash = hashlib.sha256()
     quality = {"rawTradeRows": 0, "rawQuoteRows": 0, "candidateDays": 0}
+    v27_calibration_history: list[dict[str, Any]] = []
     for index, archive in enumerate(archives, start=1):
         date = str(archive["date"])
         source_hash.update(f"{date}:{archive.get('sha256', '')}\n".encode())
@@ -1077,10 +1438,26 @@ def main() -> None:
         quality["rawTradeRows"] += day_quality["rawTradeRows"]
         quality["rawQuoteRows"] += day_quality["rawQuoteRows"]
         quality["candidateDays"] += 1
+        day_calibration_observations: list[dict[str, Any]] = []
         for candidate in day_candidates:
             l2 = classify_l2(candidate, trades, quotes)
             v25_gate = v25_entry_gate(candidate, l2)
             v26_gate = v26_entry_gate(candidate, l2, atr_by_date.get(date))
+            v27_gate = v27_entry_gate(
+                candidate, l2, atr_by_date.get(date), trades, v27_calibration_history
+            )
+            v27_reference_simulation = (
+                simulate_round_trip(
+                    candidate,
+                    l2["decisionSecond"],
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                    exit_model="v26",
+                )
+                if v26_gate["passed"] else None
+            )
             sample = {
                 "schemaVersion": 1,
                 "researchOnly": True,
@@ -1157,6 +1534,19 @@ def main() -> None:
                 v26_risk_managed_simulation = (
                     v26_counterfactual_simulation if v26_gate["passed"] else None
                 )
+                v27_risk_managed_simulation = (
+                    simulate_round_trip(
+                        candidate,
+                        decision_second,
+                        trades,
+                        quotes,
+                        atr_by_date.get(date),
+                        risk_managed=True,
+                        exit_model="v27",
+                        entry_confidence=v27_gate,
+                    )
+                    if execute and v27_gate["passed"] else None
+                )
                 tight_stop_simulation = simulate_round_trip(
                     candidate,
                     decision_second,
@@ -1210,6 +1600,13 @@ def main() -> None:
                     "entryGate": v26_gate,
                     "counterfactualSimulation": v26_counterfactual_simulation,
                 })
+                v27_risk_managed_rows[cohort].append({
+                    **row,
+                    "executed": bool(v27_risk_managed_simulation),
+                    "simulation": v27_risk_managed_simulation,
+                    "entryGate": v27_gate,
+                    "counterfactualSimulation": v27_reference_simulation,
+                })
                 tight_stop_rows[cohort].append({
                     **row,
                     "executed": bool(tight_stop_simulation),
@@ -1229,9 +1626,23 @@ def main() -> None:
                     "v26EntryGate": v26_gate,
                     "v26RiskManagedSimulation": v26_risk_managed_simulation,
                     "v26CounterfactualSimulation": v26_counterfactual_simulation,
+                    "v27EntryGate": v27_gate,
+                    "v27RiskManagedSimulation": v27_risk_managed_simulation,
+                    "v27CounterfactualSimulation": v27_reference_simulation,
                     "tightStopSimulation": tight_stop_simulation,
                 }
             ledger.append(sample)
+            observation = v27_calibration_observation(
+                candidate,
+                l2["decisionSecond"],
+                trades,
+                atr_by_date.get(date),
+                l2,
+                v27_reference_simulation,
+            )
+            if observation is not None:
+                day_calibration_observations.append(observation)
+        v27_calibration_history.extend(day_calibration_observations)
         processed_dates.append(date)
         if index % 20 == 0 or index == len(archives):
             print(f"processed {index}/{len(archives)} sessions", flush=True)
@@ -1245,7 +1656,8 @@ def main() -> None:
     v24_summaries = {cohort: summarize(rows, dates) for cohort, rows in v24_risk_managed_rows.items()}
     v25_summaries = {cohort: summarize(rows, dates) for cohort, rows in v25_risk_managed_rows.items()}
     v26_summaries = {cohort: summarize(rows, dates) for cohort, rows in v26_risk_managed_rows.items()}
-    promotion = promotion_evaluation(v26_summaries["l2ConfirmAndVeto"])
+    v27_summaries = {cohort: summarize(rows, dates) for cohort, rows in v27_risk_managed_rows.items()}
+    promotion = promotion_evaluation(v27_summaries["l2ConfirmAndVeto"])
     primary_v25_rows = v25_risk_managed_rows["l2ConfirmAndVeto"]
     date_splits = split_dates(dates)
     v25_audit = {
@@ -1289,6 +1701,30 @@ def main() -> None:
             for name, split in date_splits.items()
         },
     }
+    primary_v27_rows = v27_risk_managed_rows["l2ConfirmAndVeto"]
+    v27_audit = {
+        "calibration": {
+            "observations": len(v27_calibration_history),
+            "minimumSamplesBeforeEntry": V27_CALIBRATION_MIN_SAMPLES,
+            "sameDayObservationsAvailableToEntry": False,
+            "futureObservationsAvailableToEntry": False,
+        },
+        "all": {
+            "lossAttribution": loss_attribution(primary_v27_rows),
+            "filteredCounterfactual": filtered_counterfactual(primary_v27_rows),
+        },
+        "splits": {
+            name: {
+                "lossAttribution": loss_attribution([
+                    row for row in primary_v27_rows if row["candidate"]["date"] in split
+                ]),
+                "filteredCounterfactual": filtered_counterfactual([
+                    row for row in primary_v27_rows if row["candidate"]["date"] in split
+                ]),
+            }
+            for name, split in date_splits.items()
+        },
+    }
     ledger_path = args.ledger_output or args.output.with_name(args.output.stem + "-samples.jsonl")
     ledger_checksum = write_jsonl(ledger_path, ledger)
     config = {
@@ -1304,6 +1740,7 @@ def main() -> None:
             "riskManagedV24": "positive-T V2.2 confirmation enters a recovery watch before sustained deterioration exits; reverse-T delegates to V2.2",
             "riskManagedV25": "V2.4 exits plus direction-specific entry-quality gates frozen on train and validation data",
             "riskManagedV26": "V2.5 exits plus positive-T regime and price-flow entry vetoes; no broad early-exit override",
+            "riskManagedV27": "V2.6 entry gates plus prior-date calibrated positive-T confidence and sustained low-confidence exit; reverse-T unchanged",
         },
         "atrPeriod": ATR_PERIOD,
         "atrStopFraction": ATR_STOP_FRACTION,
@@ -1328,6 +1765,16 @@ def main() -> None:
         "v26PositiveMinimumPriceResponseBps": V26_POSITIVE_MIN_PRICE_RESPONSE_BPS,
         "v26PositiveFlowCollapseDrop": V26_POSITIVE_FLOW_COLLAPSE_DROP,
         "v26PositiveFlowCollapseMaximumRatio": V26_POSITIVE_FLOW_COLLAPSE_MAX_RATIO,
+        "v27CalibrationMinimumSamples": V27_CALIBRATION_MIN_SAMPLES,
+        "v27ProbabilityPrior": V27_PROBABILITY_PRIOR,
+        "v27PriorStrength": V27_PRIOR_STRENGTH,
+        "v27MinimumTargetFirstProbability": V27_MIN_TARGET_FIRST_PROBABILITY,
+        "v27MinimumTargetFirstLowerBound95": V27_MIN_TARGET_FIRST_LOWER_BOUND,
+        "v27MinimumL2AlignedSeconds": V27_MIN_L2_ALIGNED_SECONDS,
+        "v27ShortReboundSeconds": V27_SHORT_REBOUND_SECONDS,
+        "v27TargetFirstSeconds": V27_TARGET_FIRST_SECONDS,
+        "v27ExitMaximumTargetFirstProbability": V27_EXIT_MAX_TARGET_FIRST_PROBABILITY,
+        "v27ExitLowConfidenceSeconds": V27_EXIT_LOW_CONFIDENCE_SECONDS,
         "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
         "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
         "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
@@ -1370,6 +1817,8 @@ def main() -> None:
             "l2ReadsCandidateSecondThroughDecisionSecondOnly": True,
             "entryUsesFirstTradeStrictlyAfterDecision": True,
             "chronologicalTrainValidationTest": True,
+            "v27CalibrationUsesPriorDatesOnly": True,
+            "v27CalibrationUpdatesAfterEntireSession": True,
         },
         "config": config,
         "quality": {**quality, "candidateCount": len(candidates), "ledgerSamples": len(ledger)},
@@ -1381,6 +1830,8 @@ def main() -> None:
         "v25Audit": v25_audit,
         "v26RiskManagedResults": v26_summaries,
         "v26Audit": v26_audit,
+        "v27RiskManagedResults": v27_summaries,
+        "v27Audit": v27_audit,
         "v21RiskManagedResults": v21_summaries,
         "tightStopCounterexampleResults": tight_stop_summaries,
         "baselineResults": baseline_summaries,
@@ -1398,6 +1849,7 @@ def main() -> None:
         "v24RiskManagedAll": {cohort: summary["all"] for cohort, summary in v24_summaries.items()},
         "v25RiskManagedAll": {cohort: summary["all"] for cohort, summary in v25_summaries.items()},
         "v26RiskManagedAll": {cohort: summary["all"] for cohort, summary in v26_summaries.items()},
+        "v27RiskManagedAll": {cohort: summary["all"] for cohort, summary in v27_summaries.items()},
         "v21RiskManagedAll": {cohort: summary["all"] for cohort, summary in v21_summaries.items()},
         "tightStopCounterexampleAll": {
             cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()
