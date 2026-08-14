@@ -30,8 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-5.json")
-ENGINE_VERSION = "2.5.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-6.json")
+ENGINE_VERSION = "2.6.0"
 CONFIRMATION_WINDOW_SECONDS = 10
 OPENING_GAP_THRESHOLD_PCT = 0.50
 HORIZON_SECONDS = {"positiveT": 45 * 60, "reverseT": 50 * 60}
@@ -55,6 +55,13 @@ V24_RELEASE_CONSECUTIVE_SECONDS = 3
 V24_RECOVERED_ADVERSE_TARGET_FRACTION = 0.10
 V25_POSITIVE_MIN_ACTIVE_BUY_RATIO = 0.25
 V25_REVERSE_MAX_PRICE_RESPONSE_BPS = -3.0
+V26_POSITIVE_MIN_PRICE_RESPONSE_BPS = 0.0
+V26_POSITIVE_FLOW_COLLAPSE_DROP = 0.15
+V26_POSITIVE_FLOW_COLLAPSE_MAX_RATIO = 0.40
+V26_NEGATIVE_REGIMES = {
+    "bearish", "downtrend", "risk-off", "riskoff", "weak", "declining",
+    "空头", "下跌", "弱势", "风险规避",
+}
 EMERGENCY_ATR_FRACTION = 0.15
 EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
 EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
@@ -366,6 +373,109 @@ def v25_entry_gate(candidate: dict[str, Any], l2: dict[str, Any]) -> dict[str, A
     }
 
 
+def optional_factor(factors: dict[str, Any], keys: tuple[str, ...]) -> tuple[str | None, Any]:
+    for key in keys:
+        if key in factors and factors[key] is not None:
+            return key, factors[key]
+    return None, None
+
+
+def v26_regime_context(candidate: dict[str, Any], prior_atr: float | None) -> dict[str, Any]:
+    """Expose available entry-time regimes without inventing missing market data."""
+    factors = candidate.get("factors") if isinstance(candidate.get("factors"), dict) else {}
+    market_key, market_value = optional_factor(factors, (
+        "marketRegime", "marketTrend", "indexRegime", "marketState",
+    ))
+    sector_key, sector_value = optional_factor(factors, (
+        "sectorRegime", "sectorTrend", "industryRegime", "sectorState",
+    ))
+    reference_price = float(
+        candidate.get("candidatePrice") or factors.get("openingPrice") or 0
+    )
+    return {
+        "openingGapPct": factors.get("openingGapPct"),
+        "atr": {
+            "status": "available" if prior_atr is not None else "unavailable",
+            "priorAtr14": prior_atr,
+            "priorAtrPct": (
+                prior_atr / reference_price * 100
+                if prior_atr is not None and reference_price > 0 else None
+            ),
+            "usesCompletedSessionsOnly": True,
+        },
+        "market": {
+            "status": "available" if market_key else "unavailable",
+            "sourceField": market_key,
+            "value": market_value,
+        },
+        "sector": {
+            "status": "available" if sector_key else "unavailable",
+            "sourceField": sector_key,
+            "value": sector_value,
+        },
+    }
+
+
+def is_negative_regime(value: Any) -> bool:
+    return str(value or "").strip().lower() in V26_NEGATIVE_REGIMES
+
+
+def v26_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
+                   prior_atr: float | None) -> dict[str, Any]:
+    """V2.5 gate plus positive-T price/flow consistency frozen before replay."""
+    base = v25_entry_gate(candidate, l2)
+    evidence = l2.get("evidence") or []
+    first = evidence[0] if evidence else {}
+    latest = evidence[-1] if evidence else {}
+    first_ratio = first.get("activeBuyRatio")
+    latest_ratio = latest.get("activeBuyRatio")
+    response_bps = latest.get("priceResponseBps")
+    flow_drop = (
+        first_ratio - latest_ratio
+        if first_ratio is not None and latest_ratio is not None else None
+    )
+    flow_collapse = (
+        candidate["direction"] == "positiveT"
+        and flow_drop is not None
+        and flow_drop >= V26_POSITIVE_FLOW_COLLAPSE_DROP
+        and latest_ratio < V26_POSITIVE_FLOW_COLLAPSE_MAX_RATIO
+    )
+    price_flow_divergence = (
+        candidate["direction"] == "positiveT"
+        and response_bps is not None
+        and response_bps < V26_POSITIVE_MIN_PRICE_RESPONSE_BPS
+    )
+    regime_context = v26_regime_context(candidate, prior_atr)
+    negative_regime = (
+        candidate["direction"] == "positiveT"
+        and any(
+            item["status"] == "available" and is_negative_regime(item["value"])
+            for item in (regime_context["market"], regime_context["sector"])
+        )
+    )
+    if not base["passed"]:
+        passed, reason = False, base["reason"]
+    elif negative_regime:
+        passed, reason = False, "positive-negative-market-regime"
+    elif price_flow_divergence:
+        passed, reason = False, "positive-price-flow-divergence"
+    elif flow_collapse:
+        passed, reason = False, "positive-buy-flow-collapse"
+    else:
+        passed, reason = True, "v26-directional-entry-confirmed"
+    return {
+        **base,
+        "passed": passed,
+        "reason": reason,
+        "firstActiveBuyRatio": first_ratio,
+        "activeBuyRatioChange": (-flow_drop if flow_drop is not None else None),
+        "positiveBuyFlowCollapse": flow_collapse,
+        "positivePriceFlowDivergence": price_flow_divergence,
+        "negativeRegime": negative_regime,
+        "regimeContext": regime_context,
+    }
+
+
 def loss_budget_stop_gap(direction: str, entry_market: float, target_gap: float,
                          prior_atr: float | None) -> tuple[float, dict[str, float | None]]:
     """Freeze an ATR stop at entry, capped by a predeclared net loss/profit ratio."""
@@ -624,7 +734,7 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
             1 if opposing_votes >= 3 else 0
         )
         last_pressure_second = second
-        if exit_model in {"v22", "v23", "v24"}:
+        if exit_model in {"v22", "v23", "v24", "v26"}:
             current_ratio = active_buy_ratio(trade_flow)
             if current_ratio is not None:
                 active_buy_history.append((second, current_ratio))
@@ -647,7 +757,7 @@ def simulate_round_trip(candidate: dict[str, Any], decision_second: int,
                 )
                 and confirmation["confirmed"]
             )
-            if exit_model == "v24" and direction == "positiveT":
+            if exit_model in {"v24", "v26"} and direction == "positiveT":
                 if recovery_watch_second is None:
                     if exit_is_confirmed:
                         recovery_watch_second = second
@@ -873,12 +983,19 @@ def summarize(rows: list[dict[str, Any]], dates: list[str]) -> dict[str, Any]:
 def promotion_evaluation(summary: dict[str, Any]) -> dict[str, Any]:
     full = summary["all"]["combined"]
     test = summary["splits"]["test"]["combined"]
+    out_of_sample_profit_factor_passed = (
+        test["profitFactor"] is not None
+        and test["profitFactor"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleProfitFactor"]
+    ) or (
+        test["closedTrades"] > 0
+        and test["profitFactor"] is None
+        and test["netPnl"] > 0
+    )
     checks = {
         "closedTrades": full["closedTrades"] >= PROMOTION_THRESHOLDS["minimumClosedTrades"],
         "outOfSampleWinRate": test["winRate"] is not None
             and test["winRate"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleWinRate"],
-        "outOfSampleProfitFactor": test["profitFactor"] is not None
-            and test["profitFactor"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleProfitFactor"],
+        "outOfSampleProfitFactor": out_of_sample_profit_factor_passed,
         "outOfSampleNetPnl": test["netPnl"] > PROMOTION_THRESHOLDS["minimumOutOfSampleNetPnl"],
     }
     return {
@@ -942,6 +1059,7 @@ def main() -> None:
     v23_risk_managed_rows = {name: [] for name in COHORTS}
     v24_risk_managed_rows = {name: [] for name in COHORTS}
     v25_risk_managed_rows = {name: [] for name in COHORTS}
+    v26_risk_managed_rows = {name: [] for name in COHORTS}
     v21_risk_managed_rows = {name: [] for name in COHORTS}
     tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
@@ -962,6 +1080,7 @@ def main() -> None:
         for candidate in day_candidates:
             l2 = classify_l2(candidate, trades, quotes)
             v25_gate = v25_entry_gate(candidate, l2)
+            v26_gate = v26_entry_gate(candidate, l2, atr_by_date.get(date))
             sample = {
                 "schemaVersion": 1,
                 "researchOnly": True,
@@ -1023,6 +1142,21 @@ def main() -> None:
                     )
                     if execute and v25_gate["passed"] else None
                 )
+                v26_counterfactual_simulation = (
+                    simulate_round_trip(
+                        candidate,
+                        decision_second,
+                        trades,
+                        quotes,
+                        atr_by_date.get(date),
+                        risk_managed=True,
+                        exit_model="v26",
+                    )
+                    if execute and v25_gate["passed"] else None
+                )
+                v26_risk_managed_simulation = (
+                    v26_counterfactual_simulation if v26_gate["passed"] else None
+                )
                 tight_stop_simulation = simulate_round_trip(
                     candidate,
                     decision_second,
@@ -1069,6 +1203,13 @@ def main() -> None:
                     "entryGate": v25_gate,
                     "counterfactualSimulation": v24_risk_managed_simulation,
                 })
+                v26_risk_managed_rows[cohort].append({
+                    **row,
+                    "executed": bool(v26_risk_managed_simulation),
+                    "simulation": v26_risk_managed_simulation,
+                    "entryGate": v26_gate,
+                    "counterfactualSimulation": v26_counterfactual_simulation,
+                })
                 tight_stop_rows[cohort].append({
                     **row,
                     "executed": bool(tight_stop_simulation),
@@ -1085,6 +1226,9 @@ def main() -> None:
                     "v24RiskManagedSimulation": v24_risk_managed_simulation,
                     "v25EntryGate": v25_gate,
                     "v25RiskManagedSimulation": v25_risk_managed_simulation,
+                    "v26EntryGate": v26_gate,
+                    "v26RiskManagedSimulation": v26_risk_managed_simulation,
+                    "v26CounterfactualSimulation": v26_counterfactual_simulation,
                     "tightStopSimulation": tight_stop_simulation,
                 }
             ledger.append(sample)
@@ -1100,7 +1244,8 @@ def main() -> None:
     v23_summaries = {cohort: summarize(rows, dates) for cohort, rows in v23_risk_managed_rows.items()}
     v24_summaries = {cohort: summarize(rows, dates) for cohort, rows in v24_risk_managed_rows.items()}
     v25_summaries = {cohort: summarize(rows, dates) for cohort, rows in v25_risk_managed_rows.items()}
-    promotion = promotion_evaluation(v25_summaries["l2ConfirmAndVeto"])
+    v26_summaries = {cohort: summarize(rows, dates) for cohort, rows in v26_risk_managed_rows.items()}
+    promotion = promotion_evaluation(v26_summaries["l2ConfirmAndVeto"])
     primary_v25_rows = v25_risk_managed_rows["l2ConfirmAndVeto"]
     date_splits = split_dates(dates)
     v25_audit = {
@@ -1120,6 +1265,30 @@ def main() -> None:
             for name, split in date_splits.items()
         },
     }
+    primary_v26_rows = v26_risk_managed_rows["l2ConfirmAndVeto"]
+    v26_audit = {
+        "dataAvailability": {
+            "marketRegime": "optional-candidate-field; unavailable in the current opening dataset",
+            "sectorRegime": "optional-candidate-field; unavailable in the current opening dataset",
+            "atr14": "available from completed sessions only",
+            "l2": "available from event time through decision time only",
+        },
+        "all": {
+            "lossAttribution": loss_attribution(primary_v26_rows),
+            "filteredCounterfactual": filtered_counterfactual(primary_v26_rows),
+        },
+        "splits": {
+            name: {
+                "lossAttribution": loss_attribution([
+                    row for row in primary_v26_rows if row["candidate"]["date"] in split
+                ]),
+                "filteredCounterfactual": filtered_counterfactual([
+                    row for row in primary_v26_rows if row["candidate"]["date"] in split
+                ]),
+            }
+            for name, split in date_splits.items()
+        },
+    }
     ledger_path = args.ledger_output or args.output.with_name(args.output.stem + "-samples.jsonl")
     ledger_checksum = write_jsonl(ledger_path, ledger)
     config = {
@@ -1134,6 +1303,7 @@ def main() -> None:
             "riskManagedV23": "positive-T delayed tail-loss cap; reverse-T delegates to V2.2",
             "riskManagedV24": "positive-T V2.2 confirmation enters a recovery watch before sustained deterioration exits; reverse-T delegates to V2.2",
             "riskManagedV25": "V2.4 exits plus direction-specific entry-quality gates frozen on train and validation data",
+            "riskManagedV26": "V2.5 exits plus positive-T regime and price-flow entry vetoes; no broad early-exit override",
         },
         "atrPeriod": ATR_PERIOD,
         "atrStopFraction": ATR_STOP_FRACTION,
@@ -1155,6 +1325,9 @@ def main() -> None:
         "v24RecoveredAdverseTargetFraction": V24_RECOVERED_ADVERSE_TARGET_FRACTION,
         "v25PositiveMinimumActiveBuyRatio": V25_POSITIVE_MIN_ACTIVE_BUY_RATIO,
         "v25ReverseMaximumPriceResponseBps": V25_REVERSE_MAX_PRICE_RESPONSE_BPS,
+        "v26PositiveMinimumPriceResponseBps": V26_POSITIVE_MIN_PRICE_RESPONSE_BPS,
+        "v26PositiveFlowCollapseDrop": V26_POSITIVE_FLOW_COLLAPSE_DROP,
+        "v26PositiveFlowCollapseMaximumRatio": V26_POSITIVE_FLOW_COLLAPSE_MAX_RATIO,
         "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
         "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
         "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
@@ -1206,6 +1379,8 @@ def main() -> None:
         "v24RiskManagedResults": v24_summaries,
         "v25RiskManagedResults": v25_summaries,
         "v25Audit": v25_audit,
+        "v26RiskManagedResults": v26_summaries,
+        "v26Audit": v26_audit,
         "v21RiskManagedResults": v21_summaries,
         "tightStopCounterexampleResults": tight_stop_summaries,
         "baselineResults": baseline_summaries,
@@ -1222,6 +1397,7 @@ def main() -> None:
         "v23RiskManagedAll": {cohort: summary["all"] for cohort, summary in v23_summaries.items()},
         "v24RiskManagedAll": {cohort: summary["all"] for cohort, summary in v24_summaries.items()},
         "v25RiskManagedAll": {cohort: summary["all"] for cohort, summary in v25_summaries.items()},
+        "v26RiskManagedAll": {cohort: summary["all"] for cohort, summary in v26_summaries.items()},
         "v21RiskManagedAll": {cohort: summary["all"] for cohort, summary in v21_summaries.items()},
         "tightStopCounterexampleAll": {
             cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()
