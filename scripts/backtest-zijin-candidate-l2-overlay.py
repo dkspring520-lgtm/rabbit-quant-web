@@ -31,9 +31,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-7.json")
-ENGINE_VERSION = "2.7.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-8.json")
+ENGINE_VERSION = "2.8.0"
 CONFIRMATION_WINDOW_SECONDS = 10
+V28_DELAYED_CONFIRMATION_SECONDS = 20
 OPENING_GAP_THRESHOLD_PCT = 0.50
 HORIZON_SECONDS = {"positiveT": 45 * 60, "reverseT": 50 * 60}
 ATR_PERIOD = 14
@@ -74,6 +75,16 @@ V27_TARGET_FIRST_SECONDS = 15 * 60
 V27_SHORT_REBOUND_TARGET_FRACTION = 0.25
 V27_EXIT_MAX_TARGET_FIRST_PROBABILITY = 0.40
 V27_EXIT_LOW_CONFIDENCE_SECONDS = 6
+V28_INTRADAY_START = 9 * 3_600 + 45 * 60
+V28_INTRADAY_END = 14 * 3_600 + 15 * 60
+V28_INTRADAY_MIN_VWAP_DEVIATION_PCT = -0.35
+V28_INTRADAY_MIN_PULLBACK_PCT = -0.70
+V28_INTRADAY_MAX_VOLUME_RATIO = 1.00
+V28_INTRADAY_MIN_BAR_RECOVERY = 0.50
+V28_BULLISH_REGIMES = {
+    "bullish", "uptrend", "risk-on", "riskon", "strong", "rising",
+    "多头", "上涨", "强势", "风险偏好",
+}
 EMERGENCY_ATR_FRACTION = 0.15
 EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
 EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
@@ -217,6 +228,99 @@ def opening_candidates(path: Path, allowed_dates: set[str]) -> list[dict[str, An
     return output
 
 
+def v28_intraday_pullback_candidates(path: Path,
+                                     allowed_dates: set[str]) -> list[dict[str, Any]]:
+    """Create at most one positive-T pullback candidate per completed session minute."""
+    output: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8-sig") as source:
+        for line_number, line in enumerate(source, start=1):
+            if not line.strip():
+                continue
+            day = json.loads(line)
+            date = str(day.get("date") or "").replace("-", "")
+            if date not in allowed_dates:
+                continue
+            previous_close = finite_float(day.get("previousClose"))
+            minutes = day.get("minutes") if isinstance(day.get("minutes"), list) else []
+            cumulative_volume = 0.0
+            cumulative_amount = 0.0
+            for index, minute in enumerate(minutes):
+                volume = finite_float(minute.get("volume")) or 0.0
+                amount = finite_float(minute.get("amount")) or 0.0
+                cumulative_volume += volume
+                cumulative_amount += amount
+                if index < 15 or cumulative_volume <= 0 or previous_close is None:
+                    continue
+                minute_second = parse_clock(minute.get("time"))
+                if (minute_second is None or minute_second < V28_INTRADAY_START
+                        or minute_second > V28_INTRADAY_END):
+                    continue
+                close = finite_float(minute.get("close"))
+                low = finite_float(minute.get("low"))
+                high = finite_float(minute.get("high"))
+                if not close or low is None or high is None or close >= previous_close * 0.995:
+                    continue
+                prior_close = finite_float(minutes[index - 1].get("close"))
+                earlier_close = finite_float(minutes[index - 2].get("close"))
+                if prior_close is None or earlier_close is None:
+                    continue
+                bar_recovery = ((close - low) / (high - low) if high > low else 0.50)
+                if (bar_recovery < V28_INTRADAY_MIN_BAR_RECOVERY
+                        or close <= prior_close or prior_close > earlier_close):
+                    continue
+                prior_volumes = [
+                    finite_float(row.get("volume")) or 0.0
+                    for row in minutes[index - 5:index]
+                ]
+                average_volume = statistics.mean(prior_volumes) if prior_volumes else 0.0
+                volume_ratio = volume / average_volume if average_volume > 0 else None
+                if volume_ratio is None or volume_ratio > V28_INTRADAY_MAX_VOLUME_RATIO:
+                    continue
+                vwap = cumulative_amount / cumulative_volume
+                rolling_high = max(
+                    finite_float(row.get("high")) or 0.0
+                    for row in minutes[max(0, index - 14):index + 1]
+                )
+                if vwap <= 0 or rolling_high <= 0:
+                    continue
+                vwap_deviation = (close / vwap - 1) * 100
+                pullback = (close / rolling_high - 1) * 100
+                if (vwap_deviation > V28_INTRADAY_MIN_VWAP_DEVIATION_PCT
+                        or pullback > V28_INTRADAY_MIN_PULLBACK_PCT):
+                    continue
+                decision_second = minute_second + 60
+                identity = {
+                    "date": date,
+                    "second": decision_second,
+                    "direction": "positiveT",
+                    "source": f"{path.name}:{line_number}:minute:{minute.get('time')}",
+                    "factorCombinationId": "v28-intraday-pullback-v1",
+                }
+                output.append({
+                    "candidateId": stable_hash(identity)[:20],
+                    **identity,
+                    "candidateScore": min(100, round(
+                        62 + abs(vwap_deviation) * 8 + abs(pullback) * 5
+                        + bar_recovery * 8, 2
+                    )),
+                    "candidatePrice": close,
+                    "factors": {
+                        "candidateKind": "intraday-pullback",
+                        "asOfMinute": minute.get("time"),
+                        "previousClose": previous_close,
+                        "vwap": round(vwap, 6),
+                        "vwapDeviationPct": round(vwap_deviation, 6),
+                        "rollingHigh15": rolling_high,
+                        "pullbackFromRollingHighPct": round(pullback, 6),
+                        "volumeRatio5": round(volume_ratio, 6),
+                        "barRecoveryRatio": round(bar_recovery, 6),
+                        "usesCompletedMinuteAndPriorMinutesOnly": True,
+                    },
+                })
+                break
+    return output
+
+
 def prior_atr_by_date(path: Path, allowed_dates: set[str]) -> dict[str, float | None]:
     """Calculate ATR14 from completed sessions only; the current day is never included."""
     output: dict[str, float | None] = {}
@@ -342,6 +446,41 @@ def classify_l2(candidate: dict[str, Any], trades: dict[int, Any], quotes: dict[
         "evaluatedSeconds": evaluated_seconds,
         "evidence": evidence,
         "reason": "confirmation window ended without continuous directional evidence",
+    }
+
+
+def v28_delayed_l2_decision(candidate: dict[str, Any], initial: dict[str, Any],
+                            trades: dict[int, Any], quotes: dict[int, Any],
+                            delayed_seconds: int = V28_DELAYED_CONFIRMATION_SECONDS
+                            ) -> dict[str, Any]:
+    """Recheck only neutral candidates in a later causal window."""
+    if initial.get("status") != "neutral":
+        return {
+            **initial,
+            "initialStatus": initial.get("status"),
+            "initialDecisionSecond": initial.get("decisionSecond"),
+            "delayedReview": False,
+            "delayedPromotion": False,
+        }
+    delayed_start = int(initial["decisionSecond"]) + 1
+    delayed_candidate = {**candidate, "second": delayed_start}
+    delayed = classify_l2(
+        delayed_candidate, trades, quotes, window_seconds=delayed_seconds
+    )
+    combined_evidence = [
+        *(initial.get("evidence") or []),
+        *(delayed.get("evidence") or []),
+    ]
+    return {
+        **delayed,
+        "evidence": combined_evidence,
+        "initialStatus": "neutral",
+        "initialDecisionSecond": initial["decisionSecond"],
+        "delayedReview": True,
+        "delayedWindowStartSecond": delayed_start,
+        "delayedWindowSeconds": delayed_seconds,
+        "delayedPromotion": delayed.get("status") == "confirmed",
+        "reason": f"delayed neutral review: {delayed.get('reason')}",
     }
 
 
@@ -706,6 +845,88 @@ def v27_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
         "expectedValue": expected,
         "l2AlignedTailSeconds": aligned_tail,
         "calibrationAsOf": candidate["date"],
+    }
+
+
+def is_bullish_regime(value: Any) -> bool:
+    return str(value or "").strip().lower() in V28_BULLISH_REGIMES
+
+
+def v28_reverse_risk_context(candidate: dict[str, Any]) -> dict[str, Any]:
+    """Read entry-time context only and preserve missing inputs as unavailable."""
+    factors = candidate.get("factors") if isinstance(candidate.get("factors"), dict) else {}
+    groups = {
+        "market": ("marketRegime", "marketTrend", "indexRegime", "marketState"),
+        "sector": ("sectorRegime", "sectorTrend", "industryRegime", "sectorState"),
+        "commodity": ("commodityRegime", "commodityTrend", "metalRegime", "metalTrend"),
+        "gold": ("goldRegime", "goldTrend"),
+        "copper": ("copperRegime", "copperTrend"),
+    }
+    context = {}
+    for name, keys in groups.items():
+        source_key, value = optional_factor(factors, keys)
+        context[name] = {
+            "status": "available" if source_key else "unavailable",
+            "sourceField": source_key,
+            "value": value,
+            "bullishRisk": is_bullish_regime(value) if source_key else None,
+        }
+    available = [item for item in context.values() if item["status"] == "available"]
+    return {
+        "inputs": context,
+        "availableInputs": len(available),
+        "missingInputsFilledWithZero": False,
+        "veto": any(item["bullishRisk"] for item in available),
+    }
+
+
+def calibration_history_before_date(history: list[dict[str, Any]],
+                                    candidate_date: str) -> list[dict[str, Any]]:
+    """Return completed prior-date observations only."""
+    return [
+        row for row in history
+        if str(row.get("date") or "") < candidate_date
+    ]
+
+
+def v28_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
+                   prior_atr: float | None, trades: dict[int, Any],
+                   history: list[dict[str, Any]]) -> dict[str, Any]:
+    """V2.8 shadow gate; V2.7 remains the unchanged control cohort."""
+    factors = candidate.get("factors") if isinstance(candidate.get("factors"), dict) else {}
+    is_intraday = candidate.get("factorCombinationId") == "v28-intraday-pullback-v1"
+    # Intraday pullbacks are additional positive-T candidates, not an exemption
+    # from the causal probability and after-cost expected-value gate.
+    causal_history = calibration_history_before_date(history, candidate["date"])
+    base = v27_entry_gate(candidate, l2, prior_atr, trades, causal_history)
+    reverse_risk = v28_reverse_risk_context(candidate)
+    causal_intraday = not is_intraday or factors.get(
+        "usesCompletedMinuteAndPriorMinutesOnly"
+    ) is True
+    if not base["passed"]:
+        passed, reason = False, base["reason"]
+    elif not causal_intraday:
+        passed, reason = False, "intraday-candidate-missing-causal-audit"
+    elif candidate["direction"] == "reverseT" and reverse_risk["veto"]:
+        passed, reason = False, "reverse-bullish-environment-veto"
+    else:
+        passed, reason = True, (
+            "v28-intraday-pullback-confirmed" if is_intraday
+            else "v28-opening-candidate-confirmed"
+        )
+    return {
+        **base,
+        "passed": passed,
+        "reason": reason,
+        "model": "v28-shadow-entry-layer",
+        "candidateKind": "intraday-pullback" if is_intraday else "opening-gap",
+        "calibrationHistory": {
+            "source": "intraday-pullback-only" if is_intraday else "opening-gap",
+            "observations": len(causal_history),
+            "priorDatesOnly": True,
+        },
+        "reverseRiskContext": reverse_risk,
+        "usesEntryTimeDataOnly": True,
     }
 
 
@@ -1408,10 +1629,18 @@ def main() -> None:
     candidates = (load_external_candidates(args.candidates) if args.candidates
                   else opening_candidates(args.minute_data, allowed_dates))
     candidates = [candidate for candidate in candidates if candidate["date"] in allowed_dates]
+    v28_candidates = list(candidates)
+    if not args.candidates:
+        v28_candidates.extend(v28_intraday_pullback_candidates(
+            args.minute_data, allowed_dates
+        ))
     atr_by_date = prior_atr_by_date(args.minute_data, allowed_dates)
     candidates_by_date: dict[str, list[dict[str, Any]]] = {}
     for candidate in candidates:
         candidates_by_date.setdefault(candidate["date"], []).append(candidate)
+    v28_candidates_by_date: dict[str, list[dict[str, Any]]] = {}
+    for candidate in v28_candidates:
+        v28_candidates_by_date.setdefault(candidate["date"], []).append(candidate)
 
     cohort_rows = {name: [] for name in COHORTS}
     risk_managed_rows = {name: [] for name in COHORTS}
@@ -1420,25 +1649,35 @@ def main() -> None:
     v25_risk_managed_rows = {name: [] for name in COHORTS}
     v26_risk_managed_rows = {name: [] for name in COHORTS}
     v27_risk_managed_rows = {name: [] for name in COHORTS}
+    v28_risk_managed_rows = {"l2ConfirmAndVeto": []}
     v21_risk_managed_rows = {name: [] for name in COHORTS}
     tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
     processed_dates: list[str] = []
     source_hash = hashlib.sha256()
-    quality = {"rawTradeRows": 0, "rawQuoteRows": 0, "candidateDays": 0}
+    quality = {
+        "rawTradeRows": 0,
+        "rawQuoteRows": 0,
+        "candidateDays": 0,
+        "v28CandidateDays": 0,
+    }
     v27_calibration_history: list[dict[str, Any]] = []
+    v28_intraday_calibration_history: list[dict[str, Any]] = []
     for index, archive in enumerate(archives, start=1):
         date = str(archive["date"])
         source_hash.update(f"{date}:{archive.get('sha256', '')}\n".encode())
         day_candidates = candidates_by_date.get(date, [])
-        if not day_candidates:
+        v28_day_candidates = v28_candidates_by_date.get(date, [])
+        if not day_candidates and not v28_day_candidates:
             processed_dates.append(date)
             continue
         trades, quotes, day_quality = SECOND.read_archive(Path(archive["path"]))
         quality["rawTradeRows"] += day_quality["rawTradeRows"]
         quality["rawQuoteRows"] += day_quality["rawQuoteRows"]
-        quality["candidateDays"] += 1
+        quality["candidateDays"] += bool(day_candidates)
+        quality["v28CandidateDays"] += bool(v28_day_candidates)
         day_calibration_observations: list[dict[str, Any]] = []
+        day_v28_intraday_calibration_observations: list[dict[str, Any]] = []
         for candidate in day_candidates:
             l2 = classify_l2(candidate, trades, quotes)
             v25_gate = v25_entry_gate(candidate, l2)
@@ -1642,7 +1881,64 @@ def main() -> None:
             )
             if observation is not None:
                 day_calibration_observations.append(observation)
+        for candidate in v28_day_candidates:
+            is_intraday = (
+                candidate.get("factorCombinationId") == "v28-intraday-pullback-v1"
+            )
+            initial_l2 = classify_l2(candidate, trades, quotes)
+            v28_l2 = v28_delayed_l2_decision(
+                candidate, initial_l2, trades, quotes
+            )
+            confirmed = v28_l2["status"] == "confirmed"
+            v28_gate = v28_entry_gate(
+                candidate,
+                v28_l2,
+                atr_by_date.get(date),
+                trades,
+                (v28_intraday_calibration_history
+                 if is_intraday else v27_calibration_history),
+            )
+            v28_counterfactual = (
+                simulate_round_trip(
+                    candidate,
+                    v28_l2["decisionSecond"],
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                    exit_model="v27",
+                    entry_confidence=v28_gate,
+                )
+                if confirmed else None
+            )
+            v28_simulation = v28_counterfactual if v28_gate["passed"] else None
+            v28_risk_managed_rows["l2ConfirmAndVeto"].append({
+                "candidate": candidate,
+                "l2Decision": v28_l2,
+                "initialL2Decision": initial_l2,
+                "cohort": "l2ConfirmAndVeto",
+                "executed": bool(v28_simulation),
+                "decisionSecond": v28_l2["decisionSecond"],
+                "decisionReason": v28_gate["reason"],
+                "simulation": v28_simulation,
+                "entryGate": v28_gate,
+                "counterfactualSimulation": v28_counterfactual,
+            })
+            if is_intraday:
+                observation = v27_calibration_observation(
+                    candidate,
+                    v28_l2["decisionSecond"],
+                    trades,
+                    atr_by_date.get(date),
+                    v28_l2,
+                    v28_counterfactual,
+                )
+                if observation is not None:
+                    day_v28_intraday_calibration_observations.append(observation)
         v27_calibration_history.extend(day_calibration_observations)
+        v28_intraday_calibration_history.extend(
+            day_v28_intraday_calibration_observations
+        )
         processed_dates.append(date)
         if index % 20 == 0 or index == len(archives):
             print(f"processed {index}/{len(archives)} sessions", flush=True)
@@ -1657,7 +1953,17 @@ def main() -> None:
     v25_summaries = {cohort: summarize(rows, dates) for cohort, rows in v25_risk_managed_rows.items()}
     v26_summaries = {cohort: summarize(rows, dates) for cohort, rows in v26_risk_managed_rows.items()}
     v27_summaries = {cohort: summarize(rows, dates) for cohort, rows in v27_risk_managed_rows.items()}
-    promotion = promotion_evaluation(v27_summaries["l2ConfirmAndVeto"])
+    v28_summaries = {cohort: summarize(rows, dates) for cohort, rows in v28_risk_managed_rows.items()}
+    v27_promotion = promotion_evaluation(v27_summaries["l2ConfirmAndVeto"])
+    evaluated_v28_promotion = promotion_evaluation(v28_summaries["l2ConfirmAndVeto"])
+    v28_promotion = {
+        **evaluated_v28_promotion,
+        "statisticallyEligibleForHumanReview": evaluated_v28_promotion["eligibleForHumanReview"],
+        "eligibleForHumanReview": False,
+        "automaticPromotion": False,
+        "decision": "keep-shadow",
+        "reason": "V2.8 is an isolated research cohort and cannot auto-promote",
+    }
     primary_v25_rows = v25_risk_managed_rows["l2ConfirmAndVeto"]
     date_splits = split_dates(dates)
     v25_audit = {
@@ -1725,6 +2031,96 @@ def main() -> None:
             for name, split in date_splits.items()
         },
     }
+    primary_v28_rows = v28_risk_managed_rows["l2ConfirmAndVeto"]
+
+    def v28_audit_slice(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        initial_statuses = {
+            status: sum(row["initialL2Decision"]["status"] == status for row in rows)
+            for status in ("confirmed", "rejected", "neutral")
+        }
+        source_counts = {
+            "openingGap": sum(
+                row["candidate"].get("factorCombinationId") != "v28-intraday-pullback-v1"
+                for row in rows
+            ),
+            "intradayPullback": sum(
+                row["candidate"].get("factorCombinationId") == "v28-intraday-pullback-v1"
+                for row in rows
+            ),
+        }
+        return {
+            "candidatesBySource": source_counts,
+            "initialL2Statuses": initial_statuses,
+            "delayedNeutralReviews": sum(
+                row["l2Decision"].get("delayedReview") is True for row in rows
+            ),
+            "delayedNeutralPromotions": sum(
+                row["l2Decision"].get("delayedPromotion") is True for row in rows
+            ),
+            "delayedNeutralRejections": sum(
+                row["initialL2Decision"]["status"] == "neutral"
+                and row["l2Decision"]["status"] == "rejected"
+                for row in rows
+            ),
+            "explicitInitialRejectionsReconsidered": sum(
+                row["initialL2Decision"]["status"] == "rejected"
+                and row["l2Decision"].get("delayedReview") is True
+                for row in rows
+            ),
+            "reverseEnvironmentVetoes": sum(
+                row["entryGate"]["reason"] == "reverse-bullish-environment-veto"
+                for row in rows
+            ),
+            "lossAttribution": loss_attribution(rows),
+            "filteredCounterfactual": filtered_counterfactual(rows),
+        }
+
+    v27_combined = v27_summaries["l2ConfirmAndVeto"]["all"]["combined"]
+    v28_combined = v28_summaries["l2ConfirmAndVeto"]["all"]["combined"]
+    v28_audit = {
+        "isolation": {
+            "researchOnly": True,
+            "affectsSmartT": False,
+            "affectsShadowV2": False,
+            "v27RetainedAsControl": True,
+        },
+        "dataAvailability": {
+            "marketSectorCommodity": (
+                "optional entry-time candidate fields; missing values remain unavailable"
+            ),
+            "missingValuesFilledWithZero": False,
+        },
+        "calibration": {
+            "openingObservations": len(v27_calibration_history),
+            "intradayPullbackObservations": len(v28_intraday_calibration_history),
+            "intradayHistorySource": "intraday-pullback-only",
+            "sameDayObservationsAvailableToEntry": False,
+            "futureObservationsAvailableToEntry": False,
+            "updatesAfterEntireSession": True,
+        },
+        "comparisonToV27": {
+            "candidateUpgradeRateChange": (
+                v28_combined["candidateUpgradeRate"] - v27_combined["candidateUpgradeRate"]
+                if v28_combined["candidateUpgradeRate"] is not None
+                and v27_combined["candidateUpgradeRate"] is not None else None
+            ),
+            "closedTradesChange": v28_combined["closedTrades"] - v27_combined["closedTrades"],
+            "netPnlChange": v28_combined["netPnl"] - v27_combined["netPnl"],
+            "maximumDrawdownChangePct": (
+                (v28_combined["maximumDrawdown"] / v27_combined["maximumDrawdown"] - 1) * 100
+                if v27_combined["maximumDrawdown"] > 0 else None
+            ),
+            "targetUpgradeRateRange": [0.20, 0.25],
+            "maximumAllowedDrawdownIncreasePct": 20.0,
+        },
+        "all": v28_audit_slice(primary_v28_rows),
+        "splits": {
+            name: v28_audit_slice([
+                row for row in primary_v28_rows if row["candidate"]["date"] in split
+            ])
+            for name, split in date_splits.items()
+        },
+    }
     ledger_path = args.ledger_output or args.output.with_name(args.output.stem + "-samples.jsonl")
     ledger_checksum = write_jsonl(ledger_path, ledger)
     config = {
@@ -1741,6 +2137,7 @@ def main() -> None:
             "riskManagedV25": "V2.4 exits plus direction-specific entry-quality gates frozen on train and validation data",
             "riskManagedV26": "V2.5 exits plus positive-T regime and price-flow entry vetoes; no broad early-exit override",
             "riskManagedV27": "V2.6 entry gates plus prior-date calibrated positive-T confidence and sustained low-confidence exit; reverse-T unchanged",
+            "riskManagedV28": "isolated V2.7 control extension with delayed neutral confirmation, independently calibrated causal intraday positive-T pullbacks, and reverse-T environment veto",
         },
         "atrPeriod": ATR_PERIOD,
         "atrStopFraction": ATR_STOP_FRACTION,
@@ -1775,6 +2172,12 @@ def main() -> None:
         "v27TargetFirstSeconds": V27_TARGET_FIRST_SECONDS,
         "v27ExitMaximumTargetFirstProbability": V27_EXIT_MAX_TARGET_FIRST_PROBABILITY,
         "v27ExitLowConfidenceSeconds": V27_EXIT_LOW_CONFIDENCE_SECONDS,
+        "v28DelayedConfirmationSeconds": V28_DELAYED_CONFIRMATION_SECONDS,
+        "v28IntradayWindowSeconds": [V28_INTRADAY_START, V28_INTRADAY_END],
+        "v28IntradayMinimumVwapDeviationPct": V28_INTRADAY_MIN_VWAP_DEVIATION_PCT,
+        "v28IntradayMinimumPullbackPct": V28_INTRADAY_MIN_PULLBACK_PCT,
+        "v28IntradayMaximumVolumeRatio": V28_INTRADAY_MAX_VOLUME_RATIO,
+        "v28IntradayMinimumBarRecovery": V28_INTRADAY_MIN_BAR_RECOVERY,
         "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
         "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
         "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
@@ -1807,6 +2210,7 @@ def main() -> None:
         "reproducibility": {
             "configHash": stable_hash(config),
             "candidateChecksum": stable_hash(candidates),
+            "v28CandidateChecksum": stable_hash(v28_candidates),
             "ledger": str(ledger_path),
             "ledgerChecksum": ledger_checksum,
             "gitCommit": git_commit(),
@@ -1819,9 +2223,22 @@ def main() -> None:
             "chronologicalTrainValidationTest": True,
             "v27CalibrationUsesPriorDatesOnly": True,
             "v27CalibrationUpdatesAfterEntireSession": True,
+            "v28DelayedReviewAppliesOnlyToInitialNeutral": True,
+            "v28DelayedReviewReadsThroughDecisionSecondOnly": True,
+            "v28IntradayCandidateUsesCompletedCurrentAndPriorMinutesOnly": True,
+            "v28IntradayCalibrationUsesPriorDatesOnly": True,
+            "v28IntradayCalibrationUpdatesAfterEntireSession": True,
+            "v28IntradayCalibrationIsIndependentFromOpeningSamples": True,
+            "v28ReverseVetoUsesEntryTimeOptionalFieldsOnly": True,
         },
         "config": config,
-        "quality": {**quality, "candidateCount": len(candidates), "ledgerSamples": len(ledger)},
+        "quality": {
+            **quality,
+            "candidateCount": len(candidates),
+            "v28CandidateCount": len(v28_candidates),
+            "v28IntradayCandidateCount": len(v28_candidates) - len(candidates),
+            "ledgerSamples": len(ledger),
+        },
         "results": summaries,
         "v22RiskManagedResults": summaries,
         "v23RiskManagedResults": v23_summaries,
@@ -1832,10 +2249,13 @@ def main() -> None:
         "v26Audit": v26_audit,
         "v27RiskManagedResults": v27_summaries,
         "v27Audit": v27_audit,
+        "v28RiskManagedResults": v28_summaries,
+        "v28Audit": v28_audit,
         "v21RiskManagedResults": v21_summaries,
         "tightStopCounterexampleResults": tight_stop_summaries,
         "baselineResults": baseline_summaries,
-        "promotion": promotion,
+        "v27Promotion": v27_promotion,
+        "promotion": v28_promotion,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -1850,12 +2270,13 @@ def main() -> None:
         "v25RiskManagedAll": {cohort: summary["all"] for cohort, summary in v25_summaries.items()},
         "v26RiskManagedAll": {cohort: summary["all"] for cohort, summary in v26_summaries.items()},
         "v27RiskManagedAll": {cohort: summary["all"] for cohort, summary in v27_summaries.items()},
+        "v28RiskManagedAll": {cohort: summary["all"] for cohort, summary in v28_summaries.items()},
         "v21RiskManagedAll": {cohort: summary["all"] for cohort, summary in v21_summaries.items()},
         "tightStopCounterexampleAll": {
             cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()
         },
         "baselineAll": {cohort: summary["all"] for cohort, summary in baseline_summaries.items()},
-        "promotion": promotion,
+        "promotion": v28_promotion,
     }, ensure_ascii=False, indent=2))
 
 
