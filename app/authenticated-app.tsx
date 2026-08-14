@@ -1143,6 +1143,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     let active=true;
     let timer:number|undefined;
     let source:EventSource|null=null;
+    let streamWatchdog:number|undefined;
+    let lastStreamPayloadAt=Date.now();
+    const closeStream=()=>{
+      source?.close();
+      source=null;
+      if(streamWatchdog!==undefined){
+        window.clearInterval(streamWatchdog);
+        streamWatchdog=undefined;
+      }
+    };
     const applyPayload=(payload:ZijinL2State)=>{
       const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
       const stale=payload.status?.stale||payload.meta?.stale;
@@ -1201,19 +1211,25 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       source=new EventSource(`/api/research/zijin-l2-orderflow?stream=1&t=${Date.now()}`);
       source.addEventListener("snapshot",event=>{
         try{
-          applyPayload(JSON.parse((event as MessageEvent<string>).data) as ZijinL2State);
+          const payload=JSON.parse((event as MessageEvent<string>).data) as ZijinL2State;
+          lastStreamPayloadAt=Date.now();
+          applyPayload(payload);
           if(active)setLiveL2Transport("stream");
         }catch{}
       });
       source.onerror=()=>{
-        source?.close();
-        source=null;
+        closeStream();
         startPolling();
       };
+      streamWatchdog=window.setInterval(()=>{
+        if(!active||!source||Date.now()-lastStreamPayloadAt<=3_000)return;
+        closeStream();
+        startPolling();
+      },1_000);
     }else startPolling();
     return()=>{
       active=false;
-      source?.close();
+      closeStream();
       if(timer!==undefined)window.clearTimeout(timer);
     };
   },[localAuth,activeView,stock?.code,marketDataActive]);
