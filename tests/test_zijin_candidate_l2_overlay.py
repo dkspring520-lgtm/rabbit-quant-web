@@ -457,6 +457,209 @@ class CandidateL2OverlayTest(unittest.TestCase):
         for key in ("entrySecond", "exitSecond", "exitMarketPrice", "exitReason", "netPnl"):
             self.assertEqual(v26[key], v22[key])
 
+    def v27_l2(self):
+        return {
+            "status": "confirmed",
+            "decisionSecond": self.start + 2,
+            "evidence": [
+                {
+                    "second": self.start + offset,
+                    "activeBuyRatio": 0.70,
+                    "depthImbalance": 0.20,
+                    "micropriceEdgeBps": 2.0,
+                    "priceResponseBps": 2.0,
+                    "alignedVotes": 4,
+                }
+                for offset in range(3)
+            ],
+        }
+
+    def v27_history(self, features, net_pnl=80.0, success=True, count=8):
+        return [
+            {
+                "date": f"202412{index + 1:02d}",
+                "direction": "positiveT",
+                "features": features,
+                "outcomes": {
+                    "shortRebound60s": success,
+                    "targetBeforeStop15m": success,
+                    "closureWithin45m": success,
+                },
+                "netPnl": net_pnl,
+            }
+            for index in range(count)
+        ]
+
+    def test_v27_accepts_high_confidence_positive_t_after_prior_only_calibration(self):
+        candidate = self.candidate("positiveT")
+        l2 = self.v27_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+        result = MODULE.v27_entry_gate(
+            candidate,
+            l2,
+            0.50,
+            {self.start + 3: trade(15.00)},
+            self.v27_history(features),
+        )
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["reason"], "v27-calibrated-positive-entry-confirmed")
+        self.assertGreater(result["expectedValue"]["decisionNetPnl"], 0)
+        self.assertEqual(
+            result["expectedValue"]["decisionBasis"],
+            "prior-date-empirical-after-costs",
+        )
+        self.assertGreaterEqual(
+            result["probabilities"]["targetBeforeStop15m"]["lowerBound95"],
+            MODULE.V27_MIN_TARGET_FIRST_LOWER_BOUND,
+        )
+
+    def test_v27_rejects_positive_t_when_costed_expected_value_is_negative(self):
+        candidate = self.candidate("positiveT")
+        l2 = self.v27_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+        result = MODULE.v27_entry_gate(
+            candidate,
+            l2,
+            0.50,
+            {self.start + 3: trade(15.00)},
+            self.v27_history(features, net_pnl=-20.0),
+        )
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "positive-expected-value-not-positive")
+
+    def test_v27_learning_period_keeps_v26_qualified_positive_t_as_shadow(self):
+        candidate = self.candidate("positiveT")
+        l2 = self.v27_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+        result = MODULE.v27_entry_gate(
+            candidate,
+            l2,
+            0.50,
+            {self.start + 3: trade(15.00)},
+            self.v27_history(features, count=3),
+        )
+
+        self.assertTrue(result["passed"])
+        self.assertFalse(result["calibrationApplied"])
+        self.assertEqual(result["confidenceState"], "learning")
+        self.assertEqual(result["reason"], "v27-confidence-learning-v26-fallback")
+
+    def test_v27_probability_calibration_never_reads_future_dates(self):
+        candidate = self.candidate("positiveT")
+        l2 = self.v27_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+        history = self.v27_history(features, net_pnl=-20.0, success=False)
+        history.extend({
+            "date": f"202502{index + 1:02d}",
+            "direction": "positiveT",
+            "features": features,
+            "outcomes": {
+                "shortRebound60s": True,
+                "targetBeforeStop15m": True,
+                "closureWithin45m": True,
+            },
+            "netPnl": 80.0,
+        } for index in range(20))
+
+        estimate = MODULE.v27_probability_estimate(
+            "targetBeforeStop15m", features, history, candidate["date"]
+        )
+
+        self.assertEqual(estimate["sampleCount"], 8)
+        self.assertLess(estimate["probability"], 0.5)
+        self.assertLess(estimate["latestCalibrationDate"], candidate["date"])
+        self.assertTrue(estimate["usesPriorDatesOnly"])
+
+    def test_v27_temporary_deterioration_does_not_force_early_exit(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00)}
+        quotes = {}
+        for offset in range(2, 10):
+            price = 15.00 - offset * 0.005
+            trades[self.start + offset] = trade(price, buy=50, sell=950)
+            quotes[self.start + offset] = quote(price, positive=False)
+        for offset in range(10, 13):
+            trades[self.start + offset] = trade(14.995, buy=950, sell=50)
+            quotes[self.start + offset] = quote(14.995, positive=True)
+        trades[self.start + 13] = MODULE.SECOND.TradeBucket(
+            15.00, 15.08, 15.09, 15.00, 900, 100, 1
+        )
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v27",
+            entry_confidence={"probabilities": {
+                "targetBeforeStop15m": {"probability": 0.75}
+            }},
+        )
+
+        self.assertEqual(result["exitReason"], "target")
+
+    def test_v27_sustained_low_confidence_deterioration_exits(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00)}
+        quotes = {}
+        for offset in range(2, 16):
+            price = 15.00 - offset * 0.005
+            trades[self.start + offset] = trade(price, buy=50, sell=950)
+            quotes[self.start + offset] = quote(price, positive=False)
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v27",
+            entry_confidence={"probabilities": {
+                "targetBeforeStop15m": {"probability": 0.75}
+            }},
+        )
+
+        self.assertEqual(result["exitReason"], "l2PriceInvalidation")
+        self.assertGreaterEqual(
+            result["exitConfirmation"]["v27LowConfidenceSeconds"],
+            MODULE.V27_EXIT_LOW_CONFIDENCE_SECONDS,
+        )
+        self.assertLess(
+            result["exitConfirmation"]["v27Reassessment"]["expectedNetPnl"], 0
+        )
+
+    def test_v27_preserves_hard_stop(self):
+        trades = {
+            self.start: trade(15.00),
+            self.start + 1: trade(15.00),
+            self.start + 2: MODULE.SECOND.TradeBucket(
+                14.80, 14.80, 14.81, 14.79, 50, 950, 1
+            ),
+        }
+
+        result = MODULE.simulate_round_trip(
+            self.candidate(), self.start, trades, prior_atr=0.50,
+            risk_managed=True, exit_model="v27",
+            entry_confidence={"probabilities": {
+                "targetBeforeStop15m": {"probability": 0.90}
+            }},
+        )
+
+        self.assertEqual(result["exitReason"], "hardStop")
+
+    def test_v27_reverse_t_preserves_v22_exit_behavior(self):
+        trades = {self.start: trade(15.00), self.start + 1: trade(15.00)}
+        quotes = {}
+        for offset in range(2, 10):
+            price = 15.00 + offset * 0.005
+            trades[self.start + offset] = trade(price, buy=950, sell=50)
+            quotes[self.start + offset] = quote(price, positive=True)
+
+        v22 = MODULE.simulate_round_trip(
+            self.candidate("reverseT"), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v22",
+        )
+        v27 = MODULE.simulate_round_trip(
+            self.candidate("reverseT"), self.start, trades, quotes, prior_atr=0.50,
+            risk_managed=True, exit_model="v27",
+        )
+
+        for key in ("entrySecond", "exitSecond", "exitMarketPrice", "exitReason", "netPnl"):
+            self.assertEqual(v27[key], v22[key])
+
     def test_post_exit_audit_detects_target_recovery(self):
         trades = {
             self.start + 5: trade(14.95),
