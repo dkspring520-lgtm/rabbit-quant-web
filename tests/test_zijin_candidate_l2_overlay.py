@@ -490,6 +490,54 @@ class CandidateL2OverlayTest(unittest.TestCase):
             for index in range(count)
         ]
 
+    def v28_reverse_l2(self):
+        return {
+            "status": "confirmed",
+            "decisionSecond": self.start + 2,
+            "evidence": [
+                {
+                    "second": self.start,
+                    "activeBuyRatio": 0.34,
+                    "depthImbalance": -0.20,
+                    "micropriceEdgeBps": -2.0,
+                    "priceResponseBps": -1.0,
+                    "alignedVotes": 4,
+                },
+                {
+                    "second": self.start + 1,
+                    "activeBuyRatio": 0.31,
+                    "depthImbalance": -0.22,
+                    "micropriceEdgeBps": -2.5,
+                    "priceResponseBps": -2.0,
+                    "alignedVotes": 4,
+                },
+                {
+                    "second": self.start + 2,
+                    "activeBuyRatio": 0.28,
+                    "depthImbalance": -0.25,
+                    "micropriceEdgeBps": -3.0,
+                    "priceResponseBps": -4.0,
+                    "alignedVotes": 4,
+                },
+            ],
+        }
+
+    def v28_reverse_history(self, features, net_pnl=80.0, success=True, count=8):
+        return [
+            {
+                "date": f"202412{index + 1:02d}",
+                "direction": "reverseT",
+                "features": features,
+                "outcomes": {
+                    "shortDecline60s": success,
+                    "targetBeforeStop15m": success,
+                    "closureWithin50m": success,
+                },
+                "netPnl": net_pnl,
+            }
+            for index in range(count)
+        ]
+
     def test_v27_accepts_high_confidence_positive_t_after_prior_only_calibration(self):
         candidate = self.candidate("positiveT")
         l2 = self.v27_l2()
@@ -660,6 +708,115 @@ class CandidateL2OverlayTest(unittest.TestCase):
         for key in ("entrySecond", "exitSecond", "exitMarketPrice", "exitReason", "netPnl"):
             self.assertEqual(v27[key], v22[key])
 
+    def test_v28_accepts_high_confidence_reverse_t_after_prior_only_calibration(self):
+        candidate = self.candidate("reverseT")
+        l2 = self.v28_reverse_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+
+        result = MODULE.v28_entry_gate(
+            candidate,
+            l2,
+            0.50,
+            {self.start + 3: trade(15.00)},
+            self.v28_reverse_history(features),
+        )
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["reason"], "v28-calibrated-reverse-entry-confirmed")
+        self.assertTrue(result["l2Persistence"]["passed"])
+        self.assertGreater(result["expectedValue"]["decisionNetPnl"], 0)
+
+    def test_v28_reverse_l2_persistence_is_audit_only_after_calibrated_entry(self):
+        candidate = self.candidate("reverseT")
+        l2 = self.v28_reverse_l2()
+        l2["evidence"][-1]["activeBuyRatio"] = 0.60
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+
+        result = MODULE.v28_entry_gate(
+            candidate,
+            l2,
+            0.50,
+            {self.start + 3: trade(15.00)},
+            self.v28_reverse_history(features),
+        )
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["reason"], "v28-calibrated-reverse-entry-confirmed")
+        self.assertFalse(result["l2Persistence"]["passed"])
+        self.assertEqual(result["l2Persistence"]["entryGateRole"], "audit-only")
+
+    def test_v28_rejects_reverse_t_when_costed_expected_value_is_negative(self):
+        candidate = self.candidate("reverseT")
+        l2 = self.v28_reverse_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+
+        result = MODULE.v28_entry_gate(
+            candidate,
+            l2,
+            0.50,
+            {self.start + 3: trade(15.00)},
+            self.v28_reverse_history(features, net_pnl=-20.0),
+        )
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "reverse-expected-value-not-positive")
+
+    def test_v28_learning_period_keeps_v26_qualified_reverse_t_as_shadow(self):
+        candidate = self.candidate("reverseT")
+        l2 = self.v28_reverse_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+
+        result = MODULE.v28_entry_gate(
+            candidate,
+            l2,
+            0.50,
+            {self.start + 3: trade(15.00)},
+            self.v28_reverse_history(features, count=3),
+        )
+
+        self.assertTrue(result["passed"])
+        self.assertFalse(result["calibrationApplied"])
+        self.assertEqual(result["reason"], "v28-reverse-confidence-learning-v26-fallback")
+
+    def test_v28_reverse_probability_never_reads_future_dates(self):
+        candidate = self.candidate("reverseT")
+        l2 = self.v28_reverse_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+        history = self.v28_reverse_history(features, net_pnl=-20.0, success=False)
+        history.extend({
+            "date": f"202502{index + 1:02d}",
+            "direction": "reverseT",
+            "features": features,
+            "outcomes": {"targetBeforeStop15m": True},
+            "netPnl": 80.0,
+        } for index in range(20))
+
+        estimate = MODULE.v27_probability_estimate(
+            "targetBeforeStop15m", features, history, candidate["date"], "reverseT"
+        )
+
+        self.assertEqual(estimate["sampleCount"], 8)
+        self.assertLess(estimate["probability"], 0.5)
+        self.assertLess(estimate["latestCalibrationDate"], candidate["date"])
+
+    def test_v28_positive_t_keeps_v27_entry_decision(self):
+        candidate = self.candidate("positiveT")
+        l2 = self.v27_l2()
+        features = MODULE.v27_entry_features(candidate, l2, 0.50)
+        arguments = (
+            candidate,
+            l2,
+            0.50,
+            {self.start + 3: trade(15.00)},
+            self.v27_history(features),
+        )
+
+        v27 = MODULE.v27_entry_gate(*arguments)
+        v28 = MODULE.v28_entry_gate(*arguments)
+
+        for key in ("passed", "reason", "confidenceState", "probabilities", "expectedValue"):
+            self.assertEqual(v28[key], v27[key])
+
     def test_post_exit_audit_detects_target_recovery(self):
         trades = {
             self.start + 5: trade(14.95),
@@ -756,6 +913,27 @@ class CandidateL2OverlayTest(unittest.TestCase):
         self.assertTrue(result["checks"]["outOfSampleProfitFactor"])
         self.assertTrue(result["eligibleForHumanReview"])
         self.assertFalse(result["automaticPromotion"])
+
+    def test_promotion_rejects_profitable_no_loss_test_when_sample_is_too_small(self):
+        full = {
+            "closedTrades": 100,
+            "winRate": 0.60,
+            "netPnl": 100,
+            "profitFactor": 2,
+        }
+        test = {
+            "closedTrades": 9,
+            "winRate": 1,
+            "netPnl": 100,
+            "profitFactor": None,
+        }
+        summary = {"all": {"combined": full}, "splits": {"test": {"combined": test}}}
+
+        result = MODULE.promotion_evaluation(summary)
+
+        self.assertFalse(result["checks"]["outOfSampleClosedTrades"])
+        self.assertFalse(result["checks"]["outOfSampleProfitFactor"])
+        self.assertFalse(result["eligibleForHumanReview"])
 
 
 if __name__ == "__main__":
