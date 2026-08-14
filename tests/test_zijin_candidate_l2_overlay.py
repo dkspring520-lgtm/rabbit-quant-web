@@ -1096,6 +1096,164 @@ class CandidateL2OverlayTest(unittest.TestCase):
             1.0,
         )
 
+    def test_v28_expansion_audit_never_changes_current_gate(self):
+        result = MODULE.v28_expansion_audit([])
+
+        self.assertTrue(result["researchOnly"])
+        self.assertTrue(result["currentGateUnchanged"])
+        self.assertEqual(result["byGroup"]["allFiltered"]["executed"], 0)
+
+    def v29_l2(self, evidence, status="confirmed", decision_offset=2):
+        return {
+            "status": status,
+            "decisionSecond": self.start + decision_offset,
+            "delayedPromotion": False,
+            "evidence": evidence,
+        }
+
+    def v29_evidence(self, offset=2, active_buy=0.20, depth=0.80,
+                     microprice_edge=-0.10):
+        return {
+            "second": self.start + offset,
+            "activeBuyRatio": active_buy,
+            "depthImbalance": depth,
+            "micropriceEdgeBps": microprice_edge,
+            "priceResponseBps": 0.0,
+        }
+
+    def test_v29_low_gap_reverse_tail_rule_and_boundary_are_frozen(self):
+        candidate = self.candidate("reverseT")
+        candidate["factors"] = {"openingGapPct": 1.49}
+        matched = MODULE.v29_reverse_tail_risk(
+            candidate, self.v29_l2([self.v29_evidence(depth=-0.39)])
+        )
+
+        candidate["factors"] = {"openingGapPct": 1.50}
+        gap_boundary = MODULE.v29_reverse_tail_risk(
+            candidate, self.v29_l2([self.v29_evidence(depth=-0.39)])
+        )
+        candidate["factors"] = {"openingGapPct": 1.49}
+        depth_boundary = MODULE.v29_reverse_tail_risk(
+            candidate, self.v29_l2([self.v29_evidence(depth=-0.40)])
+        )
+
+        self.assertTrue(matched["veto"])
+        self.assertEqual(matched["triggeredRules"], ["lowGapWeakSellBook"])
+        self.assertFalse(gap_boundary["veto"])
+        self.assertFalse(depth_boundary["veto"])
+
+    def test_v29_mid_gap_reverse_tail_rule_and_boundaries_are_frozen(self):
+        candidate = self.candidate("reverseT")
+        candidate["factors"] = {"openingGapPct": 2.50}
+        matched = MODULE.v29_reverse_tail_risk(
+            candidate,
+            self.v29_l2([self.v29_evidence(active_buy=0.25, depth=-0.80,
+                                                   microprice_edge=0.0)]),
+        )
+        candidate["factors"] = {"openingGapPct": 3.0}
+        gap_boundary = MODULE.v29_reverse_tail_risk(
+            candidate,
+            self.v29_l2([self.v29_evidence(active_buy=0.25, depth=-0.80,
+                                                   microprice_edge=0.0)]),
+        )
+        candidate["factors"] = {"openingGapPct": 2.50}
+        flow_boundary = MODULE.v29_reverse_tail_risk(
+            candidate,
+            self.v29_l2([self.v29_evidence(active_buy=0.251, depth=-0.80,
+                                                   microprice_edge=0.0)]),
+        )
+
+        self.assertTrue(matched["veto"])
+        self.assertEqual(matched["triggeredRules"], ["midGapBuyFlowRisk"])
+        self.assertFalse(gap_boundary["veto"])
+        self.assertFalse(flow_boundary["veto"])
+
+    def test_v29_ignores_evidence_after_decision_second(self):
+        candidate = self.candidate("reverseT")
+        candidate["factors"] = {"openingGapPct": 1.0}
+        l2 = self.v29_l2([
+            self.v29_evidence(offset=2, depth=-0.80),
+            self.v29_evidence(offset=3, depth=0.90),
+        ])
+
+        result = MODULE.v29_reverse_tail_risk(candidate, l2)
+
+        self.assertFalse(result["veto"])
+        self.assertEqual(result["entryTimeL2"]["evidenceSecond"], self.start + 2)
+
+    def test_v29_missing_l2_fields_remain_unavailable_and_cannot_select(self):
+        reverse = self.candidate("reverseT")
+        reverse["factors"] = {"openingGapPct": 1.0}
+        l2 = self.v29_l2([{"second": self.start + 2}])
+        reverse_result = MODULE.v29_reverse_tail_risk(reverse, l2)
+        positive_result = MODULE.v29_positive_expansion_gate(
+            self.candidate("positiveT"), l2,
+            {"passed": False, "reason": "positive-buy-flow-too-weak"},
+        )
+
+        self.assertFalse(reverse_result["veto"])
+        self.assertIsNone(reverse_result["entryTimeL2"]["depthImbalance"])
+        self.assertFalse(positive_result["passed"])
+        self.assertFalse(reverse_result["missingValuesFilledWithZero"])
+
+    def test_v29_positive_expansion_is_narrow_research_only_observation(self):
+        candidate = self.candidate("positiveT")
+        v28_gate = {"passed": False, "reason": "positive-buy-flow-too-weak"}
+        selected = MODULE.v29_positive_expansion_gate(
+            candidate,
+            self.v29_l2([self.v29_evidence(depth=0.75)]),
+            v28_gate,
+        )
+        below_depth = MODULE.v29_positive_expansion_gate(
+            candidate,
+            self.v29_l2([self.v29_evidence(depth=0.749)]),
+            v28_gate,
+        )
+        wrong_reason = MODULE.v29_positive_expansion_gate(
+            candidate,
+            self.v29_l2([self.v29_evidence(depth=0.90)]),
+            {"passed": False, "reason": "positive-regime-risk-veto"},
+        )
+
+        self.assertTrue(selected["passed"])
+        self.assertTrue(selected["researchOnly"])
+        self.assertFalse(selected["affectsV28"])
+        self.assertEqual(selected["exitModel"], "v23")
+        self.assertFalse(below_depth["passed"])
+        self.assertFalse(wrong_reason["passed"])
+
+    def test_v29_entry_gate_does_not_mutate_v28_control(self):
+        candidate = self.candidate("reverseT")
+        candidate["factors"] = {"openingGapPct": 1.0}
+        v28_gate = {"passed": True, "reason": "v28-opening-candidate-confirmed"}
+        original = dict(v28_gate)
+
+        result = MODULE.v29_entry_gate(
+            candidate, self.v29_l2([self.v29_evidence(depth=0.0)]), v28_gate
+        )
+
+        self.assertEqual(v28_gate, original)
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "v29-reverse-tail-risk-veto")
+        self.assertTrue(result["v28ControlPassed"])
+        self.assertFalse(result["affectsV28"])
+
+    def test_v29_promotion_remains_shadow_when_all_thresholds_pass(self):
+        passing = {
+            "closedTrades": 100,
+            "winRate": 0.60,
+            "netPnl": 100,
+            "profitFactor": 2,
+        }
+        summary = {"all": {"combined": passing}, "splits": {"test": {"combined": passing}}}
+
+        result = MODULE.v29_promotion_evaluation(summary)
+
+        self.assertTrue(result["statisticallyEligibleForHumanReview"])
+        self.assertFalse(result["eligibleForHumanReview"])
+        self.assertFalse(result["automaticPromotion"])
+        self.assertEqual(result["decision"], "keep-shadow")
+
     def test_promotion_never_enables_automatic_upgrade(self):
         passing = {
             "candidates": 100,

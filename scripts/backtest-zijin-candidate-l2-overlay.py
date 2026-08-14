@@ -31,8 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-8.json")
-ENGINE_VERSION = "2.8.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-9.json")
+ENGINE_VERSION = "2.9.0"
 CONFIRMATION_WINDOW_SECONDS = 10
 V28_DELAYED_CONFIRMATION_SECONDS = 20
 OPENING_GAP_THRESHOLD_PCT = 0.50
@@ -95,6 +95,13 @@ PROMOTION_THRESHOLDS = {
     "minimumOutOfSampleProfitFactor": 1.20,
     "minimumOutOfSampleNetPnl": 0.0,
 }
+V29_REVERSE_LOW_GAP_MAX_PCT = 1.50
+V29_REVERSE_LOW_GAP_MIN_DEPTH_IMBALANCE = -0.40
+V29_REVERSE_MID_GAP_MIN_PCT = 2.00
+V29_REVERSE_MID_GAP_MAX_PCT = 3.00
+V29_REVERSE_MID_GAP_MAX_ACTIVE_BUY_RATIO = 0.25
+V29_REVERSE_MID_GAP_MAX_MICROPRICE_EDGE_BPS = 0.0
+V29_POSITIVE_EXPANSION_MIN_DEPTH_IMBALANCE = 0.75
 
 COHORTS = {
     "minuteBaseline": "execute every minute candidate without using L2",
@@ -954,6 +961,141 @@ def v28_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
     }
 
 
+def entry_time_l2_snapshot(l2: dict[str, Any]) -> dict[str, Any]:
+    """Return the latest evidence available no later than the entry decision."""
+    decision_second = l2.get("decisionSecond")
+    try:
+        decision_second = int(decision_second)
+    except (TypeError, ValueError):
+        decision_second = None
+    eligible = []
+    for item in l2.get("evidence") or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            evidence_second = int(item.get("second"))
+        except (TypeError, ValueError):
+            continue
+        if decision_second is not None and evidence_second <= decision_second:
+            eligible.append((evidence_second, item))
+    latest = max(eligible, key=lambda pair: pair[0])[1] if eligible else {}
+    return {
+        "status": "available" if latest else "unavailable",
+        "decisionSecond": decision_second,
+        "evidenceSecond": latest.get("second"),
+        "activeBuyRatio": finite_float(latest.get("activeBuyRatio")),
+        "depthImbalance": finite_float(latest.get("depthImbalance")),
+        "micropriceEdgeBps": finite_float(latest.get("micropriceEdgeBps")),
+        "priceResponseBps": finite_float(latest.get("priceResponseBps")),
+        "missingValuesFilledWithZero": False,
+        "readsThroughDecisionSecondOnly": True,
+    }
+
+
+def v29_reverse_tail_risk(candidate: dict[str, Any], l2: dict[str, Any]) -> dict[str, Any]:
+    """Apply train-frozen reverse-T tail vetoes without reading future evidence."""
+    factors = candidate.get("factors") if isinstance(candidate.get("factors"), dict) else {}
+    opening_gap_pct = finite_float(factors.get("openingGapPct"))
+    snapshot = entry_time_l2_snapshot(l2)
+    depth = snapshot["depthImbalance"]
+    active_buy_ratio = snapshot["activeBuyRatio"]
+    microprice_edge = snapshot["micropriceEdgeBps"]
+    low_gap_weak_sell_book = (
+        candidate.get("direction") == "reverseT"
+        and opening_gap_pct is not None
+        and opening_gap_pct < V29_REVERSE_LOW_GAP_MAX_PCT
+        and depth is not None
+        and depth > V29_REVERSE_LOW_GAP_MIN_DEPTH_IMBALANCE
+    )
+    mid_gap_buy_flow_risk = (
+        candidate.get("direction") == "reverseT"
+        and opening_gap_pct is not None
+        and V29_REVERSE_MID_GAP_MIN_PCT <= opening_gap_pct < V29_REVERSE_MID_GAP_MAX_PCT
+        and active_buy_ratio is not None
+        and active_buy_ratio <= V29_REVERSE_MID_GAP_MAX_ACTIVE_BUY_RATIO
+        and microprice_edge is not None
+        and microprice_edge <= V29_REVERSE_MID_GAP_MAX_MICROPRICE_EDGE_BPS
+    )
+    rules = {
+        "lowGapWeakSellBook": low_gap_weak_sell_book,
+        "midGapBuyFlowRisk": mid_gap_buy_flow_risk,
+    }
+    triggered = [name for name, matched in rules.items() if matched]
+    return {
+        "veto": bool(triggered),
+        "triggeredRules": triggered,
+        "openingGapPct": opening_gap_pct,
+        "entryTimeL2": snapshot,
+        "missingValuesFilledWithZero": False,
+        "rulesFrozenBeforeReplay": True,
+    }
+
+
+def v29_positive_expansion_gate(candidate: dict[str, Any], l2: dict[str, Any],
+                                v28_gate: dict[str, Any]) -> dict[str, Any]:
+    """Select a narrow positive-T observation group; it never changes V2.8."""
+    snapshot = entry_time_l2_snapshot(l2)
+    depth = snapshot["depthImbalance"]
+    opening_candidate = candidate.get("factorCombinationId") != "v28-intraday-pullback-v1"
+    passed = (
+        candidate.get("direction") == "positiveT"
+        and opening_candidate
+        and l2.get("status") == "confirmed"
+        and l2.get("delayedPromotion") is not True
+        and v28_gate.get("passed") is False
+        and v28_gate.get("reason") == "positive-buy-flow-too-weak"
+        and depth is not None
+        and depth >= V29_POSITIVE_EXPANSION_MIN_DEPTH_IMBALANCE
+    )
+    return {
+        "passed": passed,
+        "reason": (
+            "positive-depth-expansion-observation"
+            if passed else "not-selected-for-positive-expansion"
+        ),
+        "researchOnly": True,
+        "openingCandidate": opening_candidate,
+        "v28Reason": v28_gate.get("reason"),
+        "entryTimeL2": snapshot,
+        "minimumDepthImbalance": V29_POSITIVE_EXPANSION_MIN_DEPTH_IMBALANCE,
+        "exitModel": "v23",
+        "affectsV28": False,
+    }
+
+
+def v29_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
+                   v28_gate: dict[str, Any]) -> dict[str, Any]:
+    """Derive an isolated V2.9 decision while retaining V2.8 as the control."""
+    reverse_risk = v29_reverse_tail_risk(candidate, l2)
+    expansion = v29_positive_expansion_gate(candidate, l2, v28_gate)
+    if v28_gate.get("passed"):
+        if reverse_risk["veto"]:
+            passed, reason, source = False, "v29-reverse-tail-risk-veto", "v28-control"
+        else:
+            passed, reason, source = True, "v29-retains-v28-entry", "v28-control"
+    elif expansion["passed"]:
+        passed = True
+        reason = "v29-positive-depth-expansion-observation"
+        source = "positive-depth-expansion"
+    else:
+        passed = False
+        reason = str(v28_gate.get("reason") or "v28-entry-filtered")
+        source = "filtered"
+    return {
+        "passed": passed,
+        "reason": reason,
+        "model": "v29-isolated-shadow-entry-layer",
+        "selectionSource": source,
+        "v28ControlPassed": bool(v28_gate.get("passed")),
+        "v28ControlReason": v28_gate.get("reason"),
+        "reverseTailRisk": reverse_risk,
+        "positiveExpansion": expansion,
+        "usesEntryTimeDataOnly": True,
+        "researchOnly": True,
+        "affectsV28": False,
+    }
+
+
 def v27_calibration_observation(candidate: dict[str, Any], decision_second: int,
                                 trades: dict[int, Any], prior_atr: float | None,
                                 l2: dict[str, Any], simulation: dict[str, Any] | None
@@ -1588,6 +1730,64 @@ def v28_expansion_audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def metric_from_simulation_field(rows: list[dict[str, Any]], field: str) -> dict[str, Any]:
+    projected = []
+    for row in rows:
+        simulation = row.get(field)
+        projected.append({
+            **row,
+            "executed": simulation is not None,
+            "simulation": simulation,
+        })
+    return metric(projected)
+
+
+def v29_audit_slice(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    reverse_vetoed = [
+        row for row in rows
+        if (row.get("entryGate") or {}).get("reason") == "v29-reverse-tail-risk-veto"
+    ]
+    expansion = [
+        row for row in rows
+        if (row.get("entryGate") or {}).get("selectionSource")
+        == "positive-depth-expansion"
+    ]
+    v28_control = metric_from_simulation_field(rows, "v28ControlSimulation")
+    v29_result = metric(rows)
+    return {
+        "v28Control": v28_control,
+        "v29Result": v29_result,
+        "comparisonToV28": {
+            "closedTradesChange": v29_result["closedTrades"] - v28_control["closedTrades"],
+            "netPnlChange": v29_result["netPnl"] - v28_control["netPnl"],
+            "maximumDrawdownChange": (
+                v29_result["maximumDrawdown"] - v28_control["maximumDrawdown"]
+            ),
+        },
+        "reverseTailVeto": {
+            "signals": len(reverse_vetoed),
+            "v28Counterfactual": metric_from_simulation_field(
+                reverse_vetoed, "v28ControlSimulation"
+            ),
+            "triggeredRules": {
+                rule: sum(
+                    rule in (((row.get("entryGate") or {}).get("reverseTailRisk") or {})
+                             .get("triggeredRules") or [])
+                    for row in reverse_vetoed
+                )
+                for rule in ("lowGapWeakSellBook", "midGapBuyFlowRisk")
+            },
+        },
+        "positiveExpansionObservation": {
+            "researchOnly": True,
+            "signals": len(expansion),
+            "performance": metric(expansion),
+            "exitModel": "v23",
+            "affectsV28": False,
+        },
+    }
+
+
 def loss_attribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
     trades = [row["simulation"] for row in rows if row.get("executed") and row.get("simulation")]
     losses = [trade for trade in trades if trade["netPnl"] <= 0]
@@ -1700,6 +1900,19 @@ def promotion_evaluation(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def v29_promotion_evaluation(summary: dict[str, Any]) -> dict[str, Any]:
+    """Expose statistical checks while keeping V2.9 permanently shadow-only."""
+    evaluated = promotion_evaluation(summary)
+    return {
+        **evaluated,
+        "statisticallyEligibleForHumanReview": evaluated["eligibleForHumanReview"],
+        "eligibleForHumanReview": False,
+        "automaticPromotion": False,
+        "decision": "keep-shadow",
+        "reason": "V2.9 is an isolated offline research cohort and cannot auto-promote",
+    }
+
+
 def git_commit() -> str | None:
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -1763,6 +1976,7 @@ def main() -> None:
     v26_risk_managed_rows = {name: [] for name in COHORTS}
     v27_risk_managed_rows = {name: [] for name in COHORTS}
     v28_risk_managed_rows = {"l2ConfirmAndVeto": []}
+    v29_risk_managed_rows = {"l2ConfirmAndVeto": []}
     v21_risk_managed_rows = {name: [] for name in COHORTS}
     tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
@@ -2025,7 +2239,25 @@ def main() -> None:
                 if confirmed else None
             )
             v28_simulation = v28_counterfactual if v28_gate["passed"] else None
-            v28_risk_managed_rows["l2ConfirmAndVeto"].append({
+            v29_gate = v29_entry_gate(candidate, v28_l2, v28_gate)
+            v29_expansion_simulation = (
+                simulate_round_trip(
+                    candidate,
+                    v28_l2["decisionSecond"],
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                    exit_model="v23",
+                )
+                if v29_gate["positiveExpansion"]["passed"] else None
+            )
+            v29_simulation = (
+                v29_expansion_simulation
+                if v29_gate["selectionSource"] == "positive-depth-expansion"
+                else (v28_simulation if v29_gate["passed"] else None)
+            )
+            v28_row = {
                 "candidate": candidate,
                 "l2Decision": v28_l2,
                 "initialL2Decision": initial_l2,
@@ -2036,6 +2268,39 @@ def main() -> None:
                 "simulation": v28_simulation,
                 "entryGate": v28_gate,
                 "counterfactualSimulation": v28_counterfactual,
+            }
+            v28_risk_managed_rows["l2ConfirmAndVeto"].append(v28_row)
+            ledger.append({
+                "schemaVersion": 1,
+                "engineVersion": ENGINE_VERSION,
+                "symbol": "601899.SH",
+                "researchOnly": True,
+                "studyLayer": "riskManagedV28",
+                **v28_row,
+            })
+            v29_row = {
+                "candidate": candidate,
+                "l2Decision": v28_l2,
+                "initialL2Decision": initial_l2,
+                "cohort": "l2ConfirmAndVeto",
+                "executed": bool(v29_simulation),
+                "decisionSecond": v28_l2["decisionSecond"],
+                "decisionReason": v29_gate["reason"],
+                "simulation": v29_simulation,
+                "entryGate": v29_gate,
+                "v28ControlExecuted": bool(v28_simulation),
+                "v28ControlSimulation": v28_simulation,
+                "expansionSimulation": v29_expansion_simulation,
+                "counterfactualSimulation": v28_counterfactual,
+            }
+            v29_risk_managed_rows["l2ConfirmAndVeto"].append(v29_row)
+            ledger.append({
+                "schemaVersion": 1,
+                "engineVersion": ENGINE_VERSION,
+                "symbol": "601899.SH",
+                "researchOnly": True,
+                "studyLayer": "riskManagedV29",
+                **v29_row,
             })
             if is_intraday:
                 observation = v27_calibration_observation(
@@ -2067,6 +2332,7 @@ def main() -> None:
     v26_summaries = {cohort: summarize(rows, dates) for cohort, rows in v26_risk_managed_rows.items()}
     v27_summaries = {cohort: summarize(rows, dates) for cohort, rows in v27_risk_managed_rows.items()}
     v28_summaries = {cohort: summarize(rows, dates) for cohort, rows in v28_risk_managed_rows.items()}
+    v29_summaries = {cohort: summarize(rows, dates) for cohort, rows in v29_risk_managed_rows.items()}
     v27_promotion = promotion_evaluation(v27_summaries["l2ConfirmAndVeto"])
     evaluated_v28_promotion = promotion_evaluation(v28_summaries["l2ConfirmAndVeto"])
     v28_promotion = {
@@ -2077,6 +2343,7 @@ def main() -> None:
         "decision": "keep-shadow",
         "reason": "V2.8 is an isolated research cohort and cannot auto-promote",
     }
+    v29_promotion = v29_promotion_evaluation(v29_summaries["l2ConfirmAndVeto"])
     primary_v25_rows = v25_risk_managed_rows["l2ConfirmAndVeto"]
     date_splits = split_dates(dates)
     v25_audit = {
@@ -2237,6 +2504,42 @@ def main() -> None:
             for name, split in date_splits.items()
         },
     }
+    primary_v29_rows = v29_risk_managed_rows["l2ConfirmAndVeto"]
+    v29_audit = {
+        "isolation": {
+            "researchOnly": True,
+            "offlineReplayOnly": True,
+            "affectsSmartT": False,
+            "affectsShadowV2": False,
+            "affectsV28": False,
+            "v28RetainedAsControl": True,
+            "automaticPromotion": False,
+        },
+        "frozenRules": {
+            "reverseTailRisk": [
+                "reverse T with opening gap below 1.5% and entry-time depth imbalance above -0.40",
+                "reverse T with opening gap from 2% to below 3%, active-buy ratio at most 0.25, and microprice edge at most 0 bps",
+            ],
+            "positiveExpansion": (
+                "opening positive T rejected only for weak buy flow, initially confirmed, "
+                "with entry-time depth imbalance at least 0.75"
+            ),
+            "ruleSelectionSource": "training split diagnostic frozen before full replay",
+            "validationOrTestUsedToTuneRules": False,
+        },
+        "dataAvailability": {
+            "l2Snapshot": "latest evidence at or before the entry decision second",
+            "missingValuesFilledWithZero": False,
+            "futureEvidenceAvailableToEntry": False,
+        },
+        "all": v29_audit_slice(primary_v29_rows),
+        "splits": {
+            name: v29_audit_slice([
+                row for row in primary_v29_rows if row["candidate"]["date"] in split
+            ])
+            for name, split in date_splits.items()
+        },
+    }
     ledger_path = args.ledger_output or args.output.with_name(args.output.stem + "-samples.jsonl")
     ledger_checksum = write_jsonl(ledger_path, ledger)
     config = {
@@ -2254,6 +2557,7 @@ def main() -> None:
             "riskManagedV26": "V2.5 exits plus positive-T regime and price-flow entry vetoes; no broad early-exit override",
             "riskManagedV27": "V2.6 entry gates plus prior-date calibrated positive-T confidence and sustained low-confidence exit; reverse-T unchanged",
             "riskManagedV28": "isolated V2.7 control extension with delayed neutral confirmation, independently calibrated causal intraday positive-T pullbacks, and reverse-T environment veto",
+            "riskManagedV29": "isolated offline V2.8 control extension with train-frozen reverse-T tail vetoes and a narrow positive-T depth observation group; no automatic promotion",
         },
         "atrPeriod": ATR_PERIOD,
         "atrStopFraction": ATR_STOP_FRACTION,
@@ -2294,6 +2598,13 @@ def main() -> None:
         "v28IntradayMinimumPullbackPct": V28_INTRADAY_MIN_PULLBACK_PCT,
         "v28IntradayMaximumVolumeRatio": V28_INTRADAY_MAX_VOLUME_RATIO,
         "v28IntradayMinimumBarRecovery": V28_INTRADAY_MIN_BAR_RECOVERY,
+        "v29ReverseLowGapMaximumPct": V29_REVERSE_LOW_GAP_MAX_PCT,
+        "v29ReverseLowGapMinimumDepthImbalance": V29_REVERSE_LOW_GAP_MIN_DEPTH_IMBALANCE,
+        "v29ReverseMidGapMinimumPct": V29_REVERSE_MID_GAP_MIN_PCT,
+        "v29ReverseMidGapMaximumPct": V29_REVERSE_MID_GAP_MAX_PCT,
+        "v29ReverseMidGapMaximumActiveBuyRatio": V29_REVERSE_MID_GAP_MAX_ACTIVE_BUY_RATIO,
+        "v29ReverseMidGapMaximumMicropriceEdgeBps": V29_REVERSE_MID_GAP_MAX_MICROPRICE_EDGE_BPS,
+        "v29PositiveExpansionMinimumDepthImbalance": V29_POSITIVE_EXPANSION_MIN_DEPTH_IMBALANCE,
         "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
         "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
         "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
@@ -2346,6 +2657,12 @@ def main() -> None:
             "v28IntradayCalibrationUpdatesAfterEntireSession": True,
             "v28IntradayCalibrationIsIndependentFromOpeningSamples": True,
             "v28ReverseVetoUsesEntryTimeOptionalFieldsOnly": True,
+            "v29RulesFrozenBeforeFullReplay": True,
+            "v29ReverseVetoReadsEntryTimeEvidenceOnly": True,
+            "v29PositiveExpansionReadsEntryTimeEvidenceOnly": True,
+            "v29EvidenceAfterDecisionSecondIgnored": True,
+            "v29MissingL2FieldsRemainUnavailable": True,
+            "v29V28ControlIsNotMutated": True,
         },
         "config": config,
         "quality": {
@@ -2367,11 +2684,14 @@ def main() -> None:
         "v27Audit": v27_audit,
         "v28RiskManagedResults": v28_summaries,
         "v28Audit": v28_audit,
+        "v29RiskManagedResults": v29_summaries,
+        "v29Audit": v29_audit,
         "v21RiskManagedResults": v21_summaries,
         "tightStopCounterexampleResults": tight_stop_summaries,
         "baselineResults": baseline_summaries,
         "v27Promotion": v27_promotion,
-        "promotion": v28_promotion,
+        "v28Promotion": v28_promotion,
+        "promotion": v29_promotion,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -2387,12 +2707,14 @@ def main() -> None:
         "v26RiskManagedAll": {cohort: summary["all"] for cohort, summary in v26_summaries.items()},
         "v27RiskManagedAll": {cohort: summary["all"] for cohort, summary in v27_summaries.items()},
         "v28RiskManagedAll": {cohort: summary["all"] for cohort, summary in v28_summaries.items()},
+        "v29RiskManagedAll": {cohort: summary["all"] for cohort, summary in v29_summaries.items()},
         "v21RiskManagedAll": {cohort: summary["all"] for cohort, summary in v21_summaries.items()},
         "tightStopCounterexampleAll": {
             cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()
         },
         "baselineAll": {cohort: summary["all"] for cohort, summary in baseline_summaries.items()},
-        "promotion": v28_promotion,
+        "v28Promotion": v28_promotion,
+        "promotion": v29_promotion,
     }, ensure_ascii=False, indent=2))
 
 
