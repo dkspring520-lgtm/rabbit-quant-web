@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   appendIntegrity,
+  buildDynamicTradePolicy,
+  buildLiveL2Snapshot,
   causalExternalConsensus,
   causalExternalSnapshot,
   computeVisibleFeatures,
@@ -121,7 +123,7 @@ test("legacy A/B state upgrades in place and preserves its evidence", () => {
   legacy.models.A.total.resolvedTrades = 3;
   legacy.integrity.eventCount = 9;
   const upgraded = upgradeShadowState(legacy);
-  assert.equal(upgraded.schemaVersion, 4);
+  assert.equal(upgraded.schemaVersion, 5);
   assert.equal(upgraded.models.A.total.resolvedTrades, 3);
   assert.equal(upgraded.integrity.eventCount, 9);
   assert.equal(upgraded.models.C.id, "round12-reverse-relative-weakness");
@@ -167,6 +169,88 @@ test("round-17 requires an exact-minute healthy L2 sell confirmation for a range
   assert.equal(evaluateShadowCandidate("H", base).passed, true);
   assert.equal(evaluateShadowCandidate("H", { ...base, l2: { available: false, qualityBlocked: false, sellVotes: 0 } }).passed, false);
   assert.equal(evaluateShadowCandidate("H", { ...base, preopenPermission: { active: true, wouldBlock: true } }).passed, false);
+});
+
+function makeL2Snapshot(side = "buy") {
+  const buy = side === "buy";
+  return {
+    status: { connected: true, authorized: true, stale: false },
+    flow: {
+      activeBuyRatio60s: buy ? 0.60 : 0.40,
+      bigOrderNetNotional60s: buy ? 100 : -100,
+      transactionCount60s: 15,
+    },
+    book: {
+      bid1Volume: buy ? 2200 : 900,
+      ask1Volume: buy ? 900 : 2200,
+      nearTouchImbalance: buy ? 0.10 : -0.10,
+      spreadBps: 4,
+      micropriceEdgeBps: buy ? 1 : -1,
+    },
+  };
+}
+
+test("V3 L2 snapshot requires three causal samples and keeps missing L2 empty", () => {
+  const missing = buildLiveL2Snapshot(null, []);
+  assert.equal(missing.ofi, null);
+  assert.equal(missing.qualityPass, false);
+  const history = [makeL2Snapshot("buy"), makeL2Snapshot("buy")];
+  const ready = buildLiveL2Snapshot(makeL2Snapshot("buy"), history);
+  assert.equal(ready.qualityPass, true);
+  assert.equal(ready.validSamples, 3);
+  assert.equal(ready.buyPersistence, 3);
+  assert.ok(ready.ofi > 0);
+  assert.equal(ready.ofiVelocity, 0);
+});
+
+test("V3 dynamic policy uses ATR, fixed floor, cost coverage, and book capacity", () => {
+  const l2 = buildLiveL2Snapshot(makeL2Snapshot("buy"), [makeL2Snapshot("buy"), makeL2Snapshot("buy")]);
+  const policy = buildDynamicTradePolicy(35, { l2, atrPct14: 0.42 }, "long");
+  assert.equal(policy.eligible, true);
+  assert.ok(policy.quantity >= 100);
+  assert.ok(policy.targetGrossPct >= policy.atrTargetPct);
+  assert.ok(policy.targetGrossPct >= policy.fixedMovePct);
+  assert.ok(policy.targetGrossPct + 1e-5 >= policy.economic.roundTripCostPct * 2);
+  const shallow = buildDynamicTradePolicy(35, { l2: buildLiveL2Snapshot(makeL2Snapshot("buy"), [makeL2Snapshot("buy")]), atrPct14: 0.42 }, "long");
+  assert.equal(shallow.eligible, false);
+  assert.match(shallow.reason, /连续L2/);
+});
+
+test("V3 I/J keep independent L2 direction gates", () => {
+  const common = {
+    time: "1010",
+    return3Pct: 0.12,
+    previousReturn3Pct: -0.04,
+    ma5Slope3Pct: 0.05,
+    previousMa5Slope3Pct: -0.01,
+    vwapBiasPct: -0.10,
+    intradayPosition: 0.25,
+    peerCoverage: 1,
+    peerBreadth3: 0.50,
+    atrPct14: 0.42,
+    atrSamples: 14,
+    atrReady: true,
+    price: 35,
+    externalContext: null,
+    marketDate: "20260806",
+  };
+  const buyL2 = buildLiveL2Snapshot(makeL2Snapshot("buy"), [makeL2Snapshot("buy"), makeL2Snapshot("buy")]);
+  const sellL2 = buildLiveL2Snapshot(makeL2Snapshot("sell"), [makeL2Snapshot("sell"), makeL2Snapshot("sell")]);
+  assert.equal(evaluateShadowCandidate("I", { ...common, l2: buyL2 }).passed, false);
+  assert.ok(evaluateShadowCandidate("I", { ...common, l2: buyL2 }).failures.some((reason) => reason.includes("外部因子")));
+  const reverse = {
+    ...common,
+    return3Pct: -0.12,
+    previousReturn3Pct: 0.04,
+    ma5Slope3Pct: -0.05,
+    previousMa5Slope3Pct: 0.01,
+    vwapBiasPct: 0.32,
+    intradayPosition: 0.74,
+  };
+  assert.equal(evaluateShadowCandidate("J", { ...reverse, l2: buyL2 }).passed, false);
+  assert.ok(evaluateShadowCandidate("J", { ...reverse, l2: buyL2 }).failures.some((reason) => reason.includes("L2卖方")));
+  assert.equal(evaluateShadowCandidate("J", { ...reverse, l2: sellL2 }).passed, false);
+  assert.ok(evaluateShadowCandidate("J", { ...reverse, l2: sellL2 }).failures.some((reason) => reason.includes("外部因子")));
 });
 
 test("round-17 uses a 30-minute after-cost cohort and never auto-promotes", () => {
@@ -541,9 +625,9 @@ test("round-17 is preregistered for forward-only L2 quality observation", () => 
 });
 
 test("single-stock research shows model G with plain 65 and 70 percent gates", () => {
-  assert.match(page, /\["A","B","C","D","E","F","G"\]/);
-  assert.match(page, /第10–16轮 · 紫金真实前瞻观察/);
-  assert.match(page, /沪金、沪铜、有色ETF、黄金ETF和美元人民币/);
+  assert.match(page, /\["A","B","C","D","E","F","G","H","I","J"\]/);
+  assert.match(page, /第10–18轮 · 紫金 V3 影子观察/);
+  assert.match(page, /动态 ATR、盘口容量和连续 3–5 分钟 L2\/OFI 共振/);
   assert.match(page, /反T仅为研究证据/);
   assert.match(page, /65% 保留研究 · 70% 申请评审/);
   assert.match(page, /积累新样本/);

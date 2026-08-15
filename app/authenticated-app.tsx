@@ -210,7 +210,7 @@ type ZijinShadowAB = {
   costPolicy:{baseRoundTripPct:number;stressRoundTripPct:number};
   targetPolicy:{minimumNetPct:number;maximumNetPct:number;maximumHoldMinutes:number};
   prospectiveGate:{minimumResolvedTrades:number;minimumResearchCandidateWinRate?:number;minimumWinRate:number;requirePositiveBaseNetPct:boolean;requirePositiveStressNetPct:boolean;manualReviewRequired:boolean};
-  models:Record<"A"|"B"|"C"|"D"|"E"|"F"|"G",{
+  models:Record<"A"|"B"|"C"|"D"|"E"|"F"|"G"|"H"|"I"|"J",{
     id:string;label:string;sourceRound:number;sessionStart:string;sessionEnd:string;maxSignalsPerDay:number;side:"long"|"short";executionMode?:"shadow-trade"|"observe-only";
     today:{candidates:number;entries:number;exits:number;wins:number;netPct:number;lastDecision:string;activeTrade:null|{pendingEntry?:boolean;entryTime?:string;entryPrice?:number}};
     total:{candidateDays:number;candidates:number;resolvedTrades:number;wins:number;winRate:number|null;netPct:number;stressNetPct:number};
@@ -4031,9 +4031,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div><span>紫金内置闭环策略 · 因果观察</span><b>{liveStrategyExperiment.label}</b><small>候选须经过趋势、成本、盘口和仓位校验；仅辅助人工决策，不自动下单。</small></div>
             <div className="stock-agent-switch-actions experiment-actions"><button className="active experimental" type="button" disabled aria-pressed>闭环已固定</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
           </div>}
-          {isZijinStock&&<details className={`zijin-shadow-v2 research-fold ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V2 学习与晋级进度">
-            <summary><div><span>紫金影子 V2</span><b>{zijinShadowV2Progress.ready?"可晋级正式":zijinShadowV2Progress.available?"监控中":"等待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></summary>
-            <div className="zijin-shadow-v2-meter" role="progressbar" aria-label={`紫金影子 V2 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div>
+          {isZijinStock&&<details className={`zijin-shadow-v2 research-fold ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V3 学习与晋级进度">
+            <summary><div><span>紫金影子 V3</span><b>{zijinShadowV2Progress.ready?"可晋级正式":zijinShadowV2Progress.available?"监控中":"等待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></summary>
+            <div className="zijin-shadow-v2-meter" role="progressbar" aria-label={`紫金影子 V3 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div>
             <div className={`zijin-shadow-v29 ${zijinV29OpeningShadow.tone}`} aria-label={`V2.9 开盘影子 ${zijinV29OpeningShadow.label}`}>
               <div><span>V2.9 开盘影子</span><b>{zijinV29OpeningShadow.label}</b><em>{zijinV29OpeningShadow.advice}</em></div>
               <p>{zijinV29OpeningShadow.detail}</p>
@@ -5128,10 +5128,10 @@ function SingleStockResearchView({accountName,stock,quote,marketData,profile,pro
         <div className="research-archive-body">
       {zijinTrainingProgress&&<FourRabbitAutomationDashboard progress={zijinTrainingProgress}/>}
       <details className={`zijin-shadow-ab ${zijinShadow?.status??"loading"}`} open>
-        <summary><span><b>第10–16轮 · 紫金真实前瞻观察</b><small>第16轮新增沪金、沪铜、有色ETF、黄金ETF和美元人民币，按商品与权益传导分组形成共识；只累计登记后的新样本，不回填历史、不影响 V4</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
+        <summary><span><b>第10–18轮 · 紫金 V3 影子观察</b><small>新增动态 ATR、盘口容量和连续 3–5 分钟 L2/OFI 共振；I/J 正反T独立退出，只累计登记后的新样本，不回填历史、不影响 V4</small></span><em>{zijinShadowConnection==="error"?"状态连接失败":zijinShadow?.meta?.stale?"观察器心跳超时":zijinShadow?.status==="observing"?"盘中观察中":zijinShadow?.status==="degraded"?"行情源异常":"等待新样本"}</em></summary>
         {zijinShadow?<div className="zijin-shadow-body">
           <header><div><span>这张看板看什么</span><b>先积累 50 笔真实前瞻闭环，再看扣费胜率和净收益；65% 可保留研究，70% 才能申请人工评审</b></div><p><span>真实前瞻事件</span><b>{zijinShadow.integrity.eventCount} 条</b><small>只追加，不覆盖</small></p><p><span>费用口径</span><b>{zijinShadow.costPolicy.baseRoundTripPct.toFixed(2)}%</b><small>压力成本 {zijinShadow.costPolicy.stressRoundTripPct.toFixed(2)}%</small></p></header>
-          <div className="zijin-shadow-models">{(["A","B","C","D","E","F","G"] as const).map(key=>{
+          <div className="zijin-shadow-models">{(["A","B","C","D","E","F","G","H","I","J"] as const).map(key=>{
             const model=zijinShadow.models[key];
             if(!model)return null;
             const reason=Object.entries(model.rejectionReasons).sort((left,right)=>right[1]-left[1])[0];

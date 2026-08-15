@@ -175,6 +175,7 @@ async function observe(state) {
       : [lastIndex];
   }
 
+  if (state.marketDate !== date) state.l2History = [];
   const allEvents = [];
   for (const index of indices) {
     const point = minutes[index];
@@ -182,6 +183,12 @@ async function observe(state) {
     // a missed public minute, otherwise a restarted observer would leak
     // future order-flow information into an older decision.
     const minuteL2 = l2ExchangeMinute(l2) === point?.time ? l2 : null;
+    if (minuteL2) {
+      state.l2History = (Array.isArray(state.l2History) ? state.l2History : [])
+        .filter((item) => item?.time !== point.time && item?.time <= point.time)
+        .concat({ time: point.time, snapshot: minuteL2 })
+        .slice(-8);
+    }
     allEvents.push(...processVisibleMinute(state, {
       marketDate: date,
       minutes,
@@ -191,6 +198,8 @@ async function observe(state) {
       externalContext,
       preopenGate,
       l2: minuteL2,
+      l2History: (Array.isArray(state.l2History) ? state.l2History : [])
+        .filter((item) => item?.time <= point.time),
     }));
   }
   state.source = {
@@ -205,6 +214,7 @@ async function observe(state) {
       stale: l2?.status?.stale !== false,
       lastExchangeTime: l2?.lastExchangeTime || null,
       sourceTimestamp: l2?.updatedAt || null,
+      historySamples: Array.isArray(state.l2History) ? state.l2History.length : 0,
     },
     preopenGate: {
       status: preopenGate.status,
