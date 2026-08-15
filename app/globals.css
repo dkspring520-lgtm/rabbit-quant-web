@@ -1740,11 +1740,12 @@
 
 /* Cockpit scan pass: candidates are hover-first; actions remain explicit. */
 .interactive-intraday-chart .candidate-signal-marker.dot-only circle {
-  opacity: .88;
+  opacity: .52;
+  stroke-width: 1;
 }
 .interactive-intraday-chart .candidate-signal-marker.dot-only:hover circle {
   opacity: 1;
-  r: 6px;
+  r: 4.8px;
 }
 .interactive-intraday-chart .grid-line {
   opacity: .5;
@@ -2022,9 +2023,10 @@
   opacity:.86;
 }
 .minimal-ui .interactive-intraday-chart .volume{opacity:.34}
-.minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>rect{opacity:.88}
-.minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>text{font-size:9px}
-.minimal-ui .interactive-intraday-chart .candidate-signal-marker.dot-only circle{opacity:.5}
+.minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>rect{opacity:.74}
+.minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>text{font-size:8px;font-weight:680}
+.minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>.marker-label-leader{opacity:.58}
+.minimal-ui .interactive-intraday-chart .candidate-signal-marker.dot-only circle{opacity:.42}
 .minimal-ui .interactive-intraday-chart .candidate-signal-marker.dot-only:hover circle{opacity:1}
 
 :root[data-theme="light"] .minimal-ui .decision-zone{
