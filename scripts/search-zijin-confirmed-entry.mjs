@@ -58,7 +58,7 @@ function execute(side, quote, quantity) {
 }
 
 function isPositiveT(direction) {
-  return String(direction) === "ÕýT";
+  return String(direction) === "正T";
 }
 
 function directionMove(direction, current, entry) {

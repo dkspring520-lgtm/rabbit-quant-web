@@ -49,21 +49,55 @@ function fiveYearSessions(sessions: ReplaySession[]) {
   return sessions.filter(session => session.date >= cutoffDate);
 }
 
+function randomSessions(sessions: ReplaySession[], count: number) {
+  const pool = [...new Map(sessions.map(session => [session.date, session])).values()];
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
+  }
+  return pool.slice(0, count).sort((left, right) => left.date.localeCompare(right.date));
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   if (url.searchParams.get("code") !== "601899") {
     return Response.json({ error: "个人五年随机训练目前仅开放给紫金矿业" }, { status: 404 });
   }
   try {
-    const candidates = fiveYearSessions(await loadArchive());
+    const archive = fiveYearSessions(await loadArchive());
+    const requestedStartDate = url.searchParams.get("startDate") ?? "";
+    const startDate = /^\d{8}$/.test(requestedStartDate) ? requestedStartDate : null;
+    const candidates = startDate ? archive.filter(session => session.date >= startDate) : archive;
     if (!candidates.length) throw new Error("近五年没有完整训练交易日");
+    const coverage = {
+      sessions: candidates.length,
+      firstDate: candidates[0].date,
+      lastDate: candidates.at(-1)?.date ?? null,
+      archiveSessions: archive.length,
+      requestedStartDate: startDate,
+    };
+    if (url.searchParams.get("scope") === "all") {
+      return Response.json({
+        sessions: candidates,
+        source: "zijin-five-year-minute-archive",
+        coverage,
+      }, { headers: { "Cache-Control": "no-store" } });
+    }
+    const requestedSample = Math.min(100, Math.max(0, Number(url.searchParams.get("sample")) || 0));
+    if (requestedSample > 0) {
+      return Response.json({
+        sessions: randomSessions(candidates, requestedSample),
+        source: "zijin-five-year-minute-archive",
+        coverage,
+      }, { headers: { "Cache-Control": "no-store" } });
+    }
     const requestedLimit = Math.min(140, Math.max(0, Number(url.searchParams.get("limit")) || 0));
     if (requestedLimit > 0) {
       const sessions = candidates.slice(-requestedLimit);
       return Response.json({
         sessions,
         source: "zijin-five-year-minute-archive",
-        coverage: { sessions: candidates.length, firstDate: candidates[0].date, lastDate: candidates.at(-1)?.date ?? null },
+        coverage,
       }, { headers: { "Cache-Control": "no-store" } });
     }
     const excluded = url.searchParams.get("exclude");
@@ -72,7 +106,7 @@ export async function GET(request: Request) {
     return Response.json({
       session,
       source: "zijin-five-year-minute-archive",
-      coverage: { sessions: candidates.length, firstDate: candidates[0].date, lastDate: candidates.at(-1)?.date ?? null },
+      coverage,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "个人训练历史库不可用" }, { status: 503 });

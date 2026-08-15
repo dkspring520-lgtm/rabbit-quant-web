@@ -49,6 +49,33 @@ function isMainlandMarketRealtimeWindow(now = new Date()) {
   return minutes >= 9 * 60 + 15 && minutes <= 15 * 60 + 30;
 }
 
+// Public minute endpoints can briefly return a cached tail or rows that are
+// ahead of the local clock. The monitor must only expose the prefix that was
+// actually available at the request minute; lunch is intentionally frozen at
+// 11:30 until the afternoon session starts.
+function realtimeMinuteCutoff(now = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Shanghai",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  if (parts.weekday === "Sat" || parts.weekday === "Sun") return null;
+  const currentMinute = Number(parts.hour) * 60 + Number(parts.minute);
+  if (currentMinute < 9 * 60 + 30) return null;
+  if (currentMinute <= 11 * 60 + 30) return `${parts.hour}${parts.minute}`;
+  if (currentMinute < 13 * 60) return "1130";
+  if (currentMinute <= 15 * 60) return `${parts.hour}${parts.minute}`;
+  return "1500";
+}
+
+function trimRealtimeMinutes(minutes: MinutePoint[], now = new Date()) {
+  const cutoff = realtimeMinuteCutoff(now);
+  if (!cutoff) return [];
+  return minutes.filter((point) => point.time <= cutoff);
+}
+
 function number(value: unknown, scale = 1) { return typeof value === "number" && Number.isFinite(value) ? value / scale : null; }
 function numeric(value: string | undefined) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; }
 function validCode(code: string) { if (!/^\d{6}$/.test(code)) throw new Error("股票代码必须是 6 位数字"); return code; }
@@ -254,6 +281,7 @@ export async function GET(request: Request) {
       const minutesPromise = fromPublicMinutes(code).catch((error) => ({ provider: null, minutes: [], failures: Array.isArray(error?.failures) ? error.failures : [error instanceof Error ? error.message : "分时请求失败"] }));
       const [data, minuteResult] = await Promise.all([fromPublicQuote(code), minutesPromise]);
       const fetchedAt = new Date().toISOString();
+      minuteResult.minutes = trimRealtimeMinutes(minuteResult.minutes);
       const quality = assessMarketDataQuality({ provider: data.provider, sourceTimestamp: data.sourceTimestamp, fetchedAt, minutes: minuteResult.minutes, requestedRealtime: true, quoteFailures: data.failures, minuteFailures: minuteResult.failures });
       return Response.json({ ...data, minuteProvider: minuteResult.provider, minutes: minuteResult.minutes, quality, delayed: true, trial: true, fallbackOrder: ["tencent-public", "sina-public", "eastmoney-public"], fetchedAt, bars: [] }, { headers: realtimeHeaders });
     }

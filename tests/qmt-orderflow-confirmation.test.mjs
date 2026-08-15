@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateQmtOrderFlow, summarizeZijinOrderFlow } from "../lib/qmt-orderflow-confirmation.mjs";
+import { evaluateQmtOrderFlow, normalizeQmtOrderFlow, summarizeZijinOrderFlow } from "../lib/qmt-orderflow-confirmation.mjs";
 
 function rows(kind) {
   return [0, 1, 2].map((index) => ({
@@ -59,6 +59,21 @@ test("native nested L2 fields are normalized", () => {
   const result = evaluateQmtOrderFlow(points, 2, "BUY_FIRST");
   assert.equal(result.available, true);
   assert.equal(result.pass, true);
+});
+
+test("microprice edge is causally derived from the best bid and ask when absent", () => {
+  const flow = normalizeQmtOrderFlow({
+    bidPrices: [10],
+    askPrices: [10.02],
+    bidVolumes: [300],
+    askVolumes: [100],
+    bid1Volume: 300,
+    ask1Volume: 100,
+  });
+  assert.equal(flow.bid1Price, 10);
+  assert.equal(flow.ask1Price, 10.02);
+  assert.equal(flow.microprice, 10.015);
+  assert.ok(Math.abs(flow.micropriceEdgeBps - 4.995004995) < 1e-6);
 });
 
 test("historical trade-flow-only L2 remains available without fabricating a book", () => {

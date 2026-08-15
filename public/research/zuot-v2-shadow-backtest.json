@@ -1,0 +1,4900 @@
+{
+  "mode": "zuoT-v2-shadow-offline-research",
+  "symbol": "601899",
+  "version": "2.0.0-research",
+  "createdAt": "2026-08-14T15:02:27.678Z",
+  "safety": {
+    "symbol": "601899",
+    "researchOnly": true,
+    "shadowOnly": true,
+    "affectsSmartT": false,
+    "affectsTradingAdapter": false,
+    "affectsProductionStrategy": false,
+    "canPromoteAutomatically": false,
+    "requiresHumanApproval": true
+  },
+  "baselineDisclosure": "No preserved zuoT-v1-shadow artifact was found; V1 is reconstructed and must not be presented as historical production performance.",
+  "dataset": {
+    "datasetId": "zijin-601899-minute-ohlc-5a53421170e8",
+    "path": "E:\\zijin-l2\\601899-factor-minute-ohlc-v1.jsonl",
+    "checksum": "5a53421170e83abf5818ca9b9f744f243ecdfb8e21b5f4ce00d90204eb191dd2",
+    "sessions": 384,
+    "firstDate": "20250102",
+    "lastDate": "20260807",
+    "contextPath": "E:\\zijin-l2\\zijin-market-sector-daily-2024-2026.json",
+    "contextMissingValues": "kept-null-not-zero-filled"
+  },
+  "reproducibility": {
+    "datasetChecksum": "5a53421170e83abf5818ca9b9f744f243ecdfb8e21b5f4ce00d90204eb191dd2",
+    "engineVersion": "1.1.0+zuot-2.0.0-research",
+    "factorVersion": "1.1.0",
+    "configHash": "9b5e3f119416c67464911bedc2a8c64b7b2bc99d2079ca236b93c061f0a5ca34",
+    "asOf": "20260807T1456",
+    "gitCommit": "45f43efd3f11e24962b2bb24e05fc3b868dc4c6b"
+  },
+  "commonBacktestConfig": {
+    "quantity": 1600,
+    "feeRate": 0.025,
+    "minCommission": true,
+    "minimumPriceMove": 0.08,
+    "costCoverageMultiple": 2,
+    "takeProfitAtrMultiple": 0.8,
+    "stopLossAtrMultiple": 0.65,
+    "minimumStopMove": 0.06,
+    "maximumHoldMinutes": {
+      "positiveT": 45,
+      "reverseT": 50
+    },
+    "pricePathMode": "ohlc-first-touch",
+    "sameMinuteConflict": "stop-first",
+    "l2ContinuityMinutes": 5,
+    "splitRatios": {
+      "train": 0.6,
+      "validation": 0.2,
+      "test": 0.2
+    },
+    "rolling": {
+      "minimumTrainDays": 60,
+      "testDays": 20,
+      "stepDays": 20
+    }
+  },
+  "timeSplits": {
+    "train": [
+      "20250102",
+      "20250103",
+      "20250106",
+      "20250107",
+      "20250108",
+      "20250109",
+      "20250110",
+      "20250113",
+      "20250114",
+      "20250115",
+      "20250116",
+      "20250117",
+      "20250120",
+      "20250121",
+      "20250122",
+      "20250123",
+      "20250124",
+      "20250127",
+      "20250206",
+      "20250207",
+      "20250210",
+      "20250211",
+      "20250212",
+      "20250213",
+      "20250214",
+      "20250217",
+      "20250218",
+      "20250219",
+      "20250220",
+      "20250221",
+      "20250224",
+      "20250225",
+      "20250226",
+      "20250227",
+      "20250228",
+      "20250303",
+      "20250304",
+      "20250305",
+      "20250306",
+      "20250307",
+      "20250310",
+      "20250311",
+      "20250312",
+      "20250313",
+      "20250314",
+      "20250317",
+      "20250318",
+      "20250319",
+      "20250320",
+      "20250321",
+      "20250324",
+      "20250325",
+      "20250326",
+      "20250327",
+      "20250328",
+      "20250331",
+      "20250401",
+      "20250402",
+      "20250403",
+      "20250407",
+      "20250408",
+      "20250409",
+      "20250410",
+      "20250411",
+      "20250414",
+      "20250415",
+      "20250416",
+      "20250417",
+      "20250418",
+      "20250421",
+      "20250422",
+      "20250423",
+      "20250424",
+      "20250425",
+      "20250428",
+      "20250429",
+      "20250430",
+      "20250506",
+      "20250507",
+      "20250508",
+      "20250509",
+      "20250512",
+      "20250513",
+      "20250514",
+      "20250515",
+      "20250516",
+      "20250519",
+      "20250520",
+      "20250521",
+      "20250522",
+      "20250523",
+      "20250526",
+      "20250527",
+      "20250528",
+      "20250529",
+      "20250530",
+      "20250603",
+      "20250604",
+      "20250605",
+      "20250606",
+      "20250609",
+      "20250610",
+      "20250611",
+      "20250612",
+      "20250613",
+      "20250616",
+      "20250617",
+      "20250618",
+      "20250619",
+      "20250620",
+      "20250623",
+      "20250624",
+      "20250625",
+      "20250626",
+      "20250627",
+      "20250630",
+      "20250701",
+      "20250702",
+      "20250703",
+      "20250704",
+      "20250707",
+      "20250708",
+      "20250709",
+      "20250710",
+      "20250711",
+      "20250714",
+      "20250715",
+      "20250716",
+      "20250717",
+      "20250718",
+      "20250721",
+      "20250722",
+      "20250723",
+      "20250724",
+      "20250725",
+      "20250728",
+      "20250729",
+      "20250730",
+      "20250731",
+      "20250801",
+      "20250804",
+      "20250805",
+      "20250806",
+      "20250807",
+      "20250808",
+      "20250811",
+      "20250812",
+      "20250813",
+      "20250814",
+      "20250815",
+      "20250818",
+      "20250819",
+      "20250820",
+      "20250821",
+      "20250822",
+      "20250825",
+      "20250826",
+      "20250827",
+      "20250828",
+      "20250829",
+      "20250901",
+      "20250902",
+      "20250903",
+      "20250904",
+      "20250905",
+      "20250908",
+      "20250909",
+      "20250910",
+      "20250911",
+      "20250912",
+      "20250915",
+      "20250916",
+      "20250917",
+      "20250918",
+      "20250919",
+      "20250922",
+      "20250923",
+      "20250924",
+      "20250925",
+      "20250926",
+      "20250929",
+      "20250930",
+      "20251009",
+      "20251010",
+      "20251013",
+      "20251014",
+      "20251015",
+      "20251016",
+      "20251017",
+      "20251020",
+      "20251021",
+      "20251022",
+      "20251023",
+      "20251024",
+      "20251027",
+      "20251028",
+      "20251029",
+      "20251030",
+      "20251031",
+      "20251105",
+      "20251106",
+      "20251107",
+      "20251110",
+      "20251111",
+      "20251112",
+      "20251113",
+      "20251114",
+      "20251117",
+      "20251118",
+      "20251119",
+      "20251120",
+      "20251121",
+      "20251124",
+      "20251125",
+      "20251126",
+      "20251127",
+      "20251128",
+      "20251201",
+      "20251202",
+      "20251203",
+      "20251204",
+      "20251205",
+      "20251208",
+      "20251209",
+      "20251210",
+      "20251211",
+      "20251212",
+      "20251215",
+      "20251216",
+      "20251217"
+    ],
+    "validation": [
+      "20251218",
+      "20251219",
+      "20251222",
+      "20251223",
+      "20251224",
+      "20251225",
+      "20251226",
+      "20251229",
+      "20251230",
+      "20251231",
+      "20260105",
+      "20260106",
+      "20260107",
+      "20260108",
+      "20260109",
+      "20260112",
+      "20260113",
+      "20260114",
+      "20260115",
+      "20260116",
+      "20260119",
+      "20260120",
+      "20260121",
+      "20260122",
+      "20260123",
+      "20260126",
+      "20260127",
+      "20260128",
+      "20260129",
+      "20260130",
+      "20260202",
+      "20260203",
+      "20260204",
+      "20260205",
+      "20260206",
+      "20260209",
+      "20260210",
+      "20260211",
+      "20260212",
+      "20260213",
+      "20260224",
+      "20260225",
+      "20260226",
+      "20260227",
+      "20260302",
+      "20260303",
+      "20260304",
+      "20260305",
+      "20260306",
+      "20260309",
+      "20260310",
+      "20260311",
+      "20260312",
+      "20260313",
+      "20260316",
+      "20260317",
+      "20260318",
+      "20260319",
+      "20260320",
+      "20260323",
+      "20260324",
+      "20260325",
+      "20260326",
+      "20260327",
+      "20260330",
+      "20260331",
+      "20260401",
+      "20260402",
+      "20260403",
+      "20260407",
+      "20260408",
+      "20260409",
+      "20260410",
+      "20260413",
+      "20260414",
+      "20260415",
+      "20260416"
+    ],
+    "test": [
+      "20260417",
+      "20260420",
+      "20260421",
+      "20260422",
+      "20260423",
+      "20260424",
+      "20260427",
+      "20260428",
+      "20260429",
+      "20260430",
+      "20260506",
+      "20260507",
+      "20260508",
+      "20260511",
+      "20260512",
+      "20260513",
+      "20260514",
+      "20260515",
+      "20260518",
+      "20260519",
+      "20260520",
+      "20260521",
+      "20260522",
+      "20260525",
+      "20260526",
+      "20260527",
+      "20260528",
+      "20260529",
+      "20260601",
+      "20260602",
+      "20260603",
+      "20260604",
+      "20260605",
+      "20260608",
+      "20260609",
+      "20260610",
+      "20260611",
+      "20260612",
+      "20260615",
+      "20260616",
+      "20260617",
+      "20260618",
+      "20260622",
+      "20260623",
+      "20260624",
+      "20260625",
+      "20260626",
+      "20260629",
+      "20260630",
+      "20260701",
+      "20260702",
+      "20260703",
+      "20260706",
+      "20260707",
+      "20260708",
+      "20260709",
+      "20260710",
+      "20260713",
+      "20260714",
+      "20260715",
+      "20260716",
+      "20260717",
+      "20260720",
+      "20260721",
+      "20260722",
+      "20260723",
+      "20260724",
+      "20260727",
+      "20260728",
+      "20260729",
+      "20260730",
+      "20260731",
+      "20260803",
+      "20260804",
+      "20260805",
+      "20260806",
+      "20260807"
+    ]
+  },
+  "lockedTest": {
+    "locked": true,
+    "optimizationAllowed": false,
+    "startDate": "20260417",
+    "endDate": "20260807",
+    "days": 77
+  },
+  "antiOverfitting": {
+    "chronologicalSplit": true,
+    "disjointSplitAudit": true,
+    "lockedFinal20Percent": true,
+    "rollingOutOfSample": true,
+    "fixedRulesNoLockedTestRefit": true,
+    "futureLeakageAudit": {
+      "pass": true,
+      "checkpoints": [
+        59,
+        118,
+        177
+      ],
+      "factors": 13,
+      "mismatches": []
+    },
+    "missingOfiNeverFormal": true
+  },
+  "experiments": {
+    "v1-reconstructed-baseline": {
+      "label": "重建版 V1 对照（非历史原件）",
+      "factorIds": [
+        "vwap.bias",
+        "vwap.mean_reversion",
+        "volume.ratio_5_20",
+        "volume.price_alignment_5m",
+        "technical.macd_histogram",
+        "technical.macd_histogram_delta",
+        "orderflow.active_buy_imbalance",
+        "orderflow.ofi_change_3m",
+        "price.return_5m",
+        "volatility.atr14",
+        "technical.rsi14",
+        "technical.kdj_j9",
+        "technical.bollinger_position_20"
+      ],
+      "fullSample": {
+        "2bps": {
+          "slippageBpsPerSide": 2,
+          "candidateEvents": 1387,
+          "formalSignals": 1346,
+          "candidateToFormalRate": 0.9704398,
+          "targetClosureRate": 0.39821694,
+          "metrics": {
+            "trades": 1346,
+            "wins": 549,
+            "losses": 797,
+            "afterCostWinRate": 0.40787519,
+            "grossPnl": -25441.3296,
+            "fees": 56159.7176,
+            "netPnl": -81601.0473,
+            "averageNetPnl": -60.6248,
+            "payoffRatio": 0.53048069,
+            "profitFactor": 0.36541267,
+            "maximumDrawdown": 0.85669048,
+            "averageMfe": 0.00257192,
+            "averageMae": 0.00238894,
+            "exits": {
+              "stopLoss": 763,
+              "takeProfit": 536,
+              "timeout": 47
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 681,
+              "wins": 278,
+              "losses": 403,
+              "afterCostWinRate": 0.4082232,
+              "grossPnl": -12632.9088,
+              "fees": 28416.1604,
+              "netPnl": -41049.0692,
+              "averageNetPnl": -60.2776,
+              "payoffRatio": 0.52695753,
+              "profitFactor": 0.36350916,
+              "maximumDrawdown": 0.61616927,
+              "averageMfe": 0.00257788,
+              "averageMae": 0.00230686,
+              "exits": {
+                "stopLoss": 382,
+                "takeProfit": 271,
+                "timeout": 28
+              }
+            },
+            "reverseT": {
+              "trades": 665,
+              "wins": 271,
+              "losses": 394,
+              "afterCostWinRate": 0.4075188,
+              "grossPnl": -12808.4208,
+              "fees": 27743.5572,
+              "netPnl": -40551.9781,
+              "averageNetPnl": -60.9804,
+              "payoffRatio": 0.53404876,
+              "profitFactor": 0.36732795,
+              "maximumDrawdown": 0.62663354,
+              "averageMfe": 0.00256583,
+              "averageMae": 0.00247298,
+              "exits": {
+                "stopLoss": 381,
+                "takeProfit": 265,
+                "timeout": 19
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 848,
+              "wins": 352,
+              "losses": 496,
+              "afterCostWinRate": 0.41509434,
+              "grossPnl": -12606.864,
+              "fees": 29440.8525,
+              "netPnl": -42047.7166,
+              "averageNetPnl": -49.5846,
+              "payoffRatio": 0.57480896,
+              "profitFactor": 0.40792894,
+              "maximumDrawdown": 0.70079263,
+              "averageMfe": 0.00272942,
+              "averageMae": 0.00249278,
+              "exits": {
+                "stopLoss": 462,
+                "takeProfit": 339,
+                "timeout": 47
+              }
+            },
+            "2026": {
+              "trades": 498,
+              "wins": 197,
+              "losses": 301,
+              "afterCostWinRate": 0.39558233,
+              "grossPnl": -12834.4656,
+              "fees": 26718.8651,
+              "netPnl": -39553.3307,
+              "averageNetPnl": -79.4244,
+              "payoffRatio": 0.47818645,
+              "profitFactor": 0.31296588,
+              "maximumDrawdown": 0.52274919,
+              "averageMfe": 0.00230374,
+              "averageMae": 0.00221211,
+              "exits": {
+                "stopLoss": 301,
+                "takeProfit": 197
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 866,
+              "wins": 358,
+              "losses": 508,
+              "afterCostWinRate": 0.41339492,
+              "grossPnl": -13443.2432,
+              "fees": 32855.7873,
+              "netPnl": -46299.0307,
+              "averageNetPnl": -53.4631,
+              "payoffRatio": 0.55606259,
+              "profitFactor": 0.39187088,
+              "maximumDrawdown": 0.70835584,
+              "averageMfe": 0.00263907,
+              "averageMae": 0.00245364,
+              "exits": {
+                "stopLoss": 475,
+                "takeProfit": 347,
+                "timeout": 44
+              }
+            },
+            "strong": {
+              "trades": 218,
+              "wins": 93,
+              "losses": 125,
+              "afterCostWinRate": 0.4266055,
+              "grossPnl": -3916.4192,
+              "fees": 10922.2218,
+              "netPnl": -14838.641,
+              "averageNetPnl": -68.0672,
+              "payoffRatio": 0.48639177,
+              "profitFactor": 0.36187548,
+              "maximumDrawdown": 0.26309634,
+              "averageMfe": 0.0025863,
+              "averageMae": 0.0021981,
+              "exits": {
+                "stopLoss": 125,
+                "takeProfit": 92,
+                "timeout": 1
+              }
+            },
+            "weak": {
+              "trades": 262,
+              "wins": 98,
+              "losses": 164,
+              "afterCostWinRate": 0.3740458,
+              "grossPnl": -8081.6672,
+              "fees": 12381.7085,
+              "netPnl": -20463.3756,
+              "averageNetPnl": -78.1045,
+              "payoffRatio": 0.50078472,
+              "profitFactor": 0.29924941,
+              "maximumDrawdown": 0.33839856,
+              "averageMfe": 0.00233801,
+              "averageMae": 0.00233386,
+              "exits": {
+                "stopLoss": 163,
+                "takeProfit": 97,
+                "timeout": 2
+              }
+            }
+          },
+          "rejectionReasons": {
+            "insufficient-v1-votes": 41
+          },
+          "rejectedSignalCounterfactual": {
+            "signals": 41,
+            "metrics": {
+              "trades": 41,
+              "wins": 39,
+              "losses": 2,
+              "afterCostWinRate": 0.95121951,
+              "grossPnl": 4878.3152,
+              "fees": 1801.847,
+              "netPnl": 3076.4682,
+              "averageNetPnl": 75.0358,
+              "payoffRatio": 0.56218005,
+              "profitFactor": 10.96251091,
+              "maximumDrawdown": 0.00483001,
+              "averageMfe": 0.00408037,
+              "averageMae": 0.00077971,
+              "exits": {
+                "takeProfit": 38,
+                "timeout": 1,
+                "stopLoss": 2
+              }
+            }
+          }
+        },
+        "5bps": {
+          "slippageBpsPerSide": 5,
+          "candidateEvents": 1387,
+          "formalSignals": 1346,
+          "candidateToFormalRate": 0.9704398,
+          "targetClosureRate": 0.35438336,
+          "metrics": {
+            "trades": 1346,
+            "wins": 485,
+            "losses": 861,
+            "afterCostWinRate": 0.36032689,
+            "grossPnl": -60670.1024,
+            "fees": 56150.9563,
+            "netPnl": -116821.0587,
+            "averageNetPnl": -86.7913,
+            "payoffRatio": 0.47819596,
+            "profitFactor": 0.26936706,
+            "maximumDrawdown": 0.93877738,
+            "averageMfe": 0.00274149,
+            "averageMae": 0.00248377,
+            "exits": {
+              "stopLoss": 818,
+              "takeProfit": 477,
+              "timeout": 51
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 681,
+              "wins": 246,
+              "losses": 435,
+              "afterCostWinRate": 0.36123348,
+              "grossPnl": -30404.5744,
+              "fees": 28411.3599,
+              "netPnl": -58815.9343,
+              "averageNetPnl": -86.367,
+              "payoffRatio": 0.47614343,
+              "profitFactor": 0.26926732,
+              "maximumDrawdown": 0.74899086,
+              "averageMfe": 0.00277067,
+              "averageMae": 0.00239733,
+              "exits": {
+                "stopLoss": 410,
+                "takeProfit": 240,
+                "timeout": 31
+              }
+            },
+            "reverseT": {
+              "trades": 665,
+              "wins": 239,
+              "losses": 426,
+              "afterCostWinRate": 0.3593985,
+              "grossPnl": -30265.528,
+              "fees": 27739.5964,
+              "netPnl": -58005.1244,
+              "averageNetPnl": -87.2258,
+              "payoffRatio": 0.48030728,
+              "profitFactor": 0.26946817,
+              "maximumDrawdown": 0.75609405,
+              "averageMfe": 0.0027116,
+              "averageMae": 0.00257229,
+              "exits": {
+                "stopLoss": 408,
+                "takeProfit": 237,
+                "timeout": 20
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 848,
+              "wins": 319,
+              "losses": 529,
+              "afterCostWinRate": 0.37617925,
+              "grossPnl": -32401.8416,
+              "fees": 29436.5283,
+              "netPnl": -61838.3699,
+              "averageNetPnl": -72.9226,
+              "payoffRatio": 0.47009187,
+              "profitFactor": 0.28347695,
+              "maximumDrawdown": 0.82793968,
+              "averageMfe": 0.00283021,
+              "averageMae": 0.00255988,
+              "exits": {
+                "stopLoss": 487,
+                "takeProfit": 311,
+                "timeout": 50
+              }
+            },
+            "2026": {
+              "trades": 498,
+              "wins": 166,
+              "losses": 332,
+              "afterCostWinRate": 0.33333333,
+              "grossPnl": -28268.2608,
+              "fees": 26714.428,
+              "netPnl": -54982.6888,
+              "averageNetPnl": -110.407,
+              "payoffRatio": 0.50563768,
+              "profitFactor": 0.25281884,
+              "maximumDrawdown": 0.6441793,
+              "averageMfe": 0.00259041,
+              "averageMae": 0.00235417,
+              "exits": {
+                "stopLoss": 331,
+                "takeProfit": 166,
+                "timeout": 1
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 866,
+              "wins": 322,
+              "losses": 544,
+              "afterCostWinRate": 0.37182448,
+              "grossPnl": -34238.0608,
+              "fees": 32850.5045,
+              "netPnl": -67088.5653,
+              "averageNetPnl": -77.4695,
+              "payoffRatio": 0.47855016,
+              "profitFactor": 0.28325947,
+              "maximumDrawdown": 0.83159988,
+              "averageMfe": 0.00278353,
+              "averageMae": 0.00252803,
+              "exits": {
+                "stopLoss": 505,
+                "takeProfit": 316,
+                "timeout": 45
+              }
+            },
+            "strong": {
+              "trades": 218,
+              "wins": 80,
+              "losses": 138,
+              "afterCostWinRate": 0.36697248,
+              "grossPnl": -10078.312,
+              "fees": 10921.354,
+              "netPnl": -20999.666,
+              "averageNetPnl": -96.3287,
+              "payoffRatio": 0.49763652,
+              "profitFactor": 0.28848494,
+              "maximumDrawdown": 0.34819928,
+              "averageMfe": 0.00278168,
+              "averageMae": 0.00236911,
+              "exits": {
+                "stopLoss": 137,
+                "takeProfit": 79,
+                "timeout": 2
+              }
+            },
+            "weak": {
+              "trades": 262,
+              "wins": 83,
+              "losses": 179,
+              "afterCostWinRate": 0.31679389,
+              "grossPnl": -16353.7296,
+              "fees": 12379.0978,
+              "netPnl": -28732.8274,
+              "averageNetPnl": -109.6673,
+              "payoffRatio": 0.4715732,
+              "profitFactor": 0.21866243,
+              "maximumDrawdown": 0.44363804,
+              "averageMfe": 0.00256907,
+              "averageMae": 0.00243286,
+              "exits": {
+                "stopLoss": 176,
+                "takeProfit": 82,
+                "timeout": 4
+              }
+            }
+          },
+          "rejectionReasons": {
+            "insufficient-v1-votes": 41
+          }
+        },
+        "10bps": {
+          "slippageBpsPerSide": 10,
+          "candidateEvents": 1387,
+          "formalSignals": 1346,
+          "candidateToFormalRate": 0.9704398,
+          "targetClosureRate": 0.26300149,
+          "metrics": {
+            "trades": 1346,
+            "wins": 374,
+            "losses": 972,
+            "afterCostWinRate": 0.27786033,
+            "grossPnl": -116689.2432,
+            "fees": 56136.951,
+            "netPnl": -172826.1943,
+            "averageNetPnl": -128.3998,
+            "payoffRatio": 0.53036032,
+            "profitFactor": 0.20406868,
+            "maximumDrawdown": 0.98472062,
+            "averageMfe": 0.00323688,
+            "averageMae": 0.00266255,
+            "exits": {
+              "stopLoss": 899,
+              "takeProfit": 354,
+              "timeout": 93
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 681,
+              "wins": 190,
+              "losses": 491,
+              "afterCostWinRate": 0.27900147,
+              "grossPnl": -58751.2416,
+              "fees": 28404.3081,
+              "netPnl": -87155.5498,
+              "averageNetPnl": -127.9817,
+              "payoffRatio": 0.52414398,
+              "profitFactor": 0.20282557,
+              "maximumDrawdown": 0.87379555,
+              "averageMfe": 0.00327499,
+              "averageMae": 0.00254948,
+              "exits": {
+                "stopLoss": 449,
+                "timeout": 50,
+                "takeProfit": 182
+              }
+            },
+            "reverseT": {
+              "trades": 665,
+              "wins": 184,
+              "losses": 481,
+              "afterCostWinRate": 0.27669173,
+              "grossPnl": -57938.0016,
+              "fees": 27732.6429,
+              "netPnl": -85670.6445,
+              "averageNetPnl": -128.828,
+              "payoffRatio": 0.53675775,
+              "profitFactor": 0.20532937,
+              "maximumDrawdown": 0.87893151,
+              "averageMfe": 0.00319785,
+              "averageMae": 0.00277833,
+              "exits": {
+                "stopLoss": 450,
+                "takeProfit": 172,
+                "timeout": 43
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 848,
+              "wins": 245,
+              "losses": 603,
+              "afterCostWinRate": 0.28891509,
+              "grossPnl": -62668.6144,
+              "fees": 29430.8013,
+              "netPnl": -92099.4157,
+              "averageNetPnl": -108.6078,
+              "payoffRatio": 0.50920488,
+              "profitFactor": 0.20689087,
+              "maximumDrawdown": 0.93053905,
+              "averageMfe": 0.00332145,
+              "averageMae": 0.00273166,
+              "exits": {
+                "stopLoss": 534,
+                "takeProfit": 230,
+                "timeout": 84
+              }
+            },
+            "2026": {
+              "trades": 498,
+              "wins": 129,
+              "losses": 369,
+              "afterCostWinRate": 0.25903614,
+              "grossPnl": -54020.6288,
+              "fees": 26706.1497,
+              "netPnl": -80726.7786,
+              "averageNetPnl": -162.102,
+              "payoffRatio": 0.57445084,
+              "profitFactor": 0.20082428,
+              "maximumDrawdown": 0.7800292,
+              "averageMfe": 0.00309288,
+              "averageMae": 0.00254486,
+              "exits": {
+                "stopLoss": 365,
+                "takeProfit": 124,
+                "timeout": 9
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 866,
+              "wins": 247,
+              "losses": 619,
+              "afterCostWinRate": 0.2852194,
+              "grossPnl": -67273.568,
+              "fees": 32843.0048,
+              "netPnl": -100116.5729,
+              "averageNetPnl": -115.6081,
+              "payoffRatio": 0.52832459,
+              "profitFactor": 0.21081773,
+              "maximumDrawdown": 0.93228398,
+              "averageMfe": 0.00327679,
+              "averageMae": 0.00268751,
+              "exits": {
+                "stopLoss": 555,
+                "takeProfit": 232,
+                "timeout": 79
+              }
+            },
+            "strong": {
+              "trades": 218,
+              "wins": 60,
+              "losses": 158,
+              "afterCostWinRate": 0.27522936,
+              "grossPnl": -21616.1184,
+              "fees": 10917.1899,
+              "netPnl": -32533.3083,
+              "averageNetPnl": -149.2354,
+              "payoffRatio": 0.5588819,
+              "profitFactor": 0.21223363,
+              "maximumDrawdown": 0.48108647,
+              "averageMfe": 0.00328572,
+              "averageMae": 0.00265753,
+              "exits": {
+                "stopLoss": 155,
+                "timeout": 6,
+                "takeProfit": 57
+              }
+            },
+            "weak": {
+              "trades": 262,
+              "wins": 67,
+              "losses": 195,
+              "afterCostWinRate": 0.25572519,
+              "grossPnl": -27799.5568,
+              "fees": 12376.7563,
+              "netPnl": -40176.3131,
+              "averageNetPnl": -153.3447,
+              "payoffRatio": 0.52301541,
+              "profitFactor": 0.17970273,
+              "maximumDrawdown": 0.56517013,
+              "averageMfe": 0.00306431,
+              "averageMae": 0.00258421,
+              "exits": {
+                "stopLoss": 189,
+                "takeProfit": 65,
+                "timeout": 8
+              }
+            }
+          },
+          "rejectionReasons": {
+            "insufficient-v1-votes": 41
+          }
+        }
+      },
+      "lockedTest": {
+        "2bps": {
+          "slippageBpsPerSide": 2,
+          "candidateEvents": 273,
+          "formalSignals": 261,
+          "candidateToFormalRate": 0.95604396,
+          "targetClosureRate": 0.4137931,
+          "metrics": {
+            "trades": 261,
+            "wins": 108,
+            "losses": 153,
+            "afterCostWinRate": 0.4137931,
+            "grossPnl": -5360.3456,
+            "fees": 12788.4161,
+            "netPnl": -18148.7617,
+            "averageNetPnl": -69.5355,
+            "payoffRatio": 0.47046612,
+            "profitFactor": 0.33209373,
+            "maximumDrawdown": 0.31177976,
+            "averageMfe": 0.00229894,
+            "averageMae": 0.00217814,
+            "exits": {
+              "stopLoss": 153,
+              "takeProfit": 108
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 134,
+              "wins": 55,
+              "losses": 79,
+              "afterCostWinRate": 0.41044776,
+              "grossPnl": -2752.1872,
+              "fees": 6565.2005,
+              "netPnl": -9317.3877,
+              "averageNetPnl": -69.5327,
+              "payoffRatio": 0.47519811,
+              "profitFactor": 0.33083413,
+              "maximumDrawdown": 0.17323513,
+              "averageMfe": 0.00224427,
+              "averageMae": 0.00206521,
+              "exits": {
+                "stopLoss": 79,
+                "takeProfit": 55
+              }
+            },
+            "reverseT": {
+              "trades": 127,
+              "wins": 53,
+              "losses": 74,
+              "afterCostWinRate": 0.41732283,
+              "grossPnl": -2608.1584,
+              "fees": 6223.2156,
+              "netPnl": -8831.374,
+              "averageNetPnl": -69.5384,
+              "payoffRatio": 0.46552635,
+              "profitFactor": 0.33341752,
+              "maximumDrawdown": 0.16820452,
+              "averageMfe": 0.00235662,
+              "averageMae": 0.00229729,
+              "exits": {
+                "stopLoss": 74,
+                "takeProfit": 53
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 261,
+              "wins": 108,
+              "losses": 153,
+              "afterCostWinRate": 0.4137931,
+              "grossPnl": -5360.3456,
+              "fees": 12788.4161,
+              "netPnl": -18148.7617,
+              "averageNetPnl": -69.5355,
+              "payoffRatio": 0.47046612,
+              "profitFactor": 0.33209373,
+              "maximumDrawdown": 0.31177976,
+              "averageMfe": 0.00229894,
+              "averageMae": 0.00217814,
+              "exits": {
+                "stopLoss": 153,
+                "takeProfit": 108
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 120,
+              "wins": 52,
+              "losses": 68,
+              "afterCostWinRate": 0.43333333,
+              "grossPnl": -2076.528,
+              "fees": 5875.7443,
+              "netPnl": -7952.2724,
+              "averageNetPnl": -66.2689,
+              "payoffRatio": 0.46288631,
+              "profitFactor": 0.35397188,
+              "maximumDrawdown": 0.15443208,
+              "averageMfe": 0.00238015,
+              "averageMae": 0.0022638,
+              "exits": {
+                "takeProfit": 52,
+                "stopLoss": 68
+              }
+            },
+            "strong": {
+              "trades": 44,
+              "wins": 17,
+              "losses": 27,
+              "afterCostWinRate": 0.38636364,
+              "grossPnl": -1122.1744,
+              "fees": 2213.798,
+              "netPnl": -3335.9724,
+              "averageNetPnl": -75.8176,
+              "payoffRatio": 0.5164932,
+              "profitFactor": 0.32519942,
+              "maximumDrawdown": 0.06156867,
+              "averageMfe": 0.00245013,
+              "averageMae": 0.00213263,
+              "exits": {
+                "stopLoss": 27,
+                "takeProfit": 17
+              }
+            },
+            "weak": {
+              "trades": 97,
+              "wins": 39,
+              "losses": 58,
+              "afterCostWinRate": 0.40206186,
+              "grossPnl": -2161.6432,
+              "fees": 4698.8738,
+              "netPnl": -6860.5169,
+              "averageNetPnl": -70.727,
+              "payoffRatio": 0.45861678,
+              "profitFactor": 0.30838025,
+              "maximumDrawdown": 0.13510784,
+              "averageMfe": 0.00212989,
+              "averageMae": 0.00209281,
+              "exits": {
+                "stopLoss": 58,
+                "takeProfit": 39
+              }
+            }
+          },
+          "rejectionReasons": {
+            "insufficient-v1-votes": 12
+          },
+          "rejectedSignalCounterfactual": {
+            "signals": 12,
+            "metrics": {
+              "trades": 12,
+              "wins": 11,
+              "losses": 1,
+              "afterCostWinRate": 0.91666667,
+              "grossPnl": 1508.9936,
+              "fees": 588.9834,
+              "netPnl": 920.0102,
+              "averageNetPnl": 76.6675,
+              "payoffRatio": 0.57279037,
+              "profitFactor": 6.3006941,
+              "maximumDrawdown": 0.00312886,
+              "averageMfe": 0.00392451,
+              "averageMae": 0.00097072,
+              "exits": {
+                "stopLoss": 1,
+                "takeProfit": 11
+              }
+            }
+          }
+        },
+        "5bps": {
+          "slippageBpsPerSide": 5,
+          "candidateEvents": 273,
+          "formalSignals": 261,
+          "candidateToFormalRate": 0.95604396,
+          "targetClosureRate": 0.348659,
+          "metrics": {
+            "trades": 261,
+            "wins": 91,
+            "losses": 170,
+            "afterCostWinRate": 0.348659,
+            "grossPnl": -13082.1856,
+            "fees": 12786.311,
+            "netPnl": -25868.4966,
+            "averageNetPnl": -99.113,
+            "payoffRatio": 0.49046945,
+            "profitFactor": 0.26254541,
+            "maximumDrawdown": 0.41308987,
+            "averageMfe": 0.00259669,
+            "averageMae": 0.00235775,
+            "exits": {
+              "stopLoss": 170,
+              "takeProfit": 91
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 134,
+              "wins": 46,
+              "losses": 88,
+              "afterCostWinRate": 0.34328358,
+              "grossPnl": -6891.3328,
+              "fees": 6564.0669,
+              "netPnl": -13455.3997,
+              "averageNetPnl": -100.4134,
+              "payoffRatio": 0.48976242,
+              "profitFactor": 0.25601217,
+              "maximumDrawdown": 0.23929545,
+              "averageMfe": 0.00253176,
+              "averageMae": 0.0022544,
+              "exits": {
+                "stopLoss": 88,
+                "takeProfit": 46
+              }
+            },
+            "reverseT": {
+              "trades": 127,
+              "wins": 45,
+              "losses": 82,
+              "afterCostWinRate": 0.35433071,
+              "grossPnl": -6190.8528,
+              "fees": 6222.2441,
+              "netPnl": -12413.0969,
+              "averageNetPnl": -97.7409,
+              "payoffRatio": 0.49108681,
+              "profitFactor": 0.26949886,
+              "maximumDrawdown": 0.22867209,
+              "averageMfe": 0.0026652,
+              "averageMae": 0.00246679,
+              "exits": {
+                "stopLoss": 82,
+                "takeProfit": 45
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 261,
+              "wins": 91,
+              "losses": 170,
+              "afterCostWinRate": 0.348659,
+              "grossPnl": -13082.1856,
+              "fees": 12786.311,
+              "netPnl": -25868.4966,
+              "averageNetPnl": -99.113,
+              "payoffRatio": 0.49046945,
+              "profitFactor": 0.26254541,
+              "maximumDrawdown": 0.41308987,
+              "averageMfe": 0.00259669,
+              "averageMae": 0.00235775,
+              "exits": {
+                "stopLoss": 170,
+                "takeProfit": 91
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 120,
+              "wins": 45,
+              "losses": 75,
+              "afterCostWinRate": 0.375,
+              "grossPnl": -5243.1888,
+              "fees": 5874.9446,
+              "netPnl": -11118.1334,
+              "averageNetPnl": -92.6511,
+              "payoffRatio": 0.48584012,
+              "profitFactor": 0.29150407,
+              "maximumDrawdown": 0.20974062,
+              "averageMfe": 0.00263277,
+              "averageMae": 0.0024321,
+              "exits": {
+                "takeProfit": 45,
+                "stopLoss": 75
+              }
+            },
+            "strong": {
+              "trades": 44,
+              "wins": 12,
+              "losses": 32,
+              "afterCostWinRate": 0.27272727,
+              "grossPnl": -3288.1776,
+              "fees": 2213.4988,
+              "netPnl": -5501.6764,
+              "averageNetPnl": -125.0381,
+              "payoffRatio": 0.50605391,
+              "profitFactor": 0.18977022,
+              "maximumDrawdown": 0.10180756,
+              "averageMfe": 0.0025775,
+              "averageMae": 0.00248082,
+              "exits": {
+                "stopLoss": 32,
+                "takeProfit": 12
+              }
+            },
+            "weak": {
+              "trades": 97,
+              "wins": 34,
+              "losses": 63,
+              "afterCostWinRate": 0.35051546,
+              "grossPnl": -4550.8192,
+              "fees": 4697.8676,
+              "netPnl": -9248.6868,
+              "averageNetPnl": -95.3473,
+              "payoffRatio": 0.49232558,
+              "profitFactor": 0.26569952,
+              "maximumDrawdown": 0.1764344,
+              "averageMfe": 0.00256076,
+              "averageMae": 0.00220993,
+              "exits": {
+                "stopLoss": 63,
+                "takeProfit": 34
+              }
+            }
+          },
+          "rejectionReasons": {
+            "insufficient-v1-votes": 12
+          }
+        },
+        "10bps": {
+          "slippageBpsPerSide": 10,
+          "candidateEvents": 273,
+          "formalSignals": 261,
+          "candidateToFormalRate": 0.95604396,
+          "targetClosureRate": 0.27969349,
+          "metrics": {
+            "trades": 261,
+            "wins": 75,
+            "losses": 186,
+            "afterCostWinRate": 0.28735632,
+            "grossPnl": -23623.5072,
+            "fees": 12783.3141,
+            "netPnl": -36406.8214,
+            "averageNetPnl": -139.4897,
+            "payoffRatio": 0.56847575,
+            "profitFactor": 0.22922409,
+            "maximumDrawdown": 0.52810459,
+            "averageMfe": 0.00319078,
+            "averageMae": 0.00251766,
+            "exits": {
+              "stopLoss": 184,
+              "timeout": 4,
+              "takeProfit": 73
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 134,
+              "wins": 37,
+              "losses": 97,
+              "afterCostWinRate": 0.2761194,
+              "grossPnl": -12693.976,
+              "fees": 6562.9975,
+              "netPnl": -19256.9736,
+              "averageNetPnl": -143.7088,
+              "payoffRatio": 0.5705643,
+              "profitFactor": 0.21763793,
+              "maximumDrawdown": 0.32516328,
+              "averageMfe": 0.00308945,
+              "averageMae": 0.00240504,
+              "exits": {
+                "stopLoss": 96,
+                "takeProfit": 37,
+                "timeout": 1
+              }
+            },
+            "reverseT": {
+              "trades": 127,
+              "wins": 38,
+              "losses": 89,
+              "afterCostWinRate": 0.2992126,
+              "grossPnl": -10929.5312,
+              "fees": 6220.3166,
+              "netPnl": -17149.8478,
+              "averageNetPnl": -135.0382,
+              "payoffRatio": 0.56639481,
+              "profitFactor": 0.24183149,
+              "maximumDrawdown": 0.30072654,
+              "averageMfe": 0.0032977,
+              "averageMae": 0.0026365,
+              "exits": {
+                "stopLoss": 88,
+                "timeout": 3,
+                "takeProfit": 36
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 261,
+              "wins": 75,
+              "losses": 186,
+              "afterCostWinRate": 0.28735632,
+              "grossPnl": -23623.5072,
+              "fees": 12783.3141,
+              "netPnl": -36406.8214,
+              "averageNetPnl": -139.4897,
+              "payoffRatio": 0.56847575,
+              "profitFactor": 0.22922409,
+              "maximumDrawdown": 0.52810459,
+              "averageMfe": 0.00319078,
+              "averageMae": 0.00251766,
+              "exits": {
+                "stopLoss": 184,
+                "timeout": 4,
+                "takeProfit": 73
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 120,
+              "wins": 40,
+              "losses": 80,
+              "afterCostWinRate": 0.33333333,
+              "grossPnl": -8867.752,
+              "fees": 5873.2871,
+              "netPnl": -14741.0392,
+              "averageNetPnl": -122.842,
+              "payoffRatio": 0.56836025,
+              "profitFactor": 0.28418012,
+              "maximumDrawdown": 0.26965249,
+              "averageMfe": 0.00339985,
+              "averageMae": 0.00254701,
+              "exits": {
+                "takeProfit": 39,
+                "stopLoss": 80,
+                "timeout": 1
+              }
+            },
+            "strong": {
+              "trades": 44,
+              "wins": 8,
+              "losses": 36,
+              "afterCostWinRate": 0.18181818,
+              "grossPnl": -6180.3792,
+              "fees": 2212.6107,
+              "netPnl": -8392.9899,
+              "averageNetPnl": -190.7498,
+              "payoffRatio": 0.53857221,
+              "profitFactor": 0.11968271,
+              "maximumDrawdown": 0.15130713,
+              "averageMfe": 0.00287768,
+              "averageMae": 0.0028346,
+              "exits": {
+                "stopLoss": 36,
+                "takeProfit": 8
+              }
+            },
+            "weak": {
+              "trades": 97,
+              "wins": 27,
+              "losses": 70,
+              "afterCostWinRate": 0.27835052,
+              "grossPnl": -8575.376,
+              "fees": 4697.4163,
+              "netPnl": -13272.7923,
+              "averageNetPnl": -136.8329,
+              "payoffRatio": 0.58104662,
+              "profitFactor": 0.22411798,
+              "maximumDrawdown": 0.24322722,
+              "averageMfe": 0.00307416,
+              "averageMae": 0.0023376,
+              "exits": {
+                "stopLoss": 68,
+                "timeout": 3,
+                "takeProfit": 26
+              }
+            }
+          },
+          "rejectionReasons": {
+            "insufficient-v1-votes": 12
+          }
+        }
+      },
+      "rollingOutOfSample": {
+        "scope": "development-only-excludes-locked-test",
+        "fixedRuleNoRefit": true,
+        "folds": [
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250407",
+            "testStart": "20250408",
+            "testEnd": "20250508",
+            "trainDays": 60,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 70,
+              "wins": 33,
+              "losses": 37,
+              "afterCostWinRate": 0.47142857,
+              "grossPnl": -46.4704,
+              "fees": 1956.1641,
+              "netPnl": -2002.6345,
+              "averageNetPnl": -28.6091,
+              "payoffRatio": 0.66162134,
+              "profitFactor": 0.59009471,
+              "maximumDrawdown": 0.08818775,
+              "averageMfe": 0.00331119,
+              "averageMae": 0.00254324,
+              "exits": {
+                "takeProfit": 32,
+                "stopLoss": 36,
+                "timeout": 2
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250508",
+            "testStart": "20250509",
+            "testEnd": "20250606",
+            "trainDays": 80,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 65,
+              "wins": 17,
+              "losses": 48,
+              "afterCostWinRate": 0.26153846,
+              "grossPnl": -2347.7952,
+              "fees": 1868.9009,
+              "netPnl": -4216.6961,
+              "averageNetPnl": -64.8722,
+              "payoffRatio": 0.70748652,
+              "profitFactor": 0.25056814,
+              "maximumDrawdown": 0.13692952,
+              "averageMfe": 0.002413,
+              "averageMae": 0.00280757,
+              "exits": {
+                "stopLoss": 37,
+                "takeProfit": 16,
+                "timeout": 12
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250606",
+            "testStart": "20250609",
+            "testEnd": "20250704",
+            "trainDays": 100,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 74,
+              "wins": 35,
+              "losses": 39,
+              "afterCostWinRate": 0.47297297,
+              "grossPnl": -212.624,
+              "fees": 2251.5067,
+              "netPnl": -2464.1307,
+              "averageNetPnl": -33.2991,
+              "payoffRatio": 0.59872982,
+              "profitFactor": 0.53732163,
+              "maximumDrawdown": 0.08604587,
+              "averageMfe": 0.00292719,
+              "averageMae": 0.0023285,
+              "exits": {
+                "takeProfit": 33,
+                "stopLoss": 37,
+                "timeout": 4
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250704",
+            "testStart": "20250707",
+            "testEnd": "20250801",
+            "trainDays": 120,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 76,
+              "wins": 28,
+              "losses": 48,
+              "afterCostWinRate": 0.36842105,
+              "grossPnl": -1604.5344,
+              "fees": 2370.9347,
+              "netPnl": -3975.4691,
+              "averageNetPnl": -52.3088,
+              "payoffRatio": 0.60511232,
+              "profitFactor": 0.35298219,
+              "maximumDrawdown": 0.12566577,
+              "averageMfe": 0.00241093,
+              "averageMae": 0.00237366,
+              "exits": {
+                "stopLoss": 41,
+                "timeout": 10,
+                "takeProfit": 25
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250801",
+            "testStart": "20250804",
+            "testEnd": "20250829",
+            "trainDays": 140,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 69,
+              "wins": 33,
+              "losses": 36,
+              "afterCostWinRate": 0.47826087,
+              "grossPnl": -154.5008,
+              "fees": 2318.3545,
+              "netPnl": -2472.8553,
+              "averageNetPnl": -35.8385,
+              "payoffRatio": 0.56699857,
+              "profitFactor": 0.51974869,
+              "maximumDrawdown": 0.07428284,
+              "averageMfe": 0.00271869,
+              "averageMae": 0.00225393,
+              "exits": {
+                "takeProfit": 33,
+                "stopLoss": 36
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250829",
+            "testStart": "20250901",
+            "testEnd": "20250926",
+            "trainDays": 160,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 66,
+              "wins": 23,
+              "losses": 43,
+              "afterCostWinRate": 0.34848485,
+              "grossPnl": -2631.648,
+              "fees": 2679.1823,
+              "netPnl": -5310.8303,
+              "averageNetPnl": -80.4671,
+              "payoffRatio": 0.46112073,
+              "profitFactor": 0.24664597,
+              "maximumDrawdown": 0.12457437,
+              "averageMfe": 0.0022418,
+              "averageMae": 0.00260016,
+              "exits": {
+                "stopLoss": 43,
+                "takeProfit": 23
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250926",
+            "testStart": "20250929",
+            "testEnd": "20251105",
+            "trainDays": 180,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 69,
+              "wins": 33,
+              "losses": 36,
+              "afterCostWinRate": 0.47826087,
+              "grossPnl": -856.7296,
+              "fees": 3340.3952,
+              "netPnl": -4197.1248,
+              "averageNetPnl": -60.8279,
+              "payoffRatio": 0.44867555,
+              "profitFactor": 0.41128592,
+              "maximumDrawdown": 0.08794749,
+              "averageMfe": 0.00285262,
+              "averageMae": 0.00224301,
+              "exits": {
+                "takeProfit": 33,
+                "stopLoss": 36
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251105",
+            "testStart": "20251106",
+            "testEnd": "20251203",
+            "trainDays": 200,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 70,
+              "wins": 27,
+              "losses": 43,
+              "afterCostWinRate": 0.38571429,
+              "grossPnl": -2099.1504,
+              "fees": 3289.6196,
+              "netPnl": -5388.7701,
+              "averageNetPnl": -76.9824,
+              "payoffRatio": 0.39720167,
+              "profitFactor": 0.2494057,
+              "maximumDrawdown": 0.11106879,
+              "averageMfe": 0.00203155,
+              "averageMae": 0.00212772,
+              "exits": {
+                "stopLoss": 43,
+                "takeProfit": 27
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251203",
+            "testStart": "20251204",
+            "testEnd": "20251231",
+            "trainDays": 220,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 70,
+              "wins": 28,
+              "losses": 42,
+              "afterCostWinRate": 0.4,
+              "grossPnl": -1307.072,
+              "fees": 3560.2822,
+              "netPnl": -4867.3542,
+              "averageNetPnl": -69.5336,
+              "payoffRatio": 0.47880986,
+              "profitFactor": 0.31920657,
+              "maximumDrawdown": 0.09694645,
+              "averageMfe": 0.00211018,
+              "averageMae": 0.00202566,
+              "exits": {
+                "takeProfit": 28,
+                "stopLoss": 41,
+                "timeout": 1
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251231",
+            "testStart": "20260105",
+            "testEnd": "20260130",
+            "trainDays": 240,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 74,
+              "wins": 33,
+              "losses": 41,
+              "afterCostWinRate": 0.44594595,
+              "grossPnl": -1320.3024,
+              "fees": 4536.4362,
+              "netPnl": -5856.7386,
+              "averageNetPnl": -79.1451,
+              "payoffRatio": 0.4937084,
+              "profitFactor": 0.39737505,
+              "maximumDrawdown": 0.09367168,
+              "averageMfe": 0.0027373,
+              "averageMae": 0.00255695,
+              "exits": {
+                "stopLoss": 41,
+                "takeProfit": 33
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260130",
+            "testStart": "20260202",
+            "testEnd": "20260309",
+            "trainDays": 260,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 70,
+              "wins": 21,
+              "losses": 49,
+              "afterCostWinRate": 0.3,
+              "grossPnl": -3450.344,
+              "fees": 4318.64,
+              "netPnl": -7768.984,
+              "averageNetPnl": -110.9855,
+              "payoffRatio": 0.5335467,
+              "profitFactor": 0.22866287,
+              "maximumDrawdown": 0.12537653,
+              "averageMfe": 0.00201945,
+              "averageMae": 0.00222543,
+              "exits": {
+                "takeProfit": 21,
+                "stopLoss": 49
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260309",
+            "testStart": "20260310",
+            "testEnd": "20260407",
+            "trainDays": 280,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 69,
+              "wins": 24,
+              "losses": 45,
+              "afterCostWinRate": 0.34782609,
+              "grossPnl": -2617.5056,
+              "fees": 3747.7356,
+              "netPnl": -6365.2412,
+              "averageNetPnl": -92.2499,
+              "payoffRatio": 0.44400102,
+              "profitFactor": 0.23680055,
+              "maximumDrawdown": 0.11088673,
+              "averageMfe": 0.00212114,
+              "averageMae": 0.00216844,
+              "exits": {
+                "stopLoss": 45,
+                "takeProfit": 24
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260407",
+            "testStart": "20260408",
+            "testEnd": "20260416",
+            "trainDays": 300,
+            "testDays": 7,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 24,
+              "wins": 11,
+              "losses": 13,
+              "afterCostWinRate": 0.45833333,
+              "grossPnl": -85.968,
+              "fees": 1327.6372,
+              "netPnl": -1413.6052,
+              "averageNetPnl": -58.9002,
+              "payoffRatio": 0.44504702,
+              "profitFactor": 0.37657825,
+              "maximumDrawdown": 0.02821108,
+              "averageMfe": 0.00237326,
+              "averageMae": 0.00160498,
+              "exits": {
+                "takeProfit": 11,
+                "stopLoss": 13
+              }
+            }
+          }
+        ],
+        "aggregate": {
+          "trades": 866,
+          "wins": 346,
+          "losses": 520,
+          "afterCostWinRate": 0.39953811,
+          "grossPnl": -18734.6448,
+          "fees": 37565.7892,
+          "netPnl": -56300.4341,
+          "averageNetPnl": -65.012,
+          "payoffRatio": 0.5194435,
+          "profitFactor": 0.34562972,
+          "maximumDrawdown": 0.73279497,
+          "averageMfe": 0.00249193,
+          "averageMae": 0.00233141,
+          "exits": {
+            "takeProfit": 339,
+            "stopLoss": 498,
+            "timeout": 29
+          }
+        }
+      }
+    },
+    "v2-confirm-only": {
+      "label": "V2 仅确认 V1 候选",
+      "factorIds": [
+        "vwap.bias",
+        "vwap.mean_reversion",
+        "volume.ratio_5_20",
+        "volume.price_alignment_5m",
+        "technical.macd_histogram",
+        "technical.macd_histogram_delta",
+        "orderflow.active_buy_imbalance",
+        "orderflow.ofi_change_3m",
+        "price.return_5m",
+        "volatility.atr14"
+      ],
+      "fullSample": {
+        "2bps": {
+          "slippageBpsPerSide": 2,
+          "candidateEvents": 1387,
+          "formalSignals": 1073,
+          "candidateToFormalRate": 0.77361211,
+          "targetClosureRate": 0.38303821,
+          "metrics": {
+            "trades": 1073,
+            "wins": 424,
+            "losses": 649,
+            "afterCostWinRate": 0.39515377,
+            "grossPnl": -22359.7136,
+            "fees": 44485.5226,
+            "netPnl": -66845.236,
+            "averageNetPnl": -62.2975,
+            "payoffRatio": 0.52732553,
+            "profitFactor": 0.34450851,
+            "maximumDrawdown": 0.81115927,
+            "averageMfe": 0.00246248,
+            "averageMae": 0.00234993,
+            "exits": {
+              "stopLoss": 623,
+              "takeProfit": 411,
+              "timeout": 39
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 538,
+              "wins": 209,
+              "losses": 329,
+              "afterCostWinRate": 0.38847584,
+              "grossPnl": -12219.4736,
+              "fees": 22142.7052,
+              "netPnl": -34362.1787,
+              "averageNetPnl": -63.8702,
+              "payoffRatio": 0.51166011,
+              "profitFactor": 0.32503636,
+              "maximumDrawdown": 0.57631164,
+              "averageMfe": 0.00245406,
+              "averageMae": 0.00229578,
+              "exits": {
+                "stopLoss": 314,
+                "takeProfit": 200,
+                "timeout": 24
+              }
+            },
+            "reverseT": {
+              "trades": 535,
+              "wins": 215,
+              "losses": 320,
+              "afterCostWinRate": 0.40186916,
+              "grossPnl": -10140.24,
+              "fees": 22342.8174,
+              "netPnl": -32483.0573,
+              "averageNetPnl": -60.716,
+              "payoffRatio": 0.54164903,
+              "profitFactor": 0.36392044,
+              "maximumDrawdown": 0.55429332,
+              "averageMfe": 0.00247094,
+              "averageMae": 0.00240438,
+              "exits": {
+                "stopLoss": 309,
+                "takeProfit": 211,
+                "timeout": 15
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 682,
+              "wins": 263,
+              "losses": 419,
+              "afterCostWinRate": 0.3856305,
+              "grossPnl": -14347.6784,
+              "fees": 23552.3196,
+              "netPnl": -37899.9979,
+              "averageNetPnl": -55.5718,
+              "payoffRatio": 0.57398743,
+              "profitFactor": 0.36028328,
+              "maximumDrawdown": 0.67703299,
+              "averageMfe": 0.00254733,
+              "averageMae": 0.00249293,
+              "exits": {
+                "stopLoss": 393,
+                "takeProfit": 250,
+                "timeout": 39
+              }
+            },
+            "2026": {
+              "trades": 391,
+              "wins": 161,
+              "losses": 230,
+              "afterCostWinRate": 0.41176471,
+              "grossPnl": -8012.0352,
+              "fees": 20933.203,
+              "netPnl": -28945.2381,
+              "averageNetPnl": -74.0287,
+              "payoffRatio": 0.46091148,
+              "profitFactor": 0.32263803,
+              "maximumDrawdown": 0.42076309,
+              "averageMfe": 0.00231447,
+              "averageMae": 0.0021005,
+              "exits": {
+                "takeProfit": 161,
+                "stopLoss": 230
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 693,
+              "wins": 265,
+              "losses": 428,
+              "afterCostWinRate": 0.38239538,
+              "grossPnl": -15031.5312,
+              "fees": 26154.2774,
+              "netPnl": -41185.8086,
+              "averageNetPnl": -59.4312,
+              "payoffRatio": 0.56115445,
+              "profitFactor": 0.34744376,
+              "maximumDrawdown": 0.67386398,
+              "averageMfe": 0.00250283,
+              "averageMae": 0.0024259,
+              "exits": {
+                "stopLoss": 402,
+                "takeProfit": 253,
+                "timeout": 38
+              }
+            },
+            "strong": {
+              "trades": 171,
+              "wins": 77,
+              "losses": 94,
+              "afterCostWinRate": 0.4502924,
+              "grossPnl": -2309.1552,
+              "fees": 8508.7247,
+              "netPnl": -10817.8797,
+              "averageNetPnl": -63.2625,
+              "payoffRatio": 0.45234892,
+              "profitFactor": 0.37054114,
+              "maximumDrawdown": 0.20271313,
+              "averageMfe": 0.00248959,
+              "averageMae": 0.0021729,
+              "exits": {
+                "stopLoss": 94,
+                "takeProfit": 76,
+                "timeout": 1
+              }
+            },
+            "weak": {
+              "trades": 209,
+              "wins": 82,
+              "losses": 127,
+              "afterCostWinRate": 0.3923445,
+              "grossPnl": -5019.0272,
+              "fees": 9822.5205,
+              "netPnl": -14841.5477,
+              "averageNetPnl": -71.0122,
+              "payoffRatio": 0.48836552,
+              "profitFactor": 0.31532262,
+              "maximumDrawdown": 0.27375642,
+              "averageMfe": 0.00230649,
+              "averageMae": 0.00224288,
+              "exits": {
+                "stopLoss": 127,
+                "takeProfit": 82
+              }
+            }
+          },
+          "rejectionReasons": {
+            "ofi-not-confirmed": 179,
+            "five-minute-direction": 114,
+            "bearish-continuation": 11,
+            "bullish-continuation": 4,
+            "insufficient-core-votes": 6
+          },
+          "rejectedSignalCounterfactual": {
+            "signals": 314,
+            "metrics": {
+              "trades": 314,
+              "wins": 219,
+              "losses": 95,
+              "afterCostWinRate": 0.69745223,
+              "grossPnl": 16387.5296,
+              "fees": 13479.4766,
+              "netPnl": 2908.053,
+              "averageNetPnl": 9.2613,
+              "payoffRatio": 0.51214305,
+              "profitFactor": 1.18062451,
+              "maximumDrawdown": 0.05208759,
+              "averageMfe": 0.00357927,
+              "averageMae": 0.0015724,
+              "exits": {
+                "stopLoss": 88,
+                "takeProfit": 216,
+                "timeout": 10
+              }
+            }
+          }
+        },
+        "5bps": {
+          "slippageBpsPerSide": 5,
+          "candidateEvents": 1387,
+          "formalSignals": 1073,
+          "candidateToFormalRate": 0.77361211,
+          "targetClosureRate": 0.33643989,
+          "metrics": {
+            "trades": 1073,
+            "wins": 371,
+            "losses": 702,
+            "afterCostWinRate": 0.34575955,
+            "grossPnl": -51054.8448,
+            "fees": 44478.133,
+            "netPnl": -95532.9778,
+            "averageNetPnl": -89.0335,
+            "payoffRatio": 0.47990404,
+            "profitFactor": 0.2536245,
+            "maximumDrawdown": 0.90491358,
+            "averageMfe": 0.00265794,
+            "averageMae": 0.00244209,
+            "exits": {
+              "stopLoss": 671,
+              "takeProfit": 361,
+              "timeout": 41
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 538,
+              "wins": 180,
+              "losses": 358,
+              "afterCostWinRate": 0.33457249,
+              "grossPnl": -26723.2512,
+              "fees": 22138.471,
+              "netPnl": -48861.7222,
+              "averageNetPnl": -90.821,
+              "payoffRatio": 0.47664128,
+              "profitFactor": 0.23965204,
+              "maximumDrawdown": 0.70040442,
+              "averageMfe": 0.0026639,
+              "averageMae": 0.00238919,
+              "exits": {
+                "stopLoss": 340,
+                "takeProfit": 174,
+                "timeout": 24
+              }
+            },
+            "reverseT": {
+              "trades": 535,
+              "wins": 191,
+              "losses": 344,
+              "afterCostWinRate": 0.35700935,
+              "grossPnl": -24331.5936,
+              "fees": 22339.662,
+              "netPnl": -46671.2556,
+              "averageNetPnl": -87.236,
+              "payoffRatio": 0.48216351,
+              "profitFactor": 0.26771288,
+              "maximumDrawdown": 0.6826174,
+              "averageMfe": 0.00265194,
+              "averageMae": 0.00249529,
+              "exits": {
+                "stopLoss": 331,
+                "takeProfit": 187,
+                "timeout": 17
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 682,
+              "wins": 240,
+              "losses": 442,
+              "afterCostWinRate": 0.35190616,
+              "grossPnl": -29741.8864,
+              "fees": 23549.1247,
+              "netPnl": -53291.0111,
+              "averageNetPnl": -78.1393,
+              "payoffRatio": 0.47071206,
+              "profitFactor": 0.25559026,
+              "maximumDrawdown": 0.78959104,
+              "averageMfe": 0.00265802,
+              "averageMae": 0.00255297,
+              "exits": {
+                "stopLoss": 412,
+                "takeProfit": 231,
+                "timeout": 39
+              }
+            },
+            "2026": {
+              "trades": 391,
+              "wins": 131,
+              "losses": 260,
+              "afterCostWinRate": 0.33503836,
+              "grossPnl": -21312.9584,
+              "fees": 20929.0083,
+              "netPnl": -42241.9667,
+              "averageNetPnl": -108.0357,
+              "payoffRatio": 0.49842536,
+              "profitFactor": 0.2511297,
+              "maximumDrawdown": 0.54898723,
+              "averageMfe": 0.00265779,
+              "averageMae": 0.00224869,
+              "exits": {
+                "takeProfit": 130,
+                "stopLoss": 259,
+                "timeout": 2
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 693,
+              "wins": 240,
+              "losses": 453,
+              "afterCostWinRate": 0.34632035,
+              "grossPnl": -31540.0896,
+              "fees": 26150.3983,
+              "netPnl": -57690.4879,
+              "averageNetPnl": -83.2475,
+              "payoffRatio": 0.47588273,
+              "profitFactor": 0.2521233,
+              "maximumDrawdown": 0.78876177,
+              "averageMfe": 0.00265694,
+              "averageMae": 0.00248948,
+              "exits": {
+                "stopLoss": 423,
+                "takeProfit": 231,
+                "timeout": 39
+              }
+            },
+            "strong": {
+              "trades": 171,
+              "wins": 61,
+              "losses": 110,
+              "afterCostWinRate": 0.35672515,
+              "grossPnl": -8326.6128,
+              "fees": 8506.823,
+              "netPnl": -16833.4358,
+              "averageNetPnl": -98.4411,
+              "payoffRatio": 0.48786931,
+              "profitFactor": 0.27054571,
+              "maximumDrawdown": 0.29333351,
+              "averageMfe": 0.00278325,
+              "averageMae": 0.00236321,
+              "exits": {
+                "stopLoss": 109,
+                "takeProfit": 61,
+                "timeout": 1
+              }
+            },
+            "weak": {
+              "trades": 209,
+              "wins": 70,
+              "losses": 139,
+              "afterCostWinRate": 0.33492823,
+              "grossPnl": -11188.1424,
+              "fees": 9820.9117,
+              "netPnl": -21009.0541,
+              "averageNetPnl": -100.5218,
+              "payoffRatio": 0.48399132,
+              "profitFactor": 0.24373663,
+              "maximumDrawdown": 0.36301165,
+              "averageMfe": 0.00255873,
+              "averageMae": 0.00234951,
+              "exits": {
+                "stopLoss": 139,
+                "takeProfit": 69,
+                "timeout": 1
+              }
+            }
+          },
+          "rejectionReasons": {
+            "ofi-not-confirmed": 179,
+            "five-minute-direction": 114,
+            "bearish-continuation": 11,
+            "bullish-continuation": 4,
+            "insufficient-core-votes": 6
+          }
+        },
+        "10bps": {
+          "slippageBpsPerSide": 10,
+          "candidateEvents": 1387,
+          "formalSignals": 1073,
+          "candidateToFormalRate": 0.77361211,
+          "targetClosureRate": 0.23485555,
+          "metrics": {
+            "trades": 1073,
+            "wins": 274,
+            "losses": 799,
+            "afterCostWinRate": 0.25535881,
+            "grossPnl": -98287.488,
+            "fees": 44466.7323,
+            "netPnl": -142754.2202,
+            "averageNetPnl": -133.0421,
+            "payoffRatio": 0.53261152,
+            "profitFactor": 0.18264776,
+            "maximumDrawdown": 0.97040064,
+            "averageMfe": 0.00310469,
+            "averageMae": 0.00260721,
+            "exits": {
+              "stopLoss": 736,
+              "takeProfit": 252,
+              "timeout": 85
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 538,
+              "wins": 130,
+              "losses": 408,
+              "afterCostWinRate": 0.24163569,
+              "grossPnl": -49835.0864,
+              "fees": 22132.2119,
+              "netPnl": -71967.2983,
+              "averageNetPnl": -133.7682,
+              "payoffRatio": 0.54639053,
+              "profitFactor": 0.17409502,
+              "maximumDrawdown": 0.83468855,
+              "averageMfe": 0.00309474,
+              "averageMae": 0.00252412,
+              "exits": {
+                "stopLoss": 370,
+                "takeProfit": 120,
+                "timeout": 48
+              }
+            },
+            "reverseT": {
+              "trades": 535,
+              "wins": 144,
+              "losses": 391,
+              "afterCostWinRate": 0.26915888,
+              "grossPnl": -48452.4016,
+              "fees": 22334.5204,
+              "netPnl": -70786.9219,
+              "averageNetPnl": -132.312,
+              "payoffRatio": 0.51906176,
+              "profitFactor": 0.19116341,
+              "maximumDrawdown": 0.82094791,
+              "averageMfe": 0.00311469,
+              "averageMae": 0.00269076,
+              "exits": {
+                "stopLoss": 366,
+                "takeProfit": 132,
+                "timeout": 37
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 682,
+              "wins": 173,
+              "losses": 509,
+              "afterCostWinRate": 0.25366569,
+              "grossPnl": -56864.7216,
+              "fees": 23541.9013,
+              "netPnl": -80406.6229,
+              "averageNetPnl": -117.8983,
+              "payoffRatio": 0.49163826,
+              "profitFactor": 0.16709906,
+              "maximumDrawdown": 0.90547961,
+              "averageMfe": 0.00308479,
+              "averageMae": 0.00271584,
+              "exits": {
+                "stopLoss": 452,
+                "takeProfit": 153,
+                "timeout": 77
+              }
+            },
+            "2026": {
+              "trades": 391,
+              "wins": 101,
+              "losses": 290,
+              "afterCostWinRate": 0.25831202,
+              "grossPnl": -41422.7664,
+              "fees": 20924.831,
+              "netPnl": -62347.5973,
+              "averageNetPnl": -159.4568,
+              "payoffRatio": 0.57960718,
+              "profitFactor": 0.20186319,
+              "maximumDrawdown": 0.68778006,
+              "averageMfe": 0.00313939,
+              "averageMae": 0.00241773,
+              "exits": {
+                "takeProfit": 99,
+                "stopLoss": 284,
+                "timeout": 8
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 693,
+              "wins": 173,
+              "losses": 520,
+              "afterCostWinRate": 0.24963925,
+              "grossPnl": -61609.52,
+              "fees": 26143.2362,
+              "netPnl": -87752.7562,
+              "averageNetPnl": -126.6274,
+              "payoffRatio": 0.50883863,
+              "profitFactor": 0.1692867,
+              "maximumDrawdown": 0.90679536,
+              "averageMfe": 0.00309637,
+              "averageMae": 0.0026692,
+              "exits": {
+                "stopLoss": 468,
+                "takeProfit": 154,
+                "timeout": 71
+              }
+            },
+            "strong": {
+              "trades": 171,
+              "wins": 44,
+              "losses": 127,
+              "afterCostWinRate": 0.25730994,
+              "grossPnl": -17202.1952,
+              "fees": 8505.0774,
+              "netPnl": -25707.2725,
+              "averageNetPnl": -150.3349,
+              "payoffRatio": 0.58766833,
+              "profitFactor": 0.20360163,
+              "maximumDrawdown": 0.41071509,
+              "averageMfe": 0.00322483,
+              "averageMae": 0.00255895,
+              "exits": {
+                "stopLoss": 122,
+                "timeout": 6,
+                "takeProfit": 43
+              }
+            },
+            "weak": {
+              "trades": 209,
+              "wins": 57,
+              "losses": 152,
+              "afterCostWinRate": 0.27272727,
+              "grossPnl": -19475.7728,
+              "fees": 9818.4187,
+              "netPnl": -29294.1915,
+              "averageNetPnl": -140.1636,
+              "payoffRatio": 0.54041071,
+              "profitFactor": 0.20265402,
+              "maximumDrawdown": 0.46108597,
+              "averageMfe": 0.00303396,
+              "averageMae": 0.00244111,
+              "exits": {
+                "stopLoss": 146,
+                "takeProfit": 55,
+                "timeout": 8
+              }
+            }
+          },
+          "rejectionReasons": {
+            "ofi-not-confirmed": 179,
+            "five-minute-direction": 114,
+            "bearish-continuation": 11,
+            "bullish-continuation": 4,
+            "insufficient-core-votes": 6
+          }
+        }
+      },
+      "lockedTest": {
+        "2bps": {
+          "slippageBpsPerSide": 2,
+          "candidateEvents": 273,
+          "formalSignals": 204,
+          "candidateToFormalRate": 0.74725275,
+          "targetClosureRate": 0.44607843,
+          "metrics": {
+            "trades": 204,
+            "wins": 91,
+            "losses": 113,
+            "afterCostWinRate": 0.44607843,
+            "grossPnl": -2747.8112,
+            "fees": 9981.7065,
+            "netPnl": -12729.5177,
+            "averageNetPnl": -62.3996,
+            "payoffRatio": 0.44159243,
+            "profitFactor": 0.35561868,
+            "maximumDrawdown": 0.2330809,
+            "averageMfe": 0.00242437,
+            "averageMae": 0.0020682,
+            "exits": {
+              "takeProfit": 91,
+              "stopLoss": 113
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 105,
+              "wins": 44,
+              "losses": 61,
+              "afterCostWinRate": 0.41904762,
+              "grossPnl": -2219.1808,
+              "fees": 5128.0813,
+              "netPnl": -7347.2621,
+              "averageNetPnl": -69.9739,
+              "payoffRatio": 0.41787009,
+              "profitFactor": 0.30141449,
+              "maximumDrawdown": 0.14186978,
+              "averageMfe": 0.00229071,
+              "averageMae": 0.00199096,
+              "exits": {
+                "takeProfit": 44,
+                "stopLoss": 61
+              }
+            },
+            "reverseT": {
+              "trades": 99,
+              "wins": 47,
+              "losses": 52,
+              "afterCostWinRate": 0.47474747,
+              "grossPnl": -528.6304,
+              "fees": 4853.6252,
+              "netPnl": -5382.2556,
+              "averageNetPnl": -54.3662,
+              "payoffRatio": 0.46173141,
+              "profitFactor": 0.41733416,
+              "maximumDrawdown": 0.10629054,
+              "averageMfe": 0.00256613,
+              "averageMae": 0.00215013,
+              "exits": {
+                "takeProfit": 47,
+                "stopLoss": 52
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 204,
+              "wins": 91,
+              "losses": 113,
+              "afterCostWinRate": 0.44607843,
+              "grossPnl": -2747.8112,
+              "fees": 9981.7065,
+              "netPnl": -12729.5177,
+              "averageNetPnl": -62.3996,
+              "payoffRatio": 0.44159243,
+              "profitFactor": 0.35561868,
+              "maximumDrawdown": 0.2330809,
+              "averageMfe": 0.00242437,
+              "averageMae": 0.0020682,
+              "exits": {
+                "takeProfit": 91,
+                "stopLoss": 113
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 88,
+              "wins": 37,
+              "losses": 51,
+              "afterCostWinRate": 0.42045455,
+              "grossPnl": -1484.9408,
+              "fees": 4304.605,
+              "netPnl": -5789.5458,
+              "averageNetPnl": -65.7903,
+              "payoffRatio": 0.47798739,
+              "profitFactor": 0.34677517,
+              "maximumDrawdown": 0.11258065,
+              "averageMfe": 0.00246419,
+              "averageMae": 0.00213376,
+              "exits": {
+                "stopLoss": 51,
+                "takeProfit": 37
+              }
+            },
+            "strong": {
+              "trades": 37,
+              "wins": 16,
+              "losses": 21,
+              "afterCostWinRate": 0.43243243,
+              "grossPnl": -951.72,
+              "fees": 1860.3374,
+              "netPnl": -2812.0574,
+              "averageNetPnl": -76.0016,
+              "payoffRatio": 0.3886008,
+              "profitFactor": 0.2960768,
+              "maximumDrawdown": 0.05461817,
+              "averageMfe": 0.00253334,
+              "averageMae": 0.00226063,
+              "exits": {
+                "takeProfit": 16,
+                "stopLoss": 21
+              }
+            },
+            "weak": {
+              "trades": 79,
+              "wins": 38,
+              "losses": 41,
+              "afterCostWinRate": 0.48101266,
+              "grossPnl": -311.1504,
+              "fees": 3816.7641,
+              "netPnl": -4127.9145,
+              "averageNetPnl": -52.2521,
+              "payoffRatio": 0.43316719,
+              "profitFactor": 0.40147203,
+              "maximumDrawdown": 0.08713404,
+              "averageMfe": 0.00232897,
+              "averageMae": 0.00190504,
+              "exits": {
+                "takeProfit": 38,
+                "stopLoss": 41
+              }
+            }
+          },
+          "rejectionReasons": {
+            "five-minute-direction": 33,
+            "ofi-not-confirmed": 33,
+            "insufficient-core-votes": 2,
+            "bullish-continuation": 1
+          },
+          "rejectedSignalCounterfactual": {
+            "signals": 69,
+            "metrics": {
+              "trades": 69,
+              "wins": 42,
+              "losses": 27,
+              "afterCostWinRate": 0.60869565,
+              "grossPnl": 2171.1968,
+              "fees": 3396.6326,
+              "netPnl": -1225.4358,
+              "averageNetPnl": -17.7599,
+              "payoffRatio": 0.48004203,
+              "profitFactor": 0.74673205,
+              "maximumDrawdown": 0.03391216,
+              "averageMfe": 0.00292321,
+              "averageMae": 0.00167417,
+              "exits": {
+                "stopLoss": 27,
+                "takeProfit": 42
+              }
+            }
+          }
+        },
+        "5bps": {
+          "slippageBpsPerSide": 5,
+          "candidateEvents": 273,
+          "formalSignals": 204,
+          "candidateToFormalRate": 0.74725275,
+          "targetClosureRate": 0.3627451,
+          "metrics": {
+            "trades": 204,
+            "wins": 75,
+            "losses": 129,
+            "afterCostWinRate": 0.36764706,
+            "grossPnl": -8839.1248,
+            "fees": 9979.6404,
+            "netPnl": -18818.7652,
+            "averageNetPnl": -92.2488,
+            "payoffRatio": 0.48101459,
+            "profitFactor": 0.27965965,
+            "maximumDrawdown": 0.32393352,
+            "averageMfe": 0.00283394,
+            "averageMae": 0.00218995,
+            "exits": {
+              "takeProfit": 74,
+              "timeout": 2,
+              "stopLoss": 128
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 105,
+              "wins": 34,
+              "losses": 71,
+              "afterCostWinRate": 0.32380952,
+              "grossPnl": -5889.952,
+              "fees": 5126.8663,
+              "netPnl": -11016.8183,
+              "averageNetPnl": -104.9221,
+              "payoffRatio": 0.4804585,
+              "profitFactor": 0.23007872,
+              "maximumDrawdown": 0.20407729,
+              "averageMfe": 0.00272903,
+              "averageMae": 0.00212514,
+              "exits": {
+                "takeProfit": 34,
+                "stopLoss": 71
+              }
+            },
+            "reverseT": {
+              "trades": 99,
+              "wins": 41,
+              "losses": 58,
+              "afterCostWinRate": 0.41414141,
+              "grossPnl": -2949.1728,
+              "fees": 4852.7741,
+              "netPnl": -7801.9469,
+              "averageNetPnl": -78.8075,
+              "payoffRatio": 0.48055473,
+              "profitFactor": 0.33970248,
+              "maximumDrawdown": 0.15058777,
+              "averageMfe": 0.00294522,
+              "averageMae": 0.0022587,
+              "exits": {
+                "timeout": 2,
+                "takeProfit": 40,
+                "stopLoss": 57
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 204,
+              "wins": 75,
+              "losses": 129,
+              "afterCostWinRate": 0.36764706,
+              "grossPnl": -8839.1248,
+              "fees": 9979.6404,
+              "netPnl": -18818.7652,
+              "averageNetPnl": -92.2488,
+              "payoffRatio": 0.48101459,
+              "profitFactor": 0.27965965,
+              "maximumDrawdown": 0.32393352,
+              "averageMfe": 0.00283394,
+              "averageMae": 0.00218995,
+              "exits": {
+                "takeProfit": 74,
+                "timeout": 2,
+                "stopLoss": 128
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 88,
+              "wins": 33,
+              "losses": 55,
+              "afterCostWinRate": 0.375,
+              "grossPnl": -3480.1984,
+              "fees": 4303.9555,
+              "netPnl": -7784.1539,
+              "averageNetPnl": -88.4563,
+              "payoffRatio": 0.49291494,
+              "profitFactor": 0.29574896,
+              "maximumDrawdown": 0.14847128,
+              "averageMfe": 0.00280108,
+              "averageMae": 0.00219482,
+              "exits": {
+                "stopLoss": 54,
+                "takeProfit": 33,
+                "timeout": 1
+              }
+            },
+            "strong": {
+              "trades": 37,
+              "wins": 13,
+              "losses": 24,
+              "afterCostWinRate": 0.35135135,
+              "grossPnl": -2108.5808,
+              "fees": 1860.0104,
+              "netPnl": -3968.5912,
+              "averageNetPnl": -107.2592,
+              "payoffRatio": 0.45083466,
+              "profitFactor": 0.24420211,
+              "maximumDrawdown": 0.07665143,
+              "averageMfe": 0.00297171,
+              "averageMae": 0.00243613,
+              "exits": {
+                "takeProfit": 13,
+                "stopLoss": 24
+              }
+            },
+            "weak": {
+              "trades": 79,
+              "wins": 29,
+              "losses": 50,
+              "afterCostWinRate": 0.36708861,
+              "grossPnl": -3250.3456,
+              "fees": 3815.6745,
+              "netPnl": -7066.0201,
+              "averageNetPnl": -89.4433,
+              "payoffRatio": 0.48363701,
+              "profitFactor": 0.28050947,
+              "maximumDrawdown": 0.14185837,
+              "averageMfe": 0.00280603,
+              "averageMae": 0.00206923,
+              "exits": {
+                "takeProfit": 28,
+                "timeout": 1,
+                "stopLoss": 50
+              }
+            }
+          },
+          "rejectionReasons": {
+            "five-minute-direction": 33,
+            "ofi-not-confirmed": 33,
+            "insufficient-core-votes": 2,
+            "bullish-continuation": 1
+          }
+        },
+        "10bps": {
+          "slippageBpsPerSide": 10,
+          "candidateEvents": 273,
+          "formalSignals": 204,
+          "candidateToFormalRate": 0.74725275,
+          "targetClosureRate": 0.28431373,
+          "metrics": {
+            "trades": 204,
+            "wins": 60,
+            "losses": 144,
+            "afterCostWinRate": 0.29411765,
+            "grossPnl": -17299.3728,
+            "fees": 9977.4733,
+            "netPnl": -27276.8461,
+            "averageNetPnl": -133.71,
+            "payoffRatio": 0.57109482,
+            "profitFactor": 0.23795617,
+            "maximumDrawdown": 0.4280685,
+            "averageMfe": 0.00335934,
+            "averageMae": 0.00234917,
+            "exits": {
+              "timeout": 6,
+              "stopLoss": 140,
+              "takeProfit": 58
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 105,
+              "wins": 27,
+              "losses": 78,
+              "afterCostWinRate": 0.25714286,
+              "grossPnl": -10309.5488,
+              "fees": 5126.1162,
+              "netPnl": -15435.665,
+              "averageNetPnl": -147.0063,
+              "payoffRatio": 0.57097051,
+              "profitFactor": 0.19764364,
+              "maximumDrawdown": 0.27092551,
+              "averageMfe": 0.00315131,
+              "averageMae": 0.00223827,
+              "exits": {
+                "timeout": 3,
+                "stopLoss": 76,
+                "takeProfit": 26
+              }
+            },
+            "reverseT": {
+              "trades": 99,
+              "wins": 33,
+              "losses": 66,
+              "afterCostWinRate": 0.33333333,
+              "grossPnl": -6989.824,
+              "fees": 4851.3571,
+              "netPnl": -11841.1811,
+              "averageNetPnl": -119.6079,
+              "payoffRatio": 0.56959561,
+              "profitFactor": 0.2847978,
+              "maximumDrawdown": 0.21556773,
+              "averageMfe": 0.00357997,
+              "averageMae": 0.00246678,
+              "exits": {
+                "timeout": 3,
+                "stopLoss": 64,
+                "takeProfit": 32
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 204,
+              "wins": 60,
+              "losses": 144,
+              "afterCostWinRate": 0.29411765,
+              "grossPnl": -17299.3728,
+              "fees": 9977.4733,
+              "netPnl": -27276.8461,
+              "averageNetPnl": -133.71,
+              "payoffRatio": 0.57109482,
+              "profitFactor": 0.23795617,
+              "maximumDrawdown": 0.4280685,
+              "averageMfe": 0.00335934,
+              "averageMae": 0.00234917,
+              "exits": {
+                "timeout": 6,
+                "stopLoss": 140,
+                "takeProfit": 58
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 88,
+              "wins": 24,
+              "losses": 64,
+              "afterCostWinRate": 0.27272727,
+              "grossPnl": -8284.8736,
+              "fees": 4302.7035,
+              "netPnl": -12587.5771,
+              "averageNetPnl": -143.0406,
+              "payoffRatio": 0.57832175,
+              "profitFactor": 0.21687066,
+              "maximumDrawdown": 0.22738341,
+              "averageMfe": 0.00337573,
+              "averageMae": 0.00248008,
+              "exits": {
+                "stopLoss": 63,
+                "takeProfit": 24,
+                "timeout": 1
+              }
+            },
+            "strong": {
+              "trades": 37,
+              "wins": 11,
+              "losses": 26,
+              "afterCostWinRate": 0.2972973,
+              "grossPnl": -3477.6688,
+              "fees": 1859.8159,
+              "netPnl": -5337.4847,
+              "averageNetPnl": -144.2563,
+              "payoffRatio": 0.55540427,
+              "profitFactor": 0.23497873,
+              "maximumDrawdown": 0.10299928,
+              "averageMfe": 0.00349129,
+              "averageMae": 0.0025481,
+              "exits": {
+                "takeProfit": 11,
+                "stopLoss": 26
+              }
+            },
+            "weak": {
+              "trades": 79,
+              "wins": 25,
+              "losses": 54,
+              "afterCostWinRate": 0.3164557,
+              "grossPnl": -5536.8304,
+              "fees": 3814.9539,
+              "netPnl": -9351.7843,
+              "averageNetPnl": -118.377,
+              "payoffRatio": 0.57494982,
+              "profitFactor": 0.26618047,
+              "maximumDrawdown": 0.17720618,
+              "averageMfe": 0.00327927,
+              "averageMae": 0.00211016,
+              "exits": {
+                "timeout": 5,
+                "stopLoss": 51,
+                "takeProfit": 23
+              }
+            }
+          },
+          "rejectionReasons": {
+            "five-minute-direction": 33,
+            "ofi-not-confirmed": 33,
+            "insufficient-core-votes": 2,
+            "bullish-continuation": 1
+          }
+        }
+      },
+      "rollingOutOfSample": {
+        "scope": "development-only-excludes-locked-test",
+        "fixedRuleNoRefit": true,
+        "folds": [
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250407",
+            "testStart": "20250408",
+            "testEnd": "20250508",
+            "trainDays": 60,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 58,
+              "wins": 25,
+              "losses": 33,
+              "afterCostWinRate": 0.43103448,
+              "grossPnl": -330.1312,
+              "fees": 1625.2456,
+              "netPnl": -1955.3768,
+              "averageNetPnl": -33.7134,
+              "payoffRatio": 0.70213522,
+              "profitFactor": 0.53192062,
+              "maximumDrawdown": 0.0707225,
+              "averageMfe": 0.00304998,
+              "averageMae": 0.00267184,
+              "exits": {
+                "takeProfit": 25,
+                "stopLoss": 30,
+                "timeout": 3
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250508",
+            "testStart": "20250509",
+            "testEnd": "20250606",
+            "trainDays": 80,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 56,
+              "wins": 15,
+              "losses": 41,
+              "afterCostWinRate": 0.26785714,
+              "grossPnl": -2291.408,
+              "fees": 1607.9469,
+              "netPnl": -3899.3549,
+              "averageNetPnl": -69.6313,
+              "payoffRatio": 0.63709992,
+              "profitFactor": 0.23308534,
+              "maximumDrawdown": 0.12889395,
+              "averageMfe": 0.00212725,
+              "averageMae": 0.00274469,
+              "exits": {
+                "stopLoss": 34,
+                "timeout": 9,
+                "takeProfit": 13
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250606",
+            "testStart": "20250609",
+            "testEnd": "20250704",
+            "trainDays": 100,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 58,
+              "wins": 23,
+              "losses": 35,
+              "afterCostWinRate": 0.39655172,
+              "grossPnl": -1220.9344,
+              "fees": 1772.0307,
+              "netPnl": -2992.9651,
+              "averageNetPnl": -51.6028,
+              "payoffRatio": 0.57367976,
+              "profitFactor": 0.37698956,
+              "maximumDrawdown": 0.09719063,
+              "averageMfe": 0.00281722,
+              "averageMae": 0.00250989,
+              "exits": {
+                "stopLoss": 33,
+                "takeProfit": 21,
+                "timeout": 4
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250704",
+            "testStart": "20250707",
+            "testEnd": "20250801",
+            "trainDays": 120,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 63,
+              "wins": 24,
+              "losses": 39,
+              "afterCostWinRate": 0.38095238,
+              "grossPnl": -866.9536,
+              "fees": 1967.1673,
+              "netPnl": -2834.1209,
+              "averageNetPnl": -44.986,
+              "payoffRatio": 0.65361088,
+              "profitFactor": 0.40222208,
+              "maximumDrawdown": 0.0873471,
+              "averageMfe": 0.00254844,
+              "averageMae": 0.00233538,
+              "exits": {
+                "stopLoss": 31,
+                "timeout": 10,
+                "takeProfit": 22
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250801",
+            "testStart": "20250804",
+            "testEnd": "20250829",
+            "trainDays": 140,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 54,
+              "wins": 19,
+              "losses": 35,
+              "afterCostWinRate": 0.35185185,
+              "grossPnl": -1657.904,
+              "fees": 1817.344,
+              "netPnl": -3475.248,
+              "averageNetPnl": -64.3564,
+              "payoffRatio": 0.56383455,
+              "profitFactor": 0.30608161,
+              "maximumDrawdown": 0.10124721,
+              "averageMfe": 0.00243355,
+              "averageMae": 0.00256686,
+              "exits": {
+                "takeProfit": 19,
+                "stopLoss": 35
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250829",
+            "testStart": "20250901",
+            "testEnd": "20250926",
+            "trainDays": 160,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 55,
+              "wins": 20,
+              "losses": 35,
+              "afterCostWinRate": 0.36363636,
+              "grossPnl": -1814.696,
+              "fees": 2233.2861,
+              "netPnl": -4047.9821,
+              "averageNetPnl": -73.5997,
+              "payoffRatio": 0.46508251,
+              "profitFactor": 0.26576144,
+              "maximumDrawdown": 0.09706863,
+              "averageMfe": 0.00226237,
+              "averageMae": 0.00231318,
+              "exits": {
+                "stopLoss": 35,
+                "takeProfit": 20
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250926",
+            "testStart": "20250929",
+            "testEnd": "20251105",
+            "trainDays": 180,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 52,
+              "wins": 24,
+              "losses": 28,
+              "afterCostWinRate": 0.46153846,
+              "grossPnl": -601.9072,
+              "fees": 2515.8845,
+              "netPnl": -3117.7917,
+              "averageNetPnl": -59.9575,
+              "payoffRatio": 0.4618105,
+              "profitFactor": 0.39583757,
+              "maximumDrawdown": 0.06586033,
+              "averageMfe": 0.00242331,
+              "averageMae": 0.00223213,
+              "exits": {
+                "takeProfit": 24,
+                "stopLoss": 28
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251105",
+            "testStart": "20251106",
+            "testEnd": "20251203",
+            "trainDays": 200,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 58,
+              "wins": 20,
+              "losses": 38,
+              "afterCostWinRate": 0.34482759,
+              "grossPnl": -2177.1712,
+              "fees": 2727.2023,
+              "netPnl": -4904.3735,
+              "averageNetPnl": -84.5582,
+              "payoffRatio": 0.4032585,
+              "profitFactor": 0.21224132,
+              "maximumDrawdown": 0.10215532,
+              "averageMfe": 0.00183945,
+              "averageMae": 0.00206258,
+              "exits": {
+                "stopLoss": 38,
+                "takeProfit": 20
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251203",
+            "testStart": "20251204",
+            "testEnd": "20251231",
+            "trainDays": 220,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 51,
+              "wins": 23,
+              "losses": 28,
+              "afterCostWinRate": 0.45098039,
+              "grossPnl": -391.84,
+              "fees": 2600.1285,
+              "netPnl": -2991.9684,
+              "averageNetPnl": -58.666,
+              "payoffRatio": 0.4635563,
+              "profitFactor": 0.38077839,
+              "maximumDrawdown": 0.07034997,
+              "averageMfe": 0.00213259,
+              "averageMae": 0.00199419,
+              "exits": {
+                "takeProfit": 23,
+                "stopLoss": 28
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251231",
+            "testStart": "20260105",
+            "testEnd": "20260130",
+            "trainDays": 240,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 52,
+              "wins": 29,
+              "losses": 23,
+              "afterCostWinRate": 0.55769231,
+              "grossPnl": 809.6448,
+              "fees": 3189.0039,
+              "netPnl": -2379.3591,
+              "averageNetPnl": -45.7569,
+              "payoffRatio": 0.44438476,
+              "profitFactor": 0.56031122,
+              "maximumDrawdown": 0.04058365,
+              "averageMfe": 0.00293657,
+              "averageMae": 0.00225243,
+              "exits": {
+                "takeProfit": 29,
+                "stopLoss": 23
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260130",
+            "testStart": "20260202",
+            "testEnd": "20260309",
+            "trainDays": 260,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 55,
+              "wins": 21,
+              "losses": 34,
+              "afterCostWinRate": 0.38181818,
+              "grossPnl": -1097.5904,
+              "fees": 3401.5969,
+              "netPnl": -4499.1872,
+              "averageNetPnl": -81.8034,
+              "payoffRatio": 0.5327736,
+              "profitFactor": 0.32906605,
+              "maximumDrawdown": 0.07960827,
+              "averageMfe": 0.00213144,
+              "averageMae": 0.00195085,
+              "exits": {
+                "takeProfit": 21,
+                "stopLoss": 34
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260309",
+            "testStart": "20260310",
+            "testEnd": "20260407",
+            "trainDays": 280,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 61,
+              "wins": 15,
+              "losses": 46,
+              "afterCostWinRate": 0.24590164,
+              "grossPnl": -3985.9056,
+              "fees": 3308.8842,
+              "netPnl": -7294.7898,
+              "averageNetPnl": -119.5867,
+              "payoffRatio": 0.41190727,
+              "profitFactor": 0.13431759,
+              "maximumDrawdown": 0.12733752,
+              "averageMfe": 0.00178331,
+              "averageMae": 0.002289,
+              "exits": {
+                "stopLoss": 46,
+                "takeProfit": 15
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260407",
+            "testStart": "20260408",
+            "testEnd": "20260416",
+            "trainDays": 300,
+            "testDays": 7,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 19,
+              "wins": 5,
+              "losses": 14,
+              "afterCostWinRate": 0.26315789,
+              "grossPnl": -990.3728,
+              "fees": 1052.0115,
+              "netPnl": -2042.3843,
+              "averageNetPnl": -107.4939,
+              "payoffRatio": 0.4502284,
+              "profitFactor": 0.16079586,
+              "maximumDrawdown": 0.04055706,
+              "averageMfe": 0.001667,
+              "averageMae": 0.00185958,
+              "exits": {
+                "takeProfit": 5,
+                "stopLoss": 14
+              }
+            }
+          }
+        ],
+        "aggregate": {
+          "trades": 692,
+          "wins": 263,
+          "losses": 429,
+          "afterCostWinRate": 0.3800578,
+          "grossPnl": -16617.1696,
+          "fees": 29817.7324,
+          "netPnl": -46434.9018,
+          "averageNetPnl": -67.1025,
+          "payoffRatio": 0.52582144,
+          "profitFactor": 0.32235673,
+          "maximumDrawdown": 0.67435703,
+          "averageMfe": 0.00235212,
+          "averageMae": 0.00231791,
+          "exits": {
+            "takeProfit": 257,
+            "stopLoss": 409,
+            "timeout": 26
+          }
+        }
+      }
+    },
+    "v2-standalone": {
+      "label": "V2 精简因子独立候选",
+      "factorIds": [
+        "vwap.bias",
+        "vwap.mean_reversion",
+        "volume.ratio_5_20",
+        "volume.price_alignment_5m",
+        "technical.macd_histogram",
+        "technical.macd_histogram_delta",
+        "orderflow.active_buy_imbalance",
+        "orderflow.ofi_change_3m",
+        "price.return_5m",
+        "volatility.atr14"
+      ],
+      "fullSample": {
+        "2bps": {
+          "slippageBpsPerSide": 2,
+          "candidateEvents": 1371,
+          "formalSignals": 1153,
+          "candidateToFormalRate": 0.84099198,
+          "targetClosureRate": 0.37727667,
+          "metrics": {
+            "trades": 1153,
+            "wins": 447,
+            "losses": 706,
+            "afterCostWinRate": 0.3876843,
+            "grossPnl": -25580.2432,
+            "fees": 47944.2662,
+            "netPnl": -73524.5092,
+            "averageNetPnl": -63.768,
+            "payoffRatio": 0.5276816,
+            "profitFactor": 0.33409869,
+            "maximumDrawdown": 0.83821828,
+            "averageMfe": 0.00242631,
+            "averageMae": 0.00235448,
+            "exits": {
+              "stopLoss": 673,
+              "takeProfit": 435,
+              "timeout": 45
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 576,
+              "wins": 213,
+              "losses": 363,
+              "afterCostWinRate": 0.36979167,
+              "grossPnl": -15120.3968,
+              "fees": 23731.2474,
+              "netPnl": -38851.6441,
+              "averageNetPnl": -67.4508,
+              "payoffRatio": 0.51587162,
+              "profitFactor": 0.30270153,
+              "maximumDrawdown": 0.62229326,
+              "averageMfe": 0.0023861,
+              "averageMae": 0.00233292,
+              "exits": {
+                "stopLoss": 344,
+                "takeProfit": 205,
+                "timeout": 27
+              }
+            },
+            "reverseT": {
+              "trades": 577,
+              "wins": 234,
+              "losses": 343,
+              "afterCostWinRate": 0.40554593,
+              "grossPnl": -10459.8464,
+              "fees": 24213.0188,
+              "netPnl": -34672.8651,
+              "averageNetPnl": -60.0916,
+              "payoffRatio": 0.53660747,
+              "profitFactor": 0.36608207,
+              "maximumDrawdown": 0.57284629,
+              "averageMfe": 0.00246645,
+              "averageMae": 0.002376,
+              "exits": {
+                "stopLoss": 329,
+                "takeProfit": 230,
+                "timeout": 18
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 732,
+              "wins": 279,
+              "losses": 453,
+              "afterCostWinRate": 0.38114754,
+              "grossPnl": -15475.136,
+              "fees": 25428.5646,
+              "netPnl": -40903.7005,
+              "averageNetPnl": -55.8794,
+              "payoffRatio": 0.57841201,
+              "profitFactor": 0.35624051,
+              "maximumDrawdown": 0.70277415,
+              "averageMfe": 0.0025216,
+              "averageMae": 0.00250638,
+              "exits": {
+                "stopLoss": 420,
+                "takeProfit": 267,
+                "timeout": 45
+              }
+            },
+            "2026": {
+              "trades": 421,
+              "wins": 168,
+              "losses": 253,
+              "afterCostWinRate": 0.39904988,
+              "grossPnl": -10105.1072,
+              "fees": 22515.7016,
+              "netPnl": -32620.8087,
+              "averageNetPnl": -77.4841,
+              "payoffRatio": 0.45793813,
+              "profitFactor": 0.3040854,
+              "maximumDrawdown": 0.45833237,
+              "averageMfe": 0.00226062,
+              "averageMae": 0.00209037,
+              "exits": {
+                "takeProfit": 168,
+                "stopLoss": 253
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 740,
+              "wins": 276,
+              "losses": 464,
+              "afterCostWinRate": 0.37297297,
+              "grossPnl": -17025.8224,
+              "fees": 28040.1926,
+              "netPnl": -45066.015,
+              "averageNetPnl": -60.9,
+              "payoffRatio": 0.56467045,
+              "profitFactor": 0.33588156,
+              "maximumDrawdown": 0.70483269,
+              "averageMfe": 0.00245155,
+              "averageMae": 0.00243516,
+              "exits": {
+                "stopLoss": 431,
+                "takeProfit": 265,
+                "timeout": 44
+              }
+            },
+            "strong": {
+              "trades": 183,
+              "wins": 82,
+              "losses": 101,
+              "afterCostWinRate": 0.44808743,
+              "grossPnl": -2528.3616,
+              "fees": 9141.9495,
+              "netPnl": -11670.3109,
+              "averageNetPnl": -63.7722,
+              "payoffRatio": 0.45063655,
+              "profitFactor": 0.36586334,
+              "maximumDrawdown": 0.21732149,
+              "averageMfe": 0.00246076,
+              "averageMae": 0.00216558,
+              "exits": {
+                "stopLoss": 101,
+                "takeProfit": 81,
+                "timeout": 1
+              }
+            },
+            "weak": {
+              "trades": 230,
+              "wins": 89,
+              "losses": 141,
+              "afterCostWinRate": 0.38695652,
+              "grossPnl": -6026.0592,
+              "fees": 10762.1241,
+              "netPnl": -16788.1833,
+              "averageNetPnl": -72.9921,
+              "payoffRatio": 0.48301983,
+              "profitFactor": 0.30488486,
+              "maximumDrawdown": 0.30068731,
+              "averageMfe": 0.00231768,
+              "averageMae": 0.00224521,
+              "exits": {
+                "stopLoss": 141,
+                "takeProfit": 89
+              }
+            }
+          },
+          "rejectionReasons": {
+            "ofi-not-confirmed": 135,
+            "five-minute-direction": 59,
+            "bearish-continuation": 3,
+            "insufficient-core-votes": 16,
+            "bullish-continuation": 5
+          },
+          "rejectedSignalCounterfactual": {
+            "signals": 218,
+            "metrics": {
+              "trades": 218,
+              "wins": 151,
+              "losses": 67,
+              "afterCostWinRate": 0.69266055,
+              "grossPnl": 10955.9632,
+              "fees": 9326.794,
+              "netPnl": 1629.1692,
+              "averageNetPnl": 7.4733,
+              "payoffRatio": 0.50759354,
+              "profitFactor": 1.14397946,
+              "maximumDrawdown": 0.04369031,
+              "averageMfe": 0.00355837,
+              "averageMae": 0.00148278,
+              "exits": {
+                "stopLoss": 61,
+                "takeProfit": 148,
+                "timeout": 9
+              }
+            }
+          }
+        },
+        "5bps": {
+          "slippageBpsPerSide": 5,
+          "candidateEvents": 1371,
+          "formalSignals": 1153,
+          "candidateToFormalRate": 0.84099198,
+          "targetClosureRate": 0.33217693,
+          "metrics": {
+            "trades": 1153,
+            "wins": 393,
+            "losses": 760,
+            "afterCostWinRate": 0.34084996,
+            "grossPnl": -55603.4128,
+            "fees": 47936.7359,
+            "netPnl": -103540.1487,
+            "averageNetPnl": -89.8006,
+            "payoffRatio": 0.48264625,
+            "profitFactor": 0.24957892,
+            "maximumDrawdown": 0.92152234,
+            "averageMfe": 0.00262562,
+            "averageMae": 0.00244298,
+            "exits": {
+              "stopLoss": 722,
+              "takeProfit": 383,
+              "timeout": 48
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 576,
+              "wins": 185,
+              "losses": 391,
+              "afterCostWinRate": 0.32118056,
+              "grossPnl": -30012.7696,
+              "fees": 23727.1989,
+              "netPnl": -53739.9685,
+              "averageNetPnl": -93.2986,
+              "payoffRatio": 0.48328509,
+              "profitFactor": 0.2286643,
+              "maximumDrawdown": 0.73622897,
+              "averageMfe": 0.00260848,
+              "averageMae": 0.00242329,
+              "exits": {
+                "stopLoss": 369,
+                "takeProfit": 179,
+                "timeout": 28
+              }
+            },
+            "reverseT": {
+              "trades": 577,
+              "wins": 208,
+              "losses": 369,
+              "afterCostWinRate": 0.36048527,
+              "grossPnl": -25590.6432,
+              "fees": 24209.537,
+              "netPnl": -49800.1802,
+              "averageNetPnl": -86.3088,
+              "payoffRatio": 0.48060825,
+              "profitFactor": 0.27091197,
+              "maximumDrawdown": 0.70307041,
+              "averageMfe": 0.00264272,
+              "averageMae": 0.00246265,
+              "exits": {
+                "stopLoss": 353,
+                "takeProfit": 204,
+                "timeout": 20
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 732,
+              "wins": 254,
+              "losses": 478,
+              "afterCostWinRate": 0.34699454,
+              "grossPnl": -32114.3712,
+              "fees": 25424.788,
+              "netPnl": -57539.1592,
+              "averageNetPnl": -78.6054,
+              "payoffRatio": 0.47542951,
+              "profitFactor": 0.25263409,
+              "maximumDrawdown": 0.81343591,
+              "averageMfe": 0.00263988,
+              "averageMae": 0.00256731,
+              "exits": {
+                "stopLoss": 441,
+                "takeProfit": 246,
+                "timeout": 45
+              }
+            },
+            "2026": {
+              "trades": 421,
+              "wins": 139,
+              "losses": 282,
+              "afterCostWinRate": 0.33016627,
+              "grossPnl": -23489.0416,
+              "fees": 22511.9479,
+              "netPnl": -46000.9895,
+              "averageNetPnl": -109.266,
+              "payoffRatio": 0.49851532,
+              "profitFactor": 0.24572209,
+              "maximumDrawdown": 0.58019024,
+              "averageMfe": 0.00260082,
+              "averageMae": 0.00222682,
+              "exits": {
+                "takeProfit": 137,
+                "stopLoss": 281,
+                "timeout": 3
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 740,
+              "wins": 249,
+              "losses": 491,
+              "afterCostWinRate": 0.33648649,
+              "grossPnl": -34818.4688,
+              "fees": 28035.8879,
+              "netPnl": -62854.3567,
+              "averageNetPnl": -84.9383,
+              "payoffRatio": 0.48022744,
+              "profitFactor": 0.24353693,
+              "maximumDrawdown": 0.81531099,
+              "averageMfe": 0.0026087,
+              "averageMae": 0.0025018,
+              "exits": {
+                "stopLoss": 454,
+                "takeProfit": 241,
+                "timeout": 45
+              }
+            },
+            "strong": {
+              "trades": 183,
+              "wins": 66,
+              "losses": 117,
+              "afterCostWinRate": 0.36065574,
+              "grossPnl": -8591.1872,
+              "fees": 9140.2483,
+              "netPnl": -17731.4355,
+              "averageNetPnl": -96.8931,
+              "payoffRatio": 0.49037875,
+              "profitFactor": 0.27662391,
+              "maximumDrawdown": 0.3070703,
+              "averageMfe": 0.00277102,
+              "averageMae": 0.00233394,
+              "exits": {
+                "stopLoss": 116,
+                "takeProfit": 66,
+                "timeout": 1
+              }
+            },
+            "weak": {
+              "trades": 230,
+              "wins": 78,
+              "losses": 152,
+              "afterCostWinRate": 0.33913043,
+              "grossPnl": -12193.7568,
+              "fees": 10760.5997,
+              "netPnl": -22954.3565,
+              "averageNetPnl": -99.8015,
+              "payoffRatio": 0.47603601,
+              "profitFactor": 0.24428164,
+              "maximumDrawdown": 0.38800151,
+              "averageMfe": 0.00256436,
+              "averageMae": 0.00234052,
+              "exits": {
+                "stopLoss": 152,
+                "takeProfit": 76,
+                "timeout": 2
+              }
+            }
+          },
+          "rejectionReasons": {
+            "ofi-not-confirmed": 135,
+            "five-minute-direction": 59,
+            "bearish-continuation": 3,
+            "insufficient-core-votes": 16,
+            "bullish-continuation": 5
+          }
+        },
+        "10bps": {
+          "slippageBpsPerSide": 10,
+          "candidateEvents": 1371,
+          "formalSignals": 1153,
+          "candidateToFormalRate": 0.84099198,
+          "targetClosureRate": 0.22376409,
+          "metrics": {
+            "trades": 1153,
+            "wins": 284,
+            "losses": 869,
+            "afterCostWinRate": 0.24631396,
+            "grossPnl": -109331.5888,
+            "fees": 47922.9578,
+            "netPnl": -157254.5465,
+            "averageNetPnl": -136.3873,
+            "payoffRatio": 0.52683681,
+            "profitFactor": 0.17217682,
+            "maximumDrawdown": 0.97874702,
+            "averageMfe": 0.00305382,
+            "averageMae": 0.00260898,
+            "exits": {
+              "stopLoss": 798,
+              "takeProfit": 258,
+              "timeout": 97
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 576,
+              "wins": 129,
+              "losses": 447,
+              "afterCostWinRate": 0.22395833,
+              "grossPnl": -56986.7872,
+              "fees": 23718.8386,
+              "netPnl": -80705.6258,
+              "averageNetPnl": -140.1139,
+              "payoffRatio": 0.53386047,
+              "profitFactor": 0.15406711,
+              "maximumDrawdown": 0.86462701,
+              "averageMfe": 0.00299737,
+              "averageMae": 0.00256395,
+              "exits": {
+                "stopLoss": 404,
+                "takeProfit": 117,
+                "timeout": 55
+              }
+            },
+            "reverseT": {
+              "trades": 577,
+              "wins": 155,
+              "losses": 422,
+              "afterCostWinRate": 0.26863085,
+              "grossPnl": -52344.8016,
+              "fees": 24204.1192,
+              "netPnl": -76548.9207,
+              "averageNetPnl": -132.6671,
+              "payoffRatio": 0.51851208,
+              "profitFactor": 0.19044875,
+              "maximumDrawdown": 0.84300431,
+              "averageMfe": 0.00311018,
+              "averageMae": 0.00265393,
+              "exits": {
+                "stopLoss": 394,
+                "takeProfit": 141,
+                "timeout": 42
+              }
+            }
+          },
+          "byYear": {
+            "2025": {
+              "trades": 732,
+              "wins": 182,
+              "losses": 550,
+              "afterCostWinRate": 0.24863388,
+              "grossPnl": -61899.5568,
+              "fees": 25416.9744,
+              "netPnl": -87316.5312,
+              "averageNetPnl": -119.2849,
+              "payoffRatio": 0.49132485,
+              "profitFactor": 0.16258386,
+              "maximumDrawdown": 0.92179874,
+              "averageMfe": 0.00306295,
+              "averageMae": 0.00272207,
+              "exits": {
+                "stopLoss": 486,
+                "takeProfit": 159,
+                "timeout": 87
+              }
+            },
+            "2026": {
+              "trades": 421,
+              "wins": 102,
+              "losses": 319,
+              "afterCostWinRate": 0.24228029,
+              "grossPnl": -47432.032,
+              "fees": 22505.9834,
+              "netPnl": -69938.0153,
+              "averageNetPnl": -166.1236,
+              "payoffRatio": 0.5749798,
+              "profitFactor": 0.18384934,
+              "maximumDrawdown": 0.72903713,
+              "averageMfe": 0.00303796,
+              "averageMae": 0.00241236,
+              "exits": {
+                "takeProfit": 99,
+                "stopLoss": 312,
+                "timeout": 10
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 740,
+              "wins": 180,
+              "losses": 560,
+              "afterCostWinRate": 0.24324324,
+              "grossPnl": -66939.016,
+              "fees": 28028.1816,
+              "netPnl": -94967.1976,
+              "averageNetPnl": -128.3341,
+              "payoffRatio": 0.51159351,
+              "profitFactor": 0.16444077,
+              "maximumDrawdown": 0.92260586,
+              "averageMfe": 0.00304465,
+              "averageMae": 0.00266915,
+              "exits": {
+                "stopLoss": 502,
+                "takeProfit": 159,
+                "timeout": 79
+              }
+            },
+            "strong": {
+              "trades": 183,
+              "wins": 42,
+              "losses": 141,
+              "afterCostWinRate": 0.2295082,
+              "grossPnl": -20471.72,
+              "fees": 9136.8595,
+              "netPnl": -29608.5794,
+              "averageNetPnl": -161.7955,
+              "payoffRatio": 0.57457664,
+              "profitFactor": 0.17115049,
+              "maximumDrawdown": 0.45230003,
+              "averageMfe": 0.00314205,
+              "averageMae": 0.00258153,
+              "exits": {
+                "stopLoss": 135,
+                "timeout": 8,
+                "takeProfit": 40
+              }
+            },
+            "weak": {
+              "trades": 230,
+              "wins": 62,
+              "losses": 168,
+              "afterCostWinRate": 0.26956522,
+              "grossPnl": -21920.8528,
+              "fees": 10757.9167,
+              "netPnl": -32678.7695,
+              "averageNetPnl": -142.0816,
+              "payoffRatio": 0.52770001,
+              "profitFactor": 0.19474643,
+              "maximumDrawdown": 0.4986178,
+              "averageMfe": 0.00301312,
+              "averageMae": 0.00243725,
+              "exits": {
+                "stopLoss": 161,
+                "takeProfit": 59,
+                "timeout": 10
+              }
+            }
+          },
+          "rejectionReasons": {
+            "ofi-not-confirmed": 135,
+            "five-minute-direction": 59,
+            "bearish-continuation": 3,
+            "insufficient-core-votes": 16,
+            "bullish-continuation": 5
+          }
+        }
+      },
+      "lockedTest": {
+        "2bps": {
+          "slippageBpsPerSide": 2,
+          "candidateEvents": 268,
+          "formalSignals": 222,
+          "candidateToFormalRate": 0.82835821,
+          "targetClosureRate": 0.43693694,
+          "metrics": {
+            "trades": 222,
+            "wins": 97,
+            "losses": 125,
+            "afterCostWinRate": 0.43693694,
+            "grossPnl": -3360.5792,
+            "fees": 10855.2505,
+            "netPnl": -14215.8297,
+            "averageNetPnl": -64.0353,
+            "payoffRatio": 0.44353416,
+            "profitFactor": 0.34418251,
+            "maximumDrawdown": 0.25581887,
+            "averageMfe": 0.00238471,
+            "averageMae": 0.00201869,
+            "exits": {
+              "takeProfit": 97,
+              "stopLoss": 125
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 111,
+              "wins": 45,
+              "losses": 66,
+              "afterCostWinRate": 0.40540541,
+              "grossPnl": -2641.016,
+              "fees": 5417.2307,
+              "netPnl": -8058.2467,
+              "averageNetPnl": -72.5968,
+              "payoffRatio": 0.42190095,
+              "profitFactor": 0.28765974,
+              "maximumDrawdown": 0.15624121,
+              "averageMfe": 0.00228017,
+              "averageMae": 0.00195016,
+              "exits": {
+                "takeProfit": 45,
+                "stopLoss": 66
+              }
+            },
+            "reverseT": {
+              "trades": 111,
+              "wins": 52,
+              "losses": 59,
+              "afterCostWinRate": 0.46846847,
+              "grossPnl": -719.5632,
+              "fees": 5438.0198,
+              "netPnl": -6157.583,
+              "averageNetPnl": -55.4737,
+              "payoffRatio": 0.46051373,
+              "profitFactor": 0.40587651,
+              "maximumDrawdown": 0.12043123,
+              "averageMfe": 0.00248924,
+              "averageMae": 0.00208722,
+              "exits": {
+                "takeProfit": 52,
+                "stopLoss": 59
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 222,
+              "wins": 97,
+              "losses": 125,
+              "afterCostWinRate": 0.43693694,
+              "grossPnl": -3360.5792,
+              "fees": 10855.2505,
+              "netPnl": -14215.8297,
+              "averageNetPnl": -64.0353,
+              "payoffRatio": 0.44353416,
+              "profitFactor": 0.34418251,
+              "maximumDrawdown": 0.25581887,
+              "averageMfe": 0.00238471,
+              "averageMae": 0.00201869,
+              "exits": {
+                "takeProfit": 97,
+                "stopLoss": 125
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 96,
+              "wins": 39,
+              "losses": 57,
+              "afterCostWinRate": 0.40625,
+              "grossPnl": -1903.968,
+              "fees": 4695.7676,
+              "netPnl": -6599.7356,
+              "averageNetPnl": -68.7472,
+              "payoffRatio": 0.47923912,
+              "profitFactor": 0.32790045,
+              "maximumDrawdown": 0.12766184,
+              "averageMfe": 0.00234823,
+              "averageMae": 0.00209879,
+              "exits": {
+                "stopLoss": 57,
+                "takeProfit": 39
+              }
+            },
+            "strong": {
+              "trades": 39,
+              "wins": 18,
+              "losses": 21,
+              "afterCostWinRate": 0.46153846,
+              "grossPnl": -672.8896,
+              "fees": 1960.6191,
+              "netPnl": -2633.5087,
+              "averageNetPnl": -67.5259,
+              "payoffRatio": 0.39126649,
+              "profitFactor": 0.33537128,
+              "maximumDrawdown": 0.05296983,
+              "averageMfe": 0.00263523,
+              "averageMae": 0.00213523,
+              "exits": {
+                "takeProfit": 18,
+                "stopLoss": 21
+              }
+            },
+            "weak": {
+              "trades": 87,
+              "wins": 40,
+              "losses": 47,
+              "afterCostWinRate": 0.45977011,
+              "grossPnl": -783.7216,
+              "fees": 4198.8638,
+              "netPnl": -4982.5854,
+              "averageNetPnl": -57.2711,
+              "payoffRatio": 0.43340733,
+              "profitFactor": 0.3688573,
+              "maximumDrawdown": 0.10170871,
+              "averageMfe": 0.00231265,
+              "averageMae": 0.00187807,
+              "exits": {
+                "takeProfit": 40,
+                "stopLoss": 47
+              }
+            }
+          },
+          "rejectionReasons": {
+            "five-minute-direction": 21,
+            "ofi-not-confirmed": 23,
+            "insufficient-core-votes": 2
+          },
+          "rejectedSignalCounterfactual": {
+            "signals": 46,
+            "metrics": {
+              "trades": 46,
+              "wins": 30,
+              "losses": 16,
+              "afterCostWinRate": 0.65217391,
+              "grossPnl": 1920.736,
+              "fees": 2257.662,
+              "netPnl": -336.926,
+              "averageNetPnl": -7.3245,
+              "payoffRatio": 0.46894835,
+              "profitFactor": 0.87927815,
+              "maximumDrawdown": 0.01760747,
+              "averageMfe": 0.00285938,
+              "averageMae": 0.00156965,
+              "exits": {
+                "stopLoss": 16,
+                "takeProfit": 30
+              }
+            }
+          }
+        },
+        "5bps": {
+          "slippageBpsPerSide": 5,
+          "candidateEvents": 268,
+          "formalSignals": 222,
+          "candidateToFormalRate": 0.82835821,
+          "targetClosureRate": 0.34684685,
+          "metrics": {
+            "trades": 222,
+            "wins": 79,
+            "losses": 143,
+            "afterCostWinRate": 0.35585586,
+            "grossPnl": -10287.7008,
+            "fees": 10853.4459,
+            "netPnl": -21141.1467,
+            "averageNetPnl": -95.2304,
+            "payoffRatio": 0.48146516,
+            "profitFactor": 0.26598425,
+            "maximumDrawdown": 0.35541945,
+            "averageMfe": 0.0027768,
+            "averageMae": 0.00215641,
+            "exits": {
+              "takeProfit": 77,
+              "timeout": 3,
+              "stopLoss": 142
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 111,
+              "wins": 36,
+              "losses": 75,
+              "afterCostWinRate": 0.32432432,
+              "grossPnl": -6171.0656,
+              "fees": 5416.2084,
+              "netPnl": -11587.274,
+              "averageNetPnl": -104.3899,
+              "payoffRatio": 0.47864476,
+              "profitFactor": 0.22974949,
+              "maximumDrawdown": 0.21502372,
+              "averageMfe": 0.00271902,
+              "averageMae": 0.00209705,
+              "exits": {
+                "takeProfit": 35,
+                "stopLoss": 75,
+                "timeout": 1
+              }
+            },
+            "reverseT": {
+              "trades": 111,
+              "wins": 43,
+              "losses": 68,
+              "afterCostWinRate": 0.38738739,
+              "grossPnl": -4116.6352,
+              "fees": 5437.2375,
+              "netPnl": -9553.8727,
+              "averageNetPnl": -86.0709,
+              "payoffRatio": 0.48327948,
+              "profitFactor": 0.3056032,
+              "maximumDrawdown": 0.1804882,
+              "averageMfe": 0.00283457,
+              "averageMae": 0.00221577,
+              "exits": {
+                "timeout": 2,
+                "takeProfit": 42,
+                "stopLoss": 67
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 222,
+              "wins": 79,
+              "losses": 143,
+              "afterCostWinRate": 0.35585586,
+              "grossPnl": -10287.7008,
+              "fees": 10853.4459,
+              "netPnl": -21141.1467,
+              "averageNetPnl": -95.2304,
+              "payoffRatio": 0.48146516,
+              "profitFactor": 0.26598425,
+              "maximumDrawdown": 0.35541945,
+              "averageMfe": 0.0027768,
+              "averageMae": 0.00215641,
+              "exits": {
+                "takeProfit": 77,
+                "timeout": 3,
+                "stopLoss": 142
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 96,
+              "wins": 33,
+              "losses": 63,
+              "afterCostWinRate": 0.34375,
+              "grossPnl": -4624.1776,
+              "fees": 4695.1319,
+              "netPnl": -9319.3095,
+              "averageNetPnl": -97.0761,
+              "payoffRatio": 0.49687486,
+              "profitFactor": 0.26026778,
+              "maximumDrawdown": 0.17535008,
+              "averageMfe": 0.00266384,
+              "averageMae": 0.00218473,
+              "exits": {
+                "stopLoss": 62,
+                "takeProfit": 33,
+                "timeout": 1
+              }
+            },
+            "strong": {
+              "trades": 39,
+              "wins": 14,
+              "losses": 25,
+              "afterCostWinRate": 0.35897436,
+              "grossPnl": -2054.1936,
+              "fees": 1960.3895,
+              "netPnl": -4014.5831,
+              "averageNetPnl": -102.938,
+              "payoffRatio": 0.45963169,
+              "profitFactor": 0.25739375,
+              "maximumDrawdown": 0.07988391,
+              "averageMfe": 0.0030499,
+              "averageMae": 0.00231827,
+              "exits": {
+                "takeProfit": 14,
+                "stopLoss": 25
+              }
+            },
+            "weak": {
+              "trades": 87,
+              "wins": 32,
+              "losses": 55,
+              "afterCostWinRate": 0.36781609,
+              "grossPnl": -3609.3296,
+              "fees": 4197.9245,
+              "netPnl": -7807.2541,
+              "averageNetPnl": -89.7386,
+              "payoffRatio": 0.47601622,
+              "profitFactor": 0.27695489,
+              "maximumDrawdown": 0.15387593,
+              "averageMfe": 0.00277901,
+              "averageMae": 0.00205261,
+              "exits": {
+                "takeProfit": 30,
+                "timeout": 2,
+                "stopLoss": 55
+              }
+            }
+          },
+          "rejectionReasons": {
+            "five-minute-direction": 21,
+            "ofi-not-confirmed": 23,
+            "insufficient-core-votes": 2
+          }
+        },
+        "10bps": {
+          "slippageBpsPerSide": 10,
+          "candidateEvents": 268,
+          "formalSignals": 222,
+          "candidateToFormalRate": 0.82835821,
+          "targetClosureRate": 0.26126126,
+          "metrics": {
+            "trades": 222,
+            "wins": 61,
+            "losses": 161,
+            "afterCostWinRate": 0.27477477,
+            "grossPnl": -20546.8768,
+            "fees": 10850.5659,
+            "netPnl": -31397.4427,
+            "averageNetPnl": -141.4299,
+            "payoffRatio": 0.56203988,
+            "profitFactor": 0.21294679,
+            "maximumDrawdown": 0.47341579,
+            "averageMfe": 0.00325511,
+            "averageMae": 0.0023198,
+            "exits": {
+              "timeout": 8,
+              "stopLoss": 156,
+              "takeProfit": 58
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "trades": 111,
+              "wins": 27,
+              "losses": 84,
+              "afterCostWinRate": 0.24324324,
+              "grossPnl": -11605.9856,
+              "fees": 5414.8415,
+              "netPnl": -17020.8271,
+              "averageNetPnl": -153.3408,
+              "payoffRatio": 0.54813705,
+              "profitFactor": 0.17618691,
+              "maximumDrawdown": 0.29299763,
+              "averageMfe": 0.00310558,
+              "averageMae": 0.00222349,
+              "exits": {
+                "timeout": 5,
+                "stopLoss": 81,
+                "takeProfit": 25
+              }
+            },
+            "reverseT": {
+              "trades": 111,
+              "wins": 34,
+              "losses": 77,
+              "afterCostWinRate": 0.30630631,
+              "grossPnl": -8940.8912,
+              "fees": 5435.7244,
+              "netPnl": -14376.6156,
+              "averageNetPnl": -129.5191,
+              "payoffRatio": 0.57170098,
+              "profitFactor": 0.25243939,
+              "maximumDrawdown": 0.25521606,
+              "averageMfe": 0.00340465,
+              "averageMae": 0.00241611,
+              "exits": {
+                "timeout": 3,
+                "stopLoss": 75,
+                "takeProfit": 33
+              }
+            }
+          },
+          "byYear": {
+            "2026": {
+              "trades": 222,
+              "wins": 61,
+              "losses": 161,
+              "afterCostWinRate": 0.27477477,
+              "grossPnl": -20546.8768,
+              "fees": 10850.5659,
+              "netPnl": -31397.4427,
+              "averageNetPnl": -141.4299,
+              "payoffRatio": 0.56203988,
+              "profitFactor": 0.21294679,
+              "maximumDrawdown": 0.47341579,
+              "averageMfe": 0.00325511,
+              "averageMae": 0.0023198,
+              "exits": {
+                "timeout": 8,
+                "stopLoss": 156,
+                "takeProfit": 58
+              }
+            }
+          },
+          "byMarketRegime": {
+            "range": {
+              "trades": 96,
+              "wins": 25,
+              "losses": 71,
+              "afterCostWinRate": 0.26041667,
+              "grossPnl": -9448.056,
+              "fees": 4693.9629,
+              "netPnl": -14142.0189,
+              "averageNetPnl": -147.3127,
+              "payoffRatio": 0.58059415,
+              "profitFactor": 0.20443456,
+              "maximumDrawdown": 0.25167768,
+              "averageMfe": 0.00322442,
+              "averageMae": 0.00240805,
+              "exits": {
+                "stopLoss": 70,
+                "takeProfit": 25,
+                "timeout": 1
+              }
+            },
+            "strong": {
+              "trades": 39,
+              "wins": 10,
+              "losses": 29,
+              "afterCostWinRate": 0.25641026,
+              "grossPnl": -4258.8352,
+              "fees": 1959.6185,
+              "netPnl": -6218.4537,
+              "averageNetPnl": -159.4475,
+              "payoffRatio": 0.56011093,
+              "profitFactor": 0.1931417,
+              "maximumDrawdown": 0.11862599,
+              "averageMfe": 0.00348591,
+              "averageMae": 0.00257372,
+              "exits": {
+                "takeProfit": 10,
+                "stopLoss": 29
+              }
+            },
+            "weak": {
+              "trades": 87,
+              "wins": 26,
+              "losses": 61,
+              "afterCostWinRate": 0.29885057,
+              "grossPnl": -6839.9856,
+              "fees": 4196.9845,
+              "netPnl": -11036.9701,
+              "averageNetPnl": -126.8617,
+              "payoffRatio": 0.54909583,
+              "profitFactor": 0.23404085,
+              "maximumDrawdown": 0.2039823,
+              "averageMfe": 0.00318553,
+              "averageMae": 0.0021086,
+              "exits": {
+                "timeout": 7,
+                "stopLoss": 57,
+                "takeProfit": 23
+              }
+            }
+          },
+          "rejectionReasons": {
+            "five-minute-direction": 21,
+            "ofi-not-confirmed": 23,
+            "insufficient-core-votes": 2
+          }
+        }
+      },
+      "rollingOutOfSample": {
+        "scope": "development-only-excludes-locked-test",
+        "fixedRuleNoRefit": true,
+        "folds": [
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250407",
+            "testStart": "20250408",
+            "testEnd": "20250508",
+            "trainDays": 60,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 59,
+              "wins": 25,
+              "losses": 34,
+              "afterCostWinRate": 0.42372881,
+              "grossPnl": -372.096,
+              "fees": 1650.1469,
+              "netPnl": -2022.2429,
+              "averageNetPnl": -34.2753,
+              "payoffRatio": 0.7127803,
+              "profitFactor": 0.52410316,
+              "maximumDrawdown": 0.0725179,
+              "averageMfe": 0.00305618,
+              "averageMae": 0.00274587,
+              "exits": {
+                "takeProfit": 25,
+                "stopLoss": 30,
+                "timeout": 4
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250508",
+            "testStart": "20250509",
+            "testEnd": "20250606",
+            "trainDays": 80,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 61,
+              "wins": 16,
+              "losses": 45,
+              "afterCostWinRate": 0.26229508,
+              "grossPnl": -2445.3024,
+              "fees": 1752.6444,
+              "netPnl": -4197.9468,
+              "averageNetPnl": -68.8188,
+              "payoffRatio": 0.65478122,
+              "profitFactor": 0.2328111,
+              "maximumDrawdown": 0.13763608,
+              "averageMfe": 0.00214437,
+              "averageMae": 0.00279912,
+              "exits": {
+                "stopLoss": 36,
+                "timeout": 11,
+                "takeProfit": 14
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250606",
+            "testStart": "20250609",
+            "testEnd": "20250704",
+            "trainDays": 100,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 60,
+              "wins": 24,
+              "losses": 36,
+              "afterCostWinRate": 0.4,
+              "grossPnl": -1213.6768,
+              "fees": 1833.8885,
+              "netPnl": -3047.5653,
+              "averageNetPnl": -50.7928,
+              "payoffRatio": 0.57461219,
+              "profitFactor": 0.38307479,
+              "maximumDrawdown": 0.10159161,
+              "averageMfe": 0.00284026,
+              "averageMae": 0.00254861,
+              "exits": {
+                "stopLoss": 34,
+                "takeProfit": 22,
+                "timeout": 4
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250704",
+            "testStart": "20250707",
+            "testEnd": "20250801",
+            "trainDays": 120,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 70,
+              "wins": 25,
+              "losses": 45,
+              "afterCostWinRate": 0.35714286,
+              "grossPnl": -1258.5792,
+              "fees": 2186.1333,
+              "netPnl": -3444.7125,
+              "averageNetPnl": -49.2102,
+              "payoffRatio": 0.65909373,
+              "profitFactor": 0.36616318,
+              "maximumDrawdown": 0.10524993,
+              "averageMfe": 0.00247361,
+              "averageMae": 0.00244505,
+              "exits": {
+                "stopLoss": 36,
+                "timeout": 11,
+                "takeProfit": 23
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250801",
+            "testStart": "20250804",
+            "testEnd": "20250829",
+            "trainDays": 140,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 59,
+              "wins": 24,
+              "losses": 35,
+              "afterCostWinRate": 0.40677966,
+              "grossPnl": -1083.3952,
+              "fees": 1981.2155,
+              "netPnl": -3064.6107,
+              "averageNetPnl": -51.9426,
+              "payoffRatio": 0.56627046,
+              "profitFactor": 0.38829974,
+              "maximumDrawdown": 0.09206659,
+              "averageMfe": 0.00253569,
+              "averageMae": 0.00247053,
+              "exits": {
+                "takeProfit": 24,
+                "stopLoss": 35
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250829",
+            "testStart": "20250901",
+            "testEnd": "20250926",
+            "trainDays": 160,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 57,
+              "wins": 20,
+              "losses": 37,
+              "afterCostWinRate": 0.35087719,
+              "grossPnl": -2038.728,
+              "fees": 2313.3102,
+              "netPnl": -4352.0382,
+              "averageNetPnl": -76.3515,
+              "payoffRatio": 0.4654701,
+              "profitFactor": 0.25160546,
+              "maximumDrawdown": 0.10408548,
+              "averageMfe": 0.00224962,
+              "averageMae": 0.00235187,
+              "exits": {
+                "stopLoss": 37,
+                "takeProfit": 20
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20250926",
+            "testStart": "20250929",
+            "testEnd": "20251105",
+            "trainDays": 180,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 58,
+              "wins": 27,
+              "losses": 31,
+              "afterCostWinRate": 0.46551724,
+              "grossPnl": -514.4832,
+              "fees": 2803.4542,
+              "netPnl": -3317.9374,
+              "averageNetPnl": -57.2058,
+              "payoffRatio": 0.47440442,
+              "profitFactor": 0.41319095,
+              "maximumDrawdown": 0.06999443,
+              "averageMfe": 0.00241829,
+              "averageMae": 0.0021546,
+              "exits": {
+                "takeProfit": 27,
+                "stopLoss": 31
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251105",
+            "testStart": "20251106",
+            "testEnd": "20251203",
+            "trainDays": 200,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 65,
+              "wins": 24,
+              "losses": 41,
+              "afterCostWinRate": 0.36923077,
+              "grossPnl": -2063.4768,
+              "fees": 3053.3849,
+              "netPnl": -5116.8617,
+              "averageNetPnl": -78.7209,
+              "payoffRatio": 0.40473557,
+              "profitFactor": 0.23691839,
+              "maximumDrawdown": 0.10776459,
+              "averageMfe": 0.00189626,
+              "averageMae": 0.00199952,
+              "exits": {
+                "stopLoss": 41,
+                "takeProfit": 24
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251203",
+            "testStart": "20251204",
+            "testEnd": "20251231",
+            "trainDays": 220,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 58,
+              "wins": 25,
+              "losses": 33,
+              "afterCostWinRate": 0.43103448,
+              "grossPnl": -762.768,
+              "fees": 2948.7408,
+              "netPnl": -3711.5087,
+              "averageNetPnl": -63.9915,
+              "payoffRatio": 0.45694891,
+              "profitFactor": 0.34617342,
+              "maximumDrawdown": 0.07871856,
+              "averageMfe": 0.00202868,
+              "averageMae": 0.00192247,
+              "exits": {
+                "takeProfit": 25,
+                "stopLoss": 33
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20251231",
+            "testStart": "20260105",
+            "testEnd": "20260130",
+            "trainDays": 240,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 58,
+              "wins": 30,
+              "losses": 28,
+              "afterCostWinRate": 0.51724138,
+              "grossPnl": 162.5136,
+              "fees": 3554.1,
+              "netPnl": -3391.5864,
+              "averageNetPnl": -58.4756,
+              "payoffRatio": 0.44396262,
+              "profitFactor": 0.47567423,
+              "maximumDrawdown": 0.0559685,
+              "averageMfe": 0.00273786,
+              "averageMae": 0.00226309,
+              "exits": {
+                "takeProfit": 30,
+                "stopLoss": 28
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260130",
+            "testStart": "20260202",
+            "testEnd": "20260309",
+            "trainDays": 260,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 59,
+              "wins": 22,
+              "losses": 37,
+              "afterCostWinRate": 0.37288136,
+              "grossPnl": -1419.448,
+              "fees": 3641.5933,
+              "netPnl": -5061.0412,
+              "averageNetPnl": -85.7804,
+              "payoffRatio": 0.52113087,
+              "profitFactor": 0.3098616,
+              "maximumDrawdown": 0.08323037,
+              "averageMfe": 0.00206613,
+              "averageMae": 0.00196619,
+              "exits": {
+                "takeProfit": 22,
+                "stopLoss": 37
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260309",
+            "testStart": "20260310",
+            "testEnd": "20260407",
+            "trainDays": 280,
+            "testDays": 20,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 63,
+              "wins": 14,
+              "losses": 49,
+              "afterCostWinRate": 0.22222222,
+              "grossPnl": -4499.2464,
+              "fees": 3413.1075,
+              "netPnl": -7912.3539,
+              "averageNetPnl": -125.5929,
+              "payoffRatio": 0.41058141,
+              "profitFactor": 0.11730898,
+              "maximumDrawdown": 0.13724049,
+              "averageMfe": 0.00180099,
+              "averageMae": 0.00237405,
+              "exits": {
+                "stopLoss": 49,
+                "takeProfit": 14
+              }
+            }
+          },
+          {
+            "trainStart": "20250102",
+            "trainThrough": "20260407",
+            "testStart": "20260408",
+            "testEnd": "20260416",
+            "trainDays": 300,
+            "testDays": 7,
+            "fixedRuleNoRefit": true,
+            "timeOrdered": true,
+            "result": {
+              "trades": 19,
+              "wins": 5,
+              "losses": 14,
+              "afterCostWinRate": 0.26315789,
+              "grossPnl": -988.3472,
+              "fees": 1051.6503,
+              "netPnl": -2039.9975,
+              "averageNetPnl": -107.3683,
+              "payoffRatio": 0.4517858,
+              "profitFactor": 0.16135207,
+              "maximumDrawdown": 0.04191752,
+              "averageMfe": 0.00148196,
+              "averageMae": 0.00184568,
+              "exits": {
+                "takeProfit": 5,
+                "stopLoss": 14
+              }
+            }
+          }
+        ],
+        "aggregate": {
+          "trades": 746,
+          "wins": 281,
+          "losses": 465,
+          "afterCostWinRate": 0.3766756,
+          "grossPnl": -18497.0336,
+          "fees": 32183.3698,
+          "netPnl": -50680.4032,
+          "averageNetPnl": -67.9362,
+          "payoffRatio": 0.52385467,
+          "profitFactor": 0.31656594,
+          "maximumDrawdown": 0.70209028,
+          "averageMfe": 0.00232711,
+          "averageMae": 0.00232571,
+          "exits": {
+            "takeProfit": 275,
+            "stopLoss": 441,
+            "timeout": 30
+          }
+        }
+      }
+    }
+  },
+  "promotionReview": {
+    "gates": {
+      "minimumClosures100": true,
+      "lockedTestNetPositive": false,
+      "lockedTestProfitFactor": false,
+      "lockedTestWinRate": false,
+      "stress5BpsNetPositive": false,
+      "drawdownNoWorseThanReconstructedV1": true
+    },
+    "passed": false,
+    "status": "continue-shadow-research",
+    "automaticPromotion": false,
+    "warning": "V1 is a reconstructed comparison baseline, not a preserved historical artifact."
+  }
+}

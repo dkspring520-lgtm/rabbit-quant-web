@@ -1,0 +1,626 @@
+{
+  "mode": "zijin-v29-zuot-confirmation-ab",
+  "engineVersion": "1.1.0-research",
+  "researchOnly": true,
+  "symbol": "601899.SH",
+  "safety": {
+    "affectsSmartT": false,
+    "affectsTradingAdapter": false,
+    "affectsProductionStrategy": false,
+    "automaticPromotion": false
+  },
+  "comparison": {
+    "control": "V2.9 recorded trades unchanged",
+    "variantA": "V2.9 retained only when causal five-minute direction passes and continuation is not vetoed",
+    "variantB": "Variant A plus VWAP, volume, MACD and OFI compact confirmation",
+    "openingVariantA": "V2.9 opening trades retained unless causal decision-time positive-T active-buy flow collapses",
+    "openingVariantB": "Opening Variant A plus positive-T price/flow divergence veto; reverse-T remains unchanged",
+    "variantBehavior": "Variants can only retain or reject an existing V2.9 trade; recorded entry, exit, fees and PnL are never changed"
+  },
+  "config": {
+    "maximumOpposingReturn5m": 0.004,
+    "continuationReturn5m": 0.002,
+    "continuationVolumeRatio": 1.15,
+    "minimumVwapBias": 0.0005,
+    "minimumVolumeRatio": 0.75,
+    "maximumOpposingVolumeAlignment": 0.35,
+    "minimumOfiImbalance": 0.02,
+    "minimumOfiChange": 0,
+    "minimumCompactVotes": 3,
+    "missingConfirmationPolicy": "reject",
+    "openingMinimumEvidencePoints": 3,
+    "positiveCollapseMaximumActiveBuyRatio": 0.25,
+    "positiveCollapseMaximumActiveBuyRatioChange": -0.13,
+    "positiveCollapseMaximumMicropriceEdgeBps": 3,
+    "positiveDivergenceMaximumActiveBuyRatio": 0.25,
+    "positiveDivergenceMaximumMicropriceEdgeBps": 1,
+    "positiveDivergenceMinimumPriceResponseBps": 15,
+    "splitRatios": {
+      "train": 0.6,
+      "validation": 0.2,
+      "test": 0.2
+    }
+  },
+  "dataset": {
+    "minuteDataPath": "E:\\zijin-l2\\601899-factor-minute-ohlc-v1.jsonl",
+    "minuteChecksum": "5a53421170e83abf5818ca9b9f744f243ecdfb8e21b5f4ce00d90204eb191dd2",
+    "ledgerPath": "E:\\zijin-l2\\research-results\\zijin-v29-zuot-ab-base-samples.jsonl",
+    "ledgerChecksum": "936db1030f73280ecbf251d017b2c787416d8d6b3a6a0acf6cc14803da8ebb73",
+    "baseReportPath": "E:\\zijin-l2\\research-results\\zijin-v29-zuot-ab-base.json",
+    "baseReportCommit": "45f43efd3f11e24962b2bb24e05fc3b868dc4c6b",
+    "sessions": 384,
+    "firstDate": "20250102",
+    "lastDate": "20260807"
+  },
+  "reproducibility": {
+    "gitCommit": "45f43efd3f11e24962b2bb24e05fc3b868dc4c6b",
+    "asOf": "2026-08-15T00:43:11.114Z",
+    "factorEngineVersion": "1.1.0",
+    "factorIds": [
+      "vwap.bias",
+      "volume.ratio_5_20",
+      "volume.price_alignment_5m",
+      "technical.macd_histogram",
+      "technical.macd_histogram_delta",
+      "orderflow.active_buy_imbalance",
+      "orderflow.ofi_change_3m",
+      "price.return_5m"
+    ]
+  },
+  "eligibility": {
+    "controlTrades": 41,
+    "tradesWithCompletedPriorMinute": 0,
+    "tradesWithCausalFiveMinuteDirection": 0,
+    "openingDecisionTrades": 41,
+    "tradesWithCausalOpeningEvidence": 41,
+    "openingEvidencePointDistribution": {
+      "3": 20,
+      "4": 1,
+      "6": 11,
+      "7": 1,
+      "9": 8
+    },
+    "missingOfiTrades": 0,
+    "conclusion": "No V2.9 executed trade had a completed five-minute direction window before its decision; A/B effectiveness is not estimable from this ledger."
+  },
+  "antiLeakage": {
+    "usesLastFullyCompletedMinuteOnly": true,
+    "currentIncompleteMinuteExcluded": true,
+    "openingEvidenceThroughDecisionSecondOnly": true,
+    "openingEvidenceAfterDecisionIgnored": 0,
+    "missingFactorValuesRemainMissing": true,
+    "futureLeakageViolations": 0,
+    "openingLeakageViolations": 0,
+    "pass": true
+  },
+  "researchValidity": {
+    "classification": "historical-diagnostic-hypothesis-only",
+    "cleanHeldOutClaim": false,
+    "reason": "All 41 historical outcomes were inspected during this optimization cycle; chronological splits are descriptive and a new forward sample is required.",
+    "requiredNextValidation": "Freeze these rules and collect unseen forward opening samples without threshold changes."
+  },
+  "results": {
+    "control": {
+      "all": {
+        "closedTrades": 41,
+        "wins": 38,
+        "losses": 3,
+        "winRate": 0.92682927,
+        "netPnl": 2776.3385,
+        "fees": 1878.8635,
+        "profitFactor": 4.286329,
+        "maximumDrawdown": 367.9861,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 19,
+            "winRate": 0.84210526,
+            "netPnl": 719.6608,
+            "profitFactor": 1.85185663
+          },
+          "reverseT": {
+            "closedTrades": 22,
+            "winRate": 1,
+            "netPnl": 2056.6776,
+            "profitFactor": null
+          }
+        }
+      },
+      "train": {
+        "closedTrades": 16,
+        "wins": 15,
+        "losses": 1,
+        "winRate": 0.9375,
+        "netPnl": 997.9277,
+        "fees": 535.8603,
+        "profitFactor": 7.51589242,
+        "maximumDrawdown": 153.1529,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 4,
+            "winRate": 0.75,
+            "netPnl": 50.8377,
+            "profitFactor": 1.33194096
+          },
+          "reverseT": {
+            "closedTrades": 12,
+            "winRate": 1,
+            "netPnl": 947.09,
+            "profitFactor": null
+          }
+        }
+      },
+      "validation": {
+        "closedTrades": 13,
+        "wins": 12,
+        "losses": 1,
+        "winRate": 0.92307692,
+        "netPnl": 1058.7589,
+        "fees": 770.1584,
+        "profitFactor": 3.87717137,
+        "maximumDrawdown": 367.9861,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 7,
+            "winRate": 0.85714286,
+            "netPnl": 306.8785,
+            "profitFactor": 1.83394052
+          },
+          "reverseT": {
+            "closedTrades": 6,
+            "winRate": 1,
+            "netPnl": 751.8805,
+            "profitFactor": null
+          }
+        }
+      },
+      "test": {
+        "closedTrades": 12,
+        "wins": 11,
+        "losses": 1,
+        "winRate": 0.91666667,
+        "netPnl": 719.6518,
+        "fees": 572.8448,
+        "profitFactor": 3.22337388,
+        "maximumDrawdown": 323.6756,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 8,
+            "winRate": 0.875,
+            "netPnl": 361.9447,
+            "profitFactor": 2.11823279
+          },
+          "reverseT": {
+            "closedTrades": 4,
+            "winRate": 1,
+            "netPnl": 357.7072,
+            "profitFactor": null
+          }
+        }
+      }
+    },
+    "variantA": {
+      "all": {
+        "closedTrades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": null,
+        "netPnl": 0,
+        "fees": 0,
+        "profitFactor": 0,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          },
+          "reverseT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          }
+        }
+      },
+      "train": {
+        "closedTrades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": null,
+        "netPnl": 0,
+        "fees": 0,
+        "profitFactor": 0,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          },
+          "reverseT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          }
+        }
+      },
+      "validation": {
+        "closedTrades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": null,
+        "netPnl": 0,
+        "fees": 0,
+        "profitFactor": 0,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          },
+          "reverseT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          }
+        }
+      },
+      "test": {
+        "closedTrades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": null,
+        "netPnl": 0,
+        "fees": 0,
+        "profitFactor": 0,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          },
+          "reverseT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          }
+        }
+      }
+    },
+    "variantB": {
+      "all": {
+        "closedTrades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": null,
+        "netPnl": 0,
+        "fees": 0,
+        "profitFactor": 0,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          },
+          "reverseT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          }
+        }
+      },
+      "train": {
+        "closedTrades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": null,
+        "netPnl": 0,
+        "fees": 0,
+        "profitFactor": 0,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          },
+          "reverseT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          }
+        }
+      },
+      "validation": {
+        "closedTrades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": null,
+        "netPnl": 0,
+        "fees": 0,
+        "profitFactor": 0,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          },
+          "reverseT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          }
+        }
+      },
+      "test": {
+        "closedTrades": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": null,
+        "netPnl": 0,
+        "fees": 0,
+        "profitFactor": 0,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          },
+          "reverseT": {
+            "closedTrades": 0,
+            "winRate": null,
+            "netPnl": 0,
+            "profitFactor": 0
+          }
+        }
+      }
+    },
+    "openingVariantA": {
+      "all": {
+        "closedTrades": 39,
+        "wins": 38,
+        "losses": 1,
+        "winRate": 0.97435897,
+        "netPnl": 3297.4774,
+        "fees": 1794.3486,
+        "profitFactor": 11.18759991,
+        "maximumDrawdown": 323.6756,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 17,
+            "winRate": 0.94117647,
+            "netPnl": 1240.7998,
+            "profitFactor": 4.8334673
+          },
+          "reverseT": {
+            "closedTrades": 22,
+            "winRate": 1,
+            "netPnl": 2056.6776,
+            "profitFactor": null
+          }
+        }
+      },
+      "train": {
+        "closedTrades": 15,
+        "wins": 15,
+        "losses": 0,
+        "winRate": 1,
+        "netPnl": 1151.0805,
+        "fees": 507.2994,
+        "profitFactor": null,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 3,
+            "winRate": 1,
+            "netPnl": 203.9906,
+            "profitFactor": null
+          },
+          "reverseT": {
+            "closedTrades": 12,
+            "winRate": 1,
+            "netPnl": 947.09,
+            "profitFactor": null
+          }
+        }
+      },
+      "validation": {
+        "closedTrades": 12,
+        "wins": 12,
+        "losses": 0,
+        "winRate": 1,
+        "netPnl": 1426.745,
+        "fees": 714.2043,
+        "profitFactor": null,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 6,
+            "winRate": 1,
+            "netPnl": 674.8645,
+            "profitFactor": null
+          },
+          "reverseT": {
+            "closedTrades": 6,
+            "winRate": 1,
+            "netPnl": 751.8805,
+            "profitFactor": null
+          }
+        }
+      },
+      "test": {
+        "closedTrades": 12,
+        "wins": 11,
+        "losses": 1,
+        "winRate": 0.91666667,
+        "netPnl": 719.6518,
+        "fees": 572.8448,
+        "profitFactor": 3.22337388,
+        "maximumDrawdown": 323.6756,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 8,
+            "winRate": 0.875,
+            "netPnl": 361.9447,
+            "profitFactor": 2.11823279
+          },
+          "reverseT": {
+            "closedTrades": 4,
+            "winRate": 1,
+            "netPnl": 357.7072,
+            "profitFactor": null
+          }
+        }
+      }
+    },
+    "openingVariantB": {
+      "all": {
+        "closedTrades": 38,
+        "wins": 38,
+        "losses": 0,
+        "winRate": 1,
+        "netPnl": 3621.153,
+        "fees": 1744.545,
+        "profitFactor": null,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 16,
+            "winRate": 1,
+            "netPnl": 1564.4754,
+            "profitFactor": null
+          },
+          "reverseT": {
+            "closedTrades": 22,
+            "winRate": 1,
+            "netPnl": 2056.6776,
+            "profitFactor": null
+          }
+        }
+      },
+      "train": {
+        "closedTrades": 15,
+        "wins": 15,
+        "losses": 0,
+        "winRate": 1,
+        "netPnl": 1151.0805,
+        "fees": 507.2994,
+        "profitFactor": null,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 3,
+            "winRate": 1,
+            "netPnl": 203.9906,
+            "profitFactor": null
+          },
+          "reverseT": {
+            "closedTrades": 12,
+            "winRate": 1,
+            "netPnl": 947.09,
+            "profitFactor": null
+          }
+        }
+      },
+      "validation": {
+        "closedTrades": 12,
+        "wins": 12,
+        "losses": 0,
+        "winRate": 1,
+        "netPnl": 1426.745,
+        "fees": 714.2043,
+        "profitFactor": null,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 6,
+            "winRate": 1,
+            "netPnl": 674.8645,
+            "profitFactor": null
+          },
+          "reverseT": {
+            "closedTrades": 6,
+            "winRate": 1,
+            "netPnl": 751.8805,
+            "profitFactor": null
+          }
+        }
+      },
+      "test": {
+        "closedTrades": 11,
+        "wins": 11,
+        "losses": 0,
+        "winRate": 1,
+        "netPnl": 1043.3274,
+        "fees": 523.0412,
+        "profitFactor": null,
+        "maximumDrawdown": 0,
+        "byDirection": {
+          "positiveT": {
+            "closedTrades": 7,
+            "winRate": 1,
+            "netPnl": 685.6202,
+            "profitFactor": null
+          },
+          "reverseT": {
+            "closedTrades": 4,
+            "winRate": 1,
+            "netPnl": 357.7072,
+            "profitFactor": null
+          }
+        }
+      }
+    }
+  },
+  "rejectionReasons": {
+    "variantA": {
+      "no-completed-minute-before-decision": 41
+    },
+    "variantB": {
+      "no-completed-minute-before-decision": 41
+    },
+    "openingVariantA": {
+      "uniqueRejectedTrades": 2,
+      "ruleHits": {
+        "positive-active-buy-flow-collapse": 2
+      }
+    },
+    "openingVariantB": {
+      "uniqueRejectedTrades": 3,
+      "ruleHits": {
+        "positive-active-buy-flow-collapse": 2,
+        "positive-price-flow-divergence": 2
+      }
+    }
+  },
+  "promotionAssessment": {
+    "status": "insufficient-sample-shadow-only",
+    "minimumClosedTrades": 100,
+    "currentClosedTrades": 38,
+    "currentDescriptiveTestTrades": 11,
+    "automaticPromotion": false
+  },
+  "verdict": {
+    "minuteConfirmation": "not-comparable-no-causal-five-minute-samples",
+    "openingShadow": "historical-improvement-observed-forward-validation-required"
+  }
+}

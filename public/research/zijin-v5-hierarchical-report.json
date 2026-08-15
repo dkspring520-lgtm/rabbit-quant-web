@@ -1,0 +1,457 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-v5-hierarchical-peer-transfer",
+  "generatedAt": "2026-08-06T03:27:55.555749+00:00",
+  "status": "research-only-no-auto-promotion",
+  "affectsSmartTV4": false,
+  "causalityAudit": {
+    "maximumLoadedDate": "20251231",
+    "loaded2026Rows": 0,
+    "featureDecisionTime": "minute t close or earlier",
+    "fill": "minute t+1 open",
+    "futureMinuteFeaturesUsed": false,
+    "futureBarsUsedOnlyForLabels": true,
+    "usesHistoricalL2": false,
+    "usesHistoricalAuctionBook": false,
+    "openingDirectionUsesForwardL2Only": true,
+    "openingBarFallbackUsesOnlyMinuteTOrEarlier": true
+  },
+  "openingDirectionResearch": {
+    "status": "forward-shadow-only",
+    "affectsFormalExecution": false,
+    "auction": {
+      "trialWindow": [
+        "09:15",
+        "09:20"
+      ],
+      "confirmedWindow": [
+        "09:20",
+        "09:25"
+      ],
+      "requiresForwardL2": true,
+      "usesHistoricalAuctionBook": false,
+      "cancelableOrdersAreEvidenceOnly": true
+    },
+    "stages": {
+      "09:30-09:35": {
+        "mode": "observe-only",
+        "allowsCandidate": false
+      },
+      "09:35-09:45": {
+        "mode": "direction-confirm",
+        "minimumConfirmations": 3
+      },
+      "09:45-10:00": {
+        "mode": "continuation-confirm",
+        "minimumConfirmations": 4
+      }
+    },
+    "historicalBarFallback": {
+      "enabled": true,
+      "firstActionAt": "09:35",
+      "lastOpeningCheckAt": "10:00",
+      "minimumVolumeRatio": 0.7,
+      "features": [
+        "openDeviationPct",
+        "vwapBiasPct",
+        "vwapSlope5Pct",
+        "return5Pct",
+        "ma10SlopePct",
+        "volumeRatio"
+      ],
+      "doesNotUseAuctionOrL2": true,
+      "purpose": "Price-volume-only causal backtest guard; it is not a reconstruction of pre-open auction or L2 order flow."
+    }
+  },
+  "dataset": {
+    "fingerprint": {
+      "input": "D:\\BaiduNetdiskDownload\\zijin-601899\\zijin-peer-panel-2022-2026.parquet",
+      "size": 26692028,
+      "mtimeNs": 1784319648062326600,
+      "selectionEnd": "20251231",
+      "sampleBuilderVersion": 1
+    },
+    "firstDate": "20220104",
+    "lastDate": "20251231",
+    "minuteRows": 1634703,
+    "tradingDays": 969,
+    "causalCandidates": 29335,
+    "stockCount": 7,
+    "loaded2026Rows": 0,
+    "completeTargetDays": 969,
+    "meanPeerCoverage": 1.0,
+    "minimumPeerCoverage": 1.0,
+    "peerTrainingRows": 170891,
+    "peerTrainingCodes": [
+      "603993",
+      "600362",
+      "000630",
+      "600547",
+      "600489",
+      "601600"
+    ],
+    "inputSha256": "49fecf05c16036fbb681cfa27a751107d4ac375ee02d49231434674b6a42cf45",
+    "protocolSha256": "a2a33e3c0ca3c65cce3bc2cee74ad1a610ebdf2ab79ab06743fbdd2103b2ded1"
+  },
+  "model": {
+    "type": "HistGradientBoostingClassifier",
+    "featureCount": 17,
+    "features": [
+      "minuteOfDay",
+      "gapPct",
+      "openDeviationPct",
+      "vwapBiasPct",
+      "vwapSlope5Pct",
+      "return3Pct",
+      "return5Pct",
+      "ma5SlopePct",
+      "ma10SlopePct",
+      "volumeRatio",
+      "pullbackVolumeRatio",
+      "priceZscore",
+      "atrPct",
+      "intradayPosition",
+      "rangePct",
+      "drawdownFromHighPct",
+      "reboundFromLowPct"
+    ],
+    "fixedProbabilityQuantile": 0.94,
+    "peerTraining": "six peer stocks only",
+    "zijinCalibration": "fixed score quantile only"
+  },
+  "executionLimitations": {
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18,
+    "brokerSpecificCommission": "not available in bar data",
+    "stampDutyAndSlippage": "included only in aggregate cost assumption",
+    "unfilledOrderSimulation": "not available without historical order book"
+  },
+  "folds": [
+    {
+      "id": "2024Q1",
+      "start": "20240101",
+      "end": "20240331",
+      "finalHoldout": false,
+      "trainingThrough": "20231229",
+      "directions": {
+        "positive": {
+          "status": "scored",
+          "peerRows": 42341,
+          "targetCalibrationRows": 7424,
+          "cutoff": 0.392342,
+          "candidatesBeforeOpeningGuard": 11,
+          "candidates": 11
+        },
+        "reverse": {
+          "status": "scored",
+          "peerRows": 40055,
+          "targetCalibrationRows": 6853,
+          "cutoff": 0.407044,
+          "candidatesBeforeOpeningGuard": 0,
+          "candidates": 0
+        }
+      },
+      "metrics": {
+        "trades": 8,
+        "wins": 3,
+        "winRate": 0.375,
+        "averageNetPct": -0.1432,
+        "stressAverageNetPct": -0.2032,
+        "payoffRatio": 0.9967
+      }
+    },
+    {
+      "id": "2024Q2",
+      "start": "20240401",
+      "end": "20240630",
+      "finalHoldout": false,
+      "trainingThrough": "20240329",
+      "directions": {
+        "positive": {
+          "status": "scored",
+          "peerRows": 47502,
+          "targetCalibrationRows": 8257,
+          "cutoff": 0.392263,
+          "candidatesBeforeOpeningGuard": 12,
+          "candidates": 10
+        },
+        "reverse": {
+          "status": "scored",
+          "peerRows": 45610,
+          "targetCalibrationRows": 7789,
+          "cutoff": 0.410239,
+          "candidatesBeforeOpeningGuard": 6,
+          "candidates": 5
+        }
+      },
+      "metrics": {
+        "trades": 12,
+        "wins": 4,
+        "winRate": 0.3333,
+        "averageNetPct": -0.1093,
+        "stressAverageNetPct": -0.1693,
+        "payoffRatio": 1.345
+      }
+    },
+    {
+      "id": "2024Q3",
+      "start": "20240701",
+      "end": "20240930",
+      "finalHoldout": false,
+      "trainingThrough": "20240628",
+      "directions": {
+        "positive": {
+          "status": "scored",
+          "peerRows": 53377,
+          "targetCalibrationRows": 9241,
+          "cutoff": 0.396139,
+          "candidatesBeforeOpeningGuard": 15,
+          "candidates": 14
+        },
+        "reverse": {
+          "status": "scored",
+          "peerRows": 51591,
+          "targetCalibrationRows": 8819,
+          "cutoff": 0.400192,
+          "candidatesBeforeOpeningGuard": 18,
+          "candidates": 16
+        }
+      },
+      "metrics": {
+        "trades": 23,
+        "wins": 7,
+        "winRate": 0.3043,
+        "averageNetPct": -0.1405,
+        "stressAverageNetPct": -0.2005,
+        "payoffRatio": 1.3731
+      }
+    },
+    {
+      "id": "2024Q4",
+      "start": "20241001",
+      "end": "20241231",
+      "finalHoldout": false,
+      "trainingThrough": "20240930",
+      "directions": {
+        "positive": {
+          "status": "scored",
+          "peerRows": 59464,
+          "targetCalibrationRows": 10273,
+          "cutoff": 0.398755,
+          "candidatesBeforeOpeningGuard": 14,
+          "candidates": 14
+        },
+        "reverse": {
+          "status": "scored",
+          "peerRows": 57401,
+          "targetCalibrationRows": 9823,
+          "cutoff": 0.410853,
+          "candidatesBeforeOpeningGuard": 2,
+          "candidates": 2
+        }
+      },
+      "metrics": {
+        "trades": 8,
+        "wins": 3,
+        "winRate": 0.375,
+        "averageNetPct": -0.1544,
+        "stressAverageNetPct": -0.2144,
+        "payoffRatio": 0.8088
+      }
+    },
+    {
+      "id": "2025Q1",
+      "start": "20250101",
+      "end": "20250331",
+      "finalHoldout": false,
+      "trainingThrough": "20241231",
+      "directions": {
+        "positive": {
+          "status": "scored",
+          "peerRows": 64961,
+          "targetCalibrationRows": 11232,
+          "cutoff": 0.397639,
+          "candidatesBeforeOpeningGuard": 10,
+          "candidates": 10
+        },
+        "reverse": {
+          "status": "scored",
+          "peerRows": 62357,
+          "targetCalibrationRows": 10699,
+          "cutoff": 0.402741,
+          "candidatesBeforeOpeningGuard": 4,
+          "candidates": 4
+        }
+      },
+      "metrics": {
+        "trades": 9,
+        "wins": 3,
+        "winRate": 0.3333,
+        "averageNetPct": -0.107,
+        "stressAverageNetPct": -0.167,
+        "payoffRatio": 1.2358
+      }
+    },
+    {
+      "id": "2025Q2",
+      "start": "20250401",
+      "end": "20250630",
+      "finalHoldout": false,
+      "trainingThrough": "20250331",
+      "directions": {
+        "positive": {
+          "status": "scored",
+          "peerRows": 70268,
+          "targetCalibrationRows": 12124,
+          "cutoff": 0.399899,
+          "candidatesBeforeOpeningGuard": 6,
+          "candidates": 6
+        },
+        "reverse": {
+          "status": "scored",
+          "peerRows": 66982,
+          "targetCalibrationRows": 11559,
+          "cutoff": 0.406548,
+          "candidatesBeforeOpeningGuard": 8,
+          "candidates": 8
+        }
+      },
+      "metrics": {
+        "trades": 8,
+        "wins": 3,
+        "winRate": 0.375,
+        "averageNetPct": -0.2502,
+        "stressAverageNetPct": -0.3102,
+        "payoffRatio": 0.4963
+      }
+    },
+    {
+      "id": "2025Q3",
+      "start": "20250701",
+      "end": "20250930",
+      "finalHoldout": true,
+      "trainingThrough": "20250630",
+      "directions": {
+        "positive": {
+          "status": "scored",
+          "peerRows": 75047,
+          "targetCalibrationRows": 13013,
+          "cutoff": 0.401816,
+          "candidatesBeforeOpeningGuard": 23,
+          "candidates": 23
+        },
+        "reverse": {
+          "status": "scored",
+          "peerRows": 71460,
+          "targetCalibrationRows": 12340,
+          "cutoff": 0.408011,
+          "candidatesBeforeOpeningGuard": 3,
+          "candidates": 3
+        }
+      },
+      "metrics": {
+        "trades": 18,
+        "wins": 7,
+        "winRate": 0.3889,
+        "averageNetPct": -0.1183,
+        "stressAverageNetPct": -0.1783,
+        "payoffRatio": 0.9699
+      }
+    },
+    {
+      "id": "2025Q4",
+      "start": "20251001",
+      "end": "20251231",
+      "finalHoldout": true,
+      "trainingThrough": "20250930",
+      "directions": {
+        "positive": {
+          "status": "scored",
+          "peerRows": 81328,
+          "targetCalibrationRows": 14035,
+          "cutoff": 0.406229,
+          "candidatesBeforeOpeningGuard": 20,
+          "candidates": 19
+        },
+        "reverse": {
+          "status": "scored",
+          "peerRows": 77416,
+          "targetCalibrationRows": 13386,
+          "cutoff": 0.403189,
+          "candidatesBeforeOpeningGuard": 5,
+          "candidates": 5
+        }
+      },
+      "metrics": {
+        "trades": 17,
+        "wins": 11,
+        "winRate": 0.6471,
+        "averageNetPct": 0.2902,
+        "stressAverageNetPct": 0.2302,
+        "payoffRatio": 1.6271
+      }
+    }
+  ],
+  "diagnosticWalkForward": {
+    "metrics": {
+      "trades": 68,
+      "wins": 23,
+      "winRate": 0.3382,
+      "averageNetPct": -0.1454,
+      "stressAverageNetPct": -0.2054,
+      "payoffRatio": 1.105
+    },
+    "futureLabels": {
+      "5": {
+        "signals": 68,
+        "meanMfePct": 0.2208,
+        "meanMaePct": -0.21,
+        "spreadTouchRate": 0.0147
+      },
+      "15": {
+        "signals": 68,
+        "meanMfePct": 0.3828,
+        "meanMaePct": -0.3827,
+        "spreadTouchRate": 0.1176
+      },
+      "30": {
+        "signals": 68,
+        "meanMfePct": 0.4826,
+        "meanMaePct": -0.4821,
+        "spreadTouchRate": 0.2059
+      }
+    }
+  },
+  "sealedFinalHoldout2025H2": {
+    "metrics": {
+      "trades": 35,
+      "wins": 18,
+      "winRate": 0.5143,
+      "averageNetPct": 0.0801,
+      "stressAverageNetPct": 0.0201,
+      "payoffRatio": 1.2733
+    },
+    "futureLabels": {
+      "5": {
+        "signals": 35,
+        "meanMfePct": 0.2136,
+        "meanMaePct": -0.21,
+        "spreadTouchRate": 0.0286
+      },
+      "15": {
+        "signals": 35,
+        "meanMfePct": 0.4398,
+        "meanMaePct": -0.2724,
+        "spreadTouchRate": 0.1143
+      },
+      "30": {
+        "signals": 35,
+        "meanMfePct": 0.6275,
+        "meanMaePct": -0.3407,
+        "spreadTouchRate": 0.2286
+      }
+    },
+    "note": "固定规则下的最后六个月；因 2022-2025 已有历史研究暴露，仍不得作为自动上线依据。"
+  },
+  "decision": "Only a prospective L2/opening-emotion shadow study with enough new samples may be considered for manual review; V4 remains unchanged."
+}
