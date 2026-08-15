@@ -13,7 +13,7 @@ test("production deploy builds both images before replacing containers", () => {
   assert.ok(webBuild > 0);
   assert.ok(trainerBuild > webBuild);
   assert.ok(switchPosition > trainerBuild);
-  assert.match(script, /flock\s+\\\n\s+--nonblock\s+\\\n\s+--close/);
+  assert.match(script, /flock\s+\\\r?\n\s+--nonblock\s+\\\r?\n\s+--close/);
   assert.match(script, /--conflict-exit-code 75/);
   assert.match(script, /exit "\$deploy_status"/);
   assert.match(script, /RABBIT_QUANT_DEPLOY_LOCKED=1/);
@@ -214,5 +214,5 @@ test("production deploy starts and verifies the Zijin L2 evidence audit", () => 
   assert.match(script, /L2_AUDIT_CONTAINER="rabbit-quant-zijin-l2-audit"/);
   assert.match(script, /control shadow l2-audit/);
   assert.match(script, /container_is_healthy "\$L2_AUDIT_CONTAINER"/);
-  assert.match(script, /wait_for_release "\$previous_sha" "\$active_slot" 0/);
+  assert.match(script, /wait_for_release "\$previous_sha" "\$active_slot" "\$rollback_require_l2_audit"/);
 });

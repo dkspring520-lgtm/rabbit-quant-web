@@ -5,7 +5,7 @@ import test from "node:test";
 const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
 test("lower-frequency product pages share one simplified navigation category", () => {
-  assert.match(page, /\['首页','操盘台','单股智研','量化工具','模拟回测','邀请中心'\]/);
+  assert.match(page, /\['首页','操盘台','单股智研','AI量化研究院','量化工具','模拟回测','邀请中心'\]/);
   assert.match(page, /function QuantToolsView/);
   assert.match(page, /title:'多股持仓'/);
   assert.match(page, /view:'策略市场'/);
