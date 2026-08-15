@@ -507,12 +507,12 @@
   }
   .minimal-ui .quote-focus .opening-assessment small{max-width:none}
   .minimal-ui .quote-focus+.quote-metrics{margin-left:0;justify-content:flex-start;gap:12px}
-.minimal-ui .l2-console-status{width:100%;min-width:0;max-width:180px;justify-self:end;padding:5px 7px;grid-template-columns:6px 1fr;column-gap:5px}
+  .minimal-ui .l2-console-status{width:100%;min-width:0;max-width:180px;justify-self:end;padding:5px 7px;grid-template-columns:6px 1fr;column-gap:5px}
   .minimal-ui .l2-console-status small{display:none}
   .minimal-ui .l2-console-status i{width:6px;height:6px}
   .minimal-ui .data-health-status{grid-template-columns:6px minmax(0,1fr) auto}
   .minimal-ui .data-health-status>div b small{display:inline}
-  .minimal-ui .data-health-status>em{display:none}
+  .minimal-ui .data-health-status>em{display:block;max-width:68px}
 
   .minimal-ui .desk-core-strip{
     min-height:44px;
