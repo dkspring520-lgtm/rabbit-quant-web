@@ -186,7 +186,7 @@ test("production replay, live desk, and background scanner stay on closure-first
   assert.match(page, /resolveBacktestStrategyExperiment\(code,"closure-first"\)/);
   assert.match(page, /resolveBacktestStrategyExperiment\(item\.code,"closure-first"\)/);
   assert.match(page, /strategyVersion:"closure-first"/);
-  assert.match(page, /内置闭环 · 已固定/);
+  assert.match(page, /闭环已固定/);
   assert.match(controlPlane, /resolveBacktestStrategyExperiment\(monitor\.code, "closure-first"\)/);
   assert.match(controlPlane, /profileOverrides: experiment\.profileOverrides/);
 });
