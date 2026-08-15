@@ -1437,11 +1437,131 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       factors.push("L2 证据不足，暂不计分");
     }
 
-    const score=signals.reduce((sum,value)=>sum+value,0);
-    const direction=score>=3?"偏强":score<=-3?"偏弱":"震荡";
-    const evidenceSources=2+Number(closes.length>=20)+Number(marketChange!==null||sectorChange!==null)+Number(l2Ready);
-    const confidenceGrade=evidenceSources>=5&&(Math.abs(score)>=5||direction==="震荡"&&Math.abs(score)<=1)?"较高":evidenceSources>=3?"中等":"观察";
-    const confidenceText=`可信度${confidenceGrade}`;
+    const clampScore=(value:number)=>Math.max(-100,Math.min(100,value));
+    const numericOrNull=(value:unknown)=>{
+      if(value===null||value===undefined)return null;
+      const parsed=Number(value);
+      return Number.isFinite(parsed)?parsed:null;
+    };
+    const average=(values:(number|null)[])=>{
+      const available=values.filter((value):value is number=>value!==null&&Number.isFinite(value));
+      return available.length?available.reduce((sum,value)=>sum+value,0)/available.length:null;
+    };
+    const contextLabelAverage=(labels:string[])=>average(labels.map(label=>{
+      const item=(currentContext?.items??[]).find(candidate=>candidate.label===label);
+      return numericOrNull(item?.changePercent);
+    }));
+    const factorDirection=(ready:boolean,value:number)=>!ready?"待数据":value>=15?"偏强":value<=-15?"偏弱":"中性";
+    const goldChange=contextLabelAverage(["黄金ETF","沪金连续","纽约黄金"]);
+    const copperChange=contextLabelAverage(["沪铜连续","伦铜"]);
+    const commodityChange=average([goldChange,copperChange]);
+    const commodityReady=commodityChange!==null;
+    const commodityScore=clampScore((commodityChange??0)*50);
+    const bookImbalance=numericOrNull(liveL2Status?.book?.nearTouchImbalance);
+    const bookReady=Boolean(l2Ready&&bookImbalance!==null);
+    const bookScore=clampScore((bookImbalance??0)*300);
+    const activeBuyRatio=numericOrNull(liveL2Status?.flow?.activeBuyRatio60s);
+    const activeNet=numericOrNull(liveL2Status?.flow?.netActiveNotional60s);
+    const bigOrderNet=numericOrNull(liveL2Status?.flow?.bigOrderNetNotional60s);
+    const flowReady=Boolean(l2Ready&&(activeBuyRatio!==null||activeNet!==null||bigOrderNet!==null));
+    const intentBias=zijinMainForceIntent.state==="accumulation"||zijinFundResponse.state==="push"?28
+      :zijinMainForceIntent.state==="outflow"||zijinFundResponse.state==="outflow"||zijinFundResponse.state==="absorbed"?-28:0;
+    const flowScore=clampScore(
+      (activeBuyRatio===null?0:(activeBuyRatio-.5)*160)
+      +(activeNet===null?0:Math.sign(activeNet)*18)
+      +(bigOrderNet===null?0:Math.sign(bigOrderNet)*12)
+      +intentBias,
+    );
+    const hkChange=contextLabelAverage(["港股紫金矿业"]);
+    const marketGroupChange=average([marketChange,sectorChange,hkChange]);
+    const marketReady=marketGroupChange!==null;
+    const marketScore=clampScore((marketGroupChange??0)*45);
+    const eventReady=Boolean(currentEvents);
+    const eventCount=(currentEvents?.counts.positive??0)+(currentEvents?.counts.negative??0)+(currentEvents?.counts.neutral??0);
+    const eventBalance=eventCount
+      ?((currentEvents?.counts.positive??0)-(currentEvents?.counts.negative??0))/eventCount*60
+      :0;
+    const eventScore=clampScore(currentEvents?.gate.hardLock?-100
+      :currentEvents?.gate.level==="restricted"?-65
+        :currentEvents?.gate.level==="caution"?Math.min(-20,eventBalance)
+          :eventBalance);
+    const groups=[
+      {
+        key:"commodity",label:"商品",ready:commodityReady,score:Math.round(commodityScore),direction:factorDirection(commodityReady,commodityScore),
+        detail:commodityReady?`黄金 ${goldChange===null?"--":`${goldChange>=0?"+":""}${goldChange.toFixed(2)}%`} · 铜 ${copperChange===null?"--":`${copperChange>=0?"+":""}${copperChange.toFixed(2)}%`}`:"金铜行情待接入",
+      },
+      {
+        key:"book",label:"盘口",ready:bookReady,score:Math.round(bookScore),direction:factorDirection(bookReady,bookScore),
+        detail:bookReady?`近端失衡 ${(bookImbalance!*100).toFixed(1)}% · ${zijinFundResponse.label}`:"连续 L2 盘口待确认",
+      },
+      {
+        key:"flow",label:"资金",ready:flowReady,score:Math.round(flowScore),direction:factorDirection(flowReady,flowScore),
+        detail:flowReady?`主动买 ${activeBuyRatio===null?"--":`${(activeBuyRatio*100).toFixed(1)}%`} · ${zijinMainForceIntent.label}`:"主动成交方向待确认",
+      },
+      {
+        key:"market",label:"市场",ready:marketReady,score:Math.round(marketScore),direction:factorDirection(marketReady,marketScore),
+        detail:marketReady?`大盘 ${marketChange===null?"--":`${marketChange>=0?"+":""}${marketChange.toFixed(2)}%`} · 板块 ${sectorChange===null?"--":`${sectorChange>=0?"+":""}${sectorChange.toFixed(2)}%`}`:"大盘、板块与港股联动待接入",
+      },
+      {
+        key:"event",label:"事件",ready:eventReady,score:Math.round(eventScore),direction:factorDirection(eventReady,eventScore),
+        detail:eventReady?`${currentEvents!.gate.label} · 正${currentEvents!.counts.positive}/负${currentEvents!.counts.negative}`:"公告与公开资讯待扫描",
+      },
+    ];
+    const directionalGroups=groups.filter(group=>group.ready&&Math.abs(group.score)>=15);
+    const positiveGroups=directionalGroups.filter(group=>group.score>0).length;
+    const negativeGroups=directionalGroups.filter(group=>group.score<0).length;
+    const resonanceDirection=positiveGroups>=3?"up":negativeGroups>=3?"down":"mixed";
+    const resonance={
+      direction:resonanceDirection,
+      label:resonanceDirection==="up"?`${positiveGroups}/5 组偏强共振`:resonanceDirection==="down"?`${negativeGroups}/5 组偏弱共振`:"独立因子尚未共振",
+      detail:directionalGroups.length?directionalGroups.map(group=>`${group.label}${group.direction}`).join(" · "):"等待至少两个独立分组形成有效方向",
+    };
+    const externalGroups=groups.filter(group=>["commodity","market","event"].includes(group.key)&&group.ready);
+    const externalScore=externalGroups.length?externalGroups.reduce((sum,group)=>sum+group.score,0)/externalGroups.length:0;
+    const stockResponseScore=clampScore(changePct*35+vwapBiasPct*30+recentMovePct*25);
+    const expectationGap=externalGroups.length<2
+      ?{direction:"waiting",label:"预期差待数据",detail:"至少需要两个外部因子组"}
+      :externalScore>=25&&stockResponseScore<externalScore-25
+        ?{direction:"up",label:"潜在正向预期差",detail:"外部因子先转强，股价响应仍落后"}
+        :externalScore<=-25&&stockResponseScore>externalScore+25
+          ?{direction:"down",label:"潜在负向预期差",detail:"外部因子先转弱，股价尚未充分响应"}
+          :{direction:"flat",label:"未见明显预期差",detail:"外部变化与当前股价响应基本同步"};
+    const localScore=clampScore(intradayScore*18+(dailyScore+candleScore)*10);
+    const weightedScore=(parts:{score:number;weight:number;ready:boolean}[])=>{
+      const available=parts.filter(part=>part.ready);
+      const totalWeight=available.reduce((sum,part)=>sum+part.weight,0);
+      return totalWeight?clampScore(available.reduce((sum,part)=>sum+part.score*part.weight,0)/totalWeight):0;
+    };
+    const makeHorizon=(minutes:5|15|30|60,parts:{score:number;weight:number;ready:boolean}[])=>{
+      const value=weightedScore(parts);
+      const coverage=parts.reduce((sum,part)=>sum+(part.ready?part.weight:0),0)/parts.reduce((sum,part)=>sum+part.weight,0);
+      return {
+        minutes,
+        score:Math.round(value),
+        direction:value>=12?"偏强":value<=-12?"偏弱":"震荡",
+        coverage:Math.round(coverage*100),
+      };
+    };
+    const local={score:localScore,ready:true};
+    const commodity={score:commodityScore,ready:commodityReady};
+    const book={score:bookScore,ready:bookReady};
+    const flow={score:flowScore,ready:flowReady};
+    const market={score:marketScore,ready:marketReady};
+    const event={score:eventScore,ready:eventReady};
+    const horizons=[
+      makeHorizon(5,[{...local,weight:.25},{...book,weight:.30},{...flow,weight:.25},{...commodity,weight:.08},{...market,weight:.07},{...event,weight:.05}]),
+      makeHorizon(15,[{...local,weight:.20},{...book,weight:.25},{...flow,weight:.20},{...commodity,weight:.18},{...market,weight:.10},{...event,weight:.07}]),
+      makeHorizon(30,[{...local,weight:.20},{...book,weight:.12},{...flow,weight:.18},{...commodity,weight:.25},{...market,weight:.15},{...event,weight:.10}]),
+      makeHorizon(60,[{...local,weight:.25},{...book,weight:.08},{...flow,weight:.12},{...commodity,weight:.25},{...market,weight:.17},{...event,weight:.13}]),
+    ];
+    const baseScore=signals.reduce((sum,value)=>sum+value,0);
+    const multiFactorScore=weightedScore([
+      {...local,weight:.30},{...commodity,weight:.18},{...book,weight:.16},{...flow,weight:.16},{...market,weight:.12},{...event,weight:.08},
+    ]);
+    const structureScore=clampScore(baseScore*8+multiFactorScore*.65);
+    const direction=structureScore>=18?"偏强":structureScore<=-18?"偏弱":"震荡";
+    const researchStrength=Math.min(76,Math.round(Math.abs(structureScore)));
+    const confidenceText=`研究 ${researchStrength}`;
     const historicalRanges=bars.slice(-10).map(bar=>(bar.high-bar.low)/Math.max(bar.close,.01)).filter(value=>Number.isFinite(value)&&value>0);
     const historicalRangePct=historicalRanges.length?historicalRanges.reduce((sum,value)=>sum+value,0)/historicalRanges.length:(high-low)/close;
     const todayRangePct=(high-low)/Math.max(close,.01);
@@ -1468,8 +1588,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       resistance,
       failure,
       factors:factors.slice(0,6),
+      groups,
+      resonance,
+      expectationGap,
+      horizons,
+      validation:{label:"样本外待验证",detail:"研究结构不显示历史胜率，也不影响正式闭环。"},
     };
-  },[activeQuote?.previousClose,activeQuote?.open,activeQuote?.high,activeQuote?.low,chartModel?.lastVwap,currentContext?.items,currentMarket?.bars,isZijinStock,l2CalculationCoverage,liveL2PriceUsable,marketSession.live,minutePoints,zijinFundResponse,zijinMainForceIntent]);
+  },[activeQuote?.previousClose,activeQuote?.open,activeQuote?.high,activeQuote?.low,chartModel?.lastVwap,currentContext?.items,currentEvents,currentMarket?.bars,isZijinStock,l2CalculationCoverage,liveL2PriceUsable,liveL2Status,marketSession.live,minutePoints,zijinFundResponse,zijinMainForceIntent]);
   const zijinMainForceCumulative=useMemo(()=>{
     const bars=zijinMainForceTrack.bars;
     if(!bars.length)return null;
@@ -3916,7 +4041,25 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <div className="next-session-outlook-main"><b>{nextSessionOutlook.direction}</b><strong>{nextSessionOutlook.confidenceText}</strong></div>
               <div className="next-session-outlook-range"><span>预计波动</span><b>¥{nextSessionOutlook.lower.toFixed(2)}–{nextSessionOutlook.upper.toFixed(2)}</b></div>
               <div className="next-session-outlook-levels"><span>支撑 ¥{nextSessionOutlook.support.toFixed(2)}</span><span>压力 ¥{nextSessionOutlook.resistance.toFixed(2)}</span></div>
-              <p>{nextSessionOutlook.factors.join(" · ")}</p><small>{nextSessionOutlook.failure}</small>
+              {isZijinStock&&<>
+                <div className="next-session-factor-groups" aria-label="商品盘口资金市场事件五组因子">
+                  {nextSessionOutlook.groups.map(group=><div key={group.key} className={!group.ready?"waiting":group.score>=15?"up":group.score<=-15?"down":"flat"} title={group.detail}>
+                    <span>{group.label}</span><b>{group.direction}</b>
+                    <i aria-hidden="true"><em style={{width:`${group.ready?(group.score+100)/2:50}%`}}/></i>
+                  </div>)}
+                </div>
+                <div className="next-session-research-signals">
+                  <div className={nextSessionOutlook.resonance.direction}><span>因子共振</span><b>{nextSessionOutlook.resonance.label}</b><small>{nextSessionOutlook.resonance.detail}</small></div>
+                  <div className={nextSessionOutlook.expectationGap.direction}><span>预期差</span><b>{nextSessionOutlook.expectationGap.label}</b><small>{nextSessionOutlook.expectationGap.detail}</small></div>
+                </div>
+                <div className="next-session-horizons" aria-label="未来多周期结构">
+                  {nextSessionOutlook.horizons.map(horizon=><div key={horizon.minutes} className={horizon.direction==="偏强"?"up":horizon.direction==="偏弱"?"down":"flat"}>
+                    <span>{horizon.minutes}分钟</span><b>{horizon.direction}</b><i><em style={{width:`${(horizon.score+100)/2}%`}}/></i><small>数据 {horizon.coverage}%</small>
+                  </div>)}
+                </div>
+                <div className="next-session-validation"><span>{nextSessionOutlook.validation.label}</span><small>{nextSessionOutlook.validation.detail}</small></div>
+              </>}
+              <details className="next-session-evidence"><summary>查看结构依据</summary><p>{nextSessionOutlook.factors.join(" · ")}</p><small>{nextSessionOutlook.failure}</small></details>
             </>:<p>{nextSessionOutlook.detail}</p>}
             </div>
           </details>
