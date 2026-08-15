@@ -2325,6 +2325,50 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       label:web4Microstructure.available?`${zijinFundResponse.label} · 微观待持续`:zijinFundResponse.label,
     };
   },[secondLevelSignal,zijinRepair?.status,web4Microstructure.score,web4Microstructure.state,web4Microstructure.label,web4Microstructure.available,web4Microstructure.absorption.side,zijinFundResponse.state,zijinFundResponse.score,zijinFundResponse.label]);
+  const zijinV29OpeningShadow=useMemo(()=>{
+    const l2State=secondLevelSignal?.state;
+    const l2Direction=secondLevelSignal?.direction;
+    const l2Usable=Boolean(
+      isZijinStock&&liveL2HasTicks&&!liveL2Stale&&
+      l2Direction&&l2Direction!=="none"&&
+      l2State&&!['normal','invalid','expired'].includes(l2State),
+    );
+    const formalAligned=Boolean(
+      decisionActionSide&&l2Usable&&decisionActionSide===l2Direction,
+    );
+
+    if(decisionModel.status==="ready"&&formalAligned)return {
+      tone:"confirmed",
+      label:"影子确认",
+      advice:"跟随正式",
+      detail:`正式${decisionActionDirection}与秒级盘口方向一致`,
+    };
+
+    const buyContext=signalMode==="正T"||decisionActionDirection==="正T";
+    if(positiveTBlockedByFlow||(buyContext&&l2Usable&&l2Direction==="sell"))return {
+      tone:"warning",
+      label:"影子警告",
+      advice:"暂缓买入",
+      detail:positiveTBlockedByFlow?"主动卖压尚未解除":"秒级盘口与正T方向相反",
+    };
+
+    const hasCandidate=Boolean(
+      decisionModel.mode||
+      decisionModel.confirmed>0||
+      signalFunnel.currentObservations>0||
+      secondLevelSignal&&secondLevelSignal.state!=="normal",
+    );
+    return {
+      tone:"candidate",
+      label:"影子候选",
+      advice:"继续观察",
+      detail:hasCandidate
+        ?l2Usable
+          ?"秒级证据正在形成，尚未通过正式门槛"
+          :"已有分钟候选，等待连续秒级证据"
+        :"等待开盘结构与连续秒级证据",
+    };
+  },[decisionActionDirection,decisionActionSide,decisionModel.confirmed,decisionModel.mode,decisionModel.status,isZijinStock,liveL2HasTicks,liveL2Stale,positiveTBlockedByFlow,secondLevelSignal,signalFunnel.currentObservations,signalMode]);
   const zijinRealtimeFactors=useMemo(()=>{
     const contextItems=currentContext?.items??[];
     const findContextItem=(labels:string[])=>labels
@@ -4025,6 +4069,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           {isZijinStock&&<details className={`zijin-shadow-v2 research-fold ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V2 学习与晋级进度">
             <summary><div><span>紫金影子 V2</span><b>{zijinShadowV2Progress.ready?"可晋级正式":zijinShadowV2Progress.available?"监控中":"等待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></summary>
             <div className="zijin-shadow-v2-meter" role="progressbar" aria-label={`紫金影子 V2 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div>
+            <div className={`zijin-shadow-v29 ${zijinV29OpeningShadow.tone}`} aria-label={`V2.9 开盘影子 ${zijinV29OpeningShadow.label}`}>
+              <div><span>V2.9 开盘影子</span><b>{zijinV29OpeningShadow.label}</b><em>{zijinV29OpeningShadow.advice}</em></div>
+              <p>{zijinV29OpeningShadow.detail}</p>
+              <small>前向样本 <b>0 / 100</b> · 仅作参考，不影响正式信号</small>
+            </div>
             <footer><span>{zijinShadowV2Progress.ready?"六项门槛全部通过":`通过 ${zijinShadowV2Progress.passed}/6 · ${zijinShadowV2Progress.tradingDays}/60日 · ${zijinShadowV2Progress.resolvedCycles}/100闭环`}</span><em>{zijinShadowV2Progress.ready?"确认后可晋级正式":"100% 可晋级正式"}</em></footer>
           </details>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
