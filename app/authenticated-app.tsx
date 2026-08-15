@@ -2263,6 +2263,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
     return {items,readyCount:items.filter(item=>item.ready).length,total:items.length};
   },[activeQuote?.price,chartModel?.lastVwap,currentContext,liveL2HasTicks,liveL2Stale,minutePoints,web4L2Evidence.label,web4L2Evidence.score,zijinAhLinkage.available,zijinAhLinkage.label,zijinMainForceIntent.available,zijinMainForceIntent.label,zijinMainForceTrack.totals.netNotional]);
+  const missingZijinFactors=zijinRealtimeFactors.items.filter(item=>!item.ready).map(item=>item.label);
+  const zijinFactorSummary=missingZijinFactors.length
+    ? `缺 ${missingZijinFactors.slice(0,2).join("、")}${missingZijinFactors.length>2?` +${missingZijinFactors.length-2}`:""}`
+    : "全部确认";
   const zijinShadowV2Progress=useMemo(()=>{
     const shadow=liveL2Status?.forward?.multiFactorTShadow??liveL2Status?.forward?.reverseTShadow;
     const review=shadow?.manualReview;
@@ -3645,8 +3649,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <b>{nextSessionOutlook.ready?nextSessionOutlook.direction:"待定"}<small>{nextSessionOutlook.ready?` · ${nextSessionOutlook.confidenceText}`:""}</small></b>
           <em>{nextSessionOutlook.ready?`¥${nextSessionOutlook.lower.toFixed(2)}–${nextSessionOutlook.upper.toFixed(2)}`:"收盘后生成"}</em>
         </div>
-        <div className={`l2-console-status ${l2ConsoleStatus.tone}`} role="status" title={l2ConsoleStatus.detail}>
-          <i/><span>{l2ConsoleStatus.label}</span><small>{l2ConsoleStatus.detail}</small>
+        <div className={`l2-console-status data-health-status ${web4Monitor.status} ${l2ConsoleStatus.tone}`} role="status" title={`${l2ConsoleStatus.detail} · ${web4Monitor.summary}`}>
+          <i/><div><span>{web4Monitor.status==="degraded"?"数据降级":web4Monitor.status==="conflict"||web4Monitor.status==="risk"?"数据风险":"数据健康"}</span><b>{web4Monitor.confidence}<small>/100</small></b></div><em>{l2ConsoleStatus.label}</em>
         </div>
       </section>
 
@@ -3901,7 +3905,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </div>
           <div className="signal-funnel-note"><span>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`盘前影子许可 · ${zijinPreopenGate.predictedDirection??"等待方向"} · ${zijinPreopenGate.confirmationCount}/${zijinPreopenGate.requiredConfirmations} 确认`:(visibleStockAgentEvaluation?(visibleStockAgentEvaluation.asOfTime?`专属评估 ${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)} · ${visibleStockAgentEvaluation.direction??"等待方向"}`:"紫金研究层等待真实分钟数据"):(signalFunnel.currentLatest?`本股最新观察 ${signalFunnel.currentLatest.time.slice(0,2)}:${signalFunnel.currentLatest.time.slice(2)} · ${signalFunnel.currentLatest.direction}`:"本股当前尚无实时观察"))}</span><em>{isZijinStock&&zijinPreopenGate.phase!=="unavailable"?`${zijinPreopenGate.reason} 仅供影子审计，不影响正式 V4、账户或下单。`:(visibleStockAgentEvaluation?"紫金研究仅叠加解释；正式买卖点、风控和提醒均由内置闭环运行。":"均价线大偏离先预警；趋势、量价、成本和风控全部通过后才进入正式层")}</em></div>
           {isZijinStock&&<details className={`zijin-factor-engine research-fold ${zijinRealtimeFactors.readyCount>=6?"ready":zijinRealtimeFactors.readyCount>=4?"partial":"waiting"}`} aria-label="紫金矿业多因子T引擎实时确认面板">
-            <summary><div><span>紫金多因子</span><b>实时确认</b></div><strong>{zijinRealtimeFactors.readyCount}<small>/{zijinRealtimeFactors.total}</small></strong></summary>
+            <summary><div><span>紫金多因子</span><b>实时确认</b><small className={missingZijinFactors.length?"waiting":"ready"}>{zijinFactorSummary}</small></div><strong>{zijinRealtimeFactors.readyCount}<small>/{zijinRealtimeFactors.total}</small></strong></summary>
             <div className="zijin-factor-engine-meter" role="meter" aria-label={`多因子数据完整度 ${zijinRealtimeFactors.readyCount}/${zijinRealtimeFactors.total}`} aria-valuemin={0} aria-valuemax={zijinRealtimeFactors.total} aria-valuenow={zijinRealtimeFactors.readyCount}><i style={{width:`${zijinRealtimeFactors.readyCount/zijinRealtimeFactors.total*100}%`}}/></div>
             <div className="zijin-factor-engine-grid">{zijinRealtimeFactors.items.map(item=><div key={item.key} className={item.tone} title={item.detail}><span>{item.label}</span><b>{item.value}</b><small>{item.detail}</small></div>)}</div>
           </details>}
