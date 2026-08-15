@@ -31,9 +31,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SECOND_LEVEL_ENGINE = ROOT / "scripts" / "backtest-zijin-second-level.py"
 DEFAULT_MANIFEST = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.manifest.json")
 DEFAULT_MINUTE_DATA = Path(r"E:\zijin-l2\601899-factor-minute-ohlc-v1.jsonl")
-DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-8.json")
-ENGINE_VERSION = "2.8.0"
+DEFAULT_OUTPUT = Path(r"E:\zijin-l2\research-results\zijin-candidate-l2-overlay-v2-9.json")
+ENGINE_VERSION = "2.9.0"
 CONFIRMATION_WINDOW_SECONDS = 10
+V28_DELAYED_CONFIRMATION_SECONDS = 20
 OPENING_GAP_THRESHOLD_PCT = 0.50
 HORIZON_SECONDS = {"positiveT": 45 * 60, "reverseT": 50 * 60}
 ATR_PERIOD = 14
@@ -74,9 +75,16 @@ V27_TARGET_FIRST_SECONDS = 15 * 60
 V27_SHORT_REBOUND_TARGET_FRACTION = 0.25
 V27_EXIT_MAX_TARGET_FIRST_PROBABILITY = 0.40
 V27_EXIT_LOW_CONFIDENCE_SECONDS = 6
-V28_REVERSE_MAX_ACTIVE_BUY_RATIO_CHANGE = 0.05
-V28_REVERSE_MIN_RESPONSE_PERSISTENCE_SECONDS = 3
-V28_REVERSE_MAX_RECOVERY_BPS = 1.0
+V28_INTRADAY_START = 9 * 3_600 + 45 * 60
+V28_INTRADAY_END = 14 * 3_600 + 15 * 60
+V28_INTRADAY_MIN_VWAP_DEVIATION_PCT = -0.35
+V28_INTRADAY_MIN_PULLBACK_PCT = -0.70
+V28_INTRADAY_MAX_VOLUME_RATIO = 1.00
+V28_INTRADAY_MIN_BAR_RECOVERY = 0.50
+V28_BULLISH_REGIMES = {
+    "bullish", "uptrend", "risk-on", "riskon", "strong", "rising",
+    "多头", "上涨", "强势", "风险偏好",
+}
 EMERGENCY_ATR_FRACTION = 0.15
 EMERGENCY_TARGET_MULTIPLE_MIN = 1.50
 EMERGENCY_TARGET_MULTIPLE_MAX = 2.50
@@ -87,6 +95,13 @@ PROMOTION_THRESHOLDS = {
     "minimumOutOfSampleProfitFactor": 1.20,
     "minimumOutOfSampleNetPnl": 0.0,
 }
+V29_REVERSE_LOW_GAP_MAX_PCT = 1.50
+V29_REVERSE_LOW_GAP_MIN_DEPTH_IMBALANCE = -0.40
+V29_REVERSE_MID_GAP_MIN_PCT = 2.00
+V29_REVERSE_MID_GAP_MAX_PCT = 3.00
+V29_REVERSE_MID_GAP_MAX_ACTIVE_BUY_RATIO = 0.25
+V29_REVERSE_MID_GAP_MAX_MICROPRICE_EDGE_BPS = 0.0
+V29_POSITIVE_EXPANSION_MIN_DEPTH_IMBALANCE = 0.75
 
 COHORTS = {
     "minuteBaseline": "execute every minute candidate without using L2",
@@ -221,6 +236,99 @@ def opening_candidates(path: Path, allowed_dates: set[str]) -> list[dict[str, An
     return output
 
 
+def v28_intraday_pullback_candidates(path: Path,
+                                     allowed_dates: set[str]) -> list[dict[str, Any]]:
+    """Create at most one positive-T pullback candidate per completed session minute."""
+    output: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8-sig") as source:
+        for line_number, line in enumerate(source, start=1):
+            if not line.strip():
+                continue
+            day = json.loads(line)
+            date = str(day.get("date") or "").replace("-", "")
+            if date not in allowed_dates:
+                continue
+            previous_close = finite_float(day.get("previousClose"))
+            minutes = day.get("minutes") if isinstance(day.get("minutes"), list) else []
+            cumulative_volume = 0.0
+            cumulative_amount = 0.0
+            for index, minute in enumerate(minutes):
+                volume = finite_float(minute.get("volume")) or 0.0
+                amount = finite_float(minute.get("amount")) or 0.0
+                cumulative_volume += volume
+                cumulative_amount += amount
+                if index < 15 or cumulative_volume <= 0 or previous_close is None:
+                    continue
+                minute_second = parse_clock(minute.get("time"))
+                if (minute_second is None or minute_second < V28_INTRADAY_START
+                        or minute_second > V28_INTRADAY_END):
+                    continue
+                close = finite_float(minute.get("close"))
+                low = finite_float(minute.get("low"))
+                high = finite_float(minute.get("high"))
+                if not close or low is None or high is None or close >= previous_close * 0.995:
+                    continue
+                prior_close = finite_float(minutes[index - 1].get("close"))
+                earlier_close = finite_float(minutes[index - 2].get("close"))
+                if prior_close is None or earlier_close is None:
+                    continue
+                bar_recovery = ((close - low) / (high - low) if high > low else 0.50)
+                if (bar_recovery < V28_INTRADAY_MIN_BAR_RECOVERY
+                        or close <= prior_close or prior_close > earlier_close):
+                    continue
+                prior_volumes = [
+                    finite_float(row.get("volume")) or 0.0
+                    for row in minutes[index - 5:index]
+                ]
+                average_volume = statistics.mean(prior_volumes) if prior_volumes else 0.0
+                volume_ratio = volume / average_volume if average_volume > 0 else None
+                if volume_ratio is None or volume_ratio > V28_INTRADAY_MAX_VOLUME_RATIO:
+                    continue
+                vwap = cumulative_amount / cumulative_volume
+                rolling_high = max(
+                    finite_float(row.get("high")) or 0.0
+                    for row in minutes[max(0, index - 14):index + 1]
+                )
+                if vwap <= 0 or rolling_high <= 0:
+                    continue
+                vwap_deviation = (close / vwap - 1) * 100
+                pullback = (close / rolling_high - 1) * 100
+                if (vwap_deviation > V28_INTRADAY_MIN_VWAP_DEVIATION_PCT
+                        or pullback > V28_INTRADAY_MIN_PULLBACK_PCT):
+                    continue
+                decision_second = minute_second + 60
+                identity = {
+                    "date": date,
+                    "second": decision_second,
+                    "direction": "positiveT",
+                    "source": f"{path.name}:{line_number}:minute:{minute.get('time')}",
+                    "factorCombinationId": "v28-intraday-pullback-v1",
+                }
+                output.append({
+                    "candidateId": stable_hash(identity)[:20],
+                    **identity,
+                    "candidateScore": min(100, round(
+                        62 + abs(vwap_deviation) * 8 + abs(pullback) * 5
+                        + bar_recovery * 8, 2
+                    )),
+                    "candidatePrice": close,
+                    "factors": {
+                        "candidateKind": "intraday-pullback",
+                        "asOfMinute": minute.get("time"),
+                        "previousClose": previous_close,
+                        "vwap": round(vwap, 6),
+                        "vwapDeviationPct": round(vwap_deviation, 6),
+                        "rollingHigh15": rolling_high,
+                        "pullbackFromRollingHighPct": round(pullback, 6),
+                        "volumeRatio5": round(volume_ratio, 6),
+                        "barRecoveryRatio": round(bar_recovery, 6),
+                        "usesCompletedMinuteAndPriorMinutesOnly": True,
+                    },
+                })
+                break
+    return output
+
+
 def prior_atr_by_date(path: Path, allowed_dates: set[str]) -> dict[str, float | None]:
     """Calculate ATR14 from completed sessions only; the current day is never included."""
     output: dict[str, float | None] = {}
@@ -346,6 +454,41 @@ def classify_l2(candidate: dict[str, Any], trades: dict[int, Any], quotes: dict[
         "evaluatedSeconds": evaluated_seconds,
         "evidence": evidence,
         "reason": "confirmation window ended without continuous directional evidence",
+    }
+
+
+def v28_delayed_l2_decision(candidate: dict[str, Any], initial: dict[str, Any],
+                            trades: dict[int, Any], quotes: dict[int, Any],
+                            delayed_seconds: int = V28_DELAYED_CONFIRMATION_SECONDS
+                            ) -> dict[str, Any]:
+    """Recheck only neutral candidates in a later causal window."""
+    if initial.get("status") != "neutral":
+        return {
+            **initial,
+            "initialStatus": initial.get("status"),
+            "initialDecisionSecond": initial.get("decisionSecond"),
+            "delayedReview": False,
+            "delayedPromotion": False,
+        }
+    delayed_start = int(initial["decisionSecond"]) + 1
+    delayed_candidate = {**candidate, "second": delayed_start}
+    delayed = classify_l2(
+        delayed_candidate, trades, quotes, window_seconds=delayed_seconds
+    )
+    combined_evidence = [
+        *(initial.get("evidence") or []),
+        *(delayed.get("evidence") or []),
+    ]
+    return {
+        **delayed,
+        "evidence": combined_evidence,
+        "initialStatus": "neutral",
+        "initialDecisionSecond": initial["decisionSecond"],
+        "delayedReview": True,
+        "delayedWindowStartSecond": delayed_start,
+        "delayedWindowSeconds": delayed_seconds,
+        "delayedPromotion": delayed.get("status") == "confirmed",
+        "reason": f"delayed neutral review: {delayed.get('reason')}",
     }
 
 
@@ -571,11 +714,10 @@ def wilson_lower_bound(successes: int, samples: int, z: float = 1.96) -> float |
 
 
 def v27_probability_estimate(outcome: str, features: dict[str, float | None],
-                             history: list[dict[str, Any]], as_of_date: str,
-                             direction: str = "positiveT") -> dict[str, Any]:
+                             history: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
     prior_rows = [
         row for row in history
-        if row.get("direction") == direction and str(row.get("date") or "") < as_of_date
+        if row.get("direction") == "positiveT" and str(row.get("date") or "") < as_of_date
     ]
     weights = [v27_similarity(features, row["features"]) for row in prior_rows]
     weighted_successes = sum(
@@ -613,11 +755,10 @@ def v27_l2_aligned_tail(l2: dict[str, Any]) -> int:
 
 
 def v27_empirical_expected_pnl(features: dict[str, float | None],
-                               history: list[dict[str, Any]], as_of_date: str,
-                               direction: str = "positiveT") -> dict[str, Any]:
+                               history: list[dict[str, Any]], as_of_date: str) -> dict[str, Any]:
     prior_rows = [
         row for row in history
-        if row.get("direction") == direction and str(row.get("date") or "") < as_of_date
+        if row.get("direction") == "positiveT" and str(row.get("date") or "") < as_of_date
     ]
     weighted_pnl = 0.0
     effective_samples = 0.0
@@ -715,132 +856,243 @@ def v27_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
     }
 
 
-def v28_reverse_l2_quality(l2: dict[str, Any]) -> dict[str, Any]:
-    """Measure reverse-T persistence for audit without overriding entry calibration."""
-    aligned_tail: list[dict[str, Any]] = []
-    previous_second = None
-    for snapshot in reversed(l2.get("evidence") or []):
-        second = snapshot.get("second")
-        if snapshot.get("alignedVotes", 0) < 3:
-            break
-        if previous_second is not None and second != previous_second - 1:
-            break
-        aligned_tail.append(snapshot)
-        previous_second = second
-    aligned_tail.reverse()
-    persistence = aligned_tail[-V28_REVERSE_MIN_RESPONSE_PERSISTENCE_SECONDS:]
-    ratios = [finite_float(item.get("activeBuyRatio")) for item in persistence]
-    responses = [finite_float(item.get("priceResponseBps")) for item in persistence]
-    complete = (
-        len(persistence) >= V28_REVERSE_MIN_RESPONSE_PERSISTENCE_SECONDS
-        and all(value is not None for value in ratios + responses)
-    )
-    ratio_change = ratios[-1] - ratios[0] if complete else None
-    response_recovery = responses[-1] - responses[0] if complete else None
-    sell_flow_persistent = (
-        complete
-        and ratios[-1] <= 0.45
-        and ratio_change <= V28_REVERSE_MAX_ACTIVE_BUY_RATIO_CHANGE
-    )
-    price_response_persistent = (
-        complete
-        and all(value <= 0 for value in responses)
-        and response_recovery <= V28_REVERSE_MAX_RECOVERY_BPS
-    )
-    return {
-        "passed": bool(sell_flow_persistent and price_response_persistent),
-        "entryGateRole": "audit-only",
-        "alignedTailSeconds": len(aligned_tail),
-        "evaluatedTailSeconds": len(persistence),
-        "activeBuyRatioChange": ratio_change,
-        "priceResponseRecoveryBps": response_recovery,
-        "sellFlowPersistent": bool(sell_flow_persistent),
-        "priceResponsePersistent": bool(price_response_persistent),
+def is_bullish_regime(value: Any) -> bool:
+    return str(value or "").strip().lower() in V28_BULLISH_REGIMES
+
+
+def v28_reverse_risk_context(candidate: dict[str, Any]) -> dict[str, Any]:
+    """Read entry-time context only and preserve missing inputs as unavailable."""
+    factors = candidate.get("factors") if isinstance(candidate.get("factors"), dict) else {}
+    groups = {
+        "market": ("marketRegime", "marketTrend", "indexRegime", "marketState"),
+        "sector": ("sectorRegime", "sectorTrend", "industryRegime", "sectorState"),
+        "commodity": ("commodityRegime", "commodityTrend", "metalRegime", "metalTrend"),
+        "gold": ("goldRegime", "goldTrend"),
+        "copper": ("copperRegime", "copperTrend"),
     }
+    context = {}
+    for name, keys in groups.items():
+        source_key, value = optional_factor(factors, keys)
+        context[name] = {
+            "status": "available" if source_key else "unavailable",
+            "sourceField": source_key,
+            "value": value,
+            "bullishRisk": is_bullish_regime(value) if source_key else None,
+        }
+    available = [item for item in context.values() if item["status"] == "available"]
+    return {
+        "inputs": context,
+        "availableInputs": len(available),
+        "missingInputsFilledWithZero": False,
+        "veto": any(item["bullishRisk"] for item in available),
+    }
+
+
+def calibration_history_before_date(history: list[dict[str, Any]],
+                                    candidate_date: str) -> list[dict[str, Any]]:
+    """Return completed prior-date observations only."""
+    return [
+        row for row in history
+        if str(row.get("date") or "") < candidate_date
+    ]
 
 
 def v28_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
                    prior_atr: float | None, trades: dict[int, Any],
                    history: list[dict[str, Any]]) -> dict[str, Any]:
-    """Keep V2.7 positive-T and add prior-date calibrated reverse-T entry quality."""
-    if candidate["direction"] == "positiveT":
-        result = v27_entry_gate(candidate, l2, prior_atr, trades, history)
-        return {
-            **result,
-            "model": "v28-positive-delegates-v27",
-            "delegatedModel": result.get("model"),
-        }
-
-    base = v26_entry_gate(candidate, l2, prior_atr)
-    features = v27_entry_features(candidate, l2, prior_atr)
-    probabilities = {
-        "shortDecline60s": v27_probability_estimate(
-            "shortDecline60s", features, history, candidate["date"], "reverseT"
-        ),
-        "targetBeforeStop15m": v27_probability_estimate(
-            "targetBeforeStop15m", features, history, candidate["date"], "reverseT"
-        ),
-        "closureWithin50m": v27_probability_estimate(
-            "closureWithin50m", features, history, candidate["date"], "reverseT"
-        ),
-    }
-    entry = entry_trade_after(trades, int(l2.get("decisionSecond") or candidate["second"]))
-    expected = None
-    if entry is not None:
-        _, entry_market = entry
-        target_gap = SECOND.target_gap(entry_market)
-        stop_gap, _ = adaptive_emergency_stop_gap(
-            "reverseT", entry_market, target_gap, prior_atr
-        )
-        target_market = entry_market - target_gap
-        stop_market = entry_market + stop_gap
-        target_net = SECOND.pnl("reverseT", entry_market, target_market)[0]
-        stop_net = SECOND.pnl("reverseT", entry_market, stop_market)[0]
-        target_probability = probabilities["targetBeforeStop15m"]["probability"]
-        theoretical = target_probability * target_net + (1 - target_probability) * stop_net
-        empirical = v27_empirical_expected_pnl(
-            features, history, candidate["date"], "reverseT"
-        )
-        expected = {
-            "targetNetPnl": target_net,
-            "emergencyStopNetPnl": stop_net,
-            "breakEvenProbability": (-stop_net / (target_net - stop_net)
-                                      if target_net > stop_net else None),
-            "theoreticalNetPnl": theoretical,
-            "empiricalNetPnl": empirical["netPnl"],
-            "conservativeNetPnl": min(theoretical, empirical["netPnl"]),
-            "decisionNetPnl": empirical["netPnl"],
-            "decisionBasis": "prior-date-reverse-empirical-after-costs",
-            "includesFeesAndSlippage": True,
-        }
-    target = probabilities["targetBeforeStop15m"]
-    l2_quality = v28_reverse_l2_quality(l2)
-    calibration_ready = target["sampleCount"] >= V27_CALIBRATION_MIN_SAMPLES
+    """V2.8 shadow gate; V2.7 remains the unchanged control cohort."""
+    factors = candidate.get("factors") if isinstance(candidate.get("factors"), dict) else {}
+    is_intraday = candidate.get("factorCombinationId") == "v28-intraday-pullback-v1"
+    # Intraday pullbacks are additional positive-T candidates, not an exemption
+    # from the causal probability and after-cost expected-value gate.
+    causal_history = calibration_history_before_date(history, candidate["date"])
+    base = v27_entry_gate(candidate, l2, prior_atr, trades, causal_history)
+    reverse_risk = v28_reverse_risk_context(candidate)
+    target_probability = finite_float(
+        (((base.get("probabilities") or {}).get("targetBeforeStop15m") or {})
+         .get("probability"))
+    )
+    expected_value = base.get("expectedValue") or {}
+    break_even_probability = finite_float(expected_value.get("breakEvenProbability"))
+    conservative_net_pnl = finite_float(expected_value.get("conservativeNetPnl"))
+    causal_intraday = not is_intraday or factors.get(
+        "usesCompletedMinuteAndPriorMinutesOnly"
+    ) is True
     if not base["passed"]:
         passed, reason = False, base["reason"]
-    elif not calibration_ready:
-        passed, reason = True, "v28-reverse-confidence-learning-v26-fallback"
-    elif target["probability"] < V27_MIN_TARGET_FIRST_PROBABILITY:
-        passed, reason = False, "reverse-target-first-probability-too-low"
-    elif (target["lowerBound95"] is None
-          or target["lowerBound95"] < V27_MIN_TARGET_FIRST_LOWER_BOUND):
-        passed, reason = False, "reverse-confidence-lower-bound-too-low"
-    elif expected is None or expected["decisionNetPnl"] <= 0:
-        passed, reason = False, "reverse-expected-value-not-positive"
+    elif not causal_intraday:
+        passed, reason = False, "intraday-candidate-missing-causal-audit"
+    elif l2.get("delayedPromotion") is True:
+        passed, reason = False, "delayed-confirmation-observation-only"
+    elif is_intraday and base.get("calibrationApplied") is not True:
+        passed, reason = False, "intraday-calibration-learning-observation-only"
+    elif is_intraday and expected_value.get("includesFeesAndSlippage") is not True:
+        passed, reason = False, "intraday-cost-model-not-audited"
+    elif is_intraday and (
+        target_probability is None
+        or break_even_probability is None
+        or target_probability < break_even_probability
+    ):
+        passed, reason = False, "intraday-probability-below-costed-break-even"
+    elif is_intraday and (
+        conservative_net_pnl is None or conservative_net_pnl <= 0
+    ):
+        passed, reason = False, "intraday-conservative-net-pnl-not-positive"
+    elif candidate["direction"] == "reverseT" and reverse_risk["veto"]:
+        passed, reason = False, "reverse-bullish-environment-veto"
     else:
-        passed, reason = True, "v28-calibrated-reverse-entry-confirmed"
+        passed, reason = True, (
+            "v28-intraday-pullback-confirmed" if is_intraday
+            else "v28-opening-candidate-confirmed"
+        )
     return {
         **base,
         "passed": passed,
         "reason": reason,
-        "model": "v28-online-calibrated-reverse-entry",
-        "calibrationApplied": calibration_ready,
-        "confidenceState": "calibrated" if calibration_ready else "learning",
-        "features": features,
-        "probabilities": probabilities,
-        "expectedValue": expected,
-        "l2Persistence": l2_quality,
-        "calibrationAsOf": candidate["date"],
+        "model": "v28-shadow-entry-layer",
+        "candidateKind": "intraday-pullback" if is_intraday else "opening-gap",
+        "calibrationHistory": {
+            "source": "intraday-pullback-only" if is_intraday else "opening-gap",
+            "observations": len(causal_history),
+            "priorDatesOnly": True,
+        },
+        "reverseRiskContext": reverse_risk,
+        "usesEntryTimeDataOnly": True,
+    }
+
+
+def entry_time_l2_snapshot(l2: dict[str, Any]) -> dict[str, Any]:
+    """Return the latest evidence available no later than the entry decision."""
+    decision_second = l2.get("decisionSecond")
+    try:
+        decision_second = int(decision_second)
+    except (TypeError, ValueError):
+        decision_second = None
+    eligible = []
+    for item in l2.get("evidence") or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            evidence_second = int(item.get("second"))
+        except (TypeError, ValueError):
+            continue
+        if decision_second is not None and evidence_second <= decision_second:
+            eligible.append((evidence_second, item))
+    latest = max(eligible, key=lambda pair: pair[0])[1] if eligible else {}
+    return {
+        "status": "available" if latest else "unavailable",
+        "decisionSecond": decision_second,
+        "evidenceSecond": latest.get("second"),
+        "activeBuyRatio": finite_float(latest.get("activeBuyRatio")),
+        "depthImbalance": finite_float(latest.get("depthImbalance")),
+        "micropriceEdgeBps": finite_float(latest.get("micropriceEdgeBps")),
+        "priceResponseBps": finite_float(latest.get("priceResponseBps")),
+        "missingValuesFilledWithZero": False,
+        "readsThroughDecisionSecondOnly": True,
+    }
+
+
+def v29_reverse_tail_risk(candidate: dict[str, Any], l2: dict[str, Any]) -> dict[str, Any]:
+    """Apply train-frozen reverse-T tail vetoes without reading future evidence."""
+    factors = candidate.get("factors") if isinstance(candidate.get("factors"), dict) else {}
+    opening_gap_pct = finite_float(factors.get("openingGapPct"))
+    snapshot = entry_time_l2_snapshot(l2)
+    depth = snapshot["depthImbalance"]
+    active_buy_ratio = snapshot["activeBuyRatio"]
+    microprice_edge = snapshot["micropriceEdgeBps"]
+    low_gap_weak_sell_book = (
+        candidate.get("direction") == "reverseT"
+        and opening_gap_pct is not None
+        and opening_gap_pct < V29_REVERSE_LOW_GAP_MAX_PCT
+        and depth is not None
+        and depth > V29_REVERSE_LOW_GAP_MIN_DEPTH_IMBALANCE
+    )
+    mid_gap_buy_flow_risk = (
+        candidate.get("direction") == "reverseT"
+        and opening_gap_pct is not None
+        and V29_REVERSE_MID_GAP_MIN_PCT <= opening_gap_pct < V29_REVERSE_MID_GAP_MAX_PCT
+        and active_buy_ratio is not None
+        and active_buy_ratio <= V29_REVERSE_MID_GAP_MAX_ACTIVE_BUY_RATIO
+        and microprice_edge is not None
+        and microprice_edge <= V29_REVERSE_MID_GAP_MAX_MICROPRICE_EDGE_BPS
+    )
+    rules = {
+        "lowGapWeakSellBook": low_gap_weak_sell_book,
+        "midGapBuyFlowRisk": mid_gap_buy_flow_risk,
+    }
+    triggered = [name for name, matched in rules.items() if matched]
+    return {
+        "veto": bool(triggered),
+        "triggeredRules": triggered,
+        "openingGapPct": opening_gap_pct,
+        "entryTimeL2": snapshot,
+        "missingValuesFilledWithZero": False,
+        "rulesFrozenBeforeReplay": True,
+    }
+
+
+def v29_positive_expansion_gate(candidate: dict[str, Any], l2: dict[str, Any],
+                                v28_gate: dict[str, Any]) -> dict[str, Any]:
+    """Select a narrow positive-T observation group; it never changes V2.8."""
+    snapshot = entry_time_l2_snapshot(l2)
+    depth = snapshot["depthImbalance"]
+    opening_candidate = candidate.get("factorCombinationId") != "v28-intraday-pullback-v1"
+    passed = (
+        candidate.get("direction") == "positiveT"
+        and opening_candidate
+        and l2.get("status") == "confirmed"
+        and l2.get("delayedPromotion") is not True
+        and v28_gate.get("passed") is False
+        and v28_gate.get("reason") == "positive-buy-flow-too-weak"
+        and depth is not None
+        and depth >= V29_POSITIVE_EXPANSION_MIN_DEPTH_IMBALANCE
+    )
+    return {
+        "passed": passed,
+        "reason": (
+            "positive-depth-expansion-observation"
+            if passed else "not-selected-for-positive-expansion"
+        ),
+        "researchOnly": True,
+        "openingCandidate": opening_candidate,
+        "v28Reason": v28_gate.get("reason"),
+        "entryTimeL2": snapshot,
+        "minimumDepthImbalance": V29_POSITIVE_EXPANSION_MIN_DEPTH_IMBALANCE,
+        "exitModel": "v23",
+        "affectsV28": False,
+    }
+
+
+def v29_entry_gate(candidate: dict[str, Any], l2: dict[str, Any],
+                   v28_gate: dict[str, Any]) -> dict[str, Any]:
+    """Derive an isolated V2.9 decision while retaining V2.8 as the control."""
+    reverse_risk = v29_reverse_tail_risk(candidate, l2)
+    expansion = v29_positive_expansion_gate(candidate, l2, v28_gate)
+    if v28_gate.get("passed"):
+        if reverse_risk["veto"]:
+            passed, reason, source = False, "v29-reverse-tail-risk-veto", "v28-control"
+        else:
+            passed, reason, source = True, "v29-retains-v28-entry", "v28-control"
+    elif expansion["passed"]:
+        passed = True
+        reason = "v29-positive-depth-expansion-observation"
+        source = "positive-depth-expansion"
+    else:
+        passed = False
+        reason = str(v28_gate.get("reason") or "v28-entry-filtered")
+        source = "filtered"
+    return {
+        "passed": passed,
+        "reason": reason,
+        "model": "v29-isolated-shadow-entry-layer",
+        "selectionSource": source,
+        "v28ControlPassed": bool(v28_gate.get("passed")),
+        "v28ControlReason": v28_gate.get("reason"),
+        "reverseTailRisk": reverse_risk,
+        "positiveExpansion": expansion,
+        "usesEntryTimeDataOnly": True,
+        "researchOnly": True,
+        "affectsV28": False,
     }
 
 
@@ -890,63 +1142,6 @@ def v27_calibration_observation(candidate: dict[str, Any], decision_second: int,
             "shortRebound60s": short_rebound,
             "targetBeforeStop15m": target_before_stop,
             "closureWithin45m": closure,
-        },
-        "netPnl": simulation["netPnl"],
-        "entrySecond": entry_second,
-        "usesOutcomeAfterDecisionOnly": True,
-    }
-
-
-def v28_calibration_observation(candidate: dict[str, Any], decision_second: int,
-                                trades: dict[int, Any], prior_atr: float | None,
-                                l2: dict[str, Any], simulation: dict[str, Any] | None
-                                ) -> dict[str, Any] | None:
-    if candidate["direction"] == "positiveT":
-        return v27_calibration_observation(
-            candidate, decision_second, trades, prior_atr, l2, simulation
-        )
-    entry = entry_trade_after(trades, decision_second)
-    if entry is None or simulation is None:
-        return None
-    entry_second, entry_market = entry
-    target_gap = SECOND.target_gap(entry_market)
-    stop_gap, _ = adaptive_emergency_stop_gap("reverseT", entry_market, target_gap, prior_atr)
-    target_price = entry_market - target_gap
-    stop_price = entry_market + stop_gap
-    short_end = entry_second + V27_SHORT_REBOUND_SECONDS
-    target_first_end = entry_second + V27_TARGET_FIRST_SECONDS
-    horizon_end = entry_second + HORIZON_SECONDS["reverseT"]
-    future_seconds = sorted(
-        second for second in trades
-        if entry_second < second <= horizon_end and SECOND.is_market_second(second)
-    )
-    short_decline = any(
-        trades[second].low <= entry_market - max(
-            0.01, target_gap * V27_SHORT_REBOUND_TARGET_FRACTION
-        )
-        for second in future_seconds if second <= short_end
-    )
-    target_second = next((
-        second for second in future_seconds
-        if second <= target_first_end and trades[second].low <= target_price
-    ), None)
-    stop_second = next((
-        second for second in future_seconds
-        if second <= target_first_end and trades[second].high >= stop_price
-    ), None)
-    target_before_stop = (
-        target_second is not None
-        and (stop_second is None or target_second < stop_second)
-    )
-    closure = any(trades[second].low <= target_price for second in future_seconds)
-    return {
-        "date": candidate["date"],
-        "direction": "reverseT",
-        "features": v27_entry_features(candidate, l2, prior_atr),
-        "outcomes": {
-            "shortDecline60s": short_decline,
-            "targetBeforeStop15m": target_before_stop,
-            "closureWithin50m": closure,
         },
         "netPnl": simulation["netPnl"],
         "entrySecond": entry_second,
@@ -1450,6 +1645,149 @@ def metric(rows: list[dict[str, Any]], direction: str | None = None) -> dict[str
     }
 
 
+def v28_performance_attribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    by_source = {
+        "openingGap": [
+            row for row in rows
+            if row["candidate"].get("factorCombinationId") != "v28-intraday-pullback-v1"
+        ],
+        "intradayPullback": [
+            row for row in rows
+            if row["candidate"].get("factorCombinationId") == "v28-intraday-pullback-v1"
+        ],
+    }
+    by_confirmation = {
+        "initialConfirmed": [
+            row for row in rows
+            if row["initialL2Decision"]["status"] == "confirmed"
+        ],
+        "delayedConfirmed": [
+            row for row in rows
+            if row["initialL2Decision"]["status"] == "neutral"
+            and row["l2Decision"]["status"] == "confirmed"
+        ],
+        "notConfirmed": [
+            row for row in rows if row["l2Decision"]["status"] != "confirmed"
+        ],
+    }
+    return {
+        "bySource": {name: metric(group) for name, group in by_source.items()},
+        "byConfirmationPath": {
+            name: metric(group) for name, group in by_confirmation.items()
+        },
+    }
+
+
+def v28_counterfactual_metric(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    projected = []
+    for row in rows:
+        simulation = row.get("counterfactualSimulation")
+        projected.append({
+            **row,
+            "executed": simulation is not None,
+            "simulation": simulation,
+        })
+    return metric(projected)
+
+
+def v28_expansion_audit(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    filtered = [
+        row for row in rows
+        if not row.get("executed") and row.get("counterfactualSimulation") is not None
+    ]
+    by_reason: dict[str, list[dict[str, Any]]] = {}
+    for row in filtered:
+        reason = str((row.get("entryGate") or {}).get("reason") or "unknown")
+        by_reason.setdefault(reason, []).append(row)
+    groups = {
+        "allFiltered": filtered,
+        "intradayPullback": [
+            row for row in filtered
+            if row["candidate"].get("factorCombinationId") == "v28-intraday-pullback-v1"
+        ],
+        "openingGap": [
+            row for row in filtered
+            if row["candidate"].get("factorCombinationId") != "v28-intraday-pullback-v1"
+        ],
+        "delayedConfirmed": [
+            row for row in filtered if row["l2Decision"].get("delayedPromotion") is True
+        ],
+        "initialConfirmed": [
+            row for row in filtered
+            if row["initialL2Decision"].get("status") == "confirmed"
+        ],
+    }
+    return {
+        "researchOnly": True,
+        "currentGateUnchanged": True,
+        "byGroup": {
+            name: v28_counterfactual_metric(group) for name, group in groups.items()
+        },
+        "byEntryGateReason": {
+            reason: v28_counterfactual_metric(group)
+            for reason, group in sorted(by_reason.items())
+        },
+    }
+
+
+def metric_from_simulation_field(rows: list[dict[str, Any]], field: str) -> dict[str, Any]:
+    projected = []
+    for row in rows:
+        simulation = row.get(field)
+        projected.append({
+            **row,
+            "executed": simulation is not None,
+            "simulation": simulation,
+        })
+    return metric(projected)
+
+
+def v29_audit_slice(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    reverse_vetoed = [
+        row for row in rows
+        if (row.get("entryGate") or {}).get("reason") == "v29-reverse-tail-risk-veto"
+    ]
+    expansion = [
+        row for row in rows
+        if (row.get("entryGate") or {}).get("selectionSource")
+        == "positive-depth-expansion"
+    ]
+    v28_control = metric_from_simulation_field(rows, "v28ControlSimulation")
+    v29_result = metric(rows)
+    return {
+        "v28Control": v28_control,
+        "v29Result": v29_result,
+        "comparisonToV28": {
+            "closedTradesChange": v29_result["closedTrades"] - v28_control["closedTrades"],
+            "netPnlChange": v29_result["netPnl"] - v28_control["netPnl"],
+            "maximumDrawdownChange": (
+                v29_result["maximumDrawdown"] - v28_control["maximumDrawdown"]
+            ),
+        },
+        "reverseTailVeto": {
+            "signals": len(reverse_vetoed),
+            "v28Counterfactual": metric_from_simulation_field(
+                reverse_vetoed, "v28ControlSimulation"
+            ),
+            "triggeredRules": {
+                rule: sum(
+                    rule in (((row.get("entryGate") or {}).get("reverseTailRisk") or {})
+                             .get("triggeredRules") or [])
+                    for row in reverse_vetoed
+                )
+                for rule in ("lowGapWeakSellBook", "midGapBuyFlowRisk")
+            },
+        },
+        "positiveExpansionObservation": {
+            "researchOnly": True,
+            "signals": len(expansion),
+            "performance": metric(expansion),
+            "exitModel": "v23",
+            "affectsV28": False,
+        },
+    }
+
+
 def loss_attribution(rows: list[dict[str, Any]]) -> dict[str, Any]:
     trades = [row["simulation"] for row in rows if row.get("executed") and row.get("simulation")]
     losses = [trade for trade in trades if trade["netPnl"] <= 0]
@@ -1534,23 +1872,21 @@ def summarize(rows: list[dict[str, Any]], dates: list[str]) -> dict[str, Any]:
 def promotion_evaluation(summary: dict[str, Any]) -> dict[str, Any]:
     full = summary["all"]["combined"]
     test = summary["splits"]["test"]["combined"]
-    out_of_sample_sample_ready = (
-        test["closedTrades"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleClosedTrades"]
-    )
     out_of_sample_profit_factor_passed = (
-        out_of_sample_sample_ready
-        and test["profitFactor"] is not None
+        test["profitFactor"] is not None
         and test["profitFactor"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleProfitFactor"]
     ) or (
-        out_of_sample_sample_ready
+        test["closedTrades"] > 0
         and test["profitFactor"] is None
         and test["netPnl"] > 0
     )
     checks = {
         "closedTrades": full["closedTrades"] >= PROMOTION_THRESHOLDS["minimumClosedTrades"],
-        "outOfSampleClosedTrades": out_of_sample_sample_ready,
+        "outOfSampleClosedTrades": (
+            test["closedTrades"]
+            >= PROMOTION_THRESHOLDS["minimumOutOfSampleClosedTrades"]
+        ),
         "outOfSampleWinRate": test["winRate"] is not None
-            and out_of_sample_sample_ready
             and test["winRate"] >= PROMOTION_THRESHOLDS["minimumOutOfSampleWinRate"],
         "outOfSampleProfitFactor": out_of_sample_profit_factor_passed,
         "outOfSampleNetPnl": test["netPnl"] > PROMOTION_THRESHOLDS["minimumOutOfSampleNetPnl"],
@@ -1561,6 +1897,19 @@ def promotion_evaluation(summary: dict[str, Any]) -> dict[str, Any]:
         "eligibleForHumanReview": all(checks.values()),
         "automaticPromotion": False,
         "decision": "eligible-for-human-review" if all(checks.values()) else "keep-shadow",
+    }
+
+
+def v29_promotion_evaluation(summary: dict[str, Any]) -> dict[str, Any]:
+    """Expose statistical checks while keeping V2.9 permanently shadow-only."""
+    evaluated = promotion_evaluation(summary)
+    return {
+        **evaluated,
+        "statisticallyEligibleForHumanReview": evaluated["eligibleForHumanReview"],
+        "eligibleForHumanReview": False,
+        "automaticPromotion": False,
+        "decision": "keep-shadow",
+        "reason": "V2.9 is an isolated offline research cohort and cannot auto-promote",
     }
 
 
@@ -1606,10 +1955,18 @@ def main() -> None:
     candidates = (load_external_candidates(args.candidates) if args.candidates
                   else opening_candidates(args.minute_data, allowed_dates))
     candidates = [candidate for candidate in candidates if candidate["date"] in allowed_dates]
+    v28_candidates = list(candidates)
+    if not args.candidates:
+        v28_candidates.extend(v28_intraday_pullback_candidates(
+            args.minute_data, allowed_dates
+        ))
     atr_by_date = prior_atr_by_date(args.minute_data, allowed_dates)
     candidates_by_date: dict[str, list[dict[str, Any]]] = {}
     for candidate in candidates:
         candidates_by_date.setdefault(candidate["date"], []).append(candidate)
+    v28_candidates_by_date: dict[str, list[dict[str, Any]]] = {}
+    for candidate in v28_candidates:
+        v28_candidates_by_date.setdefault(candidate["date"], []).append(candidate)
 
     cohort_rows = {name: [] for name in COHORTS}
     risk_managed_rows = {name: [] for name in COHORTS}
@@ -1618,37 +1975,42 @@ def main() -> None:
     v25_risk_managed_rows = {name: [] for name in COHORTS}
     v26_risk_managed_rows = {name: [] for name in COHORTS}
     v27_risk_managed_rows = {name: [] for name in COHORTS}
-    v28_risk_managed_rows = {name: [] for name in COHORTS}
+    v28_risk_managed_rows = {"l2ConfirmAndVeto": []}
+    v29_risk_managed_rows = {"l2ConfirmAndVeto": []}
     v21_risk_managed_rows = {name: [] for name in COHORTS}
     tight_stop_rows = {name: [] for name in COHORTS}
     ledger: list[dict[str, Any]] = []
     processed_dates: list[str] = []
     source_hash = hashlib.sha256()
-    quality = {"rawTradeRows": 0, "rawQuoteRows": 0, "candidateDays": 0}
+    quality = {
+        "rawTradeRows": 0,
+        "rawQuoteRows": 0,
+        "candidateDays": 0,
+        "v28CandidateDays": 0,
+    }
     v27_calibration_history: list[dict[str, Any]] = []
-    v28_calibration_history: list[dict[str, Any]] = []
+    v28_intraday_calibration_history: list[dict[str, Any]] = []
     for index, archive in enumerate(archives, start=1):
         date = str(archive["date"])
         source_hash.update(f"{date}:{archive.get('sha256', '')}\n".encode())
         day_candidates = candidates_by_date.get(date, [])
-        if not day_candidates:
+        v28_day_candidates = v28_candidates_by_date.get(date, [])
+        if not day_candidates and not v28_day_candidates:
             processed_dates.append(date)
             continue
         trades, quotes, day_quality = SECOND.read_archive(Path(archive["path"]))
         quality["rawTradeRows"] += day_quality["rawTradeRows"]
         quality["rawQuoteRows"] += day_quality["rawQuoteRows"]
-        quality["candidateDays"] += 1
+        quality["candidateDays"] += bool(day_candidates)
+        quality["v28CandidateDays"] += bool(v28_day_candidates)
         day_calibration_observations: list[dict[str, Any]] = []
-        day_v28_calibration_observations: list[dict[str, Any]] = []
+        day_v28_intraday_calibration_observations: list[dict[str, Any]] = []
         for candidate in day_candidates:
             l2 = classify_l2(candidate, trades, quotes)
             v25_gate = v25_entry_gate(candidate, l2)
             v26_gate = v26_entry_gate(candidate, l2, atr_by_date.get(date))
             v27_gate = v27_entry_gate(
                 candidate, l2, atr_by_date.get(date), trades, v27_calibration_history
-            )
-            v28_gate = v28_entry_gate(
-                candidate, l2, atr_by_date.get(date), trades, v28_calibration_history
             )
             v27_reference_simulation = (
                 simulate_round_trip(
@@ -1751,19 +2113,6 @@ def main() -> None:
                     )
                     if execute and v27_gate["passed"] else None
                 )
-                v28_risk_managed_simulation = (
-                    simulate_round_trip(
-                        candidate,
-                        decision_second,
-                        trades,
-                        quotes,
-                        atr_by_date.get(date),
-                        risk_managed=True,
-                        exit_model="v27",
-                        entry_confidence=v28_gate,
-                    )
-                    if execute and v28_gate["passed"] else None
-                )
                 tight_stop_simulation = simulate_round_trip(
                     candidate,
                     decision_second,
@@ -1824,13 +2173,6 @@ def main() -> None:
                     "entryGate": v27_gate,
                     "counterfactualSimulation": v27_reference_simulation,
                 })
-                v28_risk_managed_rows[cohort].append({
-                    **row,
-                    "executed": bool(v28_risk_managed_simulation),
-                    "simulation": v28_risk_managed_simulation,
-                    "entryGate": v28_gate,
-                    "counterfactualSimulation": v27_reference_simulation,
-                })
                 tight_stop_rows[cohort].append({
                     **row,
                     "executed": bool(tight_stop_simulation),
@@ -1853,9 +2195,6 @@ def main() -> None:
                     "v27EntryGate": v27_gate,
                     "v27RiskManagedSimulation": v27_risk_managed_simulation,
                     "v27CounterfactualSimulation": v27_reference_simulation,
-                    "v28EntryGate": v28_gate,
-                    "v28RiskManagedSimulation": v28_risk_managed_simulation,
-                    "v28CounterfactualSimulation": v27_reference_simulation,
                     "tightStopSimulation": tight_stop_simulation,
                 }
             ledger.append(sample)
@@ -1869,18 +2208,115 @@ def main() -> None:
             )
             if observation is not None:
                 day_calibration_observations.append(observation)
-            v28_observation = v28_calibration_observation(
-                candidate,
-                l2["decisionSecond"],
-                trades,
-                atr_by_date.get(date),
-                l2,
-                v27_reference_simulation,
+        for candidate in v28_day_candidates:
+            is_intraday = (
+                candidate.get("factorCombinationId") == "v28-intraday-pullback-v1"
             )
-            if v28_observation is not None:
-                day_v28_calibration_observations.append(v28_observation)
+            initial_l2 = classify_l2(candidate, trades, quotes)
+            v28_l2 = v28_delayed_l2_decision(
+                candidate, initial_l2, trades, quotes
+            )
+            confirmed = v28_l2["status"] == "confirmed"
+            v28_gate = v28_entry_gate(
+                candidate,
+                v28_l2,
+                atr_by_date.get(date),
+                trades,
+                (v28_intraday_calibration_history
+                 if is_intraday else v27_calibration_history),
+            )
+            v28_counterfactual = (
+                simulate_round_trip(
+                    candidate,
+                    v28_l2["decisionSecond"],
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                    exit_model="v27",
+                    entry_confidence=v28_gate,
+                )
+                if confirmed else None
+            )
+            v28_simulation = v28_counterfactual if v28_gate["passed"] else None
+            v29_gate = v29_entry_gate(candidate, v28_l2, v28_gate)
+            v29_expansion_simulation = (
+                simulate_round_trip(
+                    candidate,
+                    v28_l2["decisionSecond"],
+                    trades,
+                    quotes,
+                    atr_by_date.get(date),
+                    risk_managed=True,
+                    exit_model="v23",
+                )
+                if v29_gate["positiveExpansion"]["passed"] else None
+            )
+            v29_simulation = (
+                v29_expansion_simulation
+                if v29_gate["selectionSource"] == "positive-depth-expansion"
+                else (v28_simulation if v29_gate["passed"] else None)
+            )
+            v28_row = {
+                "candidate": candidate,
+                "l2Decision": v28_l2,
+                "initialL2Decision": initial_l2,
+                "cohort": "l2ConfirmAndVeto",
+                "executed": bool(v28_simulation),
+                "decisionSecond": v28_l2["decisionSecond"],
+                "decisionReason": v28_gate["reason"],
+                "simulation": v28_simulation,
+                "entryGate": v28_gate,
+                "counterfactualSimulation": v28_counterfactual,
+            }
+            v28_risk_managed_rows["l2ConfirmAndVeto"].append(v28_row)
+            ledger.append({
+                "schemaVersion": 1,
+                "engineVersion": ENGINE_VERSION,
+                "symbol": "601899.SH",
+                "researchOnly": True,
+                "studyLayer": "riskManagedV28",
+                **v28_row,
+            })
+            v29_row = {
+                "candidate": candidate,
+                "l2Decision": v28_l2,
+                "initialL2Decision": initial_l2,
+                "cohort": "l2ConfirmAndVeto",
+                "executed": bool(v29_simulation),
+                "decisionSecond": v28_l2["decisionSecond"],
+                "decisionReason": v29_gate["reason"],
+                "simulation": v29_simulation,
+                "entryGate": v29_gate,
+                "v28ControlExecuted": bool(v28_simulation),
+                "v28ControlSimulation": v28_simulation,
+                "expansionSimulation": v29_expansion_simulation,
+                "counterfactualSimulation": v28_counterfactual,
+            }
+            v29_risk_managed_rows["l2ConfirmAndVeto"].append(v29_row)
+            ledger.append({
+                "schemaVersion": 1,
+                "engineVersion": ENGINE_VERSION,
+                "symbol": "601899.SH",
+                "researchOnly": True,
+                "studyLayer": "riskManagedV29",
+                **v29_row,
+            })
+            if is_intraday:
+                observation = v27_calibration_observation(
+                    candidate,
+                    v28_l2["decisionSecond"],
+                    trades,
+                    atr_by_date.get(date),
+                    v28_l2,
+                    v28_counterfactual,
+                )
+                if observation is not None:
+                    day_v28_intraday_calibration_observations.append(observation)
         v27_calibration_history.extend(day_calibration_observations)
-        v28_calibration_history.extend(day_v28_calibration_observations)
+        v28_intraday_calibration_history.extend(
+            day_v28_intraday_calibration_observations
+        )
         processed_dates.append(date)
         if index % 20 == 0 or index == len(archives):
             print(f"processed {index}/{len(archives)} sessions", flush=True)
@@ -1896,7 +2332,18 @@ def main() -> None:
     v26_summaries = {cohort: summarize(rows, dates) for cohort, rows in v26_risk_managed_rows.items()}
     v27_summaries = {cohort: summarize(rows, dates) for cohort, rows in v27_risk_managed_rows.items()}
     v28_summaries = {cohort: summarize(rows, dates) for cohort, rows in v28_risk_managed_rows.items()}
-    promotion = promotion_evaluation(v28_summaries["l2ConfirmAndVeto"])
+    v29_summaries = {cohort: summarize(rows, dates) for cohort, rows in v29_risk_managed_rows.items()}
+    v27_promotion = promotion_evaluation(v27_summaries["l2ConfirmAndVeto"])
+    evaluated_v28_promotion = promotion_evaluation(v28_summaries["l2ConfirmAndVeto"])
+    v28_promotion = {
+        **evaluated_v28_promotion,
+        "statisticallyEligibleForHumanReview": evaluated_v28_promotion["eligibleForHumanReview"],
+        "eligibleForHumanReview": False,
+        "automaticPromotion": False,
+        "decision": "keep-shadow",
+        "reason": "V2.8 is an isolated research cohort and cannot auto-promote",
+    }
+    v29_promotion = v29_promotion_evaluation(v29_summaries["l2ConfirmAndVeto"])
     primary_v25_rows = v25_risk_managed_rows["l2ConfirmAndVeto"]
     date_splits = split_dates(dates)
     v25_audit = {
@@ -1965,43 +2412,131 @@ def main() -> None:
         },
     }
     primary_v28_rows = v28_risk_managed_rows["l2ConfirmAndVeto"]
-    reverse_v28_history = [
-        row for row in v28_calibration_history if row["direction"] == "reverseT"
-    ]
-    v28_audit = {
-        "calibration": {
-            "observations": len(v28_calibration_history),
-            "positiveTObservations": sum(
-                row["direction"] == "positiveT" for row in v28_calibration_history
+
+    def v28_audit_slice(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        initial_statuses = {
+            status: sum(row["initialL2Decision"]["status"] == status for row in rows)
+            for status in ("confirmed", "rejected", "neutral")
+        }
+        source_counts = {
+            "openingGap": sum(
+                row["candidate"].get("factorCombinationId") != "v28-intraday-pullback-v1"
+                for row in rows
             ),
-            "reverseTObservations": len(reverse_v28_history),
-            "minimumSamplesBeforeEntryByDirection": V27_CALIBRATION_MIN_SAMPLES,
+            "intradayPullback": sum(
+                row["candidate"].get("factorCombinationId") == "v28-intraday-pullback-v1"
+                for row in rows
+            ),
+        }
+        performance_attribution = v28_performance_attribution(rows)
+        return {
+            "candidatesBySource": source_counts,
+            "performanceAttribution": performance_attribution,
+            "expansionCounterfactual": v28_expansion_audit(rows),
+            "initialL2Statuses": initial_statuses,
+            "delayedNeutralReviews": sum(
+                row["l2Decision"].get("delayedReview") is True for row in rows
+            ),
+            "delayedNeutralPromotions": sum(
+                row["l2Decision"].get("delayedPromotion") is True for row in rows
+            ),
+            "delayedNeutralRejections": sum(
+                row["initialL2Decision"]["status"] == "neutral"
+                and row["l2Decision"]["status"] == "rejected"
+                for row in rows
+            ),
+            "explicitInitialRejectionsReconsidered": sum(
+                row["initialL2Decision"]["status"] == "rejected"
+                and row["l2Decision"].get("delayedReview") is True
+                for row in rows
+            ),
+            "reverseEnvironmentVetoes": sum(
+                row["entryGate"]["reason"] == "reverse-bullish-environment-veto"
+                for row in rows
+            ),
+            "lossAttribution": loss_attribution(rows),
+            "filteredCounterfactual": filtered_counterfactual(rows),
+        }
+
+    v27_combined = v27_summaries["l2ConfirmAndVeto"]["all"]["combined"]
+    v28_combined = v28_summaries["l2ConfirmAndVeto"]["all"]["combined"]
+    v28_audit = {
+        "isolation": {
+            "researchOnly": True,
+            "affectsSmartT": False,
+            "affectsShadowV2": False,
+            "v27RetainedAsControl": True,
+        },
+        "dataAvailability": {
+            "marketSectorCommodity": (
+                "optional entry-time candidate fields; missing values remain unavailable"
+            ),
+            "missingValuesFilledWithZero": False,
+        },
+        "calibration": {
+            "openingObservations": len(v27_calibration_history),
+            "intradayPullbackObservations": len(v28_intraday_calibration_history),
+            "intradayHistorySource": "intraday-pullback-only",
             "sameDayObservationsAvailableToEntry": False,
             "futureObservationsAvailableToEntry": False,
+            "updatesAfterEntireSession": True,
         },
-        "reverseTailRisk": {
-            "lossAttribution": loss_attribution([
-                row for row in primary_v28_rows
-                if row["candidate"]["direction"] == "reverseT"
-            ]),
-            "filteredCounterfactual": filtered_counterfactual([
-                row for row in primary_v28_rows
-                if row["candidate"]["direction"] == "reverseT"
-            ]),
+        "comparisonToV27": {
+            "candidateUpgradeRateChange": (
+                v28_combined["candidateUpgradeRate"] - v27_combined["candidateUpgradeRate"]
+                if v28_combined["candidateUpgradeRate"] is not None
+                and v27_combined["candidateUpgradeRate"] is not None else None
+            ),
+            "closedTradesChange": v28_combined["closedTrades"] - v27_combined["closedTrades"],
+            "netPnlChange": v28_combined["netPnl"] - v27_combined["netPnl"],
+            "maximumDrawdownChangePct": (
+                (v28_combined["maximumDrawdown"] / v27_combined["maximumDrawdown"] - 1) * 100
+                if v27_combined["maximumDrawdown"] > 0 else None
+            ),
+            "targetUpgradeRateRange": [0.20, 0.25],
+            "maximumAllowedDrawdownIncreasePct": 20.0,
         },
-        "all": {
-            "lossAttribution": loss_attribution(primary_v28_rows),
-            "filteredCounterfactual": filtered_counterfactual(primary_v28_rows),
-        },
+        "all": v28_audit_slice(primary_v28_rows),
         "splits": {
-            name: {
-                "lossAttribution": loss_attribution([
-                    row for row in primary_v28_rows if row["candidate"]["date"] in split
-                ]),
-                "filteredCounterfactual": filtered_counterfactual([
-                    row for row in primary_v28_rows if row["candidate"]["date"] in split
-                ]),
-            }
+            name: v28_audit_slice([
+                row for row in primary_v28_rows if row["candidate"]["date"] in split
+            ])
+            for name, split in date_splits.items()
+        },
+    }
+    primary_v29_rows = v29_risk_managed_rows["l2ConfirmAndVeto"]
+    v29_audit = {
+        "isolation": {
+            "researchOnly": True,
+            "offlineReplayOnly": True,
+            "affectsSmartT": False,
+            "affectsShadowV2": False,
+            "affectsV28": False,
+            "v28RetainedAsControl": True,
+            "automaticPromotion": False,
+        },
+        "frozenRules": {
+            "reverseTailRisk": [
+                "reverse T with opening gap below 1.5% and entry-time depth imbalance above -0.40",
+                "reverse T with opening gap from 2% to below 3%, active-buy ratio at most 0.25, and microprice edge at most 0 bps",
+            ],
+            "positiveExpansion": (
+                "opening positive T rejected only for weak buy flow, initially confirmed, "
+                "with entry-time depth imbalance at least 0.75"
+            ),
+            "ruleSelectionSource": "training split diagnostic frozen before full replay",
+            "validationOrTestUsedToTuneRules": False,
+        },
+        "dataAvailability": {
+            "l2Snapshot": "latest evidence at or before the entry decision second",
+            "missingValuesFilledWithZero": False,
+            "futureEvidenceAvailableToEntry": False,
+        },
+        "all": v29_audit_slice(primary_v29_rows),
+        "splits": {
+            name: v29_audit_slice([
+                row for row in primary_v29_rows if row["candidate"]["date"] in split
+            ])
             for name, split in date_splits.items()
         },
     }
@@ -2021,7 +2556,8 @@ def main() -> None:
             "riskManagedV25": "V2.4 exits plus direction-specific entry-quality gates frozen on train and validation data",
             "riskManagedV26": "V2.5 exits plus positive-T regime and price-flow entry vetoes; no broad early-exit override",
             "riskManagedV27": "V2.6 entry gates plus prior-date calibrated positive-T confidence and sustained low-confidence exit; reverse-T unchanged",
-            "riskManagedV28": "V2.7 exits plus prior-date reverse-T calibration and after-cost expected value; L2 persistence remains audit-only",
+            "riskManagedV28": "isolated V2.7 control extension with delayed neutral confirmation, independently calibrated causal intraday positive-T pullbacks, and reverse-T environment veto",
+            "riskManagedV29": "isolated offline V2.8 control extension with train-frozen reverse-T tail vetoes and a narrow positive-T depth observation group; no automatic promotion",
         },
         "atrPeriod": ATR_PERIOD,
         "atrStopFraction": ATR_STOP_FRACTION,
@@ -2056,10 +2592,19 @@ def main() -> None:
         "v27TargetFirstSeconds": V27_TARGET_FIRST_SECONDS,
         "v27ExitMaximumTargetFirstProbability": V27_EXIT_MAX_TARGET_FIRST_PROBABILITY,
         "v27ExitLowConfidenceSeconds": V27_EXIT_LOW_CONFIDENCE_SECONDS,
-        "v28ReverseMaximumActiveBuyRatioChange": V28_REVERSE_MAX_ACTIVE_BUY_RATIO_CHANGE,
-        "v28ReverseMinimumResponsePersistenceSeconds": V28_REVERSE_MIN_RESPONSE_PERSISTENCE_SECONDS,
-        "v28ReverseMaximumRecoveryBps": V28_REVERSE_MAX_RECOVERY_BPS,
-        "v28ReverseL2PersistenceEntryGateRole": "audit-only",
+        "v28DelayedConfirmationSeconds": V28_DELAYED_CONFIRMATION_SECONDS,
+        "v28IntradayWindowSeconds": [V28_INTRADAY_START, V28_INTRADAY_END],
+        "v28IntradayMinimumVwapDeviationPct": V28_INTRADAY_MIN_VWAP_DEVIATION_PCT,
+        "v28IntradayMinimumPullbackPct": V28_INTRADAY_MIN_PULLBACK_PCT,
+        "v28IntradayMaximumVolumeRatio": V28_INTRADAY_MAX_VOLUME_RATIO,
+        "v28IntradayMinimumBarRecovery": V28_INTRADAY_MIN_BAR_RECOVERY,
+        "v29ReverseLowGapMaximumPct": V29_REVERSE_LOW_GAP_MAX_PCT,
+        "v29ReverseLowGapMinimumDepthImbalance": V29_REVERSE_LOW_GAP_MIN_DEPTH_IMBALANCE,
+        "v29ReverseMidGapMinimumPct": V29_REVERSE_MID_GAP_MIN_PCT,
+        "v29ReverseMidGapMaximumPct": V29_REVERSE_MID_GAP_MAX_PCT,
+        "v29ReverseMidGapMaximumActiveBuyRatio": V29_REVERSE_MID_GAP_MAX_ACTIVE_BUY_RATIO,
+        "v29ReverseMidGapMaximumMicropriceEdgeBps": V29_REVERSE_MID_GAP_MAX_MICROPRICE_EDGE_BPS,
+        "v29PositiveExpansionMinimumDepthImbalance": V29_POSITIVE_EXPANSION_MIN_DEPTH_IMBALANCE,
         "emergencyAtrFraction": EMERGENCY_ATR_FRACTION,
         "emergencyTargetMultipleMin": EMERGENCY_TARGET_MULTIPLE_MIN,
         "emergencyTargetMultipleMax": EMERGENCY_TARGET_MULTIPLE_MAX,
@@ -2092,6 +2637,7 @@ def main() -> None:
         "reproducibility": {
             "configHash": stable_hash(config),
             "candidateChecksum": stable_hash(candidates),
+            "v28CandidateChecksum": stable_hash(v28_candidates),
             "ledger": str(ledger_path),
             "ledgerChecksum": ledger_checksum,
             "gitCommit": git_commit(),
@@ -2104,11 +2650,28 @@ def main() -> None:
             "chronologicalTrainValidationTest": True,
             "v27CalibrationUsesPriorDatesOnly": True,
             "v27CalibrationUpdatesAfterEntireSession": True,
-            "v28CalibrationUsesPriorDatesOnly": True,
-            "v28CalibrationUpdatesAfterEntireSession": True,
+            "v28DelayedReviewAppliesOnlyToInitialNeutral": True,
+            "v28DelayedReviewReadsThroughDecisionSecondOnly": True,
+            "v28IntradayCandidateUsesCompletedCurrentAndPriorMinutesOnly": True,
+            "v28IntradayCalibrationUsesPriorDatesOnly": True,
+            "v28IntradayCalibrationUpdatesAfterEntireSession": True,
+            "v28IntradayCalibrationIsIndependentFromOpeningSamples": True,
+            "v28ReverseVetoUsesEntryTimeOptionalFieldsOnly": True,
+            "v29RulesFrozenBeforeFullReplay": True,
+            "v29ReverseVetoReadsEntryTimeEvidenceOnly": True,
+            "v29PositiveExpansionReadsEntryTimeEvidenceOnly": True,
+            "v29EvidenceAfterDecisionSecondIgnored": True,
+            "v29MissingL2FieldsRemainUnavailable": True,
+            "v29V28ControlIsNotMutated": True,
         },
         "config": config,
-        "quality": {**quality, "candidateCount": len(candidates), "ledgerSamples": len(ledger)},
+        "quality": {
+            **quality,
+            "candidateCount": len(candidates),
+            "v28CandidateCount": len(v28_candidates),
+            "v28IntradayCandidateCount": len(v28_candidates) - len(candidates),
+            "ledgerSamples": len(ledger),
+        },
         "results": summaries,
         "v22RiskManagedResults": summaries,
         "v23RiskManagedResults": v23_summaries,
@@ -2121,10 +2684,14 @@ def main() -> None:
         "v27Audit": v27_audit,
         "v28RiskManagedResults": v28_summaries,
         "v28Audit": v28_audit,
+        "v29RiskManagedResults": v29_summaries,
+        "v29Audit": v29_audit,
         "v21RiskManagedResults": v21_summaries,
         "tightStopCounterexampleResults": tight_stop_summaries,
         "baselineResults": baseline_summaries,
-        "promotion": promotion,
+        "v27Promotion": v27_promotion,
+        "v28Promotion": v28_promotion,
+        "promotion": v29_promotion,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -2140,12 +2707,14 @@ def main() -> None:
         "v26RiskManagedAll": {cohort: summary["all"] for cohort, summary in v26_summaries.items()},
         "v27RiskManagedAll": {cohort: summary["all"] for cohort, summary in v27_summaries.items()},
         "v28RiskManagedAll": {cohort: summary["all"] for cohort, summary in v28_summaries.items()},
+        "v29RiskManagedAll": {cohort: summary["all"] for cohort, summary in v29_summaries.items()},
         "v21RiskManagedAll": {cohort: summary["all"] for cohort, summary in v21_summaries.items()},
         "tightStopCounterexampleAll": {
             cohort: summary["all"] for cohort, summary in tight_stop_summaries.items()
         },
         "baselineAll": {cohort: summary["all"] for cohort, summary in baseline_summaries.items()},
-        "promotion": promotion,
+        "v28Promotion": v28_promotion,
+        "promotion": v29_promotion,
     }, ensure_ascii=False, indent=2))
 
 

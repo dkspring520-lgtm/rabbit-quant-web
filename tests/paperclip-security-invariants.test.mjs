@@ -38,6 +38,7 @@ test("bridge source imports no trading, account, production database or deployme
 test("Paperclip deployment stays pinned, private and isolated from production", async () => {
   const compose = await readFile(path.join(process.cwd(), "deploy", "paperclip", "compose.yml"), "utf8");
   const dockerfile = await readFile(path.join(process.cwd(), "deploy", "paperclip", "Dockerfile.bridge"), "utf8");
+  const deploy = await readFile(path.join(process.cwd(), "deploy", "paperclip", "deploy.sh"), "utf8");
 
   assert.match(compose, /ghcr\.io\/paperclipai\/paperclip:sha-67001ec/);
   assert.doesNotMatch(compose, /paperclipai\/paperclip:(?:latest|master)\b/);
@@ -46,8 +47,27 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.match(compose, /PAPERCLIP_TELEMETRY_DISABLED:\s*"1"/);
   assert.match(compose, /PAPERCLIP_BIND_HOST:-127\.0\.0\.1/);
   assert.match(compose, /PAPERCLIP_BRIDGE_BIND_HOST:-127\.0\.0\.1/);
+  assert.match(compose, /image:\s*rabbit-quant-research-bridge:\$\{APP_COMMIT_SHA/);
+  assert.match(compose, /context:\s*\$\{PAPERCLIP_RELEASE_ROOT:/);
   assert.match(compose, /research-control:\s*\r?\n\s+internal:\s*true/);
   assert.match(compose, /PAPERCLIP_DATASET_ROOT[^\r\n]*:\/datasets:ro/);
+  assert.match(compose, /127\.0\.0\.1:3100\/api\/health/);
   assert.doesNotMatch(compose, /docker\.sock|control\.sqlite|trading-adapter|\.env:\/|OPENAI_API_KEY|ANTHROPIC_API_KEY/i);
   assert.doesNotMatch(dockerfile, /COPY\s+\.\s+\.|trading-adapter|control-store|app\/api/i);
+  assert.doesNotMatch(deploy, /trading-adapter|account-store|production.?db|control\.sqlite|docker\.sock/i);
+  assert.match(deploy, /127\.0\.0\.1:3100\/api\/health/);
+  assert.match(deploy, /127\.0\.0\.1:3210\/health/);
+  assert.match(deploy, /restart_matching_container rabbit-quant-paperclip/);
+  assert.match(deploy, /restart_matching_container rabbit-quant-research-bridge/);
+  assert.match(deploy, /commit.*==.*EXPECTED_COMMIT/);
+  assert.match(deploy, /check_runtime \|\| recover_runtime/);
+  assert.match(deploy, /docker buildx version/);
+  assert.match(deploy, /PAPERCLIP_MIN_FREE_DISK_GB:-6/);
+  assert.match(deploy, /docker image prune --force/);
+  assert.match(deploy, /docker builder prune --all --force/);
+  assert.match(deploy, /DOCKER_BUILDKIT=0 docker build/);
+  assert.match(deploy, /export PAPERCLIP_RELEASE_ROOT="\$RELEASE_ROOT"/);
+  assert.match(deploy, /docker image inspect ghcr\.io\/paperclipai\/paperclip:sha-67001ec/);
+  assert.match(deploy, /up -d --no-deps --force-recreate paperclip/);
+  assert.match(deploy, /up -d --no-deps --no-build research-bridge/);
 });

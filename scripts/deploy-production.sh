@@ -6,9 +6,15 @@ REMOTE="${RABBIT_QUANT_REMOTE:-origin}"
 BRANCH="${RABBIT_QUANT_BRANCH:-codex/vps-production-20260716}"
 STATE_DIR="${RABBIT_QUANT_DEPLOY_STATE:-/var/lib/rabbit-quant-deploy}"
 LOG_DIR="${RABBIT_QUANT_DEPLOY_LOG_DIR:-/var/log/rabbit-quant-deploy}"
+PUBLIC_RELEASE_STATE_FILE="${RABBIT_QUANT_PUBLIC_RELEASE_STATE_FILE:-/opt/rabbit-quant-state/deployed-release.json}"
 LOCK_FILE="${RABBIT_QUANT_DEPLOY_LOCK:-/run/lock/rabbit-quant-deploy.lock}"
+OPS_ASSETS_STATE_FILE="$STATE_DIR/ops-assets-v2-sha"
+PAPERCLIP_STATE_FILE="$STATE_DIR/paperclip-deployed-sha"
+PAPERCLIP_PENDING_FILE="$STATE_DIR/paperclip-pending-sha"
 HEALTH_TIMEOUT="${RABBIT_QUANT_HEALTH_TIMEOUT:-300}"
-IMAGE_RETENTION="${RABBIT_QUANT_IMAGE_RETENTION:-5}"
+IMAGE_RETENTION="${RABBIT_QUANT_IMAGE_RETENTION:-2}"
+MIN_FREE_DISK_GB="${RABBIT_QUANT_MIN_FREE_DISK_GB:-8}"
+BUILD_CACHE_MAX_AGE="${RABBIT_QUANT_BUILD_CACHE_MAX_AGE:-24h}"
 ALERT_WEBHOOK_URL="${RABBIT_QUANT_ALERT_WEBHOOK_URL:-}"
 COMPOSE_PROJECT="${RABBIT_QUANT_COMPOSE_PROJECT:-rabbit-quant-web}"
 WEB_BLUE_CONTAINER="rabbit-quant-modern-web"
@@ -20,8 +26,11 @@ NGINX_UPSTREAM_FILE="${RABBIT_QUANT_NGINX_UPSTREAM_FILE:-/etc/nginx/conf.d/rabbi
 NGINX_SITE_FILE="${RABBIT_QUANT_NGINX_SITE_FILE:-/etc/nginx/sites-available/rabbit-quant}"
 NGINX_COMPRESSION_FILE="${RABBIT_QUANT_NGINX_COMPRESSION_FILE:-/etc/nginx/conf.d/rabbit-quant-compression.conf}"
 
-[[ "$IMAGE_RETENTION" =~ ^[0-9]+$ ]] || IMAGE_RETENTION=5
+[[ "$IMAGE_RETENTION" =~ ^[0-9]+$ ]] || IMAGE_RETENTION=2
 (( IMAGE_RETENTION >= 2 )) || IMAGE_RETENTION=2
+(( IMAGE_RETENTION <= 2 )) || IMAGE_RETENTION=2
+[[ "$MIN_FREE_DISK_GB" =~ ^[0-9]+$ ]] || MIN_FREE_DISK_GB=8
+(( MIN_FREE_DISK_GB >= 2 )) || MIN_FREE_DISK_GB=2
 
 mkdir -p "$STATE_DIR" "$LOG_DIR" "$(dirname "$LOCK_FILE")"
 # 文件锁由外层 flock 进程持有，并用 --close 禁止部署脚本及其
@@ -83,6 +92,15 @@ record_result() {
   notify_ops "$status" "$message"
 }
 
+write_public_release_state() {
+  local commit="$1" build_time="$2" temp_file
+  mkdir -p "$(dirname "$PUBLIC_RELEASE_STATE_FILE")"
+  temp_file="$(mktemp "$(dirname "$PUBLIC_RELEASE_STATE_FILE")/.deployed-release.XXXXXX")"
+  printf '{"commit":"%s","buildTime":"%s"}\n' "$commit" "$build_time" > "$temp_file"
+  chmod 0644 "$temp_file"
+  mv -f "$temp_file" "$PUBLIC_RELEASE_STATE_FILE"
+}
+
 prune_release_images() {
   local repository image index
   for repository in rabbit-quant-web rabbit-quant-trainer rabbit-quant-l2; do
@@ -102,10 +120,58 @@ prune_release_images() {
   docker image prune --force --filter 'label=rabbit-quant.commit' >/dev/null 2>&1 || true
 }
 
+prune_dangling_images_and_all_build_cache() {
+  docker image prune --force >/dev/null 2>&1 || true
+  docker builder prune --all --force >/dev/null 2>&1 || true
+}
+
+docker_build_image() {
+  if docker buildx version >/dev/null 2>&1; then
+    docker buildx build --load "$@"
+  else
+    DOCKER_BUILDKIT=1 docker build "$@"
+  fi
+}
+
+ensure_build_space() {
+  local docker_root available_kb required_kb
+  docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+  docker_root="${docker_root:-/var/lib/docker}"
+  available_kb="$(df -Pk "$docker_root" | awk 'NR == 2 { print $4 }')"
+  required_kb=$((MIN_FREE_DISK_GB * 1024 * 1024))
+
+  if [[ "$available_kb" =~ ^[0-9]+$ ]] && (( available_kb >= required_kb )); then
+    return 0
+  fi
+
+  log "Docker build space is below ${MIN_FREE_DISK_GB}GB; pruning dangling images and old build cache."
+  prune_dangling_images_and_all_build_cache
+  available_kb="$(df -Pk "$docker_root" | awk 'NR == 2 { print $4 }')"
+  if [[ ! "$available_kb" =~ ^[0-9]+$ ]] || (( available_kb < required_kb )); then
+    log "Docker build aborted: less than ${MIN_FREE_DISK_GB}GB remains after safe cleanup."
+    return 1
+  fi
+}
+
+cleanup_failed_build_artifacts() {
+  local image
+  for image in \
+    "${web_image:-}" \
+    "${trainer_image:-}" \
+    "${l2_image:-}"; do
+    [[ -n "$image" ]] || continue
+    if [[ "$image" == "${previous_web_image:-}" || "$image" == "${previous_trainer_image:-}" || "$image" == "${previous_l2_image:-}" ]]; then
+      continue
+    fi
+    docker image rm "$image" >/dev/null 2>&1 || true
+  done
+  prune_dangling_images_and_all_build_cache
+}
+
 sync_operations_assets() {
   local commit="$1" temp_dir source target mode
   [[ -n "$commit" ]] || return 0
-  if [[ "$(cat "$STATE_DIR/ops-assets-sha" 2>/dev/null || true)" == "$commit" ]]; then
+  if [[ "$(cat "$OPS_ASSETS_STATE_FILE" 2>/dev/null || true)" == "$commit" ]]; then
     return 0
   fi
   temp_dir="$(mktemp -d)"
@@ -114,8 +180,12 @@ sync_operations_assets() {
     install -m "$mode" "$temp_dir/asset" "$target"
   done <<'ASSETS'
 scripts/backup-production.sh|/usr/local/sbin/rabbit-quant-backup|0755
+deploy/paperclip/deploy.sh|/usr/local/sbin/rabbit-quant-paperclip-deploy|0755
+deploy/cleanup-docker-artifacts.sh|/usr/local/sbin/rabbit-quant-docker-cleanup|0755
 deploy/systemd/rabbit-quant-deploy.service|/etc/systemd/system/rabbit-quant-deploy.service|0644
 deploy/systemd/rabbit-quant-deploy.timer|/etc/systemd/system/rabbit-quant-deploy.timer|0644
+deploy/systemd/rabbit-quant-docker-cleanup.service|/etc/systemd/system/rabbit-quant-docker-cleanup.service|0644
+deploy/systemd/rabbit-quant-docker-cleanup.timer|/etc/systemd/system/rabbit-quant-docker-cleanup.timer|0644
 deploy/systemd/rabbit-quant-backup.service|/etc/systemd/system/rabbit-quant-backup.service|0644
 deploy/systemd/rabbit-quant-backup.timer|/etc/systemd/system/rabbit-quant-backup.timer|0644
 deploy/systemd/rabbit-quant-growth.service|/etc/systemd/system/rabbit-quant-growth.service|0644
@@ -129,14 +199,17 @@ ASSETS
   fi
   rm -rf "$temp_dir"
   systemctl daemon-reload
-  systemctl enable --now rabbit-quant-deploy.timer rabbit-quant-backup.timer rabbit-quant-growth.timer >/dev/null
-  printf '%s\n' "$commit" > "$STATE_DIR/ops-assets-sha"
+  systemctl enable --now rabbit-quant-deploy.timer rabbit-quant-backup.timer rabbit-quant-growth.timer rabbit-quant-docker-cleanup.timer >/dev/null
+  printf '%s\n' "$commit" > "$OPS_ASSETS_STATE_FILE"
   log "生产运维脚本、定时器和日志策略已同步。"
 }
 
 classify_changed_path() {
   local path="$1"
   case "$path" in
+    deploy/paperclip/*|services/paperclip-bridge/*|lib/factor-research/*|scripts/run-factor-research.mjs)
+      paperclip_update_needed=1
+      ;;
     Dockerfile.l2|requirements.l2.txt|scripts/zijin_l2_collector.py|scripts/zijin_l2_forward_labels.py|scripts/zijin_l2_second_state.py)
       l2_build_needed=1
       l2_service_needed=1
@@ -145,7 +218,7 @@ classify_changed_path() {
       trainer_build_needed=1
       trainer_service_needed=1
       ;;
-    scripts/deploy-production.sh|scripts/backup-production.sh|deploy/*|.github/*|README*|docs/*|tests/*)
+    .dockerignore|scripts/deploy-production.sh|scripts/install-production-deployer.sh|scripts/backup-production.sh|deploy/*|.github/*|README*|docs/*|tests/*)
       ;;
     scripts/*|lib/*|public/research/*)
       web_build_needed=1
@@ -175,8 +248,60 @@ classify_changed_path() {
   esac
 }
 
+deploy_paperclip_release() {
+  local commit="$1" paperclip_release_dir status=0
+  resolved_paperclip_commit="$commit"
+  paperclip_release_dir="$STATE_DIR/paperclip-releases/$commit"
+  mkdir -p "$(dirname "$paperclip_release_dir")"
+  rm -rf "$paperclip_release_dir"
+  if ! git -C "$REPO_DIR" cat-file -e "$commit^{commit}" 2>/dev/null; then
+    log "Paperclip 待更新提交 $commit 不在本地对象库，改用当前版本 $target_sha。"
+    commit="$target_sha"
+    resolved_paperclip_commit="$commit"
+    paperclip_release_dir="$STATE_DIR/paperclip-releases/$commit"
+  fi
+  git -C "$REPO_DIR" worktree prune
+  git -C "$REPO_DIR" worktree add --detach "$paperclip_release_dir" "$commit" >/dev/null
+  "$paperclip_release_dir/deploy/paperclip/deploy.sh" deploy "$paperclip_release_dir" "$commit" || status=$?
+  git -C "$REPO_DIR" worktree remove --force "$paperclip_release_dir" >/dev/null 2>&1 || true
+  return "$status"
+}
+
+queue_paperclip_update() {
+  local commit="$1"
+  if (( paperclip_update_needed == 1 )); then
+    printf '%s\n' "$commit" > "$PAPERCLIP_PENDING_FILE"
+    log "Paperclip 研究控制面已列入下一轮独立更新。"
+  fi
+}
+
+reconcile_paperclip_runtime() {
+  local fallback_commit="$1" paperclip_commit
+  paperclip_commit="$(cat "$PAPERCLIP_PENDING_FILE" 2>/dev/null || cat "$PAPERCLIP_STATE_FILE" 2>/dev/null || printf '%s' "$fallback_commit")"
+  [[ "$paperclip_commit" =~ ^[0-9a-f]{40}$ ]] || paperclip_commit="$fallback_commit"
+  current_stage="update Paperclip research control plane"
+
+  if /usr/local/sbin/rabbit-quant-paperclip-deploy check "" "$paperclip_commit"; then
+    rm -f "$PAPERCLIP_PENDING_FILE"
+    return 0
+  fi
+
+  log "Paperclip research control plane is unavailable or pending; starting isolated deployment."
+  if deploy_paperclip_release "$paperclip_commit"; then
+    printf '%s\n' "${resolved_paperclip_commit:-$paperclip_commit}" > "$PAPERCLIP_STATE_FILE"
+    rm -f "$PAPERCLIP_PENDING_FILE"
+    log "Paperclip research control plane is healthy."
+  else
+    printf '%s\n' "$paperclip_commit" > "$PAPERCLIP_PENDING_FILE"
+    log "Paperclip isolated deployment failed; the Web release remains active and the next timer run will retry."
+  fi
+}
+
 on_error() {
   local exit_code=$?
+  if [[ "${build_started:-0}" == "1" && "${deployment_succeeded:-0}" != "1" ]]; then
+    cleanup_failed_build_artifacts
+  fi
   log "部署失败：阶段=$current_stage，退出码=$exit_code；尚未成功切换的构建不会替换线上版本。"
   record_result "failed" "命令异常退出，退出码 $exit_code"
   exit "$exit_code"
@@ -443,14 +568,17 @@ previous_trainer_image="$(container_image "$TRAINER_CONTAINER")"
 previous_l2_image="$(container_image "$L2_CONTAINER")"
 previous_sha="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${active_port}/api/control/version" 2>/dev/null | sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' || true)"
 previous_sha="${previous_sha:-$deployed_sha}"
+expected_active_web_sha="$(cat "$STATE_DIR/last-good-web-sha" 2>/dev/null || true)"
+expected_active_web_sha="${expected_active_web_sha:-$previous_sha}"
 
 current_stage="configure zero-downtime entry"
 ensure_nginx_zero_downtime "$active_slot"
 ensure_nginx_compression || log "保留现有 Nginx 压缩设置，继续部署。"
 
-if [[ "$target_sha" == "$deployed_sha" ]] \
-  && curl --fail --silent --max-time 5 "http://127.0.0.1:${active_port}/api/control/version" | grep -Fq "$target_sha"; then
+if [[ "$target_sha" == "$deployed_sha" && -n "$previous_sha" && "$previous_sha" == "$expected_active_web_sha" ]]; then
+  printf '%s\n' "$previous_sha" > "$STATE_DIR/last-good-web-sha"
   sync_operations_assets "$deployed_sha"
+  reconcile_paperclip_runtime "$target_sha"
   log "线上已是 $short_sha，无需部署。"
   exit 0
 fi
@@ -471,6 +599,7 @@ trainer_service_needed=0
 l2_service_needed=0
 compose_changed=0
 web_support_services_needed=0
+paperclip_update_needed=0
 
 if [[ -z "$deployed_sha" ]] || ! git -C "$REPO_DIR" cat-file -e "$deployed_sha^{commit}" 2>/dev/null; then
   force_full_release=1
@@ -488,6 +617,7 @@ if (( force_full_release == 1 )); then
   trainer_service_needed=1
   l2_service_needed=1
   web_support_services_needed=1
+  paperclip_update_needed=1
 else
   while IFS= read -r changed_path; do
     [[ -n "$changed_path" ]] || continue
@@ -541,12 +671,24 @@ else
   printf '%s\n' "$web_image" > "$STATE_DIR/last-good-web-image"
   printf '%s\n' "$trainer_image" > "$STATE_DIR/last-good-trainer-image"
   printf '%s\n' "$l2_image" > "$STATE_DIR/last-good-l2-image"
+  printf '%s\n' "$previous_sha" > "$STATE_DIR/last-good-web-sha"
   cp "$compose_file" "$STATE_DIR/last-good-compose.yml"
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
+  queue_paperclip_update "$target_sha"
+  reconcile_paperclip_runtime "$target_sha"
+  write_public_release_state "$target_sha" "$build_time"
   log "本次提交没有运行时文件变化，跳过容器更新。"
   record_result "success" "无运行时变化，复用现有镜像"
   exit 0
+fi
+
+build_started=0
+deployment_succeeded=0
+if (( web_build_needed == 1 || trainer_build_needed == 1 || l2_build_needed == 1 )); then
+  current_stage="Docker build space preflight"
+  ensure_build_space
+  build_started=1
 fi
 
 current_stage="配置预检"
@@ -559,7 +701,7 @@ RABBIT_QUANT_L2_IMAGE="$l2_image" \
 if (( web_build_needed == 1 )); then
   current_stage="构建 Web 镜像"
   log "先构建 Web 镜像 $web_image；构建失败不会触碰线上容器。"
-  docker build --pull \
+  docker_build_image --pull \
     --build-arg APP_COMMIT_SHA="$target_sha" \
     --build-arg APP_BUILD_TIME="$build_time" \
     --label rabbit-quant.commit="$target_sha" \
@@ -571,7 +713,7 @@ fi
 if (( trainer_build_needed == 1 )); then
   current_stage="构建训练镜像"
   log "先构建训练镜像 $trainer_image；两个镜像都成功后才允许切换。"
-  docker build --pull \
+  docker_build_image --pull \
     --label rabbit-quant.commit="$target_sha" \
     -t "$trainer_image" -f "$release_dir/Dockerfile.trainer" "$release_dir"
 else
@@ -581,7 +723,7 @@ fi
 if (( l2_build_needed == 1 )); then
   current_stage="build L2 collector image"
   log "Building L2 collector image $l2_image."
-  docker build --pull \
+  docker_build_image --pull \
     --label rabbit-quant.commit="$target_sha" \
     -t "$l2_image" -f "$release_dir/Dockerfile.l2" "$release_dir"
 else
@@ -685,14 +827,19 @@ if (( switch_failed == 0 )); then
 fi
 
 if (( switch_failed == 0 )) && wait_for_release "$expected_web_sha" "$candidate_slot" "$required_l2_audit" "$required_trainer" "$required_l2" "$required_control" "$required_shadow" "$required_factor_daily"; then
+  deployment_succeeded=1
   printf '%s\n' "$candidate_slot" > "$STATE_DIR/active-web-slot"
   printf '%s\n' "$target_sha" > "$STATE_DIR/deployed-sha"
   cp "$compose_file" "$STATE_DIR/last-good-compose.yml"
   printf '%s\n' "$web_image" > "$STATE_DIR/last-good-web-image"
   printf '%s\n' "$trainer_image" > "$STATE_DIR/last-good-trainer-image"
   printf '%s\n' "$l2_image" > "$STATE_DIR/last-good-l2-image"
+  printf '%s\n' "$web_runtime_sha" > "$STATE_DIR/last-good-web-sha"
   install -m 0755 "$release_dir/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
   sync_operations_assets "$target_sha"
+  queue_paperclip_update "$target_sha"
+  reconcile_paperclip_runtime "$target_sha"
+  write_public_release_state "$target_sha" "$build_time"
   prune_release_images
   log "部署成功：$short_sha；版本接口与四个容器健康检查均通过。"
   record_result "success" "四个容器和版本接口健康"
@@ -755,4 +902,5 @@ else
   log "回滚命令已执行，但旧版本健康检查未完全通过，需要人工检查。"
   record_result "rollback_warning" "旧版本健康检查未完全通过"
 fi
+cleanup_failed_build_artifacts
 exit 1

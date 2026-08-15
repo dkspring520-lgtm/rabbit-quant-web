@@ -76,10 +76,10 @@ function sessions(count = 36) {
   });
 }
 
-test("registry contains 55 immutable, schema-complete T factors", () => {
-  assert.equal(BASE_T_FACTOR_DEFINITIONS.length, 55);
-  assert.equal(DEFAULT_FACTOR_REGISTRY.list().length, 55);
-  assert.equal(new Set(BASE_T_FACTOR_DEFINITIONS.map(item => item.factorId)).size, 55);
+test("registry contains 48 immutable, schema-complete T factors", () => {
+  assert.equal(BASE_T_FACTOR_DEFINITIONS.length, 48);
+  assert.equal(DEFAULT_FACTOR_REGISTRY.list().length, 48);
+  assert.equal(new Set(BASE_T_FACTOR_DEFINITIONS.map(item => item.factorId)).size, 48);
   for (const factor of BASE_T_FACTOR_DEFINITIONS) {
     for (const field of [
       "factorId", "name", "category", "description", "formula", "inputFields",
@@ -95,10 +95,10 @@ test("factor engine calculates every registered factor causally", () => {
   const result = new FactorEngine().computeSession(input);
   assert.equal(result.rows.length, input.minutes.length);
   assert.deepEqual(Object.keys(result.rows.at(-1).factors).sort(), DEFAULT_FACTOR_REGISTRY.list().map(item => item.factorId).sort());
-  assert.ok(Object.values(result.rows.at(-1).factors).filter(Number.isFinite).length >= 48);
+  assert.ok(Object.values(result.rows.at(-1).factors).filter(Number.isFinite).length >= 44);
   const audit = auditFutureInvariance(input);
   assert.equal(audit.pass, true, stableStringify(audit.mismatches));
-  assert.equal(audit.factors, 55);
+  assert.equal(audit.factors, 48);
 });
 
 test("causal context and factor input schema reject future or label access", () => {
@@ -133,58 +133,6 @@ test("market and order-flow factors remain null when source fields are unavailab
   assert.equal(row.factors["market.return_5m"], null);
   assert.equal(row.factors["orderflow.active_buy_imbalance"], null);
   assert.equal(row.factors["orderflow.book_depth_imbalance"], null);
-  assert.equal(row.factors["orderflow.microprice_edge"], null);
-  assert.equal(row.factors["market.metal_resonance"], null);
-});
-
-test("enhanced order-flow factors use only current and prior minutes", () => {
-  const input = session("20250102");
-  input.minutes = input.minutes.map((point, index) => ({
-    ...point,
-    bidPrices: [point.price - 0.01],
-    askPrices: [point.price + 0.01],
-    bid1Volume: 200 + index,
-    ask1Volume: 100,
-  }));
-  const factors = ["orderflow.ofi_persistence_5m", "orderflow.microprice_edge"];
-  const full = new FactorEngine().computeSession(input, { factorIds: factors });
-  assert.ok(Number.isFinite(full.rows[5].factors["orderflow.ofi_persistence_5m"]));
-  assert.ok(full.rows[5].factors["orderflow.microprice_edge"] > 0);
-  assert.equal(auditFutureInvariance(input, { factorIds: factors, checkpoints: [5, 20] }).pass, true);
-});
-
-test("same-minute baselines use prior sessions and never future sessions", () => {
-  const input = sessions(13);
-  input.forEach((current, sessionIndex) => {
-    current.minutes = current.minutes.map(point => ({
-      ...point,
-      volume: point.volume * (1 + sessionIndex * 0.01),
-      amount: point.amount * (1 + sessionIndex * 0.01),
-    }));
-  });
-  const factorIds = ["vwap.same_minute_zscore", "volume.same_minute_zscore"];
-  const engine = new FactorEngine();
-  const before = engine.computeSessions(input, { factorIds });
-  assert.equal(before[9].rows[20].factors["vwap.same_minute_zscore"], null);
-  assert.ok(Number.isFinite(before[10].rows[20].factors["vwap.same_minute_zscore"]));
-  assert.ok(Number.isFinite(before[10].rows[20].factors["volume.same_minute_zscore"]));
-
-  const futureChanged = structuredClone(input);
-  futureChanged[12].minutes = futureChanged[12].minutes.map(point => ({ ...point, close: point.close * 10, price: point.price * 10, volume: point.volume * 100 }));
-  const after = engine.computeSessions(futureChanged, { factorIds });
-  assert.deepEqual(before[10].rows[20].factors, after[10].rows[20].factors);
-});
-
-test("sector context is causal and unavailable gold/copper remains null", () => {
-  const input = session("20250102");
-  input.marketOpenGap = -0.004;
-  input.sectorOpenGap = 0.006;
-  const row = new FactorEngine().computeSession(input, {
-    factorIds: ["market.relative_strength_context", "market.sector_resonance", "market.metal_resonance"],
-  }).rows.at(-1);
-  assert.ok(Number.isFinite(row.factors["market.relative_strength_context"]));
-  assert.ok(Number.isFinite(row.factors["market.sector_resonance"]));
-  assert.equal(row.factors["market.metal_resonance"], null);
 });
 
 test("time splits are ordered and detect overlapping dates", () => {

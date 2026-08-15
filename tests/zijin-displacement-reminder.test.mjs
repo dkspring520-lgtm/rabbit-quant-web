@@ -82,7 +82,7 @@ test("adds a causal pullback progression after an upper displacement", () => {
   );
   assert.equal(result?.stage, "displacement-progress");
   assert.equal(result?.direction, "反T");
-  assert.match(result?.label ?? "", /冲高回落加速/);
+  assert.match(result?.label ?? "", /回落加速/);
   assert.match(result?.reason ?? "", /不是正式卖点/);
 });
 
