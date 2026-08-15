@@ -5,6 +5,7 @@ import {
   assertZuoTExperimentFactorIsolation,
   buildZuoTCandidateEvents,
   evaluateZuoTShadowRow,
+  runZijinV29ShadowReplay,
   runZuoTV1ReconstructedReplay,
   selectSpacedZuoTSignals,
   simulateZuoTShadowCycle,
@@ -184,8 +185,9 @@ test("candidate promotion is measured inside the same deduplicated event", () =>
   assert.equal(events[1].formalDecision, null);
 });
 
-function replaySession(prices) {
+function replaySession(prices, code) {
   return {
+    code,
     date: "20260814",
     previousClose: 35,
     minutes: prices.map((point, index) => ({
@@ -273,4 +275,123 @@ test("reconstructed runner returns the shared BacktestResult shape", () => {
   assert.equal(result.curve.length, session.minutes.length);
   assert.equal(result.observations[0].stage, "candidate");
   assert.ok(Number.isFinite(result.maxDrawdown));
+});
+
+function replayFactorEngine(rows) {
+  return {
+    computeSession(input) {
+      return { session: input, rows };
+    },
+  };
+}
+
+test("V2.9 is isolated to Zijin Mining", () => {
+  assert.throws(
+    () => runZijinV29ShadowReplay(replaySession([], "601012")),
+    /only supports 601899/,
+  );
+});
+
+test("V2.9 keeps candidates visible but cannot trade without historical L2", () => {
+  const session = replaySession([
+    { time: "0945", price: 35 },
+    { time: "0946", price: 35 },
+    { time: "0947", price: 35.12, high: 35.15 },
+  ], "601899");
+  const factors = {
+    ...row().factors,
+    "orderflow.active_buy_imbalance": null,
+    "orderflow.ofi_change_3m": null,
+    "orderflow.book_depth_imbalance": null,
+  };
+  const result = runZijinV29ShadowReplay(session, {
+    factorEngine: replayFactorEngine([{ date: session.date, time: "0946", index: 1, price: 35, factors }]),
+    feeRate: 0,
+    slippage: 0,
+    minCommission: false,
+    baseShares: 1600,
+    sellable: 1600,
+  });
+  assert.equal(result.trades, 0);
+  assert.equal(result.observations.length, 1);
+  assert.ok(result.observations[0].blockers.includes("缺少历史L2"));
+});
+
+test("V2.9 can close a causal trade when its L2 confirmation is available", () => {
+  const session = replaySession([
+    { time: "0945", price: 35 },
+    { time: "0946", price: 35 },
+    { time: "0947", price: 35.12, high: 35.15 },
+  ], "601899");
+  const factors = { ...row().factors, "orderflow.book_depth_imbalance": 0.2 };
+  const result = runZijinV29ShadowReplay(session, {
+    factorEngine: replayFactorEngine([{ date: session.date, time: "0946", index: 1, price: 35, factors }]),
+    feeRate: 0,
+    slippage: 0,
+    minCommission: false,
+    baseShares: 1600,
+    sellable: 1600,
+  });
+  assert.equal(result.trades, 1);
+  assert.equal(result.actions[0].direction, "正T");
+  assert.equal(result.actions[1].side, "卖出");
+});
+
+test("V2.9 entry decisions do not change when only future prices change", () => {
+  const factors = { ...row().factors, "orderflow.book_depth_imbalance": 0.2 };
+  const factorEngine = replayFactorEngine([{ date: "20260814", time: "0946", index: 1, price: 35, factors }]);
+  const base = replaySession([
+    { time: "0945", price: 35 },
+    { time: "0946", price: 35 },
+    { time: "0947", price: 35.12, high: 35.15 },
+  ], "601899");
+  const changed = replaySession([
+    { time: "0945", price: 35 },
+    { time: "0946", price: 35 },
+    { time: "0947", price: 99, high: 99 },
+  ], "601899");
+  const options = { factorEngine, feeRate: 0, slippage: 0, minCommission: false, baseShares: 1600, sellable: 1600 };
+  const first = runZijinV29ShadowReplay(base, options);
+  const second = runZijinV29ShadowReplay(changed, options);
+  assert.deepEqual(second.actions[0], first.actions[0]);
+});
+
+test("reconstructed runners honor a one-cycle daily cap", () => {
+  const session = replaySession([
+    { time: "0945", price: 35 },
+    { time: "0946", price: 35 },
+    { time: "0947", price: 35.12, high: 35.15 },
+    { time: "1010", price: 35 },
+    { time: "1011", price: 35.12, high: 35.15 },
+  ], "601899");
+  const factors = { ...row().factors, "orderflow.book_depth_imbalance": 0.2 };
+  const factorEngine = replayFactorEngine([
+    { date: session.date, time: "0946", index: 1, price: 35, factors },
+    { date: session.date, time: "1010", index: 3, price: 35, factors },
+  ]);
+  const options = { factorEngine, maximumCycles: 1, feeRate: 0, slippage: 0, minCommission: false, baseShares: 1600, sellable: 1600 };
+  assert.equal(runZuoTV1ReconstructedReplay(session, options).trades, 1);
+  assert.equal(runZijinV29ShadowReplay(session, options).trades, 1);
+});
+
+test("fixed after-cost target widens the exit move and includes modeled costs", () => {
+  const session = replaySession([
+    { time: "1000", price: 35 },
+    { time: "1001", price: 35.2, high: 35.2 },
+    { time: "1002", price: 35.6, high: 35.6 },
+  ]);
+  const stampOnly = simulateZuoTShadowCycle({
+    session,
+    signal: { index: 0, direction: "positiveT", atrRate: null },
+    options: { targetNetPct: 1, feeRate: 0, slippage: 0, minCommission: false, baseShares: 1600, sellable: 1600 },
+  });
+  const withCost = simulateZuoTShadowCycle({
+    session,
+    signal: { index: 0, direction: "positiveT", atrRate: null },
+    options: { targetNetPct: 1, feeRate: 0.025, slippage: 0.02, minCommission: true, baseShares: 1600, sellable: 1600 },
+  });
+  assert.ok(Math.abs(stampOnly.targetMove - (0.35 + stampOnly.modeledRoundTripCostMove)) < 1e-9);
+  assert.equal(stampOnly.exitIndex, 2);
+  assert.ok(withCost.targetMove > stampOnly.targetMove);
+  assert.ok(withCost.modeledRoundTripCostMove > 0);
 });

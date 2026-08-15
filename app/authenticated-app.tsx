@@ -55,7 +55,7 @@ import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from 
 import { resolveBacktestStrategyExperiment } from "@/lib/zijin-strategy-experiments.mjs";
 import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
 import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining, summarizeTrainingCycles } from "@/lib/personal-replay-training.mjs";
-import { runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
+import { runZijinV29ShadowReplay, runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 const PublicLanding = dynamic(() => import("./public-landing"), {
   loading: () => <main className="public-site public-site-loading" aria-busy="true" />,
@@ -493,10 +493,12 @@ type OpenCandidateObservation = { direction:"正T"|"反T"; time:string; price:nu
 type DeskHistoryRow = { time:string; direction:string; price:string; quantity:string; spread:string; status:string; tone?:"buy"|"sell"|"candidate" };
 type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; candidateCycles?:CandidateObservationCycle[]; candidateOutcomes?:CandidateOutcome[]; openCandidate?:OpenCandidateObservation|null; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,number> };
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
-type BacktestReplayEngine = "closure-first"|"zuot-v1-reconstructed-shadow";
+type BacktestReplayEngine = "closure-first"|"zuot-v1-reconstructed-shadow"|"zijin-v29-shadow";
+type ReplayExitTarget = 0.5|1|2|2.5;
 const BACKTEST_REPLAY_ENGINE_META:Record<BacktestReplayEngine,{label:string;logic:string;note:string}>={
   "closure-first":{label:"内置闭环",logic:"正/反 T + 开盘观察 + 趋势量价 + 成本风控",note:"正式闭环的因果回放基线"},
   "zuot-v1-reconstructed-shadow":{label:"zuoT-v1 重建影子",logic:"VWAP + 量能 + MACD + OFI + 技术位置",note:"仅模拟研究，不影响操盘台正式信号或交易链路"},
+  "zijin-v29-shadow":{label:"V2.9 紫金影子",logic:"VWAP + 量能 + MACD + 5分钟方向 + L2/OFI确认",note:"仅限601899历史L2因果回放，不影响正式策略"},
 };
 type ReplayMinute = { time:string; price:number; volume:number };
 type PersonalTrainingAction = { id:string; time:string; minuteIndex:number; side:"buy"|"sell"; quantity:number; marketPrice:number; executionPrice:number; gross:number; fee:number };
@@ -5589,6 +5591,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [slippageMode, setSlippageMode] = useState<"percent"|"tick">("percent");
   const [forceCloseTime, setForceCloseTime] = useState("1450");
   const [replayEngine,setReplayEngine]=useState<BacktestReplayEngine>("closure-first");
+  const [exitTarget,setExitTarget]=useState<ReplayExitTarget>(1);
   const [running, setRunning] = useState(false);
   const [runMode, setRunMode] = useState<"single"|"multi"|"batch"|null>(null);
   const [singleRunCount, setSingleRunCount] = useState(0);
@@ -5615,6 +5618,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const batchRunSequence = useRef(0);
   const recentBatchCodes = useRef<string[]>([]);
   const selectBacktestStock=(index:number)=>{
+    if(stocks[index]?.code!=="601899"&&replayEngine==="zijin-v29-shadow")setReplayEngine("closure-first");
     setRequestedSessionDate("");
     setAvailableSessionDates([]);
     setSingleRunDate("");
@@ -5633,17 +5637,24 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
     onSelectStock(index);
   };
   const replayWithEngine=(data:MarketData,account:{capital:number;baseShares:number;sellable:number}|undefined,engine:BacktestReplayEngine):BacktestResult=>{
-    if(engine==="zuot-v1-reconstructed-shadow"){
-      return runZuoTV1ReconstructedReplay({
+    const shadowOptions={
+      capital:account?.capital??capital,
+      baseShares:account?.baseShares??baseShares,
+      sellable:account?.sellable??sellable,
+      feeRate,slippage,minCommission,slippageMode,forceCloseTime,
+      maximumCycles:STRATEGY_PROFILE_META[profile].maxCycles,
+      targetNetPct:exitTarget,
+    };
+    if(engine==="zuot-v1-reconstructed-shadow"||engine==="zijin-v29-shadow"){
+      const shadowSession={
+        code:data.quote.code??stock.code,
         date:data.sampleDate??"",
         previousClose:data.quote.previousClose??null,
         minutes:data.minutes??[],
-      },{
-        capital:account?.capital??capital,
-        baseShares:account?.baseShares??baseShares,
-        sellable:account?.sellable??sellable,
-        feeRate,slippage,minCommission,slippageMode,forceCloseTime,
-      }) as BacktestResult;
+      };
+      return (engine==="zijin-v29-shadow"
+        ? runZijinV29ShadowReplay(shadowSession,shadowOptions)
+        : runZuoTV1ReconstructedReplay(shadowSession,shadowOptions)) as BacktestResult;
     }
     const code=data.quote.code??stock.code;
     const experiment=resolveBacktestStrategyExperiment(code,"closure-first");
@@ -5656,7 +5667,14 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       similarityArchive,
       randomValue:0,
       ...profitOptions,
-      profileOverrides:{...(profitOptions.profileOverrides??{}),...experiment.profileOverrides},
+      profileOverrides:{
+        ...(profitOptions.profileOverrides??{}),
+        ...experiment.profileOverrides,
+        targetNetPct:exitTarget,
+        maxTargetNetPct:exitTarget,
+        trailActivationPct:exitTarget,
+        maxCycles:STRATEGY_PROFILE_META[profile].maxCycles,
+      },
       positionSizeMode:experiment.positionSizeMode,
       volatilityMode:experiment.volatilityMode,
       strategyVersion:"closure-first",
@@ -6110,7 +6128,8 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           <small className="config-inline-help">首次运行会读取可用的完整交易日；随后可选择历史日期重新逐分钟回放。</small>
         </label>
         <label>闭环灵敏度<div className="profile-picker">{strategyProfiles.map(item=><button type="button" className={profile===item?'active':''} onClick={()=>setProfile(item as StrategyProfile)} key={item}>{item.replace('档','')}</button>)}</div><small className="config-inline-help">与操盘台共用当前档位；仅调整闭环确认门槛与信号频率。</small></label>
-        <label>回放引擎<div className="profile-picker experiment-picker"><button type="button" className={replayEngine==="closure-first"?'active':''} onClick={()=>setReplayEngine("closure-first")}>内置闭环</button><button type="button" className={replayEngine==="zuot-v1-reconstructed-shadow"?'active experimental':''} onClick={()=>setReplayEngine("zuot-v1-reconstructed-shadow")}>V1 重建影子</button></div><small className="config-inline-help experiment-warning active">{BACKTEST_REPLAY_ENGINE_META[replayEngine].note}；切换仅影响模拟回测，不影响操盘台正式信号。</small></label>
+        <label>回放引擎<div className="profile-picker experiment-picker"><button type="button" className={replayEngine==="closure-first"?'active':''} onClick={()=>setReplayEngine("closure-first")}>内置闭环</button><button type="button" className={replayEngine==="zuot-v1-reconstructed-shadow"?'active experimental':''} onClick={()=>setReplayEngine("zuot-v1-reconstructed-shadow")}>V1 重建影子</button>{stock.code==="601899"&&<button type="button" className={replayEngine==="zijin-v29-shadow"?'active experimental':''} onClick={()=>setReplayEngine("zijin-v29-shadow")}>V2.9 紫金影子</button>}</div><small className="config-inline-help experiment-warning active">{BACKTEST_REPLAY_ENGINE_META[replayEngine].logic}；{BACKTEST_REPLAY_ENGINE_META[replayEngine].note}。</small></label>
+        <label>扣费后离场目标<div className="profile-picker profit-picker">{([0.5,1,2,2.5] as ReplayExitTarget[]).map(value=><button type="button" key={value} className={exitTarget===value?'active':''} onClick={()=>setExitTarget(value)}>{value}%</button>)}</div><small className="config-inline-help">单次闭环扣除佣金、印花税与双向滑点后达到目标即离场；仅影响模拟回测。</small></label>
         {stock.code==="601899"&&<label>紫金利润模式<div className="profile-picker profit-picker"><button type="button" className={profitMode==="standard"?'active':''} onClick={()=>setProfitMode("standard")}>标准价差</button><button type="button" className={profitMode==="zijin-small-spread"?'active':''} onClick={()=>setProfitMode("zijin-small-spread")}>小价差</button></div><small className="config-inline-help">小价差档要求每股至少 ¥0.10、扣费净利至少 ¥30；趋势、VWAP、量价和硬风控不放宽。</small></label>}
         <div className="broker-account-box">
           <div className="broker-account-head"><b>模拟证券账户</b><span>仅用于回测撮合，不连接真实券商</span></div>
@@ -6123,9 +6142,10 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <div className="cost-box"><div><span>佣金</span><NumberStepper value={feeRate} unit="%" step={0.005} min={0} decimals={3} onChange={setFeeRate}/></div><label className="fee-toggle"><input type="checkbox" checked={minCommission} onChange={event=>setMinCommission(event.target.checked)}/> 每笔佣金不足 5 元按 5 元收取</label><div><span>单边滑点</span><span className="slippage-controls"><select value={slippageMode} onChange={event=>{setSlippageMode(event.target.value as "percent"|"tick");setSlippage(event.target.value==="tick"?0.01:0.02)}}><option value="percent">百分比</option><option value="tick">跳数（元）</option></select><NumberStepper value={slippage} unit={slippageMode==="tick"?"元":"%"} step={slippageMode==="tick"?0.01:0.005} min={0} decimals={3} onChange={setSlippage}/></span></div><div><span>印花税</span><b>卖出 0.05%</b></div></div>
         <label>尾盘强制恢复时间<select value={forceCloseTime} onChange={event=>setForceCloseTime(event.target.value)}><option value="1445">14:45</option><option value="1450">14:50</option><option value="1455">14:55</option></select></label>
         <button className="run-backtest" onClick={()=>void runSingle()} disabled={running}>{runMode==='single'?`正在全日回放 ${stock.code}…`:`全日回放 ${stock.code} ${stock.name}`}<span>→</span></button>
-        <div className="multi-day-controls"><label>连续交易日<select value={multiDayCount} onChange={event=>setMultiDayCount(Number(event.target.value))} disabled={running}>{[10,20,60,100].map(value=><option value={value} key={value}>最近 {value} 日</option>)}</select></label><button type="button" onClick={()=>void runMultiDay("recent")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='recent'?`正在连续回放 ${multiDayCount} 日…`:`连续回放最近 ${multiDayCount} 日`}</button></div>
-        {stock.code==="601899"&&<div className="replay-secondary-actions"><button type="button" onClick={()=>void runMultiDay("random-10")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='random-10'?"正在随机回放 10 日…":"紫金随机 10 个交易日"}</button><button type="button" onClick={()=>void runMultiDay("since-2025")} disabled={running}>{runMode==='multi'&&multiDayRunKind==='since-2025'?"正在回放 2025 至今…":"紫金 2025 至今全量回放"}</button></div>}
-        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:`全A股随机10股 · ${BACKTEST_REPLAY_ENGINE_META[replayEngine].label}审计`}</button></div>
+        <div className="multi-day-controls"><label>连续交易日<select value={multiDayCount} onChange={event=>setMultiDayCount(Number(event.target.value))} disabled={running||replayEngine==="zijin-v29-shadow"}>{[10,20,60,100].map(value=><option value={value} key={value}>最近 {value} 日</option>)}</select></label><button type="button" onClick={()=>void runMultiDay("recent")} disabled={running||replayEngine==="zijin-v29-shadow"}>{runMode==='multi'&&multiDayRunKind==='recent'?`正在连续回放 ${multiDayCount} 日…`:`连续回放最近 ${multiDayCount} 日`}</button></div>
+        {stock.code==="601899"&&<div className="replay-secondary-actions"><button type="button" onClick={()=>void runMultiDay("random-10")} disabled={running||replayEngine==="zijin-v29-shadow"}>{runMode==='multi'&&multiDayRunKind==='random-10'?"正在随机回放 10 日…":"紫金随机 10 个交易日"}</button><button type="button" onClick={()=>void runMultiDay("since-2025")} disabled={running||replayEngine==="zijin-v29-shadow"}>{runMode==='multi'&&multiDayRunKind==='since-2025'?"正在回放 2025 至今…":"紫金 2025 至今全量回放"}</button></div>}
+        <div className="replay-secondary-actions"><button type="button" onClick={()=>void runBatch()} disabled={running||replayEngine==="zijin-v29-shadow"}>{runMode==='batch'?`全A股抽取/回放 ${batchFetchProgress.ready}/10（已尝试 ${batchFetchProgress.attempted}）`:`全A股随机10股 · ${BACKTEST_REPLAY_ENGINE_META[replayEngine].label}审计`}</button></div>
+        {replayEngine==="zijin-v29-shadow"&&<p className="config-inline-help">V2.9 必须逐日读取对应历史 L2，目前仅开放单日因果回放。</p>}
         <RabbitProgressMeter
           label={runMode==='batch'?'全 A 股随机批次测试':runMode==='multi'?(multiDayRunKind==='random-10'?"紫金随机 10 日回测":multiDayRunKind==='since-2025'?"紫金 2025 至今全量回测":`单股连续 ${multiDayCount} 日回测`):'单股完整交易日回测'}
           detail={replayProgress.detail}
