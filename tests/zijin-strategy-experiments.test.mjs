@@ -62,7 +62,8 @@ test("closure V2 shadow observation targets 35 percent without forcing a quota",
   const policy = CLOSURE_V2_SHADOW_OBSERVATION_POLICY;
   assert.equal(policy.targetCandidatePromotionRate, 0.35);
   assert.deepEqual(policy.acceptablePromotionRate, {minimum: 0.30, maximum: 0.40});
-  assert.equal(policy.minimumResolvedTrades, 50);
+  assert.equal(policy.minimumTradingDays, 60);
+  assert.equal(policy.minimumResolvedTrades, 100);
   assert.equal(policy.minimumAfterCostWinRate, 0.55);
   assert.equal(policy.minimumStress5BpsWinRate, 0.55);
   assert.equal(policy.stressSlippageBpsPerSide, 5);
@@ -78,12 +79,14 @@ test("closure V2 shadow observation targets 35 percent without forcing a quota",
   const qualified = evaluateClosureV2ShadowObservation({
     candidates: 200,
     promotedCandidates: 70,
-    resolvedTrades: 60,
+    tradingDays: 60,
+    resolvedTrades: 100,
     afterCostWinRate: 0.58,
     stress5BpsWinRate: 0.56,
     profitFactor: 1.24,
   });
   assert.equal(qualified.promotionRate, 0.35);
+  assert.equal(qualified.sampleReady, true);
   assert.equal(qualified.readyForManualReview, true);
   assert.equal(qualified.status, "manual-review");
   assert.equal(qualified.forcedPromotions, 0);
@@ -91,7 +94,8 @@ test("closure V2 shadow observation targets 35 percent without forcing a quota",
   const sparseButProfitable = evaluateClosureV2ShadowObservation({
     candidates: 200,
     promotedCandidates: 40,
-    resolvedTrades: 60,
+    tradingDays: 60,
+    resolvedTrades: 100,
     afterCostWinRate: 0.62,
     stress5BpsWinRate: 0.57,
     profitFactor: 1.35,
@@ -102,6 +106,20 @@ test("closure V2 shadow observation targets 35 percent without forcing a quota",
   assert.equal(sparseButProfitable.forcedPromotions, 0);
   assert.equal(sparseButProfitable.affectsProduction, false);
   assert.equal(sparseButProfitable.sendsAlerts, false);
+
+  const tooFewDays = evaluateClosureV2ShadowObservation({
+    candidates: 200,
+    promotedCandidates: 70,
+    tradingDays: 59,
+    resolvedTrades: 120,
+    afterCostWinRate: 0.62,
+    stress5BpsWinRate: 0.57,
+    profitFactor: 1.35,
+  });
+  assert.equal(tooFewDays.gates.tradingDays, false);
+  assert.equal(tooFewDays.gates.resolvedTrades, true);
+  assert.equal(tooFewDays.sampleReady, false);
+  assert.equal(tooFewDays.readyForManualReview, false);
 });
 
 test("non-Zijin monitoring also resolves to the member closure engine", () => {

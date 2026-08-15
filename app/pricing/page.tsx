@@ -71,7 +71,7 @@ export default function PricingPage() {
   return <main className="pricing-page">
     <header className="pricing-nav">
       <Link href="/" className="pricing-brand">
-        <Image src="/rabbit-logo-compact.png" alt="做T神器" width={46} height={46} priority/>
+        <Image src="/rabbit-logo-compact.png" alt="做T神器" width={46} height={46} priority unoptimized/>
         <span><b>做T神器</b><small>RABBIT QUANT</small></span>
       </Link>
       <nav aria-label="会员页导航">

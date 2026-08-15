@@ -1,0 +1,538 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-v6-regime-quality-capacity",
+  "generatedAt": "2026-08-06T03:40:19.315929+00:00",
+  "status": "research-rejected-capacity-gate",
+  "affectsSmartTV4": false,
+  "affectsFactorRegistry": false,
+  "affectsShadowPool": false,
+  "causalityAudit": {
+    "decision": "minute t close or earlier",
+    "entry": "minute t+1 open",
+    "usesHistoricalL2": false,
+    "usesHistoricalAuctionBook": false,
+    "futureBarsUsedOnlyForOutcomeLabels": true
+  },
+  "dataset": {
+    "completeTargetDays": 1037,
+    "meanPeerCoverage": 1.0,
+    "minimumPeerCoverage": 1.0,
+    "inputSha256": "49fecf05c16036fbb681cfa27a751107d4ac375ee02d49231434674b6a42cf45",
+    "protocolSha256": "8dbaa8842e09e78b2853bafef9cdb4dbcba645379fdbf19ff5bf4e0011873244",
+    "targetSamples": 31567,
+    "peerSamples": 184801,
+    "peerTrainingCodes": [
+      "603993",
+      "600362",
+      "000630",
+      "600547",
+      "600489",
+      "601600"
+    ],
+    "availableTargetThrough": "20260417"
+  },
+  "qualityScore": {
+    "formula": "70% peer-model probability above the causal calibration cutoff + 30% six observable regime confirmations",
+    "regimeConfirmations": [
+      "rolling5ReturnPct",
+      "rolling20ReturnPct",
+      "peerBreadth3",
+      "peerBreadthVwap",
+      "zijinAlpha5Pct",
+      "volumeRatio>=1"
+    ]
+  },
+  "selectionPolicy": {
+    "configurationSelection": "2022-2023 history trains; 2024 is the sole configuration-selection validation period.",
+    "forwardValidation": "2025 is evaluated only after the selected configuration is frozen.",
+    "finalAudit": "2026-01-01 through the final supplied minute is evaluated only after the selected configuration is frozen."
+  },
+  "capacityGate": {
+    "minimumTradesPer100TradingDays": 25,
+    "minimumAfterCostWinRate": 0.55,
+    "minimumAfterCostAverageNetPct": 0.0,
+    "minimumStressAverageNetPct": 0.0,
+    "minimumPayoffRatio": 1.05
+  },
+  "configurationSelection2024": [
+    {
+      "config": {
+        "probabilityQuantile": 0.88,
+        "minimumRegimeScore": 0
+      },
+      "selection2024": {
+        "trades": 80,
+        "wins": 32,
+        "winRate": 0.4,
+        "averageNetPct": -0.082,
+        "stressAverageNetPct": -0.142,
+        "payoffRatio": 1.097,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 33.06
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.88,
+        "minimumRegimeScore": 2
+      },
+      "selection2024": {
+        "trades": 79,
+        "wins": 31,
+        "winRate": 0.3924,
+        "averageNetPct": -0.0891,
+        "stressAverageNetPct": -0.1491,
+        "payoffRatio": 1.1019,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 32.64
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.84,
+        "minimumRegimeScore": 0
+      },
+      "selection2024": {
+        "trades": 101,
+        "wins": 41,
+        "winRate": 0.4059,
+        "averageNetPct": -0.0927,
+        "stressAverageNetPct": -0.1527,
+        "payoffRatio": 1.026,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 41.74
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.84,
+        "minimumRegimeScore": 2
+      },
+      "selection2024": {
+        "trades": 100,
+        "wins": 40,
+        "winRate": 0.4,
+        "averageNetPct": -0.0984,
+        "stressAverageNetPct": -0.1584,
+        "payoffRatio": 1.0287,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 41.32
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.88,
+        "minimumRegimeScore": 4
+      },
+      "selection2024": {
+        "trades": 63,
+        "wins": 25,
+        "winRate": 0.3968,
+        "averageNetPct": -0.0986,
+        "stressAverageNetPct": -0.1586,
+        "payoffRatio": 1.0288,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 26.03
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.88,
+        "minimumRegimeScore": 3
+      },
+      "selection2024": {
+        "trades": 75,
+        "wins": 28,
+        "winRate": 0.3733,
+        "averageNetPct": -0.1084,
+        "stressAverageNetPct": -0.1684,
+        "payoffRatio": 1.1065,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 30.99
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.68,
+        "minimumRegimeScore": 4
+      },
+      "selection2024": {
+        "trades": 144,
+        "wins": 57,
+        "winRate": 0.3958,
+        "averageNetPct": -0.1107,
+        "stressAverageNetPct": -0.1707,
+        "payoffRatio": 0.9694,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 59.5
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.8,
+        "minimumRegimeScore": 2
+      },
+      "selection2024": {
+        "trades": 118,
+        "wins": 46,
+        "winRate": 0.3898,
+        "averageNetPct": -0.1124,
+        "stressAverageNetPct": -0.1724,
+        "payoffRatio": 1.0121,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 48.76
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.92,
+        "minimumRegimeScore": 0
+      },
+      "selection2024": {
+        "trades": 55,
+        "wins": 20,
+        "winRate": 0.3636,
+        "averageNetPct": -0.1133,
+        "stressAverageNetPct": -0.1733,
+        "payoffRatio": 1.1091,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 22.73
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.92,
+        "minimumRegimeScore": 2
+      },
+      "selection2024": {
+        "trades": 55,
+        "wins": 20,
+        "winRate": 0.3636,
+        "averageNetPct": -0.1133,
+        "stressAverageNetPct": -0.1733,
+        "payoffRatio": 1.1091,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 22.73
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.84,
+        "minimumRegimeScore": 3
+      },
+      "selection2024": {
+        "trades": 96,
+        "wins": 37,
+        "winRate": 0.3854,
+        "averageNetPct": -0.1138,
+        "stressAverageNetPct": -0.1738,
+        "payoffRatio": 1.0278,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 39.67
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.76,
+        "minimumRegimeScore": 4
+      },
+      "selection2024": {
+        "trades": 122,
+        "wins": 48,
+        "winRate": 0.3934,
+        "averageNetPct": -0.1148,
+        "stressAverageNetPct": -0.1748,
+        "payoffRatio": 0.9846,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 50.41
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.8,
+        "minimumRegimeScore": 0
+      },
+      "selection2024": {
+        "trades": 119,
+        "wins": 46,
+        "winRate": 0.3866,
+        "averageNetPct": -0.116,
+        "stressAverageNetPct": -0.176,
+        "payoffRatio": 1.0121,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 49.17
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.76,
+        "minimumRegimeScore": 2
+      },
+      "selection2024": {
+        "trades": 147,
+        "wins": 56,
+        "winRate": 0.381,
+        "averageNetPct": -0.1198,
+        "stressAverageNetPct": -0.1798,
+        "payoffRatio": 1.0129,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 60.74
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.84,
+        "minimumRegimeScore": 4
+      },
+      "selection2024": {
+        "trades": 80,
+        "wins": 31,
+        "winRate": 0.3875,
+        "averageNetPct": -0.1213,
+        "stressAverageNetPct": -0.1813,
+        "payoffRatio": 0.9803,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 33.06
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.76,
+        "minimumRegimeScore": 0
+      },
+      "selection2024": {
+        "trades": 148,
+        "wins": 56,
+        "winRate": 0.3784,
+        "averageNetPct": -0.1226,
+        "stressAverageNetPct": -0.1826,
+        "payoffRatio": 1.0127,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 61.16
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.68,
+        "minimumRegimeScore": 2
+      },
+      "selection2024": {
+        "trades": 174,
+        "wins": 65,
+        "winRate": 0.3736,
+        "averageNetPct": -0.125,
+        "stressAverageNetPct": -0.185,
+        "payoffRatio": 1.0097,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 71.9
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.72,
+        "minimumRegimeScore": 4
+      },
+      "selection2024": {
+        "trades": 133,
+        "wins": 51,
+        "winRate": 0.3835,
+        "averageNetPct": -0.1261,
+        "stressAverageNetPct": -0.1861,
+        "payoffRatio": 0.9699,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 54.96
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.68,
+        "minimumRegimeScore": 0
+      },
+      "selection2024": {
+        "trades": 175,
+        "wins": 65,
+        "winRate": 0.3714,
+        "averageNetPct": -0.1274,
+        "stressAverageNetPct": -0.1874,
+        "payoffRatio": 1.0094,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 72.31
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.76,
+        "minimumRegimeScore": 3
+      },
+      "selection2024": {
+        "trades": 139,
+        "wins": 53,
+        "winRate": 0.3813,
+        "averageNetPct": -0.131,
+        "stressAverageNetPct": -0.191,
+        "payoffRatio": 0.9617,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 57.44
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.8,
+        "minimumRegimeScore": 4
+      },
+      "selection2024": {
+        "trades": 93,
+        "wins": 35,
+        "winRate": 0.3763,
+        "averageNetPct": -0.1338,
+        "stressAverageNetPct": -0.1938,
+        "payoffRatio": 0.9779,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 38.43
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.72,
+        "minimumRegimeScore": 2
+      },
+      "selection2024": {
+        "trades": 158,
+        "wins": 58,
+        "winRate": 0.3671,
+        "averageNetPct": -0.134,
+        "stressAverageNetPct": -0.194,
+        "payoffRatio": 1.0062,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 65.29
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.92,
+        "minimumRegimeScore": 4
+      },
+      "selection2024": {
+        "trades": 48,
+        "wins": 17,
+        "winRate": 0.3542,
+        "averageNetPct": -0.1341,
+        "stressAverageNetPct": -0.1941,
+        "payoffRatio": 1.0534,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 19.83
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.68,
+        "minimumRegimeScore": 3
+      },
+      "selection2024": {
+        "trades": 166,
+        "wins": 62,
+        "winRate": 0.3735,
+        "averageNetPct": -0.1346,
+        "stressAverageNetPct": -0.1946,
+        "payoffRatio": 0.965,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 68.6
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.8,
+        "minimumRegimeScore": 3
+      },
+      "selection2024": {
+        "trades": 112,
+        "wins": 42,
+        "winRate": 0.375,
+        "averageNetPct": -0.1358,
+        "stressAverageNetPct": -0.1958,
+        "payoffRatio": 0.9703,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 46.28
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.72,
+        "minimumRegimeScore": 0
+      },
+      "selection2024": {
+        "trades": 159,
+        "wins": 58,
+        "winRate": 0.3648,
+        "averageNetPct": -0.1365,
+        "stressAverageNetPct": -0.1965,
+        "payoffRatio": 1.006,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 65.7
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.72,
+        "minimumRegimeScore": 3
+      },
+      "selection2024": {
+        "trades": 150,
+        "wins": 55,
+        "winRate": 0.3667,
+        "averageNetPct": -0.1451,
+        "stressAverageNetPct": -0.2051,
+        "payoffRatio": 0.9567,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 61.98
+      },
+      "passesCapacityGate": false
+    },
+    {
+      "config": {
+        "probabilityQuantile": 0.92,
+        "minimumRegimeScore": 3
+      },
+      "selection2024": {
+        "trades": 54,
+        "wins": 18,
+        "winRate": 0.3333,
+        "averageNetPct": -0.1534,
+        "stressAverageNetPct": -0.2134,
+        "payoffRatio": 1.058,
+        "tradingDays": 242,
+        "tradesPer100TradingDays": 22.31
+      },
+      "passesCapacityGate": false
+    }
+  ],
+  "selectedConfiguration": null,
+  "forwardAudit": null,
+  "decision": "No configuration met the pre-registered 2024 capacity gate; no 2025/2026 audit or live integration is permitted."
+}

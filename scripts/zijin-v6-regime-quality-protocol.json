@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "zijin-v6-regime-quality-capacity",
+  "registeredAt": "2026-08-06",
+  "status": "research-only-no-auto-promotion",
+  "scope": "Use six non-Zijin metals peers to estimate a causal intraday opportunity score, then add an observable regime-quality score on Zijin. This experiment never changes Smart-T V4, alerts, factor registry, or shadow pool.",
+  "dataSplit": {
+    "configurationSelection": "2022-2023 history trains; 2024 is the sole configuration-selection validation period.",
+    "forwardValidation": "2025 is evaluated only after the selected configuration is frozen.",
+    "finalAudit": "2026-01-01 through the final supplied minute is evaluated only after the selected configuration is frozen."
+  },
+  "causality": {
+    "decision": "minute t close or earlier",
+    "entry": "minute t+1 open",
+    "futureData": "Future bars are used only by the pre-existing outcome label.",
+    "historicalL2": false,
+    "historicalAuctionBook": false
+  },
+  "capacityGate": {
+    "minimumTradesPer100TradingDays": 25,
+    "minimumAfterCostWinRate": 0.55,
+    "minimumAfterCostAverageNetPct": 0.0,
+    "minimumStressAverageNetPct": 0.0,
+    "minimumPayoffRatio": 1.05
+  },
+  "execution": {
+    "session": ["09:35", "14:25"],
+    "maximumSignalsPerDay": 2,
+    "baseRoundTripCostPct": 0.12,
+    "stressRoundTripCostPct": 0.18
+  },
+  "candidateGrid": {
+    "probabilityQuantiles": [0.68, 0.72, 0.76, 0.8, 0.84, 0.88, 0.92],
+    "minimumRegimeScores": [0, 2, 3, 4]
+  }
+}

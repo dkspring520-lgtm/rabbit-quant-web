@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Forward-only reverse-T shadow observer for Zijin Mining (601899).
+"""Forward-only multi-factor T shadow observer for Zijin Mining (601899).
 
 The observer consumes completed L2 minute records. It writes a dedicated
 research ledger and never emits an order, member alert, or production signal.
@@ -21,7 +21,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 
-STRATEGY_ID = "closure-v2-shadow-zijin-reverse-t"
+STRATEGY_ID = "closure-v2-shadow-zijin-multifactor-t"
 REGIME_SYMBOLS = {
     "zijin": "sh601899",
     "sector": "sh512400",
@@ -119,22 +119,29 @@ def consume_book(record: dict[str, Any], side: str, quantity: int, impact_bps: f
     }
 
 
-def execute_reverse_t(
+def execute_t(
     entry_record: dict[str, Any],
     exit_record: dict[str, Any],
     config: dict[str, Any],
+    direction: str,
     impact_bps: float = 0,
     include_transfer_fee: bool = False,
 ) -> dict[str, Any] | None:
     quantity = int(config["quantity"])
-    entry = consume_book(entry_record, "sell", quantity, impact_bps)
-    exit_fill = consume_book(exit_record, "buy", quantity, impact_bps)
+    if direction not in {"positive-t", "reverse-t"}:
+        raise ValueError(f"unsupported shadow direction: {direction}")
+    entry_side = "buy" if direction == "positive-t" else "sell"
+    exit_side = "sell" if direction == "positive-t" else "buy"
+    entry = consume_book(entry_record, entry_side, quantity, impact_bps)
+    exit_fill = consume_book(exit_record, exit_side, quantity, impact_bps)
     if entry is None or exit_fill is None:
         return None
 
     costs = config["costs"]
-    sell_turnover = entry["executionPrice"] * quantity
-    buy_turnover = exit_fill["executionPrice"] * quantity
+    buy_fill = entry if direction == "positive-t" else exit_fill
+    sell_fill = exit_fill if direction == "positive-t" else entry
+    sell_turnover = sell_fill["executionPrice"] * quantity
+    buy_turnover = buy_fill["executionPrice"] * quantity
     commission = lambda turnover: max(float(costs["minimumCommission"]), turnover * float(costs["commissionRate"]))
     commissions = commission(sell_turnover) + commission(buy_turnover)
     stamp_tax = sell_turnover * float(costs["stampTaxRateOnSell"])
@@ -144,6 +151,7 @@ def execute_reverse_t(
     )
     net = sell_turnover - buy_turnover - commissions - stamp_tax - transfer_fees
     return {
+        "direction": direction,
         "entryPrice": entry["executionPrice"],
         "exitPrice": exit_fill["executionPrice"],
         "entryRawPrice": entry["rawPrice"],
@@ -159,6 +167,16 @@ def execute_reverse_t(
         "net": round(net, 6),
         "netBps": round(net / sell_turnover * 10_000, 6) if sell_turnover > 0 else 0,
     }
+
+
+def execute_reverse_t(
+    entry_record: dict[str, Any],
+    exit_record: dict[str, Any],
+    config: dict[str, Any],
+    impact_bps: float = 0,
+    include_transfer_fee: bool = False,
+) -> dict[str, Any] | None:
+    return execute_t(entry_record, exit_record, config, "reverse-t", impact_bps, include_transfer_fee)
 
 
 class ZijinClosureV2ReverseShadow:
@@ -179,19 +197,32 @@ class ZijinClosureV2ReverseShadow:
             or self.config.get("sendsAlerts") is not False
             or self.config.get("forwardGate", {}).get("automaticPromotion") is not False
         ):
-            raise ValueError("unsafe or incompatible reverse-T shadow configuration")
+            raise ValueError("unsafe or incompatible Zijin multi-factor shadow configuration")
         self.event_path = Path(event_path)
         self.state_path = Path(state_path)
         self.lock = threading.RLock()
         self.minutes: list[dict[str, Any]] = []
         self.current_date = ""
         self.last_minute = ""
-        self.signaled_dates: set[str] = set()
+        self.observed_dates: set[str] = set()
+        self.observed_candidate_keys: set[str] = set()
+        self.signaled_keys: set[str] = set()
         self.pending: dict[str, Any] | None = None
         self.regime_context: dict[str, Any] | None = None
         self.latest_evaluation: dict[str, Any] | None = None
         self.latest_event: dict[str, Any] | None = None
-        self.counts = {"candidates": 0, "entries": 0, "resolved": 0, "wins": 0, "rejected": 0}
+        self.counts = {
+            "candidateWaves": 0,
+            "promotedCandidates": 0,
+            "candidates": 0,
+            "entries": 0,
+            "resolved": 0,
+            "wins": 0,
+            "stress5Wins": 0,
+            "winningNet": 0.0,
+            "losingNet": 0.0,
+            "rejected": 0,
+        }
         self._load_state()
 
     def _load_state(self) -> None:
@@ -203,14 +234,58 @@ class ZijinClosureV2ReverseShadow:
             return
         self.current_date = str(payload.get("currentDate") or "")
         self.last_minute = str(payload.get("lastMinute") or "")
-        self.signaled_dates = set(payload.get("signaledDates") or [])
+        self.observed_dates = set(payload.get("observedDates") or [])
+        self.observed_candidate_keys = set(payload.get("observedCandidateKeys") or [])
+        self.signaled_keys = set(payload.get("signaledKeys") or [])
         self.pending = payload.get("pending") if isinstance(payload.get("pending"), dict) else None
         self.regime_context = payload.get("regime") if isinstance(payload.get("regime"), dict) else None
         self.latest_evaluation = payload.get("latestEvaluation") if isinstance(payload.get("latestEvaluation"), dict) else None
         self.latest_event = payload.get("latestEvent") if isinstance(payload.get("latestEvent"), dict) else None
         restored_counts = payload.get("counts") or {}
         for key in self.counts:
-            self.counts[key] = int(restored_counts.get(key, self.counts[key]) or 0)
+            value = restored_counts.get(key, self.counts[key])
+            self.counts[key] = float(value or 0) if key in {"winningNet", "losingNet"} else int(value or 0)
+
+    def _review_evaluation(self) -> dict[str, Any]:
+        gate = self.config["forwardGate"]
+        resolved = int(self.counts["resolved"])
+        candidate_waves = int(self.counts["candidateWaves"])
+        promoted = int(self.counts["promotedCandidates"])
+        winning_net = float(self.counts["winningNet"])
+        losing_net = float(self.counts["losingNet"])
+        promotion_rate = promoted / candidate_waves if candidate_waves else None
+        after_cost_win_rate = int(self.counts["wins"]) / resolved if resolved else None
+        stress_win_rate = int(self.counts["stress5Wins"]) / resolved if resolved else None
+        profit_factor = (
+            winning_net / abs(losing_net)
+            if losing_net < 0
+            else (999999.0 if winning_net > 0 else None)
+        )
+        promotion_bounds = gate["acceptableCandidatePromotionRate"]
+        gates = {
+            "tradingDays": len(self.observed_dates) >= int(gate["preferredTradingDaysForPromotionReview"]),
+            "resolvedCycles": resolved >= int(gate["minimumResolvedCycles"]),
+            "candidatePromotionRate": promotion_rate is not None
+            and float(promotion_bounds[0]) <= promotion_rate <= float(promotion_bounds[1]),
+            "afterCostWinRate": after_cost_win_rate is not None
+            and after_cost_win_rate >= float(gate["minimumAfterCostWinRate"]),
+            "stress5BpsWinRate": stress_win_rate is not None
+            and stress_win_rate >= float(gate["minimumStress5BpsWinRate"]),
+            "profitFactor": profit_factor is not None
+            and profit_factor >= float(gate["minimumProfitFactor"]),
+        }
+        return {
+            "tradingDays": len(self.observed_dates),
+            "resolvedCycles": resolved,
+            "candidatePromotionRate": promotion_rate,
+            "afterCostWinRate": after_cost_win_rate,
+            "stress5BpsWinRate": stress_win_rate,
+            "profitFactor": profit_factor,
+            "gates": gates,
+            "readyForManualReview": all(gates.values()),
+            "automaticPromotion": False,
+            "affectsProduction": False,
+        }
 
     def _state_payload(self) -> dict[str, Any]:
         return {
@@ -225,11 +300,15 @@ class ZijinClosureV2ReverseShadow:
             "updatedAt": utc_now(),
             "currentDate": self.current_date,
             "lastMinute": self.last_minute,
-            "signaledDates": sorted(self.signaled_dates)[-500:],
+            "displayName": self.config.get("displayName"),
+            "observedDates": sorted(self.observed_dates)[-500:],
+            "observedCandidateKeys": sorted(self.observed_candidate_keys)[-1000:],
+            "signaledKeys": sorted(self.signaled_keys)[-1000:],
             "pending": self.pending,
             "regime": self.regime_context,
             "latestEvaluation": self.latest_evaluation,
             "counts": dict(self.counts),
+            "manualReview": self._review_evaluation(),
             "latestEvent": self.latest_event,
             "forwardGate": self.config["forwardGate"],
         }
@@ -238,6 +317,7 @@ class ZijinClosureV2ReverseShadow:
         with self.lock:
             return {
                 "strategyId": STRATEGY_ID,
+                "displayName": self.config.get("displayName"),
                 "mode": "shadow-only",
                 "affectsProduction": False,
                 "sendsAlerts": False,
@@ -246,6 +326,7 @@ class ZijinClosureV2ReverseShadow:
                 "counts": dict(self.counts),
                 "pending": None if self.pending is None else self.pending.get("stage"),
                 "multiFactor": self.latest_evaluation,
+                "manualReview": self._review_evaluation(),
             }
 
     def _save(self) -> None:
@@ -260,7 +341,7 @@ class ZijinClosureV2ReverseShadow:
             "affectsProduction": False,
             "sendsAlerts": False,
             "automaticPromotion": False,
-            "eventId": f"{STRATEGY_ID}:{minute}:{kind}",
+            "eventId": f"{STRATEGY_ID}:{minute}:{payload.get('direction', 'common')}:{kind}",
             "event": kind,
             "symbol": "601899",
             "exchangeMinute": minute,
@@ -276,8 +357,8 @@ class ZijinClosureV2ReverseShadow:
         self._save()
         return event
 
-    def _regime_allows(self, returns: dict[str, Any]) -> bool:
-        regime = self.config["regime"]
+    def _regime_allows(self, returns: dict[str, Any], direction: str) -> bool:
+        regime = self.config["directions"][direction]["regime"]
         checks = (
             ("zijin", "zijinReturnMin", "zijinReturnMax"),
             ("sector", "sectorReturnMin", "sectorReturnMax"),
@@ -292,10 +373,16 @@ class ZijinClosureV2ReverseShadow:
     def set_regime_context(self, date: str, returns: dict[str, Any], source: str = "provided") -> dict[str, Any]:
         normalized_date = str(date).replace("-", "")[:8]
         with self.lock:
+            ready = all(finite_number(returns.get(key)) is not None for key in REGIME_SYMBOLS)
+            allowed_directions = [
+                direction for direction in self.config["directions"]
+                if ready and self._regime_allows(returns, direction)
+            ]
             self.regime_context = {
                 "date": normalized_date,
-                "ready": all(finite_number(returns.get(key)) is not None for key in REGIME_SYMBOLS),
-                "allowed": self._regime_allows(returns),
+                "ready": ready,
+                "allowed": bool(allowed_directions),
+                "allowedDirections": allowed_directions,
                 "returns": {key: finite_number(returns.get(key)) for key in REGIME_SYMBOLS},
                 "lookbackSessions": int(self.config["regime"]["lookbackSessions"]),
                 "source": source,
@@ -345,6 +432,7 @@ class ZijinClosureV2ReverseShadow:
                     "date": target_date,
                     "ready": False,
                     "allowed": False,
+                    "allowedDirections": [],
                     "returns": {key: None for key in REGIME_SYMBOLS},
                     "lookbackSessions": lookback,
                     "source": "unavailable",
@@ -366,59 +454,168 @@ class ZijinClosureV2ReverseShadow:
             },
         }
 
+    @staticmethod
+    def _ofi(record: dict[str, Any]) -> float | None:
+        flow = record.get("flow") or {}
+        active_buy = finite_number(flow.get("activeBuyNotional60s"))
+        active_sell = finite_number(flow.get("activeSellNotional60s"))
+        total = (active_buy or 0) + (active_sell or 0)
+        if total > 0:
+            return ((active_buy or 0) - (active_sell or 0)) / total
+        ratio = finite_number(flow.get("activeBuyRatio60s"))
+        return ratio * 2 - 1 if ratio is not None else None
+
+    def _l2_record_valid(self, record: dict[str, Any]) -> bool:
+        quality = self.config["l2Quality"]
+        book = record.get("book") or {}
+        bid_prices = [finite_number(value) for value in book.get("bidPrices", [])]
+        ask_prices = [finite_number(value) for value in book.get("askPrices", [])]
+        bid_volumes = [finite_number(value) for value in book.get("bidVolumes", [])]
+        ask_volumes = [finite_number(value) for value in book.get("askVolumes", [])]
+        best_bid = bid_prices[0] if bid_prices else None
+        best_ask = ask_prices[0] if ask_prices else None
+        spread_bps = finite_number(book.get("spreadBps"))
+        if spread_bps is None and best_bid and best_ask and best_ask > best_bid:
+            spread_bps = (best_ask - best_bid) / ((best_ask + best_bid) / 2) * 10_000
+        depth_notional = sum(
+            (price or 0) * (volume or 0)
+            for price, volume in list(zip(bid_prices, bid_volumes))[:5]
+            + list(zip(ask_prices, ask_volumes))[:5]
+        )
+        return (
+            self._ofi(record) is not None
+            and finite_number(book.get("nearTouchImbalance")) is not None
+            and spread_bps is not None
+            and spread_bps <= float(quality["maximumSpreadBps"])
+            and depth_notional >= float(quality["minimumVisibleDepthNotional"])
+            and best_bid is not None
+            and best_ask is not None
+            and best_bid < best_ask
+        )
+
     def _features(self) -> dict[str, Any] | None:
-        if len(self.minutes) < 5:
+        window_size = int(self.config["l2Quality"]["windowMinutes"])
+        if len(self.minutes) < window_size:
             return None
-        current = self.minutes[-1]
+        window = self.minutes[-window_size:]
+        current = window[-1]
         price = finite_number(current.get("lastPrice"))
         vwap = finite_number(current.get("cumulativeVwap"))
-        momentum_base = finite_number(self.minutes[-4].get("lastPrice"))
-        recent_prices = [
-            finite_number(item.get("minuteHigh")) or finite_number(item.get("lastPrice")) or 0
-            for item in self.minutes[-5:]
-        ]
-        recent_high = max(recent_prices, default=0)
+        momentum_base = finite_number(window[-4].get("lastPrice"))
+        recent_prices = [finite_number(item.get("lastPrice")) for item in window]
+        valid_prices = [value for value in recent_prices if value is not None]
+        if price is None or not valid_prices:
+            return None
+        recent_high = max(valid_prices)
+        recent_low = min(valid_prices)
         flow = current.get("flow") or {}
         big_buy = finite_number(flow.get("bigBuyNotional60s"))
         big_sell = finite_number(flow.get("bigSellNotional60s"))
         big_total = (big_buy or 0) + (big_sell or 0)
+        ofi_series = [self._ofi(item) for item in window]
+        valid_suffix = 0
+        for item in reversed(window):
+            if not self._l2_record_valid(item):
+                break
+            valid_suffix += 1
+        volatility = current.get("volatility") or {}
         return {
+            "price": price,
+            "atr14": finite_number(volatility.get("atr14")),
             "activeBuyRatios": [
                 finite_number((item.get("flow") or {}).get("activeBuyRatio60s"))
-                for item in self.minutes[-3:]
+                for item in window[-3:]
             ],
+            "ofiSeries": ofi_series,
+            "ofiVelocity3MinBps": (
+                (ofi_series[-1] - ofi_series[-4]) * 10_000
+                if ofi_series[-1] is not None and ofi_series[-4] is not None else None
+            ),
+            "consecutiveValidL2Minutes": valid_suffix,
             "largeOrderNetRatio": (
                 ((big_buy or 0) - (big_sell or 0)) / big_total if big_total > 0 else None
             ),
             "nearTouchImbalance": finite_number((current.get("book") or {}).get("nearTouchImbalance")),
-            "vwapExtensionBps": (price / vwap - 1) * 10_000 if price and vwap and vwap > 0 else None,
-            "momentum3Bps": (price / momentum_base - 1) * 10_000 if price and momentum_base and momentum_base > 0 else None,
-            "pullback5Bps": (recent_high - price) / recent_high * 10_000 if price and recent_high > 0 else None,
+            "vwapExtensionBps": (price / vwap - 1) * 10_000 if vwap and vwap > 0 else None,
+            "momentum3Bps": (price / momentum_base - 1) * 10_000 if momentum_base and momentum_base > 0 else None,
+            "pullback5Bps": (recent_high - price) / recent_high * 10_000 if recent_high > 0 else None,
+            "rebound5Bps": (price - recent_low) / recent_low * 10_000 if recent_low > 0 else None,
             "micropriceEdgeBps": finite_number((current.get("book") or {}).get("micropriceEdgeBps")),
         }
 
-    def _factor_gates(self, features: dict[str, Any]) -> dict[str, bool]:
-        signal = self.config["signal"]
-        ratios = features["activeBuyRatios"]
+    def _cost_evaluation(self, record: dict[str, Any], direction: str, features: dict[str, Any]) -> dict[str, Any]:
+        exit_config = self.config["directions"][direction]["exit"]
+        price = finite_number(features.get("price"))
+        atr = finite_number(features.get("atr14"))
+        same_book = execute_t(record, record, self.config, direction, 0, True)
+        expected_move = (
+            max(atr * float(exit_config["targetAtrMultiple"]), price * float(exit_config["minimumTargetBps"]) / 10_000)
+            if atr is not None and atr > 0 and price is not None and price > 0 else None
+        )
+        expected_gross = expected_move * int(self.config["quantity"]) if expected_move is not None else None
+        estimated_cost = abs(float(same_book["net"])) if same_book is not None else None
+        coverage = (
+            expected_gross / estimated_cost
+            if expected_gross is not None and estimated_cost is not None and estimated_cost > 0 else None
+        )
+        minimum = float(self.config["execution"]["minimumCostCoverageMultiple"])
         return {
-            "activeBuyPressure": len(ratios) == int(signal["activeBuyConsecutiveMinutes"])
+            "passed": coverage is not None and coverage >= minimum,
+            "atr14": atr,
+            "expectedMove": expected_move,
+            "expectedGross": expected_gross,
+            "estimatedRoundTripCost": estimated_cost,
+            "costCoverageMultiple": coverage,
+            "minimumCostCoverageMultiple": minimum,
+        }
+
+    def _factor_gates(self, direction: str, features: dict[str, Any], regime_passes: bool) -> dict[str, bool]:
+        signal = self.config["directions"][direction]["signal"]
+        ratios = features["activeBuyRatios"]
+        common = {
+            "marketRegime": regime_passes,
+            "l2Quality": features["consecutiveValidL2Minutes"]
+            >= int(self.config["l2Quality"]["minimumConsecutiveValidMinutes"]),
+        }
+        if direction == "positive-t":
+            return {
+                **common,
+                "activeBuyPressure": len(ratios) == 3
+                and all(value is not None and value >= float(signal["activeBuyRatioMin"]) for value in ratios),
+                "largeOrderFlow": features["largeOrderNetRatio"] is not None
+                and features["largeOrderNetRatio"] >= float(signal["largeOrderNetRatioMin"]),
+                "nearTouchBook": features["nearTouchImbalance"] is not None
+                and features["nearTouchImbalance"] >= float(signal["nearTouchImbalanceMin"]),
+                "vwapLocation": features["vwapExtensionBps"] is not None
+                and features["vwapExtensionBps"] <= float(signal["vwapExtensionMaxBps"]),
+                "momentum3": features["momentum3Bps"] is not None
+                and features["momentum3Bps"] >= float(signal["momentum3MinBps"]),
+                "priceTurn5": features["rebound5Bps"] is not None
+                and features["rebound5Bps"] >= float(signal["rebound5MinBps"]),
+                "micropriceEdge": features["micropriceEdgeBps"] is not None
+                and features["micropriceEdgeBps"] >= float(signal["micropriceEdgeMinBps"]),
+                "ofiVelocity": features["ofiVelocity3MinBps"] is not None
+                and features["ofiVelocity3MinBps"] >= float(signal["ofiVelocity3MinBpsMin"]),
+            }
+        return {
+            **common,
+            "activeBuyPressure": len(ratios) == 3
             and all(value is not None and value <= float(signal["activeBuyRatioMax"]) for value in ratios),
             "largeOrderFlow": features["largeOrderNetRatio"] is not None
             and features["largeOrderNetRatio"] <= float(signal["largeOrderNetRatioMax"]),
             "nearTouchBook": features["nearTouchImbalance"] is not None
             and features["nearTouchImbalance"] <= float(signal["nearTouchImbalanceMax"]),
-            "vwapExtension": features["vwapExtensionBps"] is not None
+            "vwapLocation": features["vwapExtensionBps"] is not None
             and features["vwapExtensionBps"] >= float(signal["vwapExtensionMinBps"]),
             "momentum3": features["momentum3Bps"] is not None
             and features["momentum3Bps"] <= float(signal["momentum3MaxBps"]),
-            "pullback5": features["pullback5Bps"] is not None
+            "priceTurn5": features["pullback5Bps"] is not None
             and features["pullback5Bps"] >= float(signal["pullback5MinBps"]),
             "micropriceEdge": features["micropriceEdgeBps"] is not None
             and features["micropriceEdgeBps"] <= float(signal["micropriceEdgeMaxBps"]),
+            "ofiVelocity": features["ofiVelocity3MinBps"] is not None
+            and features["ofiVelocity3MinBps"] <= float(signal["ofiVelocity3MinBpsMax"]),
         }
-
-    def _signal_passes(self, features: dict[str, Any]) -> bool:
-        return all(self._factor_gates(features).values())
 
     def _reject_pending(self, minute: str, reason: str) -> dict[str, Any]:
         self.counts["rejected"] += 1
@@ -433,40 +630,71 @@ class ZijinClosureV2ReverseShadow:
         if minute != expected:
             return self._reject_pending(minute, "non-contiguous-minute")
         if self.pending["stage"] == "candidate":
-            if consume_book(record, "sell", int(self.config["quantity"])) is None:
+            direction = str(self.pending["direction"])
+            entry_side = "buy" if direction == "positive-t" else "sell"
+            entry_fill = consume_book(record, entry_side, int(self.config["quantity"]))
+            if entry_fill is None:
                 return self._reject_pending(minute, "entry-book-unavailable")
+            exit_config = self.config["directions"][direction]["exit"]
+            atr = float(self.pending["costEvaluation"]["atr14"])
+            entry_price = float(entry_fill["executionPrice"])
+            target_move = max(
+                atr * float(exit_config["targetAtrMultiple"]),
+                entry_price * float(exit_config["minimumTargetBps"]) / 10_000,
+            )
+            stop_move = atr * float(exit_config["stopAtrMultiple"])
             self.pending.update({
                 "stage": "entered",
                 "entryMinute": minute,
                 "entryRecord": self._compact_record(record),
-                "remainingHoldMinutes": int(self.config["execution"]["holdTradingMinutes"]),
+                "entryPrice": entry_price,
+                "targetPrice": entry_price + target_move if direction == "positive-t" else entry_price - target_move,
+                "stopPrice": entry_price - stop_move if direction == "positive-t" else entry_price + stop_move,
+                "remainingHoldMinutes": int(exit_config["maxHoldTradingMinutes"]),
                 "lastMinute": minute,
             })
             self.counts["entries"] += 1
             return self._emit("entry", minute, {
                 "signalMinute": self.pending["signalMinute"],
-                "direction": "reverse-t",
+                "direction": direction,
                 "quantity": int(self.config["quantity"]),
+                "entryPrice": entry_price,
+                "targetPrice": self.pending["targetPrice"],
+                "stopPrice": self.pending["stopPrice"],
             })
 
         self.pending["lastMinute"] = minute
         self.pending["remainingHoldMinutes"] -= 1
-        if self.pending["remainingHoldMinutes"] > 0:
+        direction = str(self.pending["direction"])
+        price = finite_number(record.get("lastPrice"))
+        reached_target = price is not None and (
+            price >= float(self.pending["targetPrice"])
+            if direction == "positive-t" else price <= float(self.pending["targetPrice"])
+        )
+        reached_stop = price is not None and (
+            price <= float(self.pending["stopPrice"])
+            if direction == "positive-t" else price >= float(self.pending["stopPrice"])
+        )
+        exit_reason = "target" if reached_target else "stop" if reached_stop else (
+            "time" if self.pending["remainingHoldMinutes"] <= 0 else None
+        )
+        if exit_reason is None:
             self._save()
             return None
 
         entry_record = self.pending["entryRecord"]
-        actual = execute_reverse_t(entry_record, record, self.config)
-        stress2 = execute_reverse_t(entry_record, record, self.config, 2)
-        stress5 = execute_reverse_t(entry_record, record, self.config, 5)
-        transfer = execute_reverse_t(entry_record, record, self.config, 0, True)
+        actual = execute_t(entry_record, record, self.config, direction)
+        stress2 = execute_t(entry_record, record, self.config, direction, 2)
+        stress5 = execute_t(entry_record, record, self.config, direction, 5)
+        transfer = execute_t(entry_record, record, self.config, direction, 0, True)
         if not all((actual, stress2, stress5, transfer)):
             return self._reject_pending(minute, "exit-book-unavailable")
         payload = {
             "signalMinute": self.pending["signalMinute"],
             "entryMinute": self.pending["entryMinute"],
             "exitMinute": minute,
-            "direction": "reverse-t",
+            "direction": direction,
+            "exitReason": exit_reason,
             "quantity": int(self.config["quantity"]),
             "features": self.pending["features"],
             "regime": self.pending["regime"],
@@ -479,6 +707,11 @@ class ZijinClosureV2ReverseShadow:
         self.counts["resolved"] += 1
         if actual["net"] > 0:
             self.counts["wins"] += 1
+            self.counts["winningNet"] += float(actual["net"])
+        elif actual["net"] < 0:
+            self.counts["losingNet"] += float(actual["net"])
+        if stress5["net"] > 0:
+            self.counts["stress5Wins"] += 1
         return self._emit("resolved", minute, payload)
 
     def observe(self, record: dict[str, Any]) -> dict[str, Any] | None:
@@ -494,54 +727,95 @@ class ZijinClosureV2ReverseShadow:
                     self._reject_pending(minute, "trading-date-ended")
                 self.minutes.clear()
             self.current_date = date
+            self.observed_dates.add(date)
             self.last_minute = minute
 
             event = self._advance_pending(record)
             self.minutes.append(record)
             self.minutes = self.minutes[-260:]
-            signal = self.config["signal"]
-            clock = minute[-4:]
-            if clock < str(signal["start"]).replace(":", "") or clock > str(signal["end"]).replace(":", ""):
-                return event
             features = self._features()
             if features is None:
+                self._save()
                 return event
-            rounded_features = {
-                key: [round(value, 6) for value in value] if isinstance(value, list) else round(value, 6)
-                for key, value in features.items()
-            }
+
+            def rounded(value: Any) -> Any:
+                if isinstance(value, list):
+                    return [rounded(item) for item in value]
+                if isinstance(value, dict):
+                    return {key: rounded(item) for key, item in value.items()}
+                return round(value, 6) if isinstance(value, float) else value
+
+            rounded_features = rounded(features)
             regime = self.regime_context or {}
-            factor_gates = self._factor_gates(features)
-            regime_passes = (
-                regime.get("date") == date
-                and bool(regime.get("ready"))
-                and bool(regime.get("allowed"))
-            )
-            all_gates = {"marketRegime": regime_passes, **factor_gates}
+            evaluations = {}
+            observation_event = None
+            clock = minute[-4:]
+            for direction, direction_config in self.config["directions"].items():
+                signal = direction_config["signal"]
+                in_window = (
+                    str(signal["start"]).replace(":", "")
+                    <= clock
+                    <= str(signal["end"]).replace(":", "")
+                )
+                regime_passes = (
+                    regime.get("date") == date
+                    and bool(regime.get("ready"))
+                    and direction in (regime.get("allowedDirections") or [])
+                )
+                factor_gates = self._factor_gates(direction, features, regime_passes)
+                cost_evaluation = self._cost_evaluation(record, direction, features)
+                all_gates = {"timeWindow": in_window, **factor_gates, "costCoverage": bool(cost_evaluation["passed"])}
+                evaluations[direction] = {
+                    "passed": all(all_gates.values()),
+                    "passedCount": sum(all_gates.values()),
+                    "totalCount": len(all_gates),
+                    "gates": all_gates,
+                    "costEvaluation": rounded(cost_evaluation),
+                }
+                candidate_key = f"{date}:{direction}"
+                base_gate_names = ("timeWindow", "marketRegime", "l2Quality", "vwapLocation", "momentum3", "priceTurn5")
+                base_passes = all(all_gates[name] for name in base_gate_names)
+                if base_passes and candidate_key not in self.observed_candidate_keys:
+                    self.observed_candidate_keys.add(candidate_key)
+                    self.counts["candidateWaves"] += 1
+                    observation_event = self._emit("observation", minute, {
+                        "direction": direction,
+                        "quantity": int(self.config["quantity"]),
+                        "features": rounded_features,
+                        "gates": all_gates,
+                    })
+
             self.latest_evaluation = {
                 "exchangeMinute": minute,
-                "passed": all(all_gates.values()),
-                "passedCount": sum(all_gates.values()),
-                "totalCount": len(all_gates),
-                "gates": all_gates,
+                "passed": any(value["passed"] for value in evaluations.values()),
+                "directions": evaluations,
                 "features": rounded_features,
             }
             self._save()
-            if date in self.signaled_dates or self.pending is not None or not self.latest_evaluation["passed"]:
-                return event
+            if event is not None or self.pending is not None:
+                return event or observation_event
 
-            self.signaled_dates.add(date)
-            self.counts["candidates"] += 1
-            self.pending = {
-                "stage": "candidate",
-                "signalMinute": minute,
-                "lastMinute": minute,
-                "features": rounded_features,
-                "regime": regime,
-            }
-            return self._emit("candidate", minute, {
-                "direction": "reverse-t",
-                "quantity": int(self.config["quantity"]),
-                "features": rounded_features,
-                "regime": regime,
-            })
+            for direction, evaluation in evaluations.items():
+                candidate_key = f"{date}:{direction}"
+                if candidate_key in self.signaled_keys or not evaluation["passed"]:
+                    continue
+                self.signaled_keys.add(candidate_key)
+                self.counts["promotedCandidates"] += 1
+                self.counts["candidates"] += 1
+                self.pending = {
+                    "stage": "candidate",
+                    "direction": direction,
+                    "signalMinute": minute,
+                    "lastMinute": minute,
+                    "features": rounded_features,
+                    "regime": regime,
+                    "costEvaluation": evaluation["costEvaluation"],
+                }
+                return self._emit("candidate", minute, {
+                    "direction": direction,
+                    "quantity": int(self.config["quantity"]),
+                    "features": rounded_features,
+                    "regime": regime,
+                    "costEvaluation": evaluation["costEvaluation"],
+                })
+            return event or observation_event

@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
-  "strategyId": "closure-v2-shadow-zijin-reverse-t",
+  "schemaVersion": 2,
+  "strategyId": "closure-v2-shadow-zijin-multifactor-t",
+  "displayName": "紫金多因子闭环T引擎 V2（影子版）",
   "mode": "shadow-only",
   "affectsProduction": false,
   "sendsAlerts": false,
@@ -9,35 +10,79 @@
   "dataCutoff": "2026-08-07",
   "selectionPartition": "2025",
   "retrospectivePartition": "2026-01-01/2026-08-07",
-  "direction": "reverse-t",
-  "maxSignalsPerDay": 1,
+  "direction": "bidirectional-shadow",
+  "maxSignalsPerDirectionPerDay": 1,
   "quantity": 1600,
-  "signal": {
-    "start": "10:01",
-    "end": "11:00",
-    "activeBuyRatioMax": 0.46,
-    "activeBuyConsecutiveMinutes": 3,
-    "largeOrderNetRatioMax": -0.15,
-    "nearTouchImbalanceMax": 0.1,
-    "vwapExtensionMinBps": 55,
-    "momentum3MaxBps": 0,
-    "pullback5MinBps": 7,
-    "micropriceEdgeMaxBps": 2
+  "l2Quality": {
+    "windowMinutes": 5,
+    "minimumConsecutiveValidMinutes": 3,
+    "maximumSpreadBps": 20,
+    "minimumVisibleDepthNotional": 100000
+  },
+  "directions": {
+    "positive-t": {
+      "signal": {
+        "start": "10:01",
+        "end": "14:20",
+        "activeBuyRatioMin": 0.54,
+        "largeOrderNetRatioMin": 0.10,
+        "nearTouchImbalanceMin": -0.10,
+        "vwapExtensionMaxBps": -35,
+        "momentum3MinBps": 0,
+        "rebound5MinBps": 7,
+        "micropriceEdgeMinBps": -2,
+        "ofiVelocity3MinBpsMin": 600
+      },
+      "regime": {
+        "zijinReturnMin": -0.02,
+        "zijinReturnMax": 0.12,
+        "sectorReturnMin": -0.01,
+        "sectorReturnMax": 0.12,
+        "marketReturnMin": -0.015,
+        "marketReturnMax": 0.05
+      },
+      "exit": {
+        "targetAtrMultiple": 0.65,
+        "stopAtrMultiple": 0.45,
+        "minimumTargetBps": 18,
+        "maxHoldTradingMinutes": 45
+      }
+    },
+    "reverse-t": {
+      "signal": {
+        "start": "10:01",
+        "end": "11:00",
+        "activeBuyRatioMax": 0.46,
+        "largeOrderNetRatioMax": -0.15,
+        "nearTouchImbalanceMax": 0.10,
+        "vwapExtensionMinBps": 55,
+        "momentum3MaxBps": 0,
+        "pullback5MinBps": 7,
+        "micropriceEdgeMaxBps": 2,
+        "ofiVelocity3MinBpsMax": -600
+      },
+      "regime": {
+        "zijinReturnMin": -0.12,
+        "zijinReturnMax": 0.02,
+        "sectorReturnMin": -0.12,
+        "sectorReturnMax": 0.01,
+        "marketReturnMin": -0.05,
+        "marketReturnMax": 0.015
+      },
+      "exit": {
+        "targetAtrMultiple": 0.70,
+        "stopAtrMultiple": 0.50,
+        "minimumTargetBps": 18,
+        "maxHoldTradingMinutes": 50
+      }
+    }
   },
   "regime": {
-    "lookbackSessions": 5,
-    "zijinReturnMin": -0.12,
-    "zijinReturnMax": 0.02,
-    "sectorReturnMin": -0.12,
-    "sectorReturnMax": 0.01,
-    "marketReturnMin": -0.05,
-    "marketReturnMax": 0.015
+    "lookbackSessions": 5
   },
   "execution": {
     "entryDelayTradingMinutes": 1,
-    "holdTradingMinutes": 50,
-    "sellAgainst": "bid-depth",
-    "buybackAgainst": "ask-depth",
+    "minimumCostCoverageMultiple": 2,
     "rejectCrossedOrInvalidBook": true,
     "rejectInsufficientDepth": true
   },
@@ -58,11 +103,16 @@
     "startAfter": "2026-08-09",
     "minimumTradingDaysForInterimReview": 20,
     "preferredTradingDaysForPromotionReview": 60,
-    "minimumSignals": 12,
+    "minimumResolvedCycles": 100,
+    "targetCandidatePromotionRate": 0.35,
+    "acceptableCandidatePromotionRate": [0.30, 0.40],
+    "minimumAfterCostWinRate": 0.55,
+    "minimumStress5BpsWinRate": 0.55,
+    "minimumProfitFactor": 1.2,
     "requiredMetrics": [
       "after-cost-net-positive",
-      "profit-factor-above-1.5",
-      "five-bps-per-side-stress-net-positive",
+      "profit-factor-at-least-1.2",
+      "five-bps-per-side-stress-win-rate-at-least-55-percent",
       "maximum-drawdown-within-fixed-risk-budget"
     ],
     "automaticPromotion": false
