@@ -51,7 +51,7 @@ test("main-force chart is tracking evidence only and collector persists minute f
   assert.doesNotMatch(page, /const time=zijinRepair\.metrics\.secondLow\.time/);
   assert.match(page, /buildZijinL2CausalReplayObservations at the causal confirmation minute/);
   assert.match(page, /buildZijinL2CausalReplayObservations\(minutePoints\)/);
-  assert.match(page, /const merged=\[\.\.\.\(\(liveEngine\.observations \?\? \[\]\) as ReplayObservation\[\]\),\.\.\.zijinRepairHistory\]/);
+  assert.match(page, /buildReplayChartObservations\(stock\?\.code,minutePoints,\(liveEngine\.observations \?\? \[\]\) as ReplayObservation\[\],zijinRepairHistory\)/);
   assert.match(page, /main-force-cumulative-axis/);
   assert.match(page, /signalMode==="正T"\?"下轨":"上轨"/);
   assert.match(page, /agentOpen&&<div className="agent-grid"/);

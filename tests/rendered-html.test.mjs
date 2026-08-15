@@ -87,19 +87,19 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.doesNotMatch(source, /pivot-reference-marker/);
   assert.doesNotMatch(source, /pivot-confirmation-link/);
   assert.match(source, /visibleChartObservations/);
-  assert.match(source, /compactChartObservations\(currentObservations,30\)/);
+  assert.match(source, /compactChartObservations\(eligible,isZijinStock\?45:30,\{mergeRepairPhases:isZijinStock\}\)/);
   assert.match(source, /compactChartObservations\(buildReplayChartObservations/);
   assert.match(source, /\{visibleBacktestObservations\.map\(\(observation,index\)=>\{/);
   assert.doesNotMatch(source, /result\?\.trades===0&&visibleBacktestObservations\.map/);
   assert.doesNotMatch(source, /result\?\.trades===0&&visibleBacktestObservations\.length/);
   assert.match(source, /observation\.confirmationLabel/);
-  assert.match(source, /pointPosition\(observation\.time,observation\.price\)/);
+  assert.match(source, /pointPosition\(observation\.time,markerPrice\)/);
   assert.doesNotMatch(source, /pointPosition\(observation\.pivotTime/);
   assert.match(source, /const reserveLabel=/);
   assert.match(source, /const occupied:LabelBox\[\]=\[\]/);
   assert.match(source, /intradayMarkerLayout\.actions/);
   assert.match(source, /marker-label-leader/);
-  assert.match(source, /中文提示常驻 · 支撑\/压力观察不是买卖点/);
+  assert.match(source, /marker\.labelRendered\?"with-label":"dot-only"/);
   assert.match(source, /className=\{`chart-rabbit-tracker/);
   assert.match(source, /href="\/rabbit-daylight-pair\.webp"/);
   assert.match(source, /rabbitTrackerSignal/);
@@ -109,12 +109,12 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /const formalFresh=Boolean/);
   assert.match(source, /isRecentCausalEvent\(lastTime,latest\.time,3\)/);
   assert.match(source, /for\(const \[index,item\] of stockList\.entries\(\)\)/);
-  assert.match(source, /const formalFresh=Boolean\(latest&&isRecentCausalEvent\(lastTime,latest\.time,3\)\)/);
+  assert.match(source, /const formalFresh=Boolean\(latest&&formalCharted&&isRecentCausalEvent\(lastTime,latest\.time,3\)\)/);
   assert.match(source, /const \[zijinResearchEnabled,setZijinResearchEnabled\]=useState\(false\)/);
-  assert.match(source, /正式信号引擎/);
-  assert.match(source, /V4 正式/);
+  assert.match(source, /本股正式闭环/);
+  assert.match(source, /正式 V4/);
   assert.match(source, /紫金研究仅叠加解释/);
-  assert.match(source, /正式买卖点、风控和提醒仍由 V4 运行/);
+  assert.match(source, /正式买卖点、风控和提醒均由内置闭环运行/);
   assert.doesNotMatch(source, /601899 自动切换专属智能体/);
   assert.match(source, /const isRisk=!formalFresh&&Boolean\(riskMessage\)/);
   assert.match(source, /Promise\.allSettled/);
@@ -178,7 +178,7 @@ test("mobile layout keeps core product flows usable on phones", async () => {
 
   assert.match(layout, /import type \{ Metadata, Viewport \} from "next"/);
   assert.match(layout, /viewportFit: "cover"/);
-  assert.match(layout, /import "\.\/mobile\.css"/);
+  assert.match(source, /import "\.\/mobile\.css"/);
   assert.match(mobile, /@media \(max-width: 760px\)/);
   assert.match(mobile, /env\(safe-area-inset-bottom\)/);
   assert.match(mobile, /\.main-nav\s*\{/);
@@ -228,7 +228,7 @@ test("Zijin experiment progress has a stable deep link and explicit delivery sta
   assert.match(styles, /\.zijin-auto-rabbits\{/);
 });
 
-test("session restore blocks the public landing flash and preserves the Zijin experiment deep link", async () => {
+test("session bootstrap preserves the Zijin experiment deep link", async () => {
   const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const shell = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const homeStyles = await readFile(new URL("../app/home.css", import.meta.url), "utf8");
@@ -236,8 +236,8 @@ test("session restore blocks the public landing flash and preserves the Zijin ex
   assert.match(source, /isZijinExperimentDeepLink/);
   assert.match(source, /ensureZijinExperimentStock/);
   assert.match(source, /prepareWatchlistForCurrentEntry/);
-  assert.match(shell, /const \[authReady, setAuthReady\] = useState\(false\)/);
-  assert.match(shell, /if\s*\(!authReady\)\s*return <main className="auth-loading"/);
+  assert.match(shell, /const \[initialAuth, setInitialAuth\] = useState<InitialAuth \| null>\(null\)/);
+  assert.match(shell, /loading: \(\) => <RabbitLoading \/>/);
   assert.match(source, /openZijinExperiment/);
   assert.match(source, /紫金矿业实验室/);
   assert.match(source, /查看训练进度/);
@@ -286,11 +286,11 @@ test("generic four-rabbit research separates market training from watchlist reco
   const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(source, /通用 V4 四兔研究中心/);
-  assert.match(source, /历史全市场样本/);
-  assert.match(source, /影子逐笔核对/);
+  assert.match(source, /全市场历史/);
+  assert.match(source, /影子核对/);
   assert.match(source, /未见股票与日期盲测/);
-  assert.match(source, /费用、滑点、回撤、PBO 和 DSR/);
-  assert.match(source, /不能静默改参数/);
+  assert.match(source, /成本、滑点、回撤与过拟合/);
+  assert.match(source, /不会自动修改正式版本/);
   assert.doesNotMatch(source, /冠军策略/);
   assert.match(styles, /\.training-scope-strip\{/);
 });
@@ -299,7 +299,7 @@ test("single-stock research keeps advanced evidence collapsed by default", async
   const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
   assert.match(source, /const \[researchExpanded,setResearchExpanded\]=useState\(false\)/);
   assert.match(source, /aria-expanded=\{researchExpanded\}/);
-  assert.match(source, /researchExpanded&&<div className="research-purpose"/);
+  assert.match(source, /researchExpanded&&<article className="research-card feedback-card"/);
   assert.match(source, /zijinFactorResearch&&researchExpanded&&<section/);
   assert.match(source, /research-compact-training/);
 });
@@ -329,7 +329,7 @@ test("random 10-stock replay randomizes stock-days and separates references from
   assert.match(source, /slice\(0,5\)/);
   assert.match(source, /从近 5 个可用完整交易日中随机选一天|sampleWithSeed\(sessionPool,1/);
   assert.match(source, /全A股随机10股真实分时批次/);
-  assert.match(source, /全市场列表不可用时会明确显示/);
+  assert.match(source, /代表池回退/);
   assert.match(source, /每股最多展示 2 个低位\/反弹参考和 2 个高位\/回落参考/);
   assert.match(source, /自动参考不可执行/);
   assert.match(source, /才标为候补买卖点或正式交易/);
@@ -405,7 +405,7 @@ test("the app uses a global minimalist presentation without hiding decision evid
   const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const minimal = await readFile(new URL("../app/minimal.css", import.meta.url), "utf8");
 
-  assert.match(layout, /import "\.\/minimal\.css"/);
+  assert.match(source, /import "\.\/minimal\.css"/);
   assert.match(source, /app-shell minimal-ui session-/);
   assert.match(minimal, /\.minimal-ui \.watch-rule/);
   assert.match(minimal, /\.minimal-ui \.market-guard/);
@@ -417,6 +417,6 @@ test("the app uses a global minimalist presentation without hiding decision evid
 test("intraday markers use the recorded causal price", async () => {
   const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /pointPosition\(action\.time,action\.price\)/);
-  assert.match(source, /pointPosition\(observation\.time,observation\.price\)/);
+  assert.match(source, /pointPosition\(action\.time,action\.price,true\)/);
+  assert.match(source, /pointPosition\(observation\.time,markerPrice\)/);
 });
