@@ -13,7 +13,14 @@ test("completed L2 minutes do not overwrite minute volume with session cumulativ
 });
 
 test("collector restart bootstraps cumulative counters instead of emitting a giant fake bar", () => {
-  assert.match(collector, /first_observed_minute = bar is None/);
-  assert.match(collector, /start_volume = cumulative_volume if first_observed_minute/);
-  assert.match(collector, /start_turnover = cumulative_turnover if first_observed_minute/);
+  assert.match(collector, /"hasCumulativeBaseline": has_cumulative/);
+  assert.match(collector, /int\(cumulative_volume\) - int\(bar\.get\("observedTradeVolume"/);
+  assert.match(collector, /float\(cumulative_turnover\) - float\(bar\.get\("observedTradeTurnover"/);
+});
+
+test("collector uses transaction OHLC for ATR and keeps snapshot prices as fallback only", () => {
+  assert.match(collector, /price_source="transaction"/);
+  assert.match(collector, /bar\.get\("priceSource"\) == "tick-trades"/);
+  assert.match(collector, /"source": "broker-l2-tick-trades"/);
+  assert.match(collector, /"minuteLow": \(state\.get\("volatility"\)/);
 });

@@ -15,8 +15,11 @@ done
 install -d -m 0755 /var/lib/rabbit-quant-deploy /var/log/rabbit-quant-deploy /opt/rabbit-quant-backups
 install -m 0755 "$REPO_DIR/scripts/deploy-production.sh" /usr/local/sbin/rabbit-quant-deploy
 install -m 0755 "$REPO_DIR/scripts/backup-production.sh" /usr/local/sbin/rabbit-quant-backup
+install -m 0755 "$REPO_DIR/deploy/cleanup-docker-artifacts.sh" /usr/local/sbin/rabbit-quant-docker-cleanup
 install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-deploy.service" /etc/systemd/system/rabbit-quant-deploy.service
 install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-deploy.timer" /etc/systemd/system/rabbit-quant-deploy.timer
+install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-docker-cleanup.service" /etc/systemd/system/rabbit-quant-docker-cleanup.service
+install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-docker-cleanup.timer" /etc/systemd/system/rabbit-quant-docker-cleanup.timer
 install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-backup.service" /etc/systemd/system/rabbit-quant-backup.service
 install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-backup.timer" /etc/systemd/system/rabbit-quant-backup.timer
 install -m 0644 "$REPO_DIR/deploy/systemd/rabbit-quant-growth.service" /etc/systemd/system/rabbit-quant-growth.service
@@ -31,6 +34,7 @@ systemctl daemon-reload
 systemctl enable --now rabbit-quant-deploy.timer
 systemctl enable --now rabbit-quant-backup.timer
 systemctl enable --now rabbit-quant-growth.timer
+systemctl enable --now rabbit-quant-docker-cleanup.timer
 systemctl start rabbit-quant-deploy.service
 
 echo "备份定时器：systemctl status rabbit-quant-backup.timer"

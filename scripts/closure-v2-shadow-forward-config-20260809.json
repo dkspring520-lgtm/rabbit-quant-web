@@ -19,10 +19,55 @@
     "maximumSpreadBps": 20,
     "minimumVisibleDepthNotional": 100000
   },
+  "openingStructure": {
+    "end": "10:00",
+    "minimumAlignedMinutes": 3,
+    "positiveTGapMaxBps": -35,
+    "positiveTRecoveryMinBps": 12,
+    "reverseTGapMinBps": 35,
+    "reverseTWeakeningMinBps": 12
+  },
+  "l2PriceResponse": {
+    "minimumAlignedMinutes": 3,
+    "positiveTMeanOfiMin": 0.05,
+    "positiveTPriceResponse3MinBpsMin": 0,
+    "reverseTMeanOfiMax": -0.05,
+    "reverseTPriceResponse3MinBpsMax": 0
+  },
+  "peerResonance": {
+    "refreshSeconds": 30,
+    "maximumAgeMinutes": 1,
+    "minimumCoverage": 0.6,
+    "minimumAlignedGroups": 2,
+    "minimumConsecutiveMinutes": 3,
+    "positiveTMinimumBreadth": 0.6,
+    "positiveTMinimumLagBps": 8,
+    "reverseTMaximumBreadth": 0.4,
+    "reverseTMinimumOutperformanceBps": 8,
+    "groups": {
+      "gold": ["sh600547", "sh600489", "sh600988"],
+      "copper": ["sh603993", "sh600362", "sz000630"],
+      "crossMarket": ["sh512400", "hk02899"]
+    },
+    "benchmarks": ["sh000001", "sh512400"],
+    "zijin": "sh601899"
+  },
+  "factorScore": {
+    "minimumUpgradeScore": 70,
+    "openingStructureWeight": 15,
+    "l2PriceResponseWeight": 35,
+    "costAtrWeight": 35,
+    "peerResonanceWeight": 15,
+    "missingPeerDataScore": 0
+  },
+  "historicalMfe": {
+    "minimumSamples": 5,
+    "minimumCoverageRate": 0.55
+  },
   "directions": {
     "positive-t": {
       "signal": {
-        "start": "10:01",
+        "start": "09:35",
         "end": "14:20",
         "activeBuyRatioMin": 0.54,
         "largeOrderNetRatioMin": 0.10,
@@ -50,7 +95,7 @@
     },
     "reverse-t": {
       "signal": {
-        "start": "10:01",
+        "start": "09:35",
         "end": "11:00",
         "activeBuyRatioMax": 0.46,
         "largeOrderNetRatioMax": -0.15,
@@ -83,6 +128,11 @@
   "execution": {
     "entryDelayTradingMinutes": 1,
     "minimumCostCoverageMultiple": 2,
+    "shadowComparisonCostCoverageMultiple": 1.5,
+    "minimumAbsoluteTargetYuan": 0.08,
+    "depthSizingLevels": 5,
+    "maximumVisibleDepthParticipation": 0.1,
+    "lotSize": 100,
     "rejectCrossedOrInvalidBook": true,
     "rejectInsufficientDepth": true
   },

@@ -37,6 +37,9 @@ test("production compose and image expose commit-aware health", () => {
   assert.match(dockerfile, /APP_BUILD_TIME/);
   assert.match(dockerfile, /HEALTHCHECK/);
   assert.match(route, /APP_COMMIT_SHA/);
+  assert.match(route, /APP_RELEASE_STATE_PATH/);
+  assert.match(route, /releaseShortCommit/);
+  assert.match(route, /process\.getBuiltinModule\?\.\("fs"\)/);
   assert.match(route, /cache-control/);
 });
 
@@ -47,9 +50,21 @@ test("the site footer displays and refreshes the deployed version", () => {
   assert.match(page, /function ReleaseVersion\(\)/);
   assert.match(page, /fetch\("\/api\/control\/version",\{cache:"no-store"\}\)/);
   assert.match(page, /window\.setInterval\(load,60_000\)/);
-  assert.match(page, /版本 V4-\{shortCommit\}/);
+  assert.match(page, /版本 闭环-\{shortCommit\}/);
+  assert.match(page, /releaseShortCommit/);
   assert.match(page, /<ReleaseVersion\/>/);
   assert.match(css, /\.release-version\{/);
+});
+
+test("production deploy publishes the accepted release separately from the Web image commit", () => {
+  const script = read("scripts/deploy-production.sh");
+  const publishFunction = script.indexOf("write_public_release_state() {");
+  const healthGate = script.indexOf('wait_for_release "$expected_web_sha"');
+  const publishAfterHealth = script.indexOf('write_public_release_state "$target_sha" "$build_time"', healthGate);
+
+  assert.ok(publishFunction > 0);
+  assert.match(script, /\/opt\/rabbit-quant-state\/deployed-release\.json/);
+  assert.ok(publishAfterHealth > healthGate);
 });
 
 test("production deploy uses blue-green Web slots and switches traffic only after candidate health", () => {
@@ -113,6 +128,42 @@ test("systemd timer and installer enable recurring safe deploys", () => {
   assert.match(installer, /systemctl enable --now rabbit-quant-backup\.timer/);
 });
 
+test("production deployment prevents Docker disk exhaustion", () => {
+  const deploy = read("scripts/deploy-production.sh");
+  const cleanup = read("deploy/cleanup-docker-artifacts.sh");
+  const service = read("deploy/systemd/rabbit-quant-docker-cleanup.service");
+  const timer = read("deploy/systemd/rabbit-quant-docker-cleanup.timer");
+  const installer = read("scripts/install-production-deployer.sh");
+  const dockerfile = read("Dockerfile.server");
+  const dockerignore = read(".dockerignore");
+  const environment = read("deploy/rabbit-quant-ops.env.example");
+
+  assert.match(dockerignore, /^agent$/m);
+  assert.match(deploy, /RABBIT_QUANT_MIN_FREE_DISK_GB:-8/);
+  assert.match(deploy, /IMAGE_RETENTION <= 2/);
+  assert.match(deploy, /ops-assets-v2-sha/);
+  assert.match(deploy, /last-good-web-sha/);
+  assert.match(deploy, /ensure_build_space/);
+  assert.match(deploy, /cleanup_failed_build_artifacts/);
+  assert.match(deploy, /docker image prune --force/);
+  assert.match(deploy, /docker builder prune --all --force/);
+  assert.match(deploy, /docker buildx build --load/);
+  assert.match(deploy, /DOCKER_BUILDKIT=1 docker build/);
+  assert.match(deploy, /docker_build_image --pull/);
+  assert.match(dockerfile, /FROM node:22-bookworm-slim AS dependencies/);
+  assert.match(dockerfile, /COPY --from=dependencies \/app\/node_modules \.\/node_modules/);
+  assert.doesNotMatch(dockerfile, /COPY --from=build \/app \/app/);
+  assert.match(environment, /RABBIT_QUANT_IMAGE_RETENTION=2/);
+  assert.match(cleanup, /flock --nonblock 9/);
+  assert.match(cleanup, /find "\$STATE_DIR\/releases"[^\n]+-mmin \+120/);
+  assert.doesNotMatch(cleanup, /docker system prune/);
+  assert.doesNotMatch(cleanup, /--volumes/);
+  assert.doesNotMatch(cleanup, /docker-cleanup\.log/);
+  assert.match(service, /rabbit-quant-docker-cleanup/);
+  assert.match(timer, /OnCalendar=.*04:15:00 Asia\/Shanghai/);
+  assert.match(installer, /systemctl enable --now rabbit-quant-docker-cleanup\.timer/);
+});
+
 test("production backup snapshots SQLite and verifies every archive", () => {
   const script = read("scripts/backup-production.sh");
   const service = read("deploy/systemd/rabbit-quant-backup.service");
@@ -145,6 +196,13 @@ test("deployment keeps rollback images and emits optional webhook notifications"
   assert.match(script, /last-notification\.json/);
   assert.match(script, /sync_operations_assets/);
   assert.match(script, /rabbit-quant-backup\.timer/);
+});
+
+test("Paperclip deployment retries independently without rolling back Web", () => {
+  const script = read("scripts/deploy-production.sh");
+  assert.match(script, /reconcile_paperclip_runtime/);
+  assert.match(script, /the Web release remains active and the next timer run will retry/);
+  assert.match(script, /printf '%s\\n' "\$paperclip_commit" > "\$PAPERCLIP_PENDING_FILE"/);
 });
 
 test("production deploy starts and verifies the Zijin L2 evidence audit", () => {
