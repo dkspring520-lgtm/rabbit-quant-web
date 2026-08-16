@@ -83,7 +83,7 @@ test("pre-open direction needs real 09:35 tape confirmation before its shadow pe
   assert.equal(confirmed.affectsV4,false);
 });
 
-test("pre-open shadow permission rejects a tape that invalidates its direction", () => {
+test("an unconfirmed pre-open direction stays neutral instead of blocking both directions", () => {
   const plan=buildZijinPreopenPricePlan({
     phase:"auction-result",asOfTime:"0925",previousClose:31.77,indicativePrice:31.40,
     bookImbalance:.28,activeBuyRatio:.61,atrPct:.42,spreadBps:3,l2Connected:true,l2Stale:false,
@@ -94,6 +94,13 @@ test("pre-open shadow permission rejects a tape that invalidates its direction",
   ]});
   assert.equal(blocked.status,"blocked");
   assert.deepEqual(blocked.allowedDirections,[]);
+  for (const direction of ["正T","反T"]) {
+    const permission=resolveZijinPreopenDirectionPermission({gate:blocked,direction,time:"0936"});
+    assert.equal(permission.active,false);
+    assert.equal(permission.wouldBlock,false);
+    assert.equal(permission.allowed,false);
+    assert.match(permission.reason,/中性观察/);
+  }
 });
 
 test("direction permission reports a mismatch for A/B shadow evidence but does not execute", () => {
@@ -106,6 +113,11 @@ test("direction permission reports a mismatch for A/B shadow evidence but does n
   assert.equal(permission.wouldBlock,true);
   assert.equal(permission.allowed,false);
   assert.equal(permission.mode,"shadow-only");
+  assert.equal(resolveZijinPreopenDirectionPermission({
+    gate:{mode:"shadow-only",status:"confirmed",allowedDirections:["正T"],expiresAt:"1501"},
+    direction:"正T",
+    time:"0936",
+  }).wouldBlock,false);
   assert.equal(resolveZijinPreopenDirectionPermission({gate:{status:"expired"},direction:"反T",time:"1501"}).wouldBlock,false);
 });
 
@@ -142,4 +154,6 @@ test("all-day direction changes only after strict causal reversal confirmation",
   assert.equal(gate.status,"reversed");
   assert.deepEqual(gate.allowedDirections,["反T"]);
   assert.equal(gate.reversal.confirmedAt,"1004");
+  assert.equal(resolveZijinPreopenDirectionPermission({gate,direction:"反T",time:"1004"}).wouldBlock,false);
+  assert.equal(resolveZijinPreopenDirectionPermission({gate,direction:"正T",time:"1004"}).wouldBlock,true);
 });
