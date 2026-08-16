@@ -367,7 +367,49 @@ type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction;
 type StockBatchFeedback = { code:string; name:string; date:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; candidates:number; keyObservations:number; strongSellTrendBlocked:number; strongBuyTrendBlocked:number; feedback:string; minutes:ReplayMinute[]; actions:ReplayAction[]; observations:ReplayObservation[]; cycles:StockBatchCycle[] };
 type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; attemptedStocks:number; replacementStocks:number; overlapWithPrevious:number; uniqueSessions:number; noTrade:number; referenceStocks:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; universeSize:number; universeProvider:string; fallbackUniverse:boolean; industries:number; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
 type MultiDayRunKind = "recent"|"random-10"|"since-2025";
-type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; scopeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; l2Required:boolean; l2AvailableDays:number; l2MissingDays:number; l2MinuteCount:number; recentDays:number; recentCompleted:number; recentWins:number; recentNet:number; recentProfitFactor:number|null; healthStatus:"样本积累中"|"近期稳定"|"近期转弱"; approvalStatus:"继续影子"|"待5bp压力测试"; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[] };
+type ZijinMonitorStrategy = "closure"|"v29";
+type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; scopeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; l2Required:boolean; l2AvailableDays:number; l2MissingDays:number; l2MinuteCount:number; recentDays:number; recentCompleted:number; recentWins:number; recentNet:number; recentProfitFactor:number|null; healthStatus:"样本积累中"|"近期稳定"|"近期转弱"; healthReason:string; riskBudgetStatus:"证据不足"|"预算内"|"收紧"|"冻结"; riskBudgetReason:string; approvalStatus:"继续影子"|"待5bp压力测试"; approvalBlockers:string[]; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[] };
+
+type ZijinV29ReviewSnapshot={
+  schemaVersion:1;
+  generatedAt:string;
+  scopeLabel:string;
+  requestedDays:number;
+  testedDays:number;
+  l2AvailableDays:number;
+  l2MissingDays:number;
+  recentDays:number;
+  recentCompleted:number;
+  recentWinRate:number|null;
+  recentProfitFactor:number|null;
+  recentNet:number;
+  healthStatus:"等待样本"|MultiDayBacktestResult["healthStatus"];
+  healthReason:string;
+  riskBudgetStatus:MultiDayBacktestResult["riskBudgetStatus"];
+  riskBudgetReason:string;
+  approvalStatus:MultiDayBacktestResult["approvalStatus"];
+  approvalBlockers:string[];
+};
+
+const ZIJIN_V29_REVIEW_STORAGE_KEY="rabbit-zijin-v29-review";
+const ZIJIN_V29_REVIEW_EVENT="rabbit-zijin-v29-review-updated";
+const ZIJIN_MONITOR_STRATEGY_STORAGE_KEY="rabbit-zijin-monitor-strategy";
+
+function readZijinV29ReviewSnapshot(){
+  if(typeof window==="undefined")return null;
+  try{
+    const parsed=JSON.parse(localStorage.getItem(ZIJIN_V29_REVIEW_STORAGE_KEY)??"null") as ZijinV29ReviewSnapshot|null;
+    return parsed?.schemaVersion===1?parsed:null;
+  }catch{return null;}
+}
+
+function persistZijinV29ReviewSnapshot(snapshot:ZijinV29ReviewSnapshot){
+  if(typeof window==="undefined")return;
+  try{
+    localStorage.setItem(ZIJIN_V29_REVIEW_STORAGE_KEY,JSON.stringify(snapshot));
+    window.dispatchEvent(new Event(ZIJIN_V29_REVIEW_EVENT));
+  }catch{}
+}
 
 function median(values:number[]) {
   if(!values.length)return 0;
@@ -683,6 +725,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
   const [alertLogOpen,setAlertLogOpen]=useState(false);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
+  const [zijinMonitorStrategy,setZijinMonitorStrategy]=useState<ZijinMonitorStrategy>(()=>{
+    try{return localStorage.getItem(ZIJIN_MONITOR_STRATEGY_STORAGE_KEY)==="v29"?"v29":"closure"}catch{return "closure"}
+  });
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,background:false,...JSON.parse(saved)}:{sound:false,system:false,background:false};}catch{return {sound:false,system:false,background:false};}});
   const [backgroundPushState,setBackgroundPushState]=useState<"idle"|"ready"|"unsupported"|"error">("idle");
   const [backgroundPushTesting,setBackgroundPushTesting]=useState(false);
@@ -707,6 +752,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const nextPreviewRabbit = useRef<"buy"|"sell">("buy");
   useEffect(()=>{cycleStageRef.current=cycleStage;},[cycleStage]);
   useEffect(()=>{openedCycleSideRef.current=openedCycleSide;},[openedCycleSide]);
+  useEffect(()=>{try{localStorage.setItem(ZIJIN_MONITOR_STRATEGY_STORAGE_KEY,zijinMonitorStrategy)}catch{}},[zijinMonitorStrategy]);
   useEffect(()=>{
     const timer=window.setTimeout(()=>{
       try{
@@ -2276,17 +2322,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       l2Direction&&l2Direction!=="none"&&
       l2State&&!['normal','invalid','expired'].includes(l2State),
     );
-    const formalAligned=Boolean(
-      decisionActionSide&&l2Usable&&decisionActionSide===l2Direction,
-    );
-    const candidateDirection=decisionActionDirection??(
-      signalMode==="正T"||signalMode==="反T"
-        ?signalMode
-        :l2Direction==="buy"
-          ?"正T"
-          :l2Direction==="sell"
-            ?"反T"
-            :null
+    const l2Confirmed=Boolean(l2Usable&&(l2State==="ready"||l2State==="trigger"));
+    const formalAligned=Boolean(decisionActionSide&&l2Confirmed&&decisionActionSide===l2Direction);
+    const l2CandidateDirection=l2Direction==="buy"?"正T":l2Direction==="sell"?"反T":null;
+    const candidateDirection=l2CandidateDirection??decisionActionDirection??(
+      signalMode==="正T"||signalMode==="反T"?signalMode:null
     );
     const preopenGateActive=Boolean(
       zijinPreopenGate.asOfTime&&
@@ -2300,6 +2340,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     );
 
     if(preopenDirectionVeto)return {
+      signal:"否决" as const,
       tone:"warning",
       label:["confirmed","reversed"].includes(zijinPreopenGate.status)?"全天方向否决":"开盘未确认",
       advice:["confirmed","reversed"].includes(zijinPreopenGate.status)?`暂缓${candidateDirection}`:"降级观察",
@@ -2309,25 +2350,29 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     };
 
     if(preopenGateActive&&!candidateDirection&&["confirmed","reversed"].includes(zijinPreopenGate.status))return {
-      tone:"confirmed",
+      signal:"等待" as const,
+      tone:"candidate",
       label:zijinPreopenGate.status==="reversed"?"严格反转":"全天锚定",
       advice:`${zijinPreopenGate.allowedDirections.join("/")||"中性"}优先`,
       detail:zijinPreopenGate.reason,
     };
 
-    if(decisionModel.status==="ready"&&formalAligned)return {
-      tone:"confirmed",
-      label:"影子确认",
-      advice:"跟随正式",
-      detail:`正式${decisionActionDirection}与秒级盘口方向一致`,
+    if(candidateDirection==="正T"&&positiveTBlockedByFlow)return {
+      signal:"否决" as const,
+      tone:"warning",
+      label:"资金方向否决",
+      advice:"暂缓买入",
+      detail:"主动卖压尚未解除，V2.9 正T信号已被风控拦截",
     };
 
-    const buyContext=signalMode==="正T"||decisionActionDirection==="正T";
-    if(positiveTBlockedByFlow||(buyContext&&l2Usable&&l2Direction==="sell"))return {
-      tone:"warning",
-      label:"影子警告",
-      advice:"暂缓买入",
-      detail:positiveTBlockedByFlow?"主动卖压尚未解除":"秒级盘口与正T方向相反",
+    if(l2Confirmed&&l2CandidateDirection)return {
+      signal:l2CandidateDirection,
+      tone:"confirmed",
+      label:`${l2CandidateDirection}信号`,
+      advice:l2State==="trigger"?"盘口已触发":"盘口已确认",
+      detail:formalAligned
+        ?`连续秒级盘口与专属闭环${decisionActionDirection}方向一致`
+        :`连续秒级盘口完成确认，由 V2.9 独立输出${l2CandidateDirection}`,
     };
 
     const hasCandidate=Boolean(
@@ -2337,8 +2382,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       secondLevelSignal&&secondLevelSignal.state!=="normal",
     );
     return {
+      signal:"等待" as const,
       tone:"candidate",
-      label:"影子候选",
+      label:l2Usable?"秒级候选":"等待数据",
       advice:"继续观察",
       detail:hasCandidate
         ?l2Usable
@@ -2346,7 +2392,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           :"已有分钟候选，等待连续秒级证据"
         :"等待开盘结构与连续秒级证据",
     };
-  },[decisionActionDirection,decisionActionSide,decisionModel.confirmed,decisionModel.mode,decisionModel.status,isZijinStock,liveL2HasTicks,liveL2Stale,positiveTBlockedByFlow,secondLevelSignal,signalFunnel.currentObservations,signalMode,zijinPreopenGate]);
+  },[decisionActionDirection,decisionActionSide,decisionModel.confirmed,decisionModel.mode,isZijinStock,liveL2HasTicks,liveL2Stale,positiveTBlockedByFlow,secondLevelSignal,signalFunnel.currentObservations,signalMode,zijinPreopenGate]);
   const zijinRealtimeFactors=useMemo(()=>{
     const contextItems=currentContext?.items??[];
     const findContextItem=(labels:string[])=>labels
@@ -4044,18 +4090,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <em>陪你盯盘</em>
           </div>}
           {alertQueue.length>0&&<div className="trade-alert-stack" aria-label="股票提醒列表">{alertQueue.slice(0,3).map((item,index)=><div key={item.id??`${item.title}-${index}`} className={`trade-alert-toast ${item.level} rabbit-${item.rabbit}`} role="alert"><span className={`rabbit-speaker ${item.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{tradeAlertLabel(item)}</small><b>{item.title}</b><span>{tradeAlertGuide(item)}</span><details className="trade-alert-detail"><summary>查看依据</summary><p>{item.message}</p></details></div>{index===2&&alertQueue.length>3&&<em className="alert-queue-count">+{alertQueue.length-3}</em>}<button onClick={()=>setAlertQueue(current=>current.filter(alert=>alert.id!==item.id))} aria-label={`关闭${item.title}提醒`}>×</button></div>)}</div>}
-          {isZijinStock&&<div className="stock-agent-switch experiment-active" aria-label="紫金矿业闭环策略状态">
-            <div><span title="候选须经过趋势、成本、盘口和仓位校验；仅辅助人工决策，不自动下单。">紫金闭环策略 ⓘ</span><b>{liveStrategyExperiment.label}</b></div>
-            <div className="stock-agent-switch-actions experiment-actions"><button className="active experimental" type="button" disabled aria-pressed>闭环已固定</button><button className={zijinResearchEnabled?"research active":"research"} onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
+          {isZijinStock&&<div className={`stock-agent-switch ${zijinMonitorStrategy==="v29"?"experiment-active":"closure-active"}`} aria-label="紫金矿业监控策略状态">
+            <div><span title="两套策略独立监控；V2.9 可输出辅助信号，但不接管正式闭环和下单权限。">紫金监控策略 ⓘ</span><b>{zijinMonitorStrategy==="closure"?liveStrategyExperiment.label:"V2.9 辅助监控"}</b><small>{zijinMonitorStrategy==="closure"?"正式闭环信号与风控":"独立出信号 · 仅供人工参考"}</small></div>
+            <div className="stock-agent-switch-actions experiment-actions" role="group" aria-label="紫金矿业监控策略选择"><button className={zijinMonitorStrategy==="closure"?"active":""} type="button" onClick={()=>setZijinMonitorStrategy("closure")} aria-pressed={zijinMonitorStrategy==="closure"}>专属闭环</button><button className={zijinMonitorStrategy==="v29"?"active experimental":"experimental"} type="button" onClick={()=>setZijinMonitorStrategy("v29")} aria-pressed={zijinMonitorStrategy==="v29"}>V2.9 辅助</button><button className={zijinResearchEnabled?"research active":"research"} type="button" onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
+          </div>}
+          {isZijinStock&&zijinMonitorStrategy==="v29"&&<div className={`zijin-shadow-v29 live ${zijinV29OpeningShadow.tone}`} aria-label={`V2.9 辅助监控 ${zijinV29OpeningShadow.signal}`}>
+            <div><span>V2.9 当前信号</span><b>{zijinV29OpeningShadow.signal}</b><em>{zijinV29OpeningShadow.advice}</em></div>
+            <p>{zijinV29OpeningShadow.detail}</p>
+            <small>V2.9 独立监控信号 · 不自动下单 · 不改变专属闭环</small>
           </div>}
           {isZijinStock&&<details className={`zijin-shadow-v2 research-fold ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V3 学习与晋级进度">
             <summary><div><span title="进度综合前瞻天数、闭环样本和六项晋级门槛；不会自动替换正式策略。">紫金影子 V3 ⓘ</span><b>{zijinShadowV2Progress.ready?"等待评审":zijinShadowV2Progress.available?"监控中":"待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></summary>
             <div className="zijin-shadow-v2-meter" role="progressbar" aria-label={`紫金影子 V3 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div>
-            <div className={`zijin-shadow-v29 ${zijinV29OpeningShadow.tone}`} aria-label={`V2.9 全天方向锚 ${zijinV29OpeningShadow.label}`}>
-              <div><span>V2.9 全天方向锚</span><b>{zijinV29OpeningShadow.label}</b><em>{zijinV29OpeningShadow.advice}</em></div>
-              <p>{zijinV29OpeningShadow.detail}</p>
-              <small>前向样本 <b>0 / 100</b> · 仅作参考，不影响正式信号</small>
-            </div>
             <footer><span>{zijinShadowV2Progress.ready?"六项门槛全部通过":`门槛 ${zijinShadowV2Progress.passed}/6 · 前瞻 ${zijinShadowV2Progress.tradingDays}/60日 · 闭环 ${zijinShadowV2Progress.resolvedCycles}/100`}</span><em>{zijinShadowV2Progress.ready?"等待人工评审":"满额后申请评审"}</em></footer>
           </details>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
