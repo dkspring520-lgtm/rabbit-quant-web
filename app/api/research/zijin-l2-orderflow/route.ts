@@ -87,6 +87,9 @@ export async function GET(request: Request) {
     const encoder = new TextEncoder();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let closed = false;
+    let initialSnapshot = true;
+    let lastFingerprint = "";
+    let lastSnapshotAt = 0;
     const body = new ReadableStream({
       start(controller) {
         const close = () => {
@@ -100,7 +103,21 @@ export async function GET(request: Request) {
           try { payload = await readCachedState(); }
           catch { payload = unavailableState(); }
           if (closed || request.signal.aborted) return close();
-          controller.enqueue(encoder.encode(`event: snapshot\ndata: ${JSON.stringify(payload)}\n\n`));
+          const fingerprint = [
+            "updatedAt" in payload ? payload.updatedAt : "",
+            "lastMessageAt" in payload ? payload.lastMessageAt : "",
+            payload.status?.connected,
+            payload.status?.stale,
+          ].join("|");
+          if (initialSnapshot || fingerprint !== lastFingerprint || Date.now() - lastSnapshotAt >= 2_500) {
+            const outgoing = initialSnapshot
+              ? payload
+              : { ...payload, recentMinutes: [] };
+            controller.enqueue(encoder.encode(`event: snapshot\ndata: ${JSON.stringify(outgoing)}\n\n`));
+            initialSnapshot = false;
+            lastFingerprint = fingerprint;
+            lastSnapshotAt = Date.now();
+          }
           timer = setTimeout(() => void send(), streamIntervalMs);
         };
         request.signal.addEventListener("abort", close, { once: true });

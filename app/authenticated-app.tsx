@@ -1074,14 +1074,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 l2Bar:bar,
               };
           }
-          if(minute&&!next[minute])next[minute]=payload;
+          if(minute&&!(payload.recentMinutes??[]).some(bar=>bar.time===minute))next[minute]=payload;
           return next;
         });
       }
     };
     const poll=async()=>{
       try{
-        const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"});
+        const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"},{timeoutMs:1_500,key:"zijin-l2-orderflow-poll"});
         const payload=await response.json() as ZijinL2State;
         applyPayload(payload);
       }catch{if(active)setLiveL2Status({error:"L2 status endpoint unavailable",status:{connected:false,stale:true}})}
@@ -3359,7 +3359,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const load = async () => {
       if (!shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       try {
-        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-realtime`, { cache: "no-store" });
+        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-realtime`, { cache: "no-store" }, { timeoutMs:4_000,key:`trading-desk-chart:${stock.code}` });
         if (!response.ok) throw new Error("trial chart unavailable");
         const data = await response.json() as MarketData;
         if (!cancelled) {
@@ -3386,7 +3386,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const load = async () => {
       if (!shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       try {
-        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-quote`, { cache: "no-store" });
+        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-quote`, { cache: "no-store" }, { timeoutMs:1_800,key:`trading-desk-quote:${stock.code}` });
         if (!response.ok) throw new Error("trial quote unavailable");
         const data = await response.json() as MarketData;
         if (!cancelled) {

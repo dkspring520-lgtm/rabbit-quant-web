@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { REFERENCE_DATA_BOOTSTRAP_DELAY_MS, clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "../lib/client-polling-policy.mjs";
 
 const page = readFileSync(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
+const l2Route = readFileSync(new URL("../app/api/research/zijin-l2-orderflow/route.ts", import.meta.url), "utf8");
 
 test("visible trading desk keeps a one-second lightweight quote and five-second charts", () => {
   assert.equal(clientPollingInterval("activeQuote", true), 1_000);
@@ -72,4 +73,15 @@ test("the active stock uses the one-second feed instead of a duplicate watchlist
   assert.match(page, /passiveWatchlistItems\(stockList,stock\?\.code\)/);
   assert.match(page, /setMarketQuotes\(current=>\(\{\.\.\.current,\[data\.quote\.code\]:data\.quote\}\)\)/);
   assert.match(page, /minutes:current\.minutes, bars:current\.bars, intradaySessions:current\.intradaySessions/);
+});
+
+test("live quote and L2 fallback recover quickly from a stalled request", () => {
+  assert.match(page, /timeoutMs:1_800,key:`trading-desk-quote:\$\{stock\.code\}`/);
+  assert.match(page, /timeoutMs:1_500,key:"zijin-l2-orderflow-poll"/);
+});
+
+test("L2 stream backfills minute history once and then sends incremental snapshots", () => {
+  assert.match(l2Route, /let initialSnapshot = true/);
+  assert.match(l2Route, /initialSnapshot[\s\S]*?recentMinutes: \[\]/);
+  assert.match(l2Route, /lastSnapshotAt >= 2_500/);
 });
