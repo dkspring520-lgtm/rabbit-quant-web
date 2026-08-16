@@ -2292,13 +2292,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       zijinPreopenGate.asOfTime&&
       zijinPreopenGate.asOfTime>="0935"&&
       zijinPreopenGate.asOfTime<(zijinPreopenGate.expiresAt??"1501")&&
-      ["confirmed","reversed","blocked"].includes(zijinPreopenGate.status),
+      ["confirmed","reversed"].includes(zijinPreopenGate.status),
     );
     const preopenDirectionVeto=Boolean(
-      preopenGateActive&&candidateDirection&&(
-        zijinPreopenGate.status!=="confirmed"||
-        !zijinPreopenGate.allowedDirections.includes(candidateDirection)
-      ),
+      preopenGateActive&&candidateDirection&&
+      !zijinPreopenGate.allowedDirections.includes(candidateDirection),
     );
 
     if(preopenDirectionVeto)return {

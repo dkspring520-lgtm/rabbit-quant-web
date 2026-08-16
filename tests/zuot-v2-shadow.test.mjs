@@ -317,7 +317,7 @@ test("V2.9 keeps candidates visible but cannot trade without historical L2", () 
   assert.ok(result.observations[0].blockers.includes("缺少历史L2"));
 });
 
-test("V2.9 can close a causal trade when its L2 confirmation is available", () => {
+test("V2.9 can close a causal trade when L2 is available and opening direction is unconfirmed", () => {
   const session = replaySession([
     { time: "0945", price: 35 },
     { time: "0946", price: 35 },
@@ -331,8 +331,18 @@ test("V2.9 can close a causal trade when its L2 confirmation is available", () =
     minCommission: false,
     baseShares: 1600,
     sellable: 1600,
+    preopenGate: {
+      mode: "shadow-only",
+      status: "blocked",
+      asOfTime: "0935",
+      allowedDirections: [],
+      predictedDirection: "反T",
+      confirmationCount: 2,
+      expiresAt: "1501",
+    },
   });
   assert.equal(result.trades, 1);
+  assert.equal(result.diagnostics.preopenDirectionVetoed, 0);
   assert.equal(result.actions[0].direction, "正T");
   assert.equal(result.actions[1].side, "卖出");
 });
