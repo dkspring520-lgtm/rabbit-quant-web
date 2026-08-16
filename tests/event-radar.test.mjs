@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyEvent, dedupeRelatedEvents, evaluateEventGate, stripEventMarkup } from "../lib/event-radar.mjs";
+import { classifyEvent, dedupeRelatedEvents, evaluateEventGate, resolveEventSourcePolicy, stripEventMarkup } from "../lib/event-radar.mjs";
 
 const now = Date.parse("2026-07-14T08:00:00Z");
 const event = (overrides = {}) => ({ official:false, source:"公开资讯", publishedAt:"2026-07-14T07:00:00Z", ...overrides });
@@ -42,12 +42,13 @@ test("a multi-company headline with a loss warning is not mislabelled as positiv
   assert.match(classified.reason, /巨亏/);
 });
 
-test("two independent negative sources pause instead of pretending certainty", () => {
+test("two independent unverified negative sources stay in shadow observation", () => {
   const one = { ...event({ source:"来源甲" }), sentiment:"negative", severity:"warning", reason:"风险提示", ageHours:1 };
   const two = { ...event({ source:"来源乙" }), sentiment:"negative", severity:"warning", reason:"业绩下修", ageHours:2 };
   const gate = evaluateEventGate([one, two]);
-  assert.equal(gate.level, "restricted");
+  assert.equal(gate.level, "normal");
   assert.equal(gate.hardLock, false);
+  assert.match(gate.action, /不改变正式策略/);
 });
 
 test("rewritten reports of the same strategic cooperation are merged", () => {
@@ -70,5 +71,25 @@ test("duplicate negative coverage counts once in the risk gate", () => {
   const second = { ...event({ source:"来源乙" }), id:"two", code:"601899", title:"监管部门向紫金矿业出具警示函", summary:"", url:"https://example.com/two", sentiment:"negative", severity:"warning", reason:"命中警示函风险词", ageHours:1 };
   const result = dedupeRelatedEvents([first, second]);
   assert.equal(result.length, 1);
-  assert.equal(evaluateEventGate(result).level, "caution");
+  assert.equal(evaluateEventGate(result).level, "normal");
+});
+
+test("source policy separates official, licensed and social information", () => {
+  assert.deepEqual(resolveEventSourcePolicy({ provider:"sse-official", official:true }), {
+    sourceTier:1, sourceTierLabel:"一级可靠", verificationStatus:"verified", strategyImpact:"risk-gate",
+  });
+  assert.equal(resolveEventSourcePolicy({ source:"SMM" }).verificationStatus, "licensed-required");
+  assert.equal(resolveEventSourcePolicy({ source:"雪球" }).strategyImpact, "shadow-only");
+});
+
+test("a third-tier critical rumor cannot hard-lock formal strategy", () => {
+  const classified = {
+    ...event({ source:"雪球", provider:"social-lead" }),
+    ...resolveEventSourcePolicy({ source:"雪球", provider:"social-lead" }),
+    ...classifyEvent({ title:"网传紫金矿业被立案调查", publishedAt:"2026-07-14T07:00:00Z", now }),
+  };
+  const gate = evaluateEventGate([classified]);
+  assert.equal(gate.level, "normal");
+  assert.equal(gate.hardLock, false);
+  assert.match(gate.reason, /等待一级来源验证/);
 });

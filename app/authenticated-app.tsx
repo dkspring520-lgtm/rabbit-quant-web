@@ -149,7 +149,7 @@ type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:
 type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string; details:string[] };
 type MarketContextItem = { id:string; label:string; group:"market"|"sector"|"related"|"cross"|"currency"; price:number|null; changePercent:number|null; sourceTimestamp:string|null; provider:string; inverse?:boolean };
 type MarketContext = { code:string; profile:string; fetchedAt:string; items:MarketContextItem[]; gate:{ score:number; level:"normal"|"caution"|"restricted"|"locked"|"degraded"; label:string; action:string; positionFraction:number; hardLock:boolean; reasons:string[] }; availableSources:string[]; errors:string[]; events:{ status:string; label:string; participatesInGate:boolean } };
-type EventRadarItem = { id:string; code:string; title:string; summary:string; url:string; source:string; sources?:string[]; relatedCount?:number; provider:string; official:boolean; publishedAt:string; sentiment:"positive"|"negative"|"neutral"; severity:"critical"|"warning"|"info"; reason:string; ageHours:number };
+type EventRadarItem = { id:string; code:string; title:string; summary:string; url:string; source:string; sources?:string[]; relatedCount?:number; provider:string; official:boolean; sourceTier:1|2|3; sourceTierLabel:"一级可靠"|"二级专业"|"三级线索"; verificationStatus:"verified"|"licensed-required"|"unverified"; strategyImpact:"risk-gate"|"shadow-only"; impactHorizon:string; publishedAt:string; sentiment:"positive"|"negative"|"neutral"; severity:"critical"|"warning"|"info"; reason:string; ageHours:number };
 type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; counts:{ positive:number; negative:number; neutral:number }; gate:{ level:"normal"|"caution"|"restricted"|"locked"; hardLock:boolean; score:number; label:string; action:string; reason:string } };
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
 type ZijinHkMarket = { symbol:string; name:string; provider:string; fetchedAt:string; sourceTimestamp:string|null; quote:{price:number;previousClose:number;changePercent:number}; minutes:{time:string;price:number}[] };
@@ -992,6 +992,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const currentContext = marketContext?.code === stock?.code ? marketContext : null;
   const currentEvents = eventRadar?.stocks.find(item => item.code === stock?.code) ?? null;
   const eventsByCode = useMemo(() => Object.fromEntries((eventRadar?.stocks ?? []).map(item => [item.code, item])), [eventRadar]);
+  const currentEventTierCounts = useMemo(() => ({
+    primary: currentEvents?.items.filter(item=>item.sourceTier===1).length ?? 0,
+    professional: currentEvents?.items.filter(item=>item.sourceTier===2).length ?? 0,
+    leads: currentEvents?.items.filter(item=>item.sourceTier===3).length ?? 0,
+  }), [currentEvents]);
   const baseActiveQuote = currentTrial?.quote ?? currentMarket?.quote;
   const marketSession = useMemo(() => aShareSession(clockNow), [clockNow]);
   const marketDataActive = useMemo(() => isFastMarketDataPhase(marketSession), [marketSession]);
@@ -4328,6 +4333,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </>:<p>{nextSessionOutlook.detail}</p>}
             </div>
           </details>
+          {isZijinStock&&<details className={`news-rabbit research-fold ${currentEvents?.gate.level ?? "loading"}`} aria-label="新闻兔紫金事件雷达">
+            <summary><span><i>闻</i><b>新闻兔</b><small>紫金事件雷达</small></span><strong>{currentEvents?.items.length ?? 0}<small> 条</small></strong></summary>
+            <div className="news-rabbit-tiers" aria-label="资讯来源等级"><span className="tier-1"><i/>一级可靠 <b>{currentEventTierCounts.primary}</b></span><span className="tier-2"><i/>二级专业 <b>{currentEventTierCounts.professional}</b></span><span className="tier-3"><i/>三级线索 <b>{currentEventTierCounts.leads}</b></span></div>
+            {currentEvents?.items.length?<div className="news-rabbit-list">{currentEvents.items.slice(0,4).map(item=><a href={item.url} target="_blank" rel="noreferrer" key={item.id} className={`tier-${item.sourceTier} ${item.sentiment}`}><header><span>{item.sourceTierLabel}</span><i>{item.sentiment==="negative"?"利空":item.sentiment==="positive"?"利好":"中性"}</i><em>{item.verificationStatus==="verified"?"已验证":item.verificationStatus==="licensed-required"?"需授权":"待验证"}</em></header><b>{item.title}</b><small>{item.source} · {item.impactHorizon} · {new Date(item.publishedAt).toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</small></a>)}</div>:<p className="news-rabbit-empty">{eventRadarError||"近 72 小时暂无匹配事件"}</p>}
+            <footer><span>一级官方事件可进入风险闸门</span><em>二、三级仅影子观察，不改变正式策略</em></footer>
+          </details>}
           {isZijinStock&&displayedZijinPricePlan&&<div className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"} ${premiumEnabled&&!displayedZijinPricePlan.ready?"compact-waiting":""}`} aria-label="紫金矿业预判买入卖出价区间">
             <div className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":marketSession.live?"紫金会员 · 实时因果":"紫金会员 · 收盘复盘"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":marketSession.live?"实时参考价区":"复盘参考价区"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":marketSession.live?"等待分时":"已收盘"):"会员功能"}</em></div>
             {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
@@ -4415,8 +4426,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <strong>{(currentContext?.gate.action ?? marketContextError) || "15 秒级异步风控，不阻塞 1 秒个股监控"}</strong>
             {Boolean(currentContext?.items.length)&&<div className="context-radar-grid">{currentContext!.items.slice(0,6).map(item=><span key={item.id}><small>{item.label}</small><b className={(item.changePercent??0)>0?"up":(item.changePercent??0)<0?"down":""}>{item.changePercent==null?"--":`${item.changePercent>0?"+":""}${item.changePercent.toFixed(2)}%`}</b></span>)}</div>}
             <div className="event-radar-summary"><span>事件雷达 · {eventRadar?.scanned ?? 0}/{Math.min(stockList.length,10)} 股</span><b className={currentEvents?.gate.level ?? "loading"}>{currentEvents?.gate.label ?? "正在扫描公告与公开资讯"}</b><small>{currentEvents?.gate.action ?? (eventRadarError || "盘中每 60 秒更新；来源发布时间可能存在延迟")}</small></div>
-            {Boolean(currentEvents?.items.length)&&<div className="event-radar-list">{currentEvents!.items.slice(0,3).map(item=><a href={item.url} target="_blank" rel="noreferrer" key={item.id} className={item.sentiment}><i>{item.sentiment==="negative"?"利空":item.sentiment==="positive"?"利好":"中性"}</i><span><b>{item.title}</b><small>{item.relatedCount&&item.relatedCount>1?`合并 ${item.relatedCount} 个来源 · `:""}{item.source} · {new Date(item.publishedAt).toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})} · {item.reason}</small></span></a>)}</div>}
-            <div className="context-radar-foot"><span>{currentContext?.gate.reasons.join(" · ") || "公开行情仅供人工研判"}</span><em>{eventRadar?.sources.join(" + ") || eventRadarError || "多源事件扫描加载中"}</em></div>
+            <div className="context-radar-foot"><span>{currentContext?.gate.reasons.join(" · ") || "公开行情仅供人工研判"}</span><em>{isZijinStock?"事件详情见新闻兔":eventRadar?.sources.join(" + ") || eventRadarError || "多源事件扫描加载中"}</em></div>
           </div>
           <div className="opening-causal"><span>09:30 起实时扫描</span><b>仅使用已出现数据 · 无需手动切换</b><small>最早 09:33 显示候选，09:36–09:44 经连续走势与 VWAP 确认后才允许小仓正式信号；09:45 后恢复完整过滤。</small></div>
           {decisionZoneMode==="all"&&<><h2>{signalMode === '反T' ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</h2><p className="decision-copy">{signalMode === '反T' ? openingAssessment.negativeCopy : openingAssessment.positiveCopy}</p></>}
