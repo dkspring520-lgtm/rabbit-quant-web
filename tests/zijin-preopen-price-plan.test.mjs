@@ -98,7 +98,7 @@ test("pre-open shadow permission rejects a tape that invalidates its direction",
 
 test("direction permission reports a mismatch for A/B shadow evidence but does not execute", () => {
   const permission=resolveZijinPreopenDirectionPermission({
-    gate:{mode:"shadow-only",status:"confirmed",allowedDirections:["正T"],predictedDirection:"正T",confirmationCount:4,expiresAt:"1000"},
+    gate:{mode:"shadow-only",status:"confirmed",allowedDirections:["正T"],predictedDirection:"正T",confirmationCount:4,expiresAt:"1501"},
     direction:"反T",
     time:"0936",
   });
@@ -106,5 +106,40 @@ test("direction permission reports a mismatch for A/B shadow evidence but does n
   assert.equal(permission.wouldBlock,true);
   assert.equal(permission.allowed,false);
   assert.equal(permission.mode,"shadow-only");
-  assert.equal(resolveZijinPreopenDirectionPermission({gate:{status:"expired"},direction:"反T",time:"1000"}).wouldBlock,false);
+  assert.equal(resolveZijinPreopenDirectionPermission({gate:{status:"expired"},direction:"反T",time:"1501"}).wouldBlock,false);
+});
+
+test("confirmed opening direction stays active all day and ignores an unconfirmed opposite move", () => {
+  const plan=buildZijinPreopenPricePlan({
+    phase:"auction-result",asOfTime:"0925",previousClose:31.77,indicativePrice:31.40,
+    bookImbalance:.28,activeBuyRatio:.61,atrPct:.42,spreadBps:3,l2Connected:true,l2Stale:false,
+  });
+  const gate=evaluateZijinPreopenGate({plan,minutes:[
+    {time:"0930",price:31.38,volume:100},{time:"0931",price:31.40,volume:110},{time:"0932",price:31.42,volume:120},
+    {time:"0933",price:31.44,volume:130},{time:"0934",price:31.46,volume:145},{time:"0935",price:31.48,volume:160},
+    {time:"1438",price:31.30,volume:200},{time:"1439",price:31.28,volume:210},{time:"1440",price:31.26,volume:220},
+  ]});
+  assert.equal(gate.status,"confirmed");
+  assert.deepEqual(gate.allowedDirections,["正T"]);
+  assert.equal(gate.expiresAt,"1501");
+  assert.equal(resolveZijinPreopenDirectionPermission({gate,direction:"反T",time:"1440"}).wouldBlock,true);
+});
+
+test("all-day direction changes only after strict causal reversal confirmation", () => {
+  const plan=buildZijinPreopenPricePlan({
+    phase:"auction-result",asOfTime:"0925",previousClose:31.77,indicativePrice:31.40,
+    bookImbalance:.28,activeBuyRatio:.61,atrPct:.42,spreadBps:3,l2Connected:true,l2Stale:false,
+  });
+  const opening=[
+    {time:"0930",price:31.38,volume:100},{time:"0931",price:31.40,volume:100},{time:"0932",price:31.42,volume:100},
+    {time:"0933",price:31.44,volume:100},{time:"0934",price:31.46,volume:100},{time:"0935",price:31.48,volume:100},
+  ];
+  const reversal=[31.34,31.30,31.26,31.22,31.18].map((price,index)=>({
+    time:`10${String(index).padStart(2,"0")}`,price,volume:160,activeBuyVolume:20,activeSellVolume:80,
+    marketPrice:3000-index*2,sectorPrice:100-index*.1,
+  }));
+  const gate=evaluateZijinPreopenGate({plan,minutes:[...opening,...reversal]});
+  assert.equal(gate.status,"reversed");
+  assert.deepEqual(gate.allowedDirections,["反T"]);
+  assert.equal(gate.reversal.confirmedAt,"1004");
 });

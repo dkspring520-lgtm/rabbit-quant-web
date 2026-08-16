@@ -356,6 +356,22 @@ test("V2.9 entry decisions do not change when only future prices change", () => 
   assert.deepEqual(second.actions[0], first.actions[0]);
 });
 
+test("V2.9 historical replay derives a causal all-day opening anchor", () => {
+  const session = replaySession([
+    {time:"0930",price:35.20},{time:"0931",price:35.15},{time:"0932",price:35.10},
+    {time:"0933",price:35.05},{time:"0934",price:35.00},{time:"0935",price:34.95},
+    {time:"1047",price:34.90},{time:"1048",price:34.90},{time:"1049",price:35.02,high:35.05},
+  ], "601899");
+  const factors = { ...row().factors, "orderflow.book_depth_imbalance": 0.2 };
+  const result = runZijinV29ShadowReplay(session, {
+    factorEngine: replayFactorEngine([{ date: session.date, time: "1048", index: 7, price: 34.90, factors }]),
+    feeRate:0,slippage:0,minCommission:false,baseShares:1600,sellable:1600,
+  });
+  assert.equal(result.trades,0);
+  assert.equal(result.diagnostics.preopenDirectionVetoed,1);
+  assert.ok(result.observations[0].blockers.includes("全天方向锚相反"));
+});
+
 test("reconstructed runners honor a one-cycle daily cap", () => {
   const session = replaySession([
     { time: "0945", price: 35 },

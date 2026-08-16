@@ -2291,8 +2291,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const preopenGateActive=Boolean(
       zijinPreopenGate.asOfTime&&
       zijinPreopenGate.asOfTime>="0935"&&
-      zijinPreopenGate.asOfTime<(zijinPreopenGate.expiresAt??"1000")&&
-      ["confirmed","blocked"].includes(zijinPreopenGate.status),
+      zijinPreopenGate.asOfTime<(zijinPreopenGate.expiresAt??"1501")&&
+      ["confirmed","reversed","blocked"].includes(zijinPreopenGate.status),
     );
     const preopenDirectionVeto=Boolean(
       preopenGateActive&&candidateDirection&&(
@@ -2303,11 +2303,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
 
     if(preopenDirectionVeto)return {
       tone:"warning",
-      label:zijinPreopenGate.status==="confirmed"?"开盘方向否决":"开盘未确认",
-      advice:zijinPreopenGate.status==="confirmed"?`暂缓${candidateDirection}`:"降级观察",
-      detail:zijinPreopenGate.status==="confirmed"
-        ?`开盘许可仅允许${zijinPreopenGate.allowedDirections.join("/")||"无方向"}，已阻止${candidateDirection}影子候选`
+      label:["confirmed","reversed"].includes(zijinPreopenGate.status)?"全天方向否决":"开盘未确认",
+      advice:["confirmed","reversed"].includes(zijinPreopenGate.status)?`暂缓${candidateDirection}`:"降级观察",
+      detail:["confirmed","reversed"].includes(zijinPreopenGate.status)
+        ?`全天方向锚仅允许${zijinPreopenGate.allowedDirections.join("/")||"无方向"}，已阻止${candidateDirection}影子候选`
         :"开盘预判未获真实走势确认，不升级方向信号",
+    };
+
+    if(preopenGateActive&&!candidateDirection&&["confirmed","reversed"].includes(zijinPreopenGate.status))return {
+      tone:"confirmed",
+      label:zijinPreopenGate.status==="reversed"?"严格反转":"全天锚定",
+      advice:`${zijinPreopenGate.allowedDirections.join("/")||"中性"}优先`,
+      detail:zijinPreopenGate.reason,
     };
 
     if(decisionModel.status==="ready"&&formalAligned)return {
@@ -4046,8 +4053,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           {isZijinStock&&<details className={`zijin-shadow-v2 research-fold ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V3 学习与晋级进度">
             <summary><div><span title="进度综合前瞻天数、闭环样本和六项晋级门槛；不会自动替换正式策略。">紫金影子 V3 ⓘ</span><b>{zijinShadowV2Progress.ready?"等待评审":zijinShadowV2Progress.available?"监控中":"待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></summary>
             <div className="zijin-shadow-v2-meter" role="progressbar" aria-label={`紫金影子 V3 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div>
-            <div className={`zijin-shadow-v29 ${zijinV29OpeningShadow.tone}`} aria-label={`V2.9 开盘影子 ${zijinV29OpeningShadow.label}`}>
-              <div><span>V2.9 开盘影子</span><b>{zijinV29OpeningShadow.label}</b><em>{zijinV29OpeningShadow.advice}</em></div>
+            <div className={`zijin-shadow-v29 ${zijinV29OpeningShadow.tone}`} aria-label={`V2.9 全天方向锚 ${zijinV29OpeningShadow.label}`}>
+              <div><span>V2.9 全天方向锚</span><b>{zijinV29OpeningShadow.label}</b><em>{zijinV29OpeningShadow.advice}</em></div>
               <p>{zijinV29OpeningShadow.detail}</p>
               <small>前向样本 <b>0 / 100</b> · 仅作参考，不影响正式信号</small>
             </div>
