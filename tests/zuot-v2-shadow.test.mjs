@@ -343,19 +343,27 @@ test("V2.9 exposes reverse-T observations from 09:30 without bypassing L2", () =
   assert.ok(result.observations[0].blockers.includes("缺少历史L2"));
 });
 
-test("V2.9 keeps the opening protection for positive-T", () => {
+test("V2.9 exposes positive-T observations from 09:30 without bypassing L2", () => {
   const session = replaySession([
     { time: "0938", price: 33.4 },
     { time: "0939", price: 33.45 },
   ], "601899");
+  const factors = {
+    ...row().factors,
+    "orderflow.active_buy_imbalance": null,
+    "orderflow.ofi_change_3m": null,
+    "orderflow.book_depth_imbalance": null,
+  };
   const result = runZijinV29ShadowReplay(session, {
-    factorEngine: replayFactorEngine([{ date: session.date, time: "0938", index: 0, price: 33.4, factors: row().factors }]),
+    factorEngine: replayFactorEngine([{ date: session.date, time: "0938", index: 0, price: 33.4, factors }]),
     feeRate: 0,
     slippage: 0,
     minCommission: false,
   });
   assert.equal(result.trades, 0);
-  assert.equal(result.observations.length, 0);
+  assert.equal(result.observations.length, 1);
+  assert.equal(result.observations[0].direction, "正T");
+  assert.ok(result.observations[0].blockers.includes("缺少历史L2"));
 });
 
 test("V2.9 can close a causal trade when L2 is available and opening direction is unconfirmed", () => {
