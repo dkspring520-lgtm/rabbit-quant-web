@@ -2279,6 +2279,36 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const formalAligned=Boolean(
       decisionActionSide&&l2Usable&&decisionActionSide===l2Direction,
     );
+    const candidateDirection=decisionActionDirection??(
+      signalMode==="正T"||signalMode==="反T"
+        ?signalMode
+        :l2Direction==="buy"
+          ?"正T"
+          :l2Direction==="sell"
+            ?"反T"
+            :null
+    );
+    const preopenGateActive=Boolean(
+      zijinPreopenGate.asOfTime&&
+      zijinPreopenGate.asOfTime>="0935"&&
+      zijinPreopenGate.asOfTime<(zijinPreopenGate.expiresAt??"1000")&&
+      ["confirmed","blocked"].includes(zijinPreopenGate.status),
+    );
+    const preopenDirectionVeto=Boolean(
+      preopenGateActive&&candidateDirection&&(
+        zijinPreopenGate.status!=="confirmed"||
+        !zijinPreopenGate.allowedDirections.includes(candidateDirection)
+      ),
+    );
+
+    if(preopenDirectionVeto)return {
+      tone:"warning",
+      label:zijinPreopenGate.status==="confirmed"?"开盘方向否决":"开盘未确认",
+      advice:zijinPreopenGate.status==="confirmed"?`暂缓${candidateDirection}`:"降级观察",
+      detail:zijinPreopenGate.status==="confirmed"
+        ?`开盘许可仅允许${zijinPreopenGate.allowedDirections.join("/")||"无方向"}，已阻止${candidateDirection}影子候选`
+        :"开盘预判未获真实走势确认，不升级方向信号",
+    };
 
     if(decisionModel.status==="ready"&&formalAligned)return {
       tone:"confirmed",
@@ -2311,7 +2341,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           :"已有分钟候选，等待连续秒级证据"
         :"等待开盘结构与连续秒级证据",
     };
-  },[decisionActionDirection,decisionActionSide,decisionModel.confirmed,decisionModel.mode,decisionModel.status,isZijinStock,liveL2HasTicks,liveL2Stale,positiveTBlockedByFlow,secondLevelSignal,signalFunnel.currentObservations,signalMode]);
+  },[decisionActionDirection,decisionActionSide,decisionModel.confirmed,decisionModel.mode,decisionModel.status,isZijinStock,liveL2HasTicks,liveL2Stale,positiveTBlockedByFlow,secondLevelSignal,signalFunnel.currentObservations,signalMode,zijinPreopenGate]);
   const zijinRealtimeFactors=useMemo(()=>{
     const contextItems=currentContext?.items??[];
     const findContextItem=(labels:string[])=>labels
