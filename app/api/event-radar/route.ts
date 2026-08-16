@@ -1,4 +1,4 @@
-import { classifyEvent, dedupeRelatedEvents, evaluateEventGate, stripEventMarkup } from "@/lib/event-radar.mjs";
+import { classifyEvent, dedupeRelatedEvents, evaluateEventGate, resolveEventSourcePolicy, stripEventMarkup } from "@/lib/event-radar.mjs";
 import { isStockRelatedNews } from "@/lib/external-source-parsers.mjs";
 
 type RawEvent = {
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
       ...(announcements.status === "fulfilled" ? announcements.value : []),
       ...(news.status === "fulfilled" ? news.value : []),
     ];
-    const classified = raw.map(item => ({ ...item, ...classifyEvent({ ...item, now }) }))
+    const classified = raw.map(item => ({ ...item, ...resolveEventSourcePolicy(item), ...classifyEvent({ ...item, now }) }))
       .filter(item => item.ageHours <= 72)
       .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
     const items = dedupeRelatedEvents(classified).slice(0, 12);
@@ -88,6 +88,6 @@ export async function GET(request: Request) {
   }));
   return Response.json({
     fetchedAt: new Date(now).toISOString(), scanned: results.length, requested: stocks.length, pollSeconds: 60,
-    sources: ["巨潮资讯（法定公告）", "新浪财经公开搜索（聚合资讯）"], stocks: results, errors,
+    sources: ["一级·巨潮资讯（法定公告）", "三级·新浪财经公开搜索（聚合线索）"], stocks: results, errors,
   }, { headers: { "Cache-Control": "public, max-age=30, s-maxage=60, stale-while-revalidate=120" } });
 }
