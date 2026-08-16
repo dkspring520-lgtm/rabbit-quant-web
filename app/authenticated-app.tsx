@@ -4876,6 +4876,13 @@ const AI_RESEARCH_FLOW=[
   {name:"人工评审",detail:"决定是否晋级"},
 ] as const;
 
+const AI_PROMOTION_GATES=[
+  {name:"样本外",status:"待验证"},
+  {name:"净收益",status:"待验证"},
+  {name:"回撤稳定",status:"待验证"},
+  {name:"人工审批",status:"待候选"},
+] as const;
+
 type PaperclipRuntimeStatus={
   status:"running"|"degraded"|"stopped";
   services:{paperclip:"healthy"|"unavailable";bridge:"healthy"|"unavailable"};
@@ -4914,68 +4921,72 @@ function AIQuantResearchInstituteView(){
   const checkedTime=runtime?.checkedAt?new Date(runtime.checkedAt).toLocaleTimeString("zh-CN",{hour12:false}):null;
   return <main className="ai-institute-view">
     <header className="ai-institute-head">
-      <div><span>AI QUANT RESEARCH INSTITUTE</span><h1>AI量化研究院</h1><p>做T因子离线验证中心 · 只产出候选，不直接交易</p></div>
+      <div><span>AI QUANT RESEARCH INSTITUTE</span><h1>AI量化研究院</h1><p>做T因子研究与样本外验证</p></div>
       <div className={`ai-institute-status ${running?"online":"offline"}`}><i/><span>基础设施</span><b>{runtimeTitle}</b><small>{runtimeDetail}</small></div>
     </header>
 
-    <section className="ai-institute-now" aria-labelledby="ai-current-mission-title">
-      <div className="ai-institute-mission">
-        <span>CURRENT MISSION</span>
-        <h2 id="ai-current-mission-title">把研究想法变成可验证的候选策略</h2>
-        <p>因子、参数和策略组合先经过离线数据验证，再由人工决定是否晋级。</p>
+    <section className="ai-research-overview" aria-labelledby="ai-current-mission-title">
+      <div className="ai-research-focus">
+        <div className="ai-research-focus-head">
+          <span>RESEARCH CONTROL</span>
+          <em className={!runtime?"loading":running?"ready":"warning"}><i/>{!runtime?"连接中":running?"系统就绪":"连接异常"}</em>
+        </div>
+        <div className="ai-research-focus-main">
+          <div className={`ai-research-orbit ${running?"active":""}`} aria-hidden="true"><i/><i/><i/><b>T</b></div>
+          <div><small>CURRENT MISSION</small><h2 id="ai-current-mission-title">做T因子验证</h2><p>{!runtime?"正在读取状态":running?"等待研究任务":"控制面恢复后可运行"}</p></div>
+          <div className="ai-research-access"><span>生产交易</span><b>已隔离</b><em>人工审批</em></div>
+        </div>
       </div>
-      <div className="ai-institute-now-flow" aria-label="研究产出路径">
-        <div><i>01</i><b>研究输入</b><small>因子 · 参数</small></div>
-        <span aria-hidden="true">→</span>
-        <div><i>02</i><b>验证证据</b><small>收益 · 回撤</small></div>
-        <span aria-hidden="true">→</span>
-        <div><i>03</i><b>候选报告</b><small>等待人工评审</small></div>
+
+      <div className="ai-research-kpis" aria-label="研究能力概况">
+        <article>
+          <div><span>因子库</span><b>48</b><small>10 类</small></div>
+          <div className="ai-kpi-bars" aria-hidden="true">{AI_FACTOR_CATEGORIES.slice(0,6).map(item=><i key={item.name} className={item.tone} style={{height:`${item.count/7*100}%`}}/>)}</div>
+        </article>
+        <article>
+          <div><span>验证用例</span><b>25/25</b><small>全部通过</small></div>
+          <div className="ai-kpi-ring complete" aria-hidden="true"><i/></div>
+        </article>
+        <article className="locked">
+          <div><span>生产权限</span><b>0</b><small>人工闸门</small></div>
+          <div className="ai-kpi-lock" aria-hidden="true"><i/></div>
+        </article>
       </div>
-      <aside><span>真实交易权限</span><b>无</b><small>正式策略保持不变</small></aside>
     </section>
 
-    <section className="ai-institute-metrics" aria-label="研究院概况">
-      <article><span>控制面</span><b className={running?"positive":"warning"}>{running?"在线":runtime?"异常":"连接中"}</b><small>不等于任务运行</small></article>
-      <article><span>已注册因子</span><b>48</b><small>10 个类别</small></article>
-      <article><span>验证用例</span><b>25/25</b><small>全部通过</small></article>
-      <article className="safe"><span>自动生产权限</span><b>0</b><small>人工闸门</small></article>
+    <section className="ai-research-workbench" aria-label="研究进度与晋级状态">
+      <section className="ai-institute-flow" aria-labelledby="ai-research-flow-title">
+        <div className="ai-institute-section-head"><div><span>RESEARCH PIPELINE</span><h2 id="ai-research-flow-title">研究闭环</h2></div><small>待运行</small></div>
+        <ol>{AI_RESEARCH_FLOW.map((step,index)=><li key={step.name} className={index===AI_RESEARCH_FLOW.length-1?"approval":"ready"}><i>{String(index+1).padStart(2,"0")}</i><div><b>{step.name}</b><span>{step.detail}</span></div><em>{index===AI_RESEARCH_FLOW.length-1?"人工":"就绪"}</em></li>)}</ol>
+      </section>
+
+      <section className="ai-institute-gates" aria-labelledby="ai-promotion-gates-title">
+        <div className="ai-institute-section-head"><div><span>PROMOTION GATES</span><h2 id="ai-promotion-gates-title">晋级状态</h2></div><small>等待候选</small></div>
+        <ul>{AI_PROMOTION_GATES.map(item=><li key={item.name} className="pending"><i/><div><b>{item.name}</b><small>{item.status}</small></div></li>)}</ul>
+      </section>
     </section>
 
-    <section className="ai-institute-flow" aria-labelledby="ai-research-flow-title">
-      <div className="ai-institute-section-head"><div><span>RESEARCH PIPELINE</span><h2 id="ai-research-flow-title">四步研究闭环</h2></div><small>全部通过，才会形成晋级申请</small></div>
-      <ol>{AI_RESEARCH_FLOW.map((step,index)=><li key={step.name} className={index===AI_RESEARCH_FLOW.length-1?"approval":"ready"}><i>{String(index+1).padStart(2,"0")}</i><b>{step.name}</b><span>{step.detail}</span></li>)}</ol>
-    </section>
-
-    <section className="ai-institute-gates" aria-labelledby="ai-promotion-gates-title">
-      <div><span>PROMOTION GATES</span><h2 id="ai-promotion-gates-title">候选晋级必须过四关</h2><small>缺一项都不会进入正式策略</small></div>
-      <ul><li><i>1</i><b>样本外有效</b></li><li><i>2</i><b>扣费后正收益</b></li><li><i>3</i><b>回撤与稳定性合格</b></li><li><i>4</i><b>人工批准</b></li></ul>
+    <section className="ai-factor-panel ai-factor-landscape" aria-labelledby="ai-factor-title">
+      <div className="ai-institute-section-head"><div><span>FACTOR LANDSCAPE</span><h2 id="ai-factor-title">因子图谱</h2></div><b>48</b></div>
+      <div className="ai-factor-total" aria-hidden="true">{AI_FACTOR_CATEGORIES.map(item=><i key={item.name} className={item.tone} style={{width:`${item.count/48*100}%`}}/>)}</div>
+      <div className="ai-factor-list">{AI_FACTOR_CATEGORIES.map(item=><div key={item.name}><span><i className={item.tone}/>{item.name}</span><b>{item.count}</b><em><i className={item.tone} style={{width:`${item.count/7*100}%`}}/></em></div>)}</div>
     </section>
 
     <details className="ai-institute-details">
-      <summary><div><span>RESEARCH CAPABILITY</span><b>研究能力明细</b></div><em>7 个角色 · 48 个因子</em><i aria-hidden="true">＋</i></summary>
-      <div className="ai-institute-grid">
+      <summary><div><span>AGENT TEAM</span><b>七兔研究团队</b></div><em>7 个角色</em><i aria-hidden="true">＋</i></summary>
+      <div className="ai-institute-grid ai-agent-detail-grid">
         <section className="ai-institute-agents" aria-labelledby="ai-agent-title">
-          <div className="ai-institute-section-head"><div><span>AGENT TEAM</span><h2 id="ai-agent-title">七兔研究团队</h2></div><small>{running?"控制面在线":"离线待命"}</small></div>
+          <div className="ai-institute-section-head"><div><span>AGENT STATUS</span><h2 id="ai-agent-title">角色状态</h2></div><small>{running?"控制面在线":"离线待命"}</small></div>
           <div className="ai-agent-grid">{AI_RESEARCH_AGENTS.map((agent,index)=><article key={agent.name} className={`${agent.tone}${agent.disabled?" disabled":""}`}>
             <div className="ai-agent-avatar"><span>{index+1}</span><i/><i/></div>
             <div><h3>{agent.name}</h3><b>{agent.role}</b><p>{agent.task}</p></div>
             <em>{agent.disabled?"权限关闭":"研究就绪"}</em>
           </article>)}</div>
         </section>
-
-        <aside className="ai-factor-panel" aria-labelledby="ai-factor-title">
-          <div className="ai-institute-section-head"><div><span>FACTOR LIBRARY</span><h2 id="ai-factor-title">因子构成</h2></div><b>48</b></div>
-          <div className="ai-factor-total" aria-hidden="true">{AI_FACTOR_CATEGORIES.map(item=><i key={item.name} className={item.tone} style={{width:`${item.count/48*100}%`}}/>)}</div>
-          <div className="ai-factor-list">{AI_FACTOR_CATEGORIES.map(item=><div key={item.name}><span><i className={item.tone}/>{item.name}</span><b>{item.count}</b><em><i className={item.tone} style={{width:`${item.count/7*100}%`}}/></em></div>)}</div>
-        </aside>
       </div>
     </details>
 
-    <section className="ai-safety-panel" aria-labelledby="ai-safety-title">
-      <div><span>SAFETY BOUNDARY</span><h2 id="ai-safety-title">研究与交易完全隔离</h2></div>
-      <ul><li><i/>不连接真实交易</li><li><i/>不写生产数据库</li><li><i/>不自动修改正式策略</li><li><i/>不自动部署</li></ul>
-      <aside><span>当前控制面</span><b>{running?"运行中":runtime?.status==="degraded"?"状态异常":"尚未启动"}</b><small>{running?`双服务健康${checkedTime?` · ${checkedTime} 检查`:""}`:runtimeDetail}</small></aside>
-    </section>
+    <div className="ai-safety-strip" aria-label="研究与交易隔离状态"><i aria-hidden="true"/><b>生产隔离已启用</b><span>无交易权限 · 无生产写入 · 人工审批</span><em>{!runtime?"CONTROL CONNECTING":running?`CONTROL ONLINE${checkedTime?` · ${checkedTime}`:""}`:"CONTROL OFFLINE"}</em></div>
   </main>;
 }
 
