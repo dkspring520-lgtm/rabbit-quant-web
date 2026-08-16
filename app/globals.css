@@ -2147,3 +2147,17 @@
   .minimal-ui .chart-tools .t-share-trigger{grid-column:2;grid-row:1;position:relative;z-index:2;white-space:nowrap;flex:none}
   .minimal-ui .chart-tools .t-share-trigger+.tool-button{display:none}
 }
+
+/* Keep the research control card separate from the global online dot utility. */
+.ai-institute-status.online{width:auto;height:auto;border-radius:0;margin-right:0;box-shadow:none}
+@media(max-width:760px){
+  .ai-institute-now-flow{grid-template-columns:repeat(3,minmax(0,1fr));overflow-x:visible}
+  .ai-institute-now-flow>span{display:none}
+  .ai-institute-flow ol{grid-template-columns:1fr 1fr;overflow-x:visible;gap:6px}
+  .ai-institute-flow li{min-width:0;border:1px solid var(--line)}
+  .ai-institute-flow li:not(:last-child):after{display:none}
+}
+@media(max-width:390px){
+  .ai-institute-now-flow{display:grid}
+  .ai-institute-now-flow>div{min-width:0}
+}
