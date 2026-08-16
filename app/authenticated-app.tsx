@@ -4106,26 +4106,32 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <em>陪你盯盘</em>
           </div>}
           {alertQueue.length>0&&<div className="trade-alert-stack" aria-label="股票提醒列表">{alertQueue.slice(0,3).map((item,index)=><div key={item.id??`${item.title}-${index}`} className={`trade-alert-toast ${item.level} rabbit-${item.rabbit}`} role="alert"><span className={`rabbit-speaker ${item.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{tradeAlertLabel(item)}</small><b>{item.title}</b><span>{tradeAlertGuide(item)}</span><details className="trade-alert-detail"><summary>查看依据</summary><p>{item.message}</p></details></div>{index===2&&alertQueue.length>3&&<em className="alert-queue-count">+{alertQueue.length-3}</em>}<button onClick={()=>setAlertQueue(current=>current.filter(alert=>alert.id!==item.id))} aria-label={`关闭${item.title}提醒`}>×</button></div>)}</div>}
-          {isZijinStock&&<div className={`stock-agent-switch ${zijinMonitorStrategy==="v29"?"experiment-active":"closure-active"}`} aria-label="紫金矿业监控策略状态">
-            <div><span title="两套策略独立监控；V2.9 可输出辅助信号，但不接管正式闭环和下单权限。">紫金监控策略 ⓘ</span><b>{zijinMonitorStrategy==="closure"?liveStrategyExperiment.label:"V2.9 辅助监控"}</b><small>{zijinMonitorStrategy==="closure"?"正式闭环信号与风控":"独立出信号 · 仅供人工参考"}</small></div>
-            <div className="stock-agent-switch-actions experiment-actions" role="group" aria-label="紫金矿业监控策略选择"><button className={zijinMonitorStrategy==="closure"?"active":""} type="button" onClick={()=>setZijinMonitorStrategy("closure")} aria-pressed={zijinMonitorStrategy==="closure"}>专属闭环</button><button className={zijinMonitorStrategy==="v29"?"active experimental":"experimental"} type="button" onClick={()=>setZijinMonitorStrategy("v29")} aria-pressed={zijinMonitorStrategy==="v29"}>V2.9 辅助</button><button className={zijinResearchEnabled?"research active":"research"} type="button" onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button></div>
-          </div>}
-          {isZijinStock&&zijinMonitorStrategy==="v29"&&<div className={`zijin-shadow-v29 live ${zijinV29OpeningShadow.tone}`} aria-label={`V2.9 辅助监控 ${zijinV29OpeningShadow.signal}`}>
-            <div><span>V2.9 当前信号</span><b>{zijinV29OpeningShadow.signal}</b><em>{zijinV29OpeningShadow.advice}</em></div>
-            <p>{zijinV29OpeningShadow.detail}</p>
-            <small>V2.9 独立监控信号 · 不自动下单 · 不改变专属闭环</small>
-          </div>}
-          {isZijinStock&&<details className={`zijin-shadow-v2 research-fold ${zijinShadowV2Progress.ready?"promotion-ready":zijinShadowV2Progress.available?"monitoring":"waiting"}`} aria-label="紫金影子 V3 学习与晋级进度">
-            <summary><div><span title="进度综合前瞻天数、闭环样本和六项晋级门槛；不会自动替换正式策略。">紫金影子 V3 ⓘ</span><b>{zijinShadowV2Progress.ready?"等待评审":zijinShadowV2Progress.available?"监控中":"待接入"}</b></div><strong>{zijinShadowV2Progress.progress}<small>%</small></strong></summary>
-            <div className="zijin-shadow-v2-meter" role="progressbar" aria-label={`紫金影子 V3 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div>
-            <footer><span>{zijinShadowV2Progress.ready?"六项门槛全部通过":`门槛 ${zijinShadowV2Progress.passed}/6 · 前瞻 ${zijinShadowV2Progress.tradingDays}/60日 · 闭环 ${zijinShadowV2Progress.resolvedCycles}/100`}</span><em>{zijinShadowV2Progress.ready?"等待人工评审":"满额后申请评审"}</em></footer>
-          </details>}
-          {isZijinStock&&<div className="zijin-strategy-report" role="region" aria-label="紫金矿业策略对比报告">
-            <div className="zijin-strategy-report-head"><div><b>策略对比</b><small>三套独立运行</small></div><span>状态</span><span>有效证据</span><em>角色</em></div>
-            <div className={`zijin-strategy-report-row ${formalStrategyCompareTone}`}><b>专属闭环</b><strong>{formalStrategyCompareStatus}</strong><span>{personalStrategyStats.cycles?`${personalStrategyStats.sessions}日 · ${personalStrategyStats.cycles}笔 · ${(Number(personalStrategyStats.winRate)*100).toFixed(0)}%`:`${personalStrategyStats.sessions}日 · 待闭环`}</span><em>正式</em></div>
-            <div className={`zijin-strategy-report-row ${zijinV29OpeningShadow.tone==="confirmed"?"positive":zijinV29OpeningShadow.tone==="warning"?"negative":"waiting"}`}><b>V2.9 辅助</b><strong>{zijinV29OpeningShadow.signal}</strong><span>实时独立对照</span><em>参考</em></div>
-            <div className={`zijin-strategy-report-row ${zijinShadowV2Progress.ready?"positive":zijinShadowV2Progress.available?"waiting":"muted"}`}><b>影子 V3</b><strong>{zijinShadowV2Progress.ready?"待评审":zijinShadowV2Progress.available?"监控中":"待接入"}</strong><span>{zijinShadowV2Progress.progress}% · {zijinShadowV2Progress.tradingDays}/60日 · {zijinShadowV2Progress.resolvedCycles}/100笔</span><em>研究</em></div>
-          </div>}
+          {isZijinStock&&<section className={`zijin-strategy-control ${zijinMonitorStrategy==="v29"?"experiment-active":"closure-active"}`} aria-label="紫金矿业策略总控台">
+            <header className="zijin-strategy-control-head">
+              <div><span>紫金策略总控</span><b>{zijinMonitorStrategy==="closure"?liveStrategyExperiment.label:"V2.9 辅助监控"}</b></div>
+              <em>3 套并行</em>
+            </header>
+            <div className="zijin-strategy-control-actions" role="group" aria-label="紫金矿业监控策略选择">
+              <button className={zijinMonitorStrategy==="closure"?"active":""} type="button" onClick={()=>setZijinMonitorStrategy("closure")} aria-pressed={zijinMonitorStrategy==="closure"}>专属闭环</button>
+              <button className={zijinMonitorStrategy==="v29"?"active experimental":"experimental"} type="button" onClick={()=>setZijinMonitorStrategy("v29")} aria-pressed={zijinMonitorStrategy==="v29"}>V2.9 辅助</button>
+              <button className={zijinResearchEnabled?"research active":"research"} type="button" onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button>
+            </div>
+            <div className={`zijin-strategy-now ${zijinMonitorStrategy==="closure"?formalStrategyCompareTone:zijinV29OpeningShadow.tone}`}>
+              <i aria-hidden="true"/>
+              <div><span>{zijinMonitorStrategy==="closure"?"正式策略":"辅助策略"}</span><b>{zijinMonitorStrategy==="closure"?formalStrategyCompareStatus:zijinV29OpeningShadow.signal}</b><small>{zijinMonitorStrategy==="closure"?(personalStrategyStats.cycles?`${personalStrategyStats.cycles} 笔闭环 · 胜率 ${(Number(personalStrategyStats.winRate)*100).toFixed(0)}%`:`${personalStrategyStats.sessions} 日有效样本`):zijinV29OpeningShadow.advice}</small></div>
+              <em>{zijinMonitorStrategy==="closure"?"正式":"参考"}</em>
+            </div>
+            {zijinMonitorStrategy==="v29"&&<p className="zijin-strategy-now-detail">{zijinV29OpeningShadow.detail}</p>}
+            <div className="zijin-strategy-lanes" aria-label="三套策略状态对比">
+              <article className={`formal ${formalStrategyCompareTone}`}><header><i aria-hidden="true"/><b>专属闭环</b><em>正式</em></header><strong>{formalStrategyCompareStatus}</strong><small>{personalStrategyStats.cycles?`${personalStrategyStats.sessions}日 · ${personalStrategyStats.cycles}笔`:`${personalStrategyStats.sessions}日 · 待闭环`}</small></article>
+              <article className={`auxiliary ${zijinV29OpeningShadow.tone}`}><header><i aria-hidden="true"/><b>V2.9</b><em>参考</em></header><strong>{zijinV29OpeningShadow.signal}</strong><small>实时独立对照</small></article>
+              <article className={`research ${zijinShadowV2Progress.ready?"positive":zijinShadowV2Progress.available?"waiting":"muted"}`}><header><i aria-hidden="true"/><b>影子 V3</b><em>研究</em></header><strong>{zijinShadowV2Progress.progress}%</strong><div className="zijin-strategy-lane-meter" role="progressbar" aria-label={`影子 V3 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div></article>
+            </div>
+            <details className="zijin-strategy-evidence">
+              <summary><span>V3 晋级证据</span><b>{zijinShadowV2Progress.ready?"等待评审":`${zijinShadowV2Progress.passed}/6 通过`}</b></summary>
+              <div><span><small>前瞻样本</small><b>{zijinShadowV2Progress.tradingDays}<em>/60日</em></b></span><span><small>有效闭环</small><b>{zijinShadowV2Progress.resolvedCycles}<em>/100笔</em></b></span><span><small>门槛</small><b>{zijinShadowV2Progress.passed}<em>/6项</em></b></span></div>
+            </details>
+          </section>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
             <div className="signal-layer candidate"><span>本股实时观察</span><b>{visibleStockAgentEvaluation?Number(visibleStockAgentEvaluation.status==="candidate"):signalFunnel.currentObservations}<small> 个</small></b><em>{visibleStockAgentEvaluation?`${STOCK_AGENTS.zijin.name} · ${visibleStockAgentEvaluation.title}`:`条件候补 ${signalFunnel.currentCandidates} · 全自选观察 ${signalFunnel.observations}`}</em></div>
             <i>→</i>
