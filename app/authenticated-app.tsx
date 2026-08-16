@@ -19,7 +19,7 @@ import "./brand-cute.css";
 import "./position-setup.css";
 import "./referral.css";
 import { buildHistoricalSimilarityArchive, runSmartTReplay } from "@/lib/smart-t-engine.mjs";
-import { A_SHARE_INTRADAY_AXIS, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareClosingAuctionMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
+import { A_SHARE_INTRADAY_AXIS, aShareMinuteSlot, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareClosingAuctionMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
 import { confirmStockPosition, loadStockPosition, migrateLegacyPosition, normalizeStockPosition, saveStockPosition } from "@/lib/stock-position.mjs";
 import type { StockPosition } from "@/lib/stock-position.mjs";
 import { normalizeTradeLedgerRows, summarizeTradeLedger, tradeLedgerDate, tradeLedgerKey } from "@/lib/trade-ledger.mjs";
@@ -84,6 +84,36 @@ const liveChartX = (time:string|number|null|undefined) =>
 const liveChartSlotX = (slot:number) =>
   intradaySlotX(slot, LIVE_CHART.plotLeft, LIVE_CHART.plotRight - LIVE_CHART.plotLeft);
 
+const LIVE_SECOND_CLOCK_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone:"Asia/Shanghai",
+  year:"numeric",
+  month:"2-digit",
+  day:"2-digit",
+  hour:"2-digit",
+  minute:"2-digit",
+  second:"2-digit",
+  hour12:false,
+});
+
+const formatLiveSecondTimestamp = (timestamp:number) => {
+  const parts=LIVE_SECOND_CLOCK_FORMATTER.formatToParts(new Date(timestamp));
+  const read=(type:Intl.DateTimeFormatPartTypes)=>parts.find(part=>part.type===type)?.value??"";
+  const hour=read("hour");
+  const minute=read("minute");
+  const second=read("second");
+  return {
+    date:`${read("year")}-${read("month")}-${read("day")}`,
+    time:`${hour}${minute}${second}`,
+  };
+};
+
+const liveChartSecondX = (time:string) => {
+  const match=String(time).match(/^(\d{2})(\d{2})(\d{2})$/);
+  if(!match)return liveChartX(time);
+  const minuteSlot=aShareMinuteSlot(`${match[1]}${match[2]}`);
+  return liveChartSlotX(minuteSlot+Number(match[3])/60);
+};
+
 const liveChartPriceY = (price:number, min:number, max:number) => {
   const range=max-min||Math.max(max*.002,.01);
   return LIVE_CHART.priceTop+(max-price)/range*(LIVE_CHART.priceBottom-LIVE_CHART.priceTop);
@@ -112,6 +142,7 @@ const base64UrlToUint8Array = (value:string) => {
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
 type IntradayMinute = {time:string;price:number;volume:number;high?:number|null;low?:number|null;averagePrice?:number|null;timeVolumeBaseline?:number|null};
+type LiveSecondPoint = { date:string; time:string; timestamp:number; price:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:IntradayMinute[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
 type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
@@ -772,6 +803,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [marketQuotes, setMarketQuotes] = useState<Record<string, MarketData["quote"]>>({});
   const [marketSnapshots, setMarketSnapshots] = useState<Record<string, MarketData>>({});
   const [clockNow, setClockNow] = useState<Date|null>(null);
+  const [liveSecondPoints, setLiveSecondPoints] = useState<LiveSecondPoint[]>([]);
+  const liveSecondQuoteRef = useRef<{price:number|null;fresh:boolean}>({price:null,fresh:false});
   const [tradeLedgerState,setTradeLedgerState]=useState<{key:string;rows:TradeLedgerRow[]}>({key:"",rows:[]});
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
   const [trialError, setTrialError] = useState("");
@@ -1163,6 +1196,48 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       changePercent,
     };
   },[baseActiveQuote,liveL2PriceUsable,liveL2LastPrice,liveL2Status?.session,stock.name]);
+  const liveQuoteFresh=useMemo(()=>{
+    if(liveL2PriceUsable)return true;
+    const sourceTimestamp=currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp??currentTrial?.fetchedAt??currentMarket?.fetchedAt;
+    const sourceTime=sourceTimestamp?Date.parse(sourceTimestamp):NaN;
+    return Number.isFinite(sourceTime)&&Date.now()-sourceTime<=8_000;
+  },[currentMarket?.fetchedAt,currentMarket?.sourceTimestamp,currentTrial?.fetchedAt,currentTrial?.sourceTimestamp,liveL2PriceUsable]);
+  useEffect(()=>{
+    const price=Number(activeQuote?.price);
+    liveSecondQuoteRef.current={price:Number.isFinite(price)&&price>0?price:null,fresh:liveQuoteFresh};
+  },[activeQuote?.price,liveQuoteFresh]);
+  useEffect(()=>{
+    const shouldCollect=activeView==="操盘台"&&stock?.code==="601899"&&marketSession.live;
+    if(!shouldCollect){
+      liveSecondQuoteRef.current={price:null,fresh:false};
+      setLiveSecondPoints(current=>current.length?[]:current);
+      return;
+    }
+    let active=true;
+    const capture=()=>{
+      if(!active)return;
+      const {price,fresh}=liveSecondQuoteRef.current;
+      if(!fresh||price===null)return;
+      const timestamp=Date.now();
+      const {date,time}=formatLiveSecondTimestamp(timestamp);
+      if(!isAShareRegularTradingMinute(time.slice(0,4)))return;
+      setLiveSecondPoints(current=>{
+        const last=current.at(-1);
+        if(last?.date!==date)current=[];
+        const previous=current.at(-1);
+        const point={date,time,timestamp,price};
+        if(previous?.time===time){
+          if(Math.abs(previous.price-price)<1e-9)return current;
+          return [...current.slice(0,-1),point];
+        }
+        const next=[...current,point];
+        return next.length>15_000?next.slice(-15_000):next;
+      });
+    };
+    capture();
+    const timer=window.setInterval(capture,1_000);
+    return()=>{active=false;window.clearInterval(timer)};
+  },[activeView,marketSession.live,stock?.code]);
   useEffect(()=>{
     latestActiveChange.current=activeQuote?.changePercent??null;
   },[activeQuote?.changePercent]);
@@ -1374,6 +1449,29 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ticks:scale.ticks.map(tick=>({...tick,y:liveChartPriceY(tick.value,min,max)})),
     };
   },[minutePoints,activeQuote?.previousClose]);
+  const liveSecondChart=useMemo(()=>{
+    if(!chartModel||liveSecondPoints.length===0)return null;
+    const segments:Array<{points:string;last:{x:number;y:number;price:number;time:string}}>=[];
+    let current:Array<{x:number;y:number;price:number;time:string}>=[];
+    let previous:LiveSecondPoint|null=null;
+    for(const point of liveSecondPoints){
+      const x=liveChartSecondX(point.time);
+      const y=liveChartPriceY(point.price,chartModel.min,chartModel.max);
+      const gap=previous!==null&&(point.date!==previous.date||point.timestamp-previous.timestamp>90_000);
+      if(gap&&current.length>0){
+        const last=current.at(-1)!;
+        segments.push({points:current.map(item=>`${item.x},${item.y}`).join(" "),last});
+        current=[];
+      }
+      current.push({x,y,price:point.price,time:point.time});
+      previous=point;
+    }
+    if(current.length>0){
+      const last=current.at(-1)!;
+      segments.push({points:current.map(item=>`${item.x},${item.y}`).join(" "),last});
+    }
+    return segments.length?{segments,last:segments.at(-1)!.last}:null;
+  },[chartModel,liveSecondPoints]);
   const zijinAhLinkage=useMemo(()=>{
     if(stock?.code!=="601899"||!zijinHkMarket)return analyzeZijinAhLinkage();
     const sourceTime=zijinHkMarket.sourceTimestamp?new Date(zijinHkMarket.sourceTimestamp).getTime():NaN;
@@ -3943,6 +4041,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <div className="chart-tools">
             <div className="legend primary-chart-legend">
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
+              {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
               {indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}
               <details className="auxiliary-indicators">
                 <summary>辅助指标</summary>
@@ -3953,8 +4052,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               </details>
             </div>
             <span className={`live-scan ${marketSession.live?"":"paused"}`} title={marketSession.live?(currentTrial?"1 秒轮询试用 · 实时行情源":trialError||(currentMarket?`公开行情 · ${currentMarket.delayed?"延迟数据":"已更新"}`:marketError||"连接行情中")):"当前为收盘复盘模式"}><i/>{marketSession.live?(currentTrial?"实时行情":currentMarket?currentMarket.delayed?"行情延迟":"行情已更新":"连接行情"):"复盘模式"}</span>
-            <div className="intraday-only" title="操盘台当前仅使用当日 1 分钟分时数据">
-              <i/>当日分时 <small>1分钟</small>
+            <div className="intraday-only" title="保留历史 1 分钟线；仅叠加当前交易日有效报价的秒级观察轨迹">
+              <i/>当日分时 <small>分钟历史 · 秒级观察</small>
             </div>
              <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏中文信号提示" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button><button title="一键隐藏均价、信号、区间和成交量辅助层" className={!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible?"active minimal-layer-toggle":"minimal-layer-toggle"} onClick={()=>{const restore=!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible;setIndicatorsVisible(restore);setSignalLayerVisible(restore);setPricePlanLayerVisible(restore);setVolumeLayerVisible(restore)}}>简洁</button></div><button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享今日记录</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
@@ -3979,6 +4078,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               </g>}
               {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}{zijinHkOverlay&&<path d={zijinHkOverlay.path} className={`hk-zijin-path ${zijinAhLinkage.bias}`}/>}<path d={chartModel.path} className="price-path"/>
+              {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="3.2" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${zijinMonitorStrategy==="v29"?"v29-shadow-marker":""} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.currentLabel}${zijinMonitorStrategy==="v29"?" · 影子参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/></g>)}

@@ -2257,3 +2257,11 @@
   .ai-research-workbench .ai-institute-flow li>em{grid-column:2}
   .ai-agent-grid{grid-template-columns:1fr}
 }
+
+/* Current-session second-level observation overlay; historical data remains minute-granularity. */
+.second-observation-legend{color:var(--teal)!important}
+.second-observation-legend i{display:block;width:15px!important;height:0!important;border-top:1.5px dashed var(--teal)!important;border-radius:0!important;background:none!important;box-shadow:none!important}
+.second-observation-legend b{font:700 9px var(--font-geist-mono);color:var(--teal)}
+.live-second-layer{pointer-events:none}
+.live-second-path{fill:none;stroke:var(--teal);stroke-width:1.45;stroke-dasharray:3 2;stroke-linecap:round;stroke-linejoin:round;opacity:.92;vector-effect:non-scaling-stroke}
+.live-second-dot{fill:var(--teal);stroke:var(--surface);stroke-width:1.3;filter:drop-shadow(0 0 3px rgba(40,215,196,.65));vector-effect:non-scaling-stroke}
