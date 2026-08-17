@@ -5031,6 +5031,7 @@ const AI_RESEARCH_AGENTS=[
   {name:"守界兔",role:"风险审核",task:"检查回撤、成本与泄漏",tone:"coral",disabled:false},
   {name:"铸码兔",role:"开发执行",task:"等待人工授权，当前关闭",tone:"muted",disabled:true},
   {name:"质检兔",role:"质量验收",task:"测试结果与版本证据",tone:"green",disabled:false},
+  {name:"研策兔",role:"观点研策",task:"公开线索转V1影子候选",tone:"blue",disabled:false},
 ] as const;
 
 const AI_FACTOR_CATEGORIES=[
@@ -5150,7 +5151,7 @@ function AIQuantResearchInstituteView(){
     </section>
 
     <details className="ai-institute-details">
-      <summary><div><span>AGENT TEAM</span><b>七兔研究团队</b></div><em>7 个角色</em><i aria-hidden="true">＋</i></summary>
+      <summary><div><span>AGENT TEAM</span><b>八兔研究团队</b></div><em>8 个角色</em><i aria-hidden="true">＋</i></summary>
       <div className="ai-institute-grid ai-agent-detail-grid">
         <section className="ai-institute-agents" aria-labelledby="ai-agent-title">
           <div className="ai-institute-section-head"><div><span>AGENT STATUS</span><h2 id="ai-agent-title">角色状态</h2></div><small>{running?"控制面在线":"离线待命"}</small></div>
