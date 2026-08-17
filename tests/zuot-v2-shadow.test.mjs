@@ -39,6 +39,36 @@ function row(overrides = {}) {
   };
 }
 
+function confirmedV1Structure(overrides = {}) {
+  return {
+    distanceReady: true,
+    bottomDivergence: false,
+    topDivergence: false,
+    positiveMacdReversal: true,
+    reverseMacdReversal: false,
+    positiveVolumeResponse: true,
+    reverseVolumeResponse: false,
+    openingDirection: "neutral",
+    belowVwapShare: 0.5,
+    positiveVeto: false,
+    reverseVeto: false,
+    ...overrides,
+  };
+}
+
+function v1ReplayFactors(overrides = {}) {
+  return {
+    ...row().factors,
+    "volatility.atr14": 0.001,
+    "price.session_return": -0.002,
+    "vwap.slope_5m": 0,
+    "vwap.persistence_5m": -0.5,
+    "volume.momentum_3_15": -0.1,
+    "volume.dry_up_5_20": 0.2,
+    ...overrides,
+  };
+}
+
 test("positive-T applies the five-minute direction gate", () => {
   const accepted = evaluateZuoTShadowRow({ row: row(), direction: "positiveT" });
   const rejected = evaluateZuoTShadowRow({
@@ -140,6 +170,46 @@ test("future-only mutations cannot alter an earlier row decision", () => {
   session.minutes[1].price = 999;
   const second = evaluateZuoTShadowRow({ row: session.minutes[0], direction: "positiveT" });
   assert.deepEqual(second, first);
+});
+
+test("V1 structure confirmation permits a reconstructed candidate", () => {
+  const decision = evaluateZuoTShadowRow({
+    row: { ...row(), v1Structure: confirmedV1Structure() },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  assert.equal(decision.candidate, true);
+  assert.equal(decision.v1Structure.confirmed, true);
+  assert.equal(decision.formal, true);
+});
+
+test("V1 candidate remains observational without structure confirmation", () => {
+  const decision = evaluateZuoTShadowRow({
+    row: {
+      ...row(),
+      v1Structure: confirmedV1Structure({ distanceReady: false, positiveVolumeResponse: false }),
+    },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  assert.equal(decision.candidate, true);
+  assert.equal(decision.formal, false);
+  assert.ok(decision.rejectionReasons.includes("v1-structure-unconfirmed"));
+});
+
+test("V1 persistent-below-VWAP veto blocks positive-T", () => {
+  const decision = evaluateZuoTShadowRow({
+    row: {
+      ...row(),
+      v1Structure: confirmedV1Structure({ positiveVeto: true, belowVwapShare: 0.9 }),
+    },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  assert.equal(decision.v1Structure.confirmed, true);
+  assert.equal(decision.v1Structure.vetoed, true);
+  assert.equal(decision.formal, false);
+  assert.ok(decision.rejectionReasons.includes("v1-persistent-below-vwap"));
 });
 
 test("research safety flags prohibit automatic production promotion", () => {
@@ -251,12 +321,15 @@ test("reconstructed runner returns the shared BacktestResult shape", () => {
     { time: "0946", price: 35 },
     { time: "0947", price: 35.12, high: 35.15 },
   ]);
-  const factors = row().factors;
+  const factors = v1ReplayFactors();
   const factorEngine = {
     computeSession(input) {
       return {
         session: input,
-        rows: [{ date: input.date, time: "0946", index: 1, price: 35, factors }],
+        rows: [
+          { date: input.date, time: "0945", index: 0, price: 35, factors },
+          { date: input.date, time: "0946", index: 1, price: 35, factors },
+        ],
       };
     },
   };
@@ -275,6 +348,80 @@ test("reconstructed runner returns the shared BacktestResult shape", () => {
   assert.equal(result.curve.length, session.minutes.length);
   assert.equal(result.observations[0].stage, "candidate");
   assert.ok(Number.isFinite(result.maxDrawdown));
+});
+
+test("V1 positive-T exits after 30 causal minutes below VWAP with weakening MACD", () => {
+  const session = replaySession(Array.from({ length: 32 }, (_, index) => ({
+    time: `10${String(index).padStart(2, "0")}`,
+    price: 35,
+  })));
+  const factorRows = session.minutes.map((point, index) => ({
+    index,
+    time: point.time,
+    factors: {
+      "vwap.bias": -0.001,
+      "technical.macd_histogram": -0.001 - index * 0.00001,
+      "technical.macd_histogram_delta": -0.00001,
+    },
+  }));
+  const trade = simulateZuoTShadowCycle({
+    session,
+    signal: { index: 0, direction: "positiveT", atrRate: null },
+    factorRows,
+    options: {
+      enableV1MeanlineInvalidation: true,
+      feeRate: 0,
+      slippage: 0,
+      minCommission: false,
+      baseShares: 1600,
+      sellable: 1600,
+    },
+  });
+  assert.equal(trade.exitReason, "v1MeanlineInvalidation");
+  assert.equal(trade.exitReasonLabel, "均线下方失效退出");
+  assert.equal(trade.exitIndex, 30);
+});
+
+test("future factor rows cannot alter an earlier V1 invalidation exit", () => {
+  const session = replaySession(Array.from({ length: 33 }, (_, index) => ({
+    time: `10${String(index).padStart(2, "0")}`,
+    price: 35,
+  })));
+  const causalRows = session.minutes.map((point, index) => ({
+    index,
+    time: point.time,
+    factors: {
+      "vwap.bias": -0.001,
+      "technical.macd_histogram": -0.001 - index * 0.00001,
+      "technical.macd_histogram_delta": -0.00001,
+    },
+  }));
+  const changedFuture = structuredClone(causalRows);
+  changedFuture[31].factors["vwap.bias"] = 0.5;
+  changedFuture[31].factors["technical.macd_histogram"] = 0.5;
+  changedFuture[31].factors["technical.macd_histogram_delta"] = 0.5;
+  const options = {
+    enableV1MeanlineInvalidation: true,
+    feeRate: 0,
+    slippage: 0,
+    minCommission: false,
+    baseShares: 1600,
+    sellable: 1600,
+  };
+  const first = simulateZuoTShadowCycle({
+    session,
+    signal: { index: 0, direction: "positiveT", atrRate: null },
+    factorRows: causalRows,
+    options,
+  });
+  const second = simulateZuoTShadowCycle({
+    session,
+    signal: { index: 0, direction: "positiveT", atrRate: null },
+    factorRows: changedFuture,
+    options,
+  });
+  assert.equal(first.exitIndex, 30);
+  assert.deepEqual(second, first);
 });
 
 function replayFactorEngine(rows) {
@@ -439,8 +586,9 @@ test("reconstructed runners honor a one-cycle daily cap", () => {
     { time: "1010", price: 35 },
     { time: "1011", price: 35.12, high: 35.15 },
   ], "601899");
-  const factors = { ...row().factors, "orderflow.book_depth_imbalance": 0.2 };
+  const factors = { ...v1ReplayFactors(), "orderflow.book_depth_imbalance": 0.2 };
   const factorEngine = replayFactorEngine([
+    { date: session.date, time: "0945", index: 0, price: 35, factors },
     { date: session.date, time: "0946", index: 1, price: 35, factors },
     { date: session.date, time: "1010", index: 3, price: 35, factors },
   ]);
