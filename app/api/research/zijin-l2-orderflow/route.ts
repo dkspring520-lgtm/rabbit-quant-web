@@ -90,6 +90,7 @@ export async function GET(request: Request) {
     let initialSnapshot = true;
     let lastFingerprint = "";
     let lastSnapshotAt = 0;
+    let lastMinutesSnapshotAt = 0;
     const body = new ReadableStream({
       start(controller) {
         const close = () => {
@@ -110,10 +111,12 @@ export async function GET(request: Request) {
             payload.status?.stale,
           ].join("|");
           if (initialSnapshot || fingerprint !== lastFingerprint || Date.now() - lastSnapshotAt >= 2_500) {
-            const outgoing = initialSnapshot
+            const includeRecentMinutes = initialSnapshot || Date.now() - lastMinutesSnapshotAt >= 2_500;
+            const outgoing = includeRecentMinutes
               ? payload
               : { ...payload, recentMinutes: [] };
             controller.enqueue(encoder.encode(`event: snapshot\ndata: ${JSON.stringify(outgoing)}\n\n`));
+            if (includeRecentMinutes) lastMinutesSnapshotAt = Date.now();
             initialSnapshot = false;
             lastFingerprint = fingerprint;
             lastSnapshotAt = Date.now();
