@@ -1083,7 +1083,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(!active)return;
       const servedAt=Date.parse(payload.meta?.servedAt??"");
       setLiveL2PushLatencyMs(Number.isFinite(servedAt)?Math.max(0,Date.now()-servedAt):null);
-      setLiveL2Status(payload);
+      setLiveL2Status(current=>{
+        const payloadDay=payload.lastExchangeTime?.match(/^(\d{8})-/)?.[1];
+        const currentDay=current?.lastExchangeTime?.match(/^(\d{8})-/)?.[1];
+        const retainMinutes=payload.recentMinutes?.length===0&&current?.recentMinutes?.length&&payloadDay===currentDay;
+        return retainMinutes?{...payload,recentMinutes:current.recentMinutes}:payload;
+      });
       if(payload.status?.connected&&!stale){
         setLiveL2ByMinute(current=>{
           const next={...current};
