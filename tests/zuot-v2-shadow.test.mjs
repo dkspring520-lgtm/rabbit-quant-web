@@ -212,6 +212,49 @@ test("V1 persistent-below-VWAP veto blocks positive-T", () => {
   assert.ok(decision.rejectionReasons.includes("v1-persistent-below-vwap"));
 });
 
+test("V1 only accepts learned-rule votes after full shadow validation", () => {
+  const weakFactors = {
+    ...row().factors,
+    "volume.ratio_5_20": 0.5,
+    "orderflow.active_buy_imbalance": -0.2,
+    "technical.kdj_j9": 0.3,
+    "technical.bollinger_position_20": 0.3,
+  };
+  const learnedRule = {
+    ruleId: "social-volume-vwap-001",
+    version: "1.0.0",
+    source: "public-research",
+    status: "validated",
+    direction: "positiveT",
+    matched: true,
+    approvedForV1Shadow: true,
+    futureLeakagePassed: true,
+    dataLeakagePassed: true,
+    riskPassed: true,
+    sampleCount: 120,
+    tradingDays: 70,
+    outOfSampleWinRate: 0.56,
+    netAfterCost: 0.08,
+    profitFactor: 1.25,
+  };
+  const rejected = evaluateZuoTShadowRow({
+    row: { ...row(), factors: weakFactors, v1Structure: confirmedV1Structure(), v1LearnedRules: [{ ...learnedRule, status: "candidate" }] },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  const accepted = evaluateZuoTShadowRow({
+    row: { ...row(), factors: weakFactors, v1Structure: confirmedV1Structure(), v1LearnedRules: [learnedRule] },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  assert.equal(rejected.v1VoteCount, 3);
+  assert.equal(rejected.formal, false);
+  assert.equal(accepted.v1Votes.learnedRule, true);
+  assert.deepEqual(accepted.v1LearnedRules.confirmedRuleIds, ["social-volume-vwap-001"]);
+  assert.equal(accepted.v1VoteCount, 4);
+  assert.equal(accepted.formal, true);
+});
+
 test("research safety flags prohibit automatic production promotion", () => {
   assert.equal(ZUOT_V2_SHADOW_SAFETY.researchOnly, true);
   assert.equal(ZUOT_V2_SHADOW_SAFETY.affectsSmartT, false);
