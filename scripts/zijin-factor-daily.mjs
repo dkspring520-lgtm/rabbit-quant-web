@@ -7,6 +7,7 @@ import {
   hashZijinFactorLedgerRecord,
   normalizeZijinFactorRegistry,
 } from "../lib/zijin-factor-lifecycle.mjs";
+import { createZijinDailyAssignment } from "../lib/zijin-daily-assignment.mjs";
 
 const bundledRegistry = resolve(process.cwd(), "public/research/zijin-factor-registry.json");
 const bundledDailyState = resolve(process.cwd(), "public/research/zijin-factor-daily.json");
@@ -15,6 +16,8 @@ const registryPath = process.env.ZIJIN_FACTOR_REGISTRY_PATH || bundledRegistry;
 const dailyStatePath = process.env.ZIJIN_FACTOR_DAILY_STATE_PATH || "/training-state/zijin-factor-daily.json";
 const ledgerPath = process.env.ZIJIN_FACTOR_DAILY_LEDGER_PATH || "/training-runtime/factors/zijin-factor-daily.jsonl";
 const shadowStatePath = process.env.ZIJIN_SHADOW_STATE_PATH || "/training-state/zijin-shadow-ab.json";
+const assignmentPath = process.env.ZIJIN_DAILY_ASSIGNMENT_PATH || "/training-state/zijin-daily-assignment.json";
+const observationsPath = process.env.ZIJIN_DAILY_OBSERVATIONS_PATH || "/training-state/zijin-daily-observations.json";
 
 const readJson = async path => JSON.parse(await readFile(path, "utf8"));
 const todayInShanghai = () => new Intl.DateTimeFormat("en-CA", {
@@ -115,9 +118,29 @@ export async function runZijinFactorDaily({ marketDate = todayInShanghai(), sche
   return ledgerRecord;
 }
 
+export async function runZijinDailyAssignment({ marketDate = todayInShanghai(), generatedAt = new Date().toISOString() } = {}) {
+  const registry = normalizeZijinFactorRegistry(await readFirst(
+    registryPath === bundledRegistry ? [bundledRegistry] : [registryPath, bundledRegistry],
+    createZijinFactorRegistry(),
+  ));
+  const dailyRun = await readFirst(
+    dailyStatePath === bundledDailyState ? [bundledDailyState] : [dailyStatePath, bundledDailyState],
+    null,
+  );
+  const shadowState = await readFirst(
+    shadowStatePath === bundledShadowState ? [bundledShadowState] : [shadowStatePath, bundledShadowState],
+    null,
+  );
+  const observations = await readFirst([observationsPath], null);
+  const assignment = createZijinDailyAssignment({ marketDate, generatedAt, registry, dailyRun, shadowState, observations });
+  await writeJsonAtomic(assignmentPath, assignment);
+  return assignment;
+}
+
 export async function runZijinFactorDailyDaemon({ pollMs = Number(process.env.ZIJIN_FACTOR_DAILY_POLL_MS || 60000) } = {}) {
   const sleep = ms => new Promise(resolvePromise => setTimeout(resolvePromise, ms));
   let lastAttemptedDate = "";
+  let lastAssignmentDate = "";
   console.log("[zijin-factor-daily] daemon started; shadow-only scheduler active");
   while (true) {
     try {
@@ -139,6 +162,12 @@ export async function runZijinFactorDailyDaemon({ pollMs = Number(process.env.ZI
           formal: result.summary?.formal ?? 0,
         }));
       }
+      // Generate the research assignment after the market closes, before midnight.
+      if (clock.minutes >= 23 * 60 + 45 && lastAssignmentDate !== clock.marketDate) {
+        const assignment = await runZijinDailyAssignment({ marketDate: clock.marketDate });
+        lastAssignmentDate = clock.marketDate;
+        console.log(JSON.stringify({ assignmentId: assignment.assignmentId, marketDate: assignment.marketDate, status: assignment.status, reportHash: assignment.integrity.reportHash }));
+      }
     } catch (error) {
       console.error(`[zijin-factor-daily] ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -149,6 +178,13 @@ export async function runZijinFactorDailyDaemon({ pollMs = Number(process.env.ZI
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.includes("--daemon")) {
     await runZijinFactorDailyDaemon();
+    process.exit(0);
+  }
+  if (process.argv.includes("--assignment")) {
+    const dateArgumentIndex = process.argv.indexOf("--date");
+    const marketDate = dateArgumentIndex >= 0 ? process.argv[dateArgumentIndex + 1] : todayInShanghai();
+    const result = await runZijinDailyAssignment({ marketDate });
+    console.log(JSON.stringify({ assignmentId: result.assignmentId, marketDate: result.marketDate, status: result.status, reportHash: result.integrity.reportHash }));
     process.exit(0);
   }
   const dateArgumentIndex = process.argv.indexOf("--date");

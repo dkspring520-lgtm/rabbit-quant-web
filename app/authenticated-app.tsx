@@ -5068,8 +5068,25 @@ type PaperclipRuntimeStatus={
   message:string;
 };
 
+type ZijinDailyAssignment={
+  assignmentId:string;
+  marketDate:string;
+  generatedAt:string;
+  status:string;
+  direction:{state:string;label:string;confidence:number|null;probabilities:Record<string,number>|null;reason:string;invalidatedBy:string[]};
+  horizons:Array<{id:string;label:string;state:string;direction:string;probability:number|null;confidence:number|null;evidence:string}>;
+  factorResonance:Array<{id:string;label:string;detail:string;state:string;score:number|null;note:string}>;
+  findings:string[];
+  candidateRules:Array<{title:string;direction:string;status:string;source:string;rule:string}>;
+  evidence:{status:string;sampleCount:number;supportSamples:number;failedSamples:number;postFeeReturnPct:number|null;profitFactor:number|null;maxDrawdownPct:number|null;note:string};
+  promotion:{state:string;nextAction:string;affectsFormalStrategy:boolean;canTrade:boolean};
+  integrity:{reportHash:string};
+  meta?:{servedAt?:string;source?:string};
+};
+
 function AIQuantResearchInstituteView(){
   const [runtime,setRuntime]=useState<PaperclipRuntimeStatus|null>(null);
+  const [dailyAssignment,setDailyAssignment]=useState<ZijinDailyAssignment|null>(null);
   useEffect(()=>{
     let active=true;
     let timer:number|undefined;
@@ -5093,10 +5110,34 @@ function AIQuantResearchInstituteView(){
     document.addEventListener("visibilitychange",onVisibility);
     return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer);document.removeEventListener("visibilitychange",onVisibility);};
   },[]);
+  useEffect(()=>{
+    let active=true;
+    let timer:number|undefined;
+    const load=async()=>{
+      if(document.visibilityState!=="visible"){
+        if(active)timer=window.setTimeout(()=>void load(),30_000);
+        return;
+      }
+      try{
+        const response=await fetch(`/api/research/zijin-daily-assignment?t=${Date.now()}`,{cache:"no-store"});
+        if(!response.ok)throw new Error(`HTTP ${response.status}`);
+        const payload=await response.json() as ZijinDailyAssignment;
+        if(active)setDailyAssignment(payload);
+      }catch{/* 保留上一份作业；没有证据时由服务端返回待验证状态。 */}
+      if(active)timer=window.setTimeout(()=>void load(),60_000);
+    };
+    void load();
+    const onVisibility=()=>{if(document.visibilityState==="visible"){if(timer!==undefined)window.clearTimeout(timer);void load();}};
+    document.addEventListener("visibilitychange",onVisibility);
+    return()=>{active=false;if(timer!==undefined)window.clearTimeout(timer);document.removeEventListener("visibilitychange",onVisibility);};
+  },[]);
   const running=runtime?.status==="running"&&runtime.services.paperclip==="healthy"&&runtime.services.bridge==="healthy";
   const runtimeTitle=running?"控制面运行中":runtime?.status==="degraded"?"控制面异常":"离线研究就绪";
   const runtimeDetail=running?"Paperclip / 研究桥均健康":runtime?.message??"正在读取服务器状态";
   const checkedTime=runtime?.checkedAt?new Date(runtime.checkedAt).toLocaleTimeString("zh-CN",{hour12:false}):null;
+  const assignmentDirection=dailyAssignment?.direction;
+  const assignmentDirectionTone=assignmentDirection?.state==="up"?"up":assignmentDirection?.state==="down"?"down":assignmentDirection?.state==="range"?"range":"pending";
+  const assignmentDate=dailyAssignment?.marketDate??"等待生成";
   return <main className="ai-institute-view">
     <header className="ai-institute-head">
       <div><span>AI QUANT RESEARCH INSTITUTE</span><h1>AI量化研究院</h1><p>做T因子研究与样本外验证</p></div>
@@ -5129,6 +5170,26 @@ function AIQuantResearchInstituteView(){
           <div><span>生产权限</span><b>0</b><small>人工闸门</small></div>
           <div className="ai-kpi-lock" aria-hidden="true"><i/></div>
         </article>
+      </div>
+    </section>
+
+    <section className="ai-daily-assignment" aria-labelledby="ai-daily-assignment-title">
+      <header className="ai-daily-assignment-head">
+        <div><span>RESEARCH RABBIT · DAILY ASSIGNMENT</span><h2 id="ai-daily-assignment-title">研策兔每日作业</h2><p>紫金矿业 601899 · {assignmentDate} · 只进入 V1 影子层</p></div>
+        <div className={`ai-daily-direction ${assignmentDirectionTone}`}><small>今日方向</small><b>{assignmentDirection?.label??"连接中"}</b><em>{assignmentDirection?.confidence!==null&&assignmentDirection?.confidence!==undefined?`${Math.round(assignmentDirection.confidence*100)}% 置信度`:"待验证"}</em></div>
+      </header>
+      <div className="ai-daily-assignment-grid">
+        <div className="ai-daily-horizons" aria-label="多周期方向判断">
+          {(dailyAssignment?.horizons??[]).map(item=><div key={item.id} className={item.state}><span>{item.label}</span><b>{item.direction}</b><small>{item.probability!==null?`${Math.round(item.probability*100)}%`:"—"}</small></div>)}
+        </div>
+        <div className="ai-daily-factors" aria-label="因子联动状态">
+          {(dailyAssignment?.factorResonance??[]).map(item=><div key={item.id}><span><i className={item.state}/>{item.label}</span><b>{item.score!==null?item.score:"—"}</b></div>)}
+        </div>
+      </div>
+      <div className="ai-daily-assignment-foot">
+        <div><b>影子样本</b><span>{dailyAssignment?.evidence.sampleCount??"—"}</span><small>{dailyAssignment?.evidence.status==="insufficient"?"证据不足":dailyAssignment?.evidence.note??"继续验证"}</small></div>
+        <div><b>候选规则</b><span>{dailyAssignment?.candidateRules?.length??0}</span><small>不触发正式交易</small></div>
+        <div className="ai-daily-assignment-next"><b>下一步</b><span>{dailyAssignment?.promotion.nextAction??"读取每日作业"}</span></div>
       </div>
     </section>
 
