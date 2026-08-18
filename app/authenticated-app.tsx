@@ -2134,6 +2134,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       occupied.push({left:fallback.labelX-width/2-4,right:fallback.labelX+width/2+4,top:fallback.baseline-height+1,bottom:fallback.baseline+6});
       return {labelX:fallback.labelX,labelY:fallback.baseline};
     };
+    const reserveMarkerLabelAbove=(pointX:number,pointY:number,width:number,height:number)=>{
+      const labelX=Math.max(width/2+2,Math.min(LIVE_CHART.width-width/2-2,pointX));
+      const baselines=[0,18,36,54,72,90,108].map(lift=>Math.max(13,pointY-14-lift));
+      for(const baseline of baselines){
+        const box={left:labelX-width/2-4,right:labelX+width/2+4,top:baseline-height+1,bottom:baseline+6};
+        const collision=occupied.some(other=>box.left<other.right+3&&box.right>other.left-3&&box.top<other.bottom+3&&box.bottom>other.top-3);
+        if(!collision){occupied.push(box);return {labelX,labelY:baseline};}
+      }
+      const labelY=baselines.at(-1)??Math.max(13,pointY-14);
+      occupied.push({left:labelX-width/2-4,right:labelX+width/2+4,top:labelY-height+1,bottom:labelY+6});
+      return {labelX,labelY};
+    };
     // Formal orders get first choice of label space. Every other marker is
     // stamped at its real confirmation minute; no historical pivot is backfilled.
     const actions=(zijinMonitorStrategy==="closure"?liveEngine.actions:[]).flatMap((action,index)=>{
@@ -2154,7 +2166,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const isSell=action.side==="卖出";
       const label=v29ShadowActionLabel(action);
       const labelWidth=label.length*8+16;
-      const placed=reserveLabel(point.x,isSell?point.y-13:point.y+22,labelWidth,17,isSell?-1:1);
+      const placed=reserveMarkerLabelAbove(point.x,point.y,labelWidth,17);
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
     // Keep the chart readable: each side gets one latest, highest-priority
@@ -2192,7 +2204,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const labelVisible=true;
       const labelRendered=observationLabelSlots.has(index);
       const placed=labelRendered
-        ? reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1)
+        ? reserveMarkerLabelAbove(point.x,point.y,labelWidth,16)
         : {labelX:point.x,labelY:point.y};
       return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,labelWidth,labelVisible,labelRendered,observation}];
     });
@@ -4091,8 +4103,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${zijinMonitorStrategy==="v29"?"v29-shadow-marker":""} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.currentLabel}${zijinMonitorStrategy==="v29"?" · 影子参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/></g>)}
-              {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker v29-shadow-marker ${marker.isSell?'sell':'buy'} with-label`} key={`v29-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+5:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="4.5"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text></g>)}
+              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${zijinMonitorStrategy==="v29"?"v29-shadow-marker":""} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.currentLabel}${zijinMonitorStrategy==="v29"?" · 影子参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.y-5} x2={marker.labelX} y2={marker.labelY+5} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/></g>)}
+              {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker v29-shadow-marker ${marker.isSell?'sell':'buy'} with-label`} key={`v29-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title><line x1={marker.x} y1={marker.y-5} x2={marker.labelX} y2={marker.labelY+5} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="4.5"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text></g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
