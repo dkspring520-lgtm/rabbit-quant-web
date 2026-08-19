@@ -5105,6 +5105,7 @@ type ZijinDailyAssignment={
   findings:string[];
   candidateRules:Array<{title:string;direction:string;status:string;source:string;rule:string}>;
   evidence:{status:string;sampleCount:number;supportSamples:number;failedSamples:number;postFeeReturnPct:number|null;profitFactor:number|null;maxDrawdownPct:number|null;note:string};
+  onlineLearning?:{status:string;readySources:number;totalSources:number;officialEvents:number;leadEvents:number;affectsFormalStrategy:boolean;canTrade:boolean};
   promotion:{state:string;nextAction:string;affectsFormalStrategy:boolean;canTrade:boolean};
   integrity:{reportHash:string};
   meta?:{servedAt?:string;source?:string};
@@ -5164,6 +5165,7 @@ function AIQuantResearchInstituteView(){
   const assignmentDirection=dailyAssignment?.direction;
   const assignmentDirectionTone=assignmentDirection?.state==="up"?"up":assignmentDirection?.state==="down"?"down":assignmentDirection?.state==="range"?"range":"pending";
   const assignmentDate=dailyAssignment?.marketDate??"等待生成";
+  const onlineLearning=dailyAssignment?.onlineLearning;
   return <main className="ai-institute-view">
     <header className="ai-institute-head">
       <div><span>AI QUANT RESEARCH INSTITUTE</span><h1>AI量化研究院</h1><p>做T因子研究与样本外验证</p></div>
@@ -5201,7 +5203,7 @@ function AIQuantResearchInstituteView(){
 
     <section className="ai-daily-assignment" aria-labelledby="ai-daily-assignment-title">
       <header className="ai-daily-assignment-head">
-        <div><span>RESEARCH RABBIT · DAILY ASSIGNMENT</span><h2 id="ai-daily-assignment-title">研策兔每日作业</h2><p>紫金矿业 601899 · {assignmentDate} · 只进入 V1 影子层</p></div>
+        <div><span>RESEARCH RABBIT · DAILY ASSIGNMENT</span><h2 id="ai-daily-assignment-title">研策兔每日作业</h2><p>紫金矿业 601899 · {assignmentDate} · 影子层 · 联网 {onlineLearning?`${onlineLearning.readySources}/${onlineLearning.totalSources}`:"待连接"}</p></div>
         <div className={`ai-daily-direction ${assignmentDirectionTone}`}><small>今日方向</small><b>{assignmentDirection?.label??"连接中"}</b><em>{assignmentDirection?.confidence!==null&&assignmentDirection?.confidence!==undefined?`${Math.round(assignmentDirection.confidence*100)}% 置信度`:"待验证"}</em></div>
       </header>
       <div className="ai-daily-assignment-grid">
