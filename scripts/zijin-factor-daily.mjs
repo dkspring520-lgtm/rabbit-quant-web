@@ -8,6 +8,7 @@ import {
   normalizeZijinFactorRegistry,
 } from "../lib/zijin-factor-lifecycle.mjs";
 import { createZijinDailyAssignment } from "../lib/zijin-daily-assignment.mjs";
+import { createZijinOnlineLearningObservations } from "../lib/zijin-online-learning.mjs";
 
 const bundledRegistry = resolve(process.cwd(), "public/research/zijin-factor-registry.json");
 const bundledDailyState = resolve(process.cwd(), "public/research/zijin-factor-daily.json");
@@ -18,6 +19,7 @@ const ledgerPath = process.env.ZIJIN_FACTOR_DAILY_LEDGER_PATH || "/training-runt
 const shadowStatePath = process.env.ZIJIN_SHADOW_STATE_PATH || "/training-state/zijin-shadow-ab.json";
 const assignmentPath = process.env.ZIJIN_DAILY_ASSIGNMENT_PATH || "/training-state/zijin-daily-assignment.json";
 const observationsPath = process.env.ZIJIN_DAILY_OBSERVATIONS_PATH || "/training-state/zijin-daily-observations.json";
+const researchOrigin = process.env.ZIJIN_RESEARCH_ORIGIN || process.env.ZIJIN_SHADOW_MARKET_ORIGIN || "http://web:3000";
 
 const readJson = async path => JSON.parse(await readFile(path, "utf8"));
 const todayInShanghai = () => new Intl.DateTimeFormat("en-CA", {
@@ -78,6 +80,56 @@ async function writeJsonAtomic(path, value) {
   const temporaryPath = path + ".tmp";
   await writeFile(temporaryPath, JSON.stringify(value, null, 2) + "\n", "utf8");
   await rename(temporaryPath, path);
+}
+
+async function fetchResearchJson(path, fetchImpl = fetch) {
+  const response = await fetchImpl(`${researchOrigin}${path}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) throw new Error(`${path} HTTP ${response.status}`);
+  return response.json();
+}
+
+export async function collectZijinOnlineLearning({
+  marketDate = todayInShanghai(),
+  collectedAt = new Date().toISOString(),
+  fetchImpl = fetch,
+} = {}) {
+  const errors = [];
+  const marketDataResult = await Promise.allSettled([
+    fetchResearchJson("/api/market-data?code=601899&mode=trial-realtime", fetchImpl),
+  ]);
+  const marketData = marketDataResult[0].status === "fulfilled" ? marketDataResult[0].value : null;
+  if (marketDataResult[0].status === "rejected") errors.push(`紫金行情：${marketDataResult[0].reason instanceof Error ? marketDataResult[0].reason.message : "请求失败"}`);
+  const change = Number(marketData?.quote?.changePercent);
+  const settled = await Promise.allSettled([
+    fetchResearchJson(`/api/market-context?code=601899&change=${encodeURIComponent(Number.isFinite(change) ? change : 0)}`, fetchImpl),
+    fetchResearchJson(`/api/event-radar?codes=601899&names=${encodeURIComponent("紫金矿业")}`, fetchImpl),
+    fetchResearchJson("/api/research/zijin-l2-orderflow", fetchImpl),
+  ]);
+  const labels = ["市场环境", "事件雷达", "L2盘口"];
+  settled.forEach((result, index) => {
+    if (result.status === "rejected") errors.push(`${labels[index]}：${result.reason instanceof Error ? result.reason.message : "请求失败"}`);
+  });
+  for (const failure of Array.isArray(marketData?.failures) ? marketData.failures : []) errors.push(`紫金行情：${String(failure)}`);
+  if (settled[0].status === "fulfilled") {
+    for (const failure of Array.isArray(settled[0].value?.errors) ? settled[0].value.errors : []) errors.push(`市场环境：${String(failure)}`);
+  }
+  if (settled[1].status === "fulfilled") {
+    for (const failure of Array.isArray(settled[1].value?.errors) ? settled[1].value.errors : []) errors.push(`事件雷达：${String(failure)}`);
+  }
+  const observations = createZijinOnlineLearningObservations({
+    marketDate,
+    collectedAt,
+    marketData,
+    marketContext: settled[0].status === "fulfilled" ? settled[0].value : null,
+    eventRadar: settled[1].status === "fulfilled" ? settled[1].value : null,
+    l2: settled[2].status === "fulfilled" ? settled[2].value : null,
+    errors,
+  });
+  await writeJsonAtomic(observationsPath, observations);
+  return observations;
 }
 
 export async function runZijinFactorDaily({ marketDate = todayInShanghai(), scheduledAt = new Date().toISOString(), force = false } = {}) {
@@ -151,6 +203,7 @@ export async function runZijinFactorDailyDaemon({ pollMs = Number(process.env.ZI
       const clock = shanghaiClock();
       const startMinutes = parseWindowStart(registry.scheduler?.window);
       if (registry.scheduler?.enabled !== false && clock.minutes >= startMinutes && lastAttemptedDate !== clock.marketDate) {
+        const observations = await collectZijinOnlineLearning({ marketDate: clock.marketDate });
         const result = await runZijinFactorDaily({ marketDate: clock.marketDate });
         lastAttemptedDate = clock.marketDate;
         console.log(JSON.stringify({
@@ -160,13 +213,15 @@ export async function runZijinFactorDailyDaemon({ pollMs = Number(process.env.ZI
           skipped: result.skipped === true,
           shadow: result.summary?.shadow ?? 0,
           formal: result.summary?.formal ?? 0,
+          onlineSources: observations.onlineLearning.readySources,
         }));
       }
       // Generate the research assignment after the market closes, before midnight.
       if (clock.minutes >= 23 * 60 + 45 && lastAssignmentDate !== clock.marketDate) {
+        const observations = await collectZijinOnlineLearning({ marketDate: clock.marketDate });
         const assignment = await runZijinDailyAssignment({ marketDate: clock.marketDate });
         lastAssignmentDate = clock.marketDate;
-        console.log(JSON.stringify({ assignmentId: assignment.assignmentId, marketDate: assignment.marketDate, status: assignment.status, reportHash: assignment.integrity.reportHash }));
+        console.log(JSON.stringify({ assignmentId: assignment.assignmentId, marketDate: assignment.marketDate, status: assignment.status, onlineSources: observations.onlineLearning.readySources, reportHash: assignment.integrity.reportHash }));
       }
     } catch (error) {
       console.error(`[zijin-factor-daily] ${error instanceof Error ? error.message : String(error)}`);
