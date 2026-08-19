@@ -4556,7 +4556,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       </div></div>}
       {memberAdminOpen&&<MemberAdminView onClose={()=>setMemberAdminOpen(false)}/>}
       {alertLogOpen&&premiumEnabled&&<AlertLogView stocks={stockList} activeCode={stock.code} localHistory={alertHistory} onClose={()=>setAlertLogOpen(false)}/>}
-      {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={(next,list,positions)=>{const allowed=enforceWatchlistLimit(list,accountRole,accountMembership?.active===true,accountMembership?.planId);const allowedCodes=new Set(allowed.map(item=>item.code));const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}setOnboardingOpen(false)}}/>}
+      {onboardingOpen&&<OnboardingView key={`${accountName}:${Object.keys(stockPositions).length}:${stockList.length}`} accountName={accountName} initial={preferences} initialList={stockList} initialPositions={stockPositions} maxStocks={monitorLimit} onSave={async(next,list,positions)=>{
+        const allowed=enforceWatchlistLimit(list,accountRole,accountMembership?.active===true,accountMembership?.planId);
+        const allowedCodes=new Set(allowed.map(item=>item.code));
+        const allowedPositions=Object.fromEntries(Object.entries(positions).filter(([code])=>allowedCodes.has(code)));
+        if(!demoMode){
+          const response=await fetch('/api/control/monitors',{method:'PUT',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({monitors:allowed.map(item=>({code:item.code,name:item.name,enabled:true,profile,position:allowedPositions[item.code]??{}}))})});
+          if(!response.ok)throw new Error('监控股票保存失败，请稍后重试');
+        }
+        setPreferences(next);setHasPersistedPreferences(true);setStockList(allowed);setStockPositions(allowedPositions);setActiveStock(current=>Math.min(current,allowed.length-1));
+        try{localStorage.setItem(`rabbit-prefs:${accountName.toLowerCase()}`,JSON.stringify(next));localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(allowed))}catch{}
+        setOnboardingOpen(false);
+      }}/>}
       {tShareOpen&&<div className="t-share-overlay" role="dialog" aria-modal="true" aria-label="今日做T复盘分享" onMouseDown={event=>{if(event.target===event.currentTarget)setTShareOpen(false)}}>
         <section className="t-share-dialog">
           <header className="t-share-head"><div><span>RABBIT SMART-T · SHARE</span><h2>{tShareTitle}</h2><p>今日信号全部标记；实心点为正式动作，空心点为候选观察。</p></div><button type="button" onClick={()=>setTShareOpen(false)} aria-label="关闭分享卡">×</button></header>
@@ -4842,7 +4853,7 @@ function HomeView({onNavigate,onOpenZijin,stockCount,canInvite,referralCredits,o
   </section>;
 }
 
-function OnboardingView({accountName,initial,initialList,initialPositions,maxStocks,onSave}:{accountName:string;initial:AccountPreferences;initialList:typeof initialStocks;initialPositions:StockPositionMap;maxStocks:number;onSave:(value:AccountPreferences,list:typeof initialStocks,positions:StockPositionMap)=>void}){
+function OnboardingView({accountName,initial,initialList,initialPositions,maxStocks,onSave}:{accountName:string;initial:AccountPreferences;initialList:typeof initialStocks;initialPositions:StockPositionMap;maxStocks:number;onSave:(value:AccountPreferences,list:typeof initialStocks,positions:StockPositionMap)=>Promise<void>}){
   const [stock,setStock]=useState(initial.stock);
   const [risk,setRisk]=useState(initial.risk);
   const [list,setList]=useState(initialList);
@@ -4850,6 +4861,7 @@ function OnboardingView({accountName,initial,initialList,initialPositions,maxSto
   const [newCode,setNewCode]=useState('');
   const [newName,setNewName]=useState('');
   const [listError,setListError]=useState('');
+  const [saving,setSaving]=useState(false);
   const [positionDrafts,setPositionDrafts]=useState<Record<string,{tradeShares?:string;maxDailyTrades?:string}>>({});
   const selectedCode=stock.match(/\d{6}/)?.[0]??list[0]?.code??'';
   const selectedStock=list.find(item=>item.code===selectedCode)??list[0];
@@ -4879,7 +4891,8 @@ function OnboardingView({accountName,initial,initialList,initialPositions,maxSto
   });
   const add=()=>{const code=newCode.replace(/\D/g,'').slice(0,6);const name=newName.trim();if(list.length>=maxStocks){setListError(`当前会员最多同时监控 ${maxStocks} 只股票；删除一只后可继续添加`);return}if(code.length!==6||!name){setListError('请输入6位股票代码和股票名称');return}if(list.some(item=>item.code===code)){setListError('该股票已经在监控列表中');return}const next=[...list,{code,name,price:'--',change:'0.00%'}];setList(next);setPositions(current=>({...current,[code]:normalizeStockPosition({},code)}));setStock(`${code} ${name}`);setNewCode('');setNewName('');setListError('')};
   const remove=(code:string)=>{if(list.length<=1){setListError('至少需要保留一只监控股票');return}const next=list.filter(item=>item.code!==code);setList(next);setPositions(current=>{const updated={...current};delete updated[code];return updated});if(stock.startsWith(code))setStock(`${next[0].code} ${next[0].name}`);setListError('')};
-  const save=()=>{
+  const save=async()=>{
+    if(saving)return;
     const savedPositions:StockPositionMap=Object.fromEntries(list.map(item=>{
       const position=positions[item.code]??migrateLegacyPosition(initial,item.code);
       const normalized=normalizeStockPosition({
@@ -4890,9 +4903,15 @@ function OnboardingView({accountName,initial,initialList,initialPositions,maxSto
       return [item.code,confirmStockPosition(window.localStorage,accountName,normalized)];
     }));
     const defaultPosition=savedPositions[selectedCode]??normalizeStockPosition({},selectedCode);
-    onSave({stock,baseShares:defaultPosition.plannedBase,risk,strategyProfile:initial.strategyProfile,profitMode:initial.profitMode},list,savedPositions);
+    setSaving(true);setListError('');
+    try{
+      await onSave({stock,baseShares:defaultPosition.plannedBase,risk,strategyProfile:initial.strategyProfile,profitMode:initial.profitMode},list,savedPositions);
+    }catch(error){
+      setListError(error instanceof Error?error.message:'监控股票保存失败，请稍后重试');
+      setSaving(false);
+    }
   };
-  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>每只股票独立保存持仓和做T额度，切换股票不会串用。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票 · {list.length}/{maxStocks}</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>setNewCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="off" placeholder="6位代码" disabled={list.length>=maxStocks}/><input value={newName} onChange={e=>setNewName(e.target.value)} autoComplete="off" placeholder="股票名称" disabled={list.length>=maxStocks}/><button onClick={add} disabled={list.length>=maxStocks}>{list.length>=maxStocks?`已达 ${maxStocks} 只上限`:'＋ 添加'}</button></div>{listError&&<small className="list-error">{listError}</small>}<small>当前会员最多同时监控 {maxStocks} 只股票；先点击一只股票，再单独填写它的持仓。</small></div></div><div className="onboarding-step"><b>02</b><div><span>{selectedStock?`${selectedStock.name}（${selectedCode}）持仓与做T额度`:'当前股票持仓'}</span><div className="position-setup-grid"><label><span>现有持仓数</span><div><input type="text" inputMode="numeric" value={selectedPosition.openingShares||''} onChange={event=>updatePosition('currentShares',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>默认视为开盘前可卖旧仓</small></label><label><span>每次可做T数目</span><div><input type="text" inputMode="numeric" value={positionDrafts[selectedCode]?.tradeShares??(selectedTradeShares||'')} onChange={event=>updatePositionDraft('tradeShares',event.target.value)} onBlur={()=>finishPositionDraft('tradeShares')}/><em>股</em></div><small>按100股取整且不超过持仓</small></label><label><span>每天最大做T次数</span><div><input type="text" inputMode="numeric" value={positionDrafts[selectedCode]?.maxDailyTrades??selectedMaxDailyTrades} onChange={event=>updatePositionDraft('maxDailyTrades',event.target.value)} onBlur={()=>finishPositionDraft('maxDailyTrades')}/><em>次</em></div><small>允许1～10次，达到后停止新增</small></label></div><small>系统仍会执行 T+1、成本和风控检查；当日新买股份不会被误计为可卖旧仓。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={save}>保存全部股票持仓 <span>→</span></button></div></div>;
+  return <div className="onboarding-overlay"><div className="onboarding-card"><div className="onboarding-head"><span>ACCOUNT SETUP</span><h2>设置你的交易工作台</h2><p>每只股票独立保存持仓和做T额度，切换股票不会串用。</p></div><div className="onboarding-step watchlist-step"><b>01</b><div><span>监控股票与默认股票 · {list.length}/{maxStocks}</span><div className="preference-watchlist">{list.map(item=><div className={stock.startsWith(item.code)?'active':''} key={item.code}><button onClick={()=>setStock(`${item.code} ${item.name}`)}><b>{item.name}</b><small>{item.code}</small></button><button onClick={()=>remove(item.code)} aria-label={`删除${item.name}`}>×</button></div>)}</div><div className="stock-add-row"><input value={newCode} onChange={e=>setNewCode(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" autoComplete="off" placeholder="6位代码" disabled={list.length>=maxStocks}/><input value={newName} onChange={e=>setNewName(e.target.value)} autoComplete="off" placeholder="股票名称" disabled={list.length>=maxStocks}/><button onClick={add} disabled={list.length>=maxStocks}>{list.length>=maxStocks?`已达 ${maxStocks} 只上限`:'＋ 添加'}</button></div>{listError&&<small className="list-error">{listError}</small>}<small>当前会员最多同时监控 {maxStocks} 只股票；先点击一只股票，再单独填写它的持仓。</small></div></div><div className="onboarding-step"><b>02</b><div><span>{selectedStock?`${selectedStock.name}（${selectedCode}）持仓与做T额度`:'当前股票持仓'}</span><div className="position-setup-grid"><label><span>现有持仓数</span><div><input type="text" inputMode="numeric" value={selectedPosition.openingShares||''} onChange={event=>updatePosition('currentShares',Number(event.target.value.replace(/\D/g,''))||0)}/><em>股</em></div><small>默认视为开盘前可卖旧仓</small></label><label><span>每次可做T数目</span><div><input type="text" inputMode="numeric" value={positionDrafts[selectedCode]?.tradeShares??(selectedTradeShares||'')} onChange={event=>updatePositionDraft('tradeShares',event.target.value)} onBlur={()=>finishPositionDraft('tradeShares')}/><em>股</em></div><small>按100股取整且不超过持仓</small></label><label><span>每天最大做T次数</span><div><input type="text" inputMode="numeric" value={positionDrafts[selectedCode]?.maxDailyTrades??selectedMaxDailyTrades} onChange={event=>updatePositionDraft('maxDailyTrades',event.target.value)} onBlur={()=>finishPositionDraft('maxDailyTrades')}/><em>次</em></div><small>允许1～10次，达到后停止新增</small></label></div><small>系统仍会执行 T+1、成本和风控检查；当日新买股份不会被误计为可卖旧仓。</small></div></div><div className="onboarding-step"><b>03</b><div><span>风险偏好</span><div className="risk-options">{['稳健','平衡','积极'].map(item=><button className={risk===item?'active':''} onClick={()=>setRisk(item)} key={item}>{item}</button>)}</div><small>仅调整信号频率，不能绕过可卖数量和当日闭环规则。</small></div></div><button className="onboarding-save" onClick={()=>void save()} disabled={saving}>{saving?'正在保存…':'保存全部股票持仓'} <span>{saving?'':'→'}</span></button></div></div>;
 }
 
 function QuantToolsView({onNavigate}:{onNavigate:(view:string)=>void}) {
