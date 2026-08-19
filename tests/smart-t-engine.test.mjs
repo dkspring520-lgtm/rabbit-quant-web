@@ -7,6 +7,7 @@ import {
   buildHistoricalSimilarityArchive,
   buildCandidateObservationCycles,
   buildCandidateOutcomeLedger,
+  buildCandidateLifecycleLedger,
   causalCyclePreference,
   causalBrokerAtrScale,
   causalPersistentDirection,
@@ -1028,6 +1029,51 @@ test("fixed candidate outcomes close every horizon without rewriting the origina
 
   const incomplete = buildCandidateOutcomeLedger([candidate], points.slice(0, 4), [5]);
   assert.deepEqual(incomplete[0].horizons[0], { minutes: 5, complete: false });
+});
+
+test("candidate lifecycle keeps a reverse-T rebound failure under the cost line", () => {
+  const candidate = {
+    observationId: "candidate:SELL_FIRST:1002",
+    time: "1002",
+    price: 33.08,
+    direction: "反T",
+    stage: "candidate",
+    requiredEdge: 0.64,
+  };
+  const points = [
+    { time: "1002", price: 33.08, volume: 1_000 },
+    { time: "1003", price: 33.02, volume: 1_000 },
+    { time: "1020", price: 32.94, volume: 1_000 },
+    { time: "1021", price: 33.15, volume: 1_000 },
+    { time: "1022", price: 33.26, volume: 1_000 },
+    { time: "1025", price: 33.25, volume: 1_000 },
+    { time: "1029", price: 33.10, volume: 1_000 },
+  ];
+
+  const [lifecycle] = buildCandidateLifecycleLedger([candidate], points);
+  assert.equal(lifecycle.reboundConfirmed, true);
+  assert.equal(lifecycle.reboundFailed, true);
+  assert.equal(lifecycle.reboundTime, "1022");
+  assert.equal(lifecycle.reboundFailureTime, "1029");
+  assert.equal(lifecycle.state, "rebound-failed-uncovered");
+  assert.equal(lifecycle.status, "继续观察");
+  assert.equal(lifecycle.l2Confirmation, "unavailable");
+});
+
+test("replay exposes candidate lifecycles without changing formal actions", () => {
+  const result = runSmartTReplay([
+    { time: "1002", price: 33.08, volume: 1_000 },
+    { time: "1003", price: 33.02, volume: 1_000 },
+    { time: "1020", price: 32.94, volume: 1_000 },
+    { time: "1021", price: 33.15, volume: 1_000 },
+    { time: "1022", price: 33.26, volume: 1_000 },
+    { time: "1025", price: 33.18, volume: 1_000 },
+    { time: "1029", price: 33.10, volume: 1_000 },
+  ], { ...options, baseShares: 0, sellable: 0 });
+
+  assert.ok(Array.isArray(result.candidateLifecycles));
+  assert.equal(result.actions.length, 0);
+  assert.equal(result.diagnostics.candidateLifecycleCount, result.candidateLifecycles.length);
 });
 
 test("an opposite candidate cannot silently flip into a formal entry", () => {
