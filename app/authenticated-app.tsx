@@ -56,7 +56,7 @@ import { normalizeProfitMode, profitModeSummary, smartTProfitModeOptions } from 
 import { resolveBacktestStrategyExperiment } from "@/lib/zijin-strategy-experiments.mjs";
 import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
 import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining, summarizeTrainingCycles } from "@/lib/personal-replay-training.mjs";
-import { runZijinV29ShadowReplay, runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
+import { runZijinV29ShadowReplay, runZuoTV1ContextShadowReplay, runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 const PublicLanding = dynamic(() => import("./public-landing"), {
   loading: () => <main className="public-site public-site-loading" aria-busy="true" />,
@@ -372,6 +372,9 @@ const formalExecutionLabel=(direction:"正T"|"反T"|undefined,side:"buy"|"sell")
 const v29ShadowActionLabel=(action:ReplayAction)=>action.direction==="反T"
   ? action.side==="卖出"?"V2.9 反T":"V2.9 买回"
   : action.side==="买入"?"V2.9 正T":"V2.9 止盈";
+const v1ContextActionLabel=(action:ReplayAction)=>action.direction==="反T"
+  ? action.side==="卖出"?"V1 反T":"V1 买回"
+  : action.side==="买入"?"V1 正T":"V1 止盈";
 type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string };
 type L2ReplayState = { available:boolean; source:string; minuteCount:number; observations:ReplayObservation[]; reason:string };
 type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; holdingMinutes:number; mfePct:number; maePct:number; bestTime:string; worstTime:string; outcomeMode:"post-replay-causal"; favorable:boolean; status:string };
@@ -401,7 +404,7 @@ type StockBatchCycle = { id:number; direction:"正T"|"反T"; entry:ReplayAction;
 type StockBatchFeedback = { code:string; name:string; date:string; sessions:number; samples:number; completed:number; wins:number; winRate:number|null; positiveT:number; reverseT:number; net:number; noTrade:number; candidates:number; keyObservations:number; strongSellTrendBlocked:number; strongBuyTrendBlocked:number; feedback:string; minutes:ReplayMinute[]; actions:ReplayAction[]; observations:ReplayObservation[]; cycles:StockBatchCycle[] };
 type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; attemptedStocks:number; replacementStocks:number; overlapWithPrevious:number; uniqueSessions:number; noTrade:number; referenceStocks:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; universeSize:number; universeProvider:string; fallbackUniverse:boolean; industries:number; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
 type MultiDayRunKind = "recent"|"random-10"|"since-2025";
-type ZijinMonitorStrategy = "closure"|"v29";
+type ZijinMonitorStrategy = "closure"|"v29"|"v1";
 type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; scopeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; l2Required:boolean; l2AvailableDays:number; l2MissingDays:number; l2MinuteCount:number; recentDays:number; recentCompleted:number; recentWins:number; recentNet:number; recentProfitFactor:number|null; healthStatus:"样本积累中"|"近期稳定"|"近期转弱"; healthReason:string; riskBudgetStatus:"证据不足"|"预算内"|"收紧"|"冻结"; riskBudgetReason:string; approvalStatus:"继续影子"|"待5bp压力测试"; approvalBlockers:string[]; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[] };
 
 type ZijinV29ReviewSnapshot={
@@ -760,7 +763,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [alertLogOpen,setAlertLogOpen]=useState(false);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
   const [zijinMonitorStrategy,setZijinMonitorStrategy]=useState<ZijinMonitorStrategy>(()=>{
-    try{return localStorage.getItem(ZIJIN_MONITOR_STRATEGY_STORAGE_KEY)==="v29"?"v29":"closure"}catch{return "closure"}
+    try{
+      const saved=localStorage.getItem(ZIJIN_MONITOR_STRATEGY_STORAGE_KEY);
+      return saved==="v29"||saved==="v1"?saved:"closure";
+    }catch{return "closure"}
   });
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(()=>{try{const saved=localStorage.getItem('rabbit-alert-settings');return saved?{sound:false,system:false,background:false,...JSON.parse(saved)}:{sound:false,system:false,background:false};}catch{return {sound:false,system:false,background:false};}});
   const [backgroundPushState,setBackgroundPushState]=useState<"idle"|"ready"|"unsupported"|"error">("idle");
@@ -1996,6 +2002,30 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return null;
     }
   },[activeQuote?.previousClose,currentMarket?.sampleDate,currentTrial?.sampleDate,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,frozenZijinPreopenPlan,isZijinStock,minutePoints,preopenPlanDate,profile,zijinMonitorStrategy]);
+  const zijinV1ContextReplay=useMemo<BacktestResult|null>(()=>{
+    if(!isZijinStock||zijinMonitorStrategy!=="v1"||!minutePoints.length)return null;
+    const replayDate=currentTrial?.sampleDate??currentMarket?.sampleDate??preopenPlanDate;
+    try{
+      return runZuoTV1ContextShadowReplay({
+        code:"601899",
+        date:replayDate,
+        previousClose:activeQuote?.previousClose??null,
+        minutes:minutePoints,
+      },{
+        capital:200_000,
+        baseShares:Math.max(0,effectiveLivePosition.openingShares),
+        sellable:effectiveLivePosition.sellable,
+        feeRate:.025,
+        slippage:.02,
+        minCommission:true,
+        slippageMode:"percent",
+        forceCloseTime:"1450",
+        maximumCycles:STRATEGY_PROFILE_META[profile].maxCycles,
+      }) as BacktestResult;
+    }catch{
+      return null;
+    }
+  },[activeQuote?.previousClose,currentMarket?.sampleDate,currentTrial?.sampleDate,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,isZijinStock,minutePoints,preopenPlanDate,profile,zijinMonitorStrategy]);
   const zijinRepairHistory=useMemo(
     ()=>(isZijinStock?buildZijinL2CausalReplayObservations(minutePoints):[]) as ReplayObservation[],
     [isZijinStock,minutePoints],
@@ -2016,6 +2046,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         reason:`${observation.reason} 影子参考，不可执行。`,
       }));
   },[zijinV29Replay]);
+  const zijinV1ChartObservations=useMemo(()=>{
+    if(!zijinV1ContextReplay)return [] as ReplayObservation[];
+    const actionKeys=new Set(zijinV1ContextReplay.actions.map(action=>`${action.time}-${action.direction}`));
+    return (zijinV1ContextReplay.observations??[])
+      .filter(observation=>!actionKeys.has(`${observation.time}-${observation.direction}`))
+      .map(observation=>({
+        ...observation,
+        executable:false,
+        confirmationLabel:observation.direction==="反T"?"V1 反T观察":"V1 正T观察",
+        reason:`${observation.reason} V1 情境只读参考，不可执行。`,
+      }));
+  },[zijinV1ContextReplay]);
   const latestReverseTObservation=useMemo(
     ()=>[...currentObservations].reverse().find(observation=>observation.direction==="反T")??null,
     [currentObservations],
@@ -2054,13 +2096,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // event at observation.time; historical pivotTime is audit-only metadata.
   const visibleChartObservations=useMemo(
     ()=>{
-      const selected=zijinMonitorStrategy==="v29"?zijinV29ChartObservations:currentObservations;
+      const selected=zijinMonitorStrategy==="v29"
+        ?zijinV29ChartObservations
+        :zijinMonitorStrategy==="v1"
+          ?zijinV1ChartObservations
+          :currentObservations;
       const eligible=zijinMonitorStrategy==="closure"&&positiveTBlockedByFlow
         ? selected.filter(observation=>observation.direction!=="正T")
         : selected;
       return compactChartObservations(eligible,isZijinStock?45:30,{mergeRepairPhases:isZijinStock&&zijinMonitorStrategy==="closure"}) as ReplayObservation[];
     },
-    [currentObservations,isZijinStock,positiveTBlockedByFlow,zijinMonitorStrategy,zijinV29ChartObservations],
+    [currentObservations,isZijinStock,positiveTBlockedByFlow,zijinMonitorStrategy,zijinV1ChartObservations,zijinV29ChartObservations],
   );
   const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
   const rabbitTrackerSignal=useMemo(()=>{
@@ -2160,14 +2206,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=reserveLabel(point.x,isSell?point.y-13:point.y+22,labelWidth,18,isSell?-1:1);
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
-    const shadowActions=(zijinMonitorStrategy==="v29"?(zijinV29Replay?.actions??[]):[]).flatMap((action,index)=>{
+    const shadowStrategy=zijinMonitorStrategy==="v1"?"v1":"v29";
+    const selectedShadowActions=zijinMonitorStrategy==="v29"
+      ?zijinV29Replay?.actions??[]
+      :zijinMonitorStrategy==="v1"
+        ?zijinV1ContextReplay?.actions??[]
+        :[];
+    const shadowActions=selectedShadowActions.flatMap((action,index)=>{
       const point=pointPosition(action.time,action.price,true);
       if(!point)return [];
       const isSell=action.side==="卖出";
-      const label=v29ShadowActionLabel(action);
+      const label=shadowStrategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action);
       const labelWidth=label.length*8+16;
       const placed=reserveMarkerLabelAbove(point.x,point.y,labelWidth,17);
-      return [{...point,...placed,index,isSell,label,labelWidth,action}];
+      return [{...point,...placed,index,isSell,label,labelWidth,action,strategy:shadowStrategy}];
     });
     // Keep the chart readable: each side gets one latest, highest-priority
     // candidate label. Earlier candidates remain as hoverable dots with their
@@ -2262,9 +2314,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           return [{...point,...placed,isSell,label,labelWidth,time:rabbitTrackerSignal.time,price:rabbitTrackerSignal.price,key:rabbitTrackerSignal.key}];
         })()
       :[];
-    const tooltipSelected=zijinMonitorStrategy==="v29"
-      ?[...zijinV29ChartObservations,...currentObservations.filter(observation=>
-        !zijinV29ChartObservations.some(selected=>selected.time===observation.time&&selected.direction===observation.direction),
+    const activeShadowObservations=zijinMonitorStrategy==="v29"
+      ?zijinV29ChartObservations
+      :zijinMonitorStrategy==="v1"
+        ?zijinV1ChartObservations
+        :null;
+    const tooltipSelected=activeShadowObservations
+      ?[...activeShadowObservations,...currentObservations.filter(observation=>
+        !activeShadowObservations.some(selected=>selected.time===observation.time&&selected.direction===observation.direction),
       )]
       :currentObservations;
     const tooltipEligible=zijinMonitorStrategy==="closure"&&positiveTBlockedByFlow
@@ -2279,7 +2336,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       shadowActions,
       rabbitCandidates:zijinMonitorStrategy==="closure"?[...recordedCandidates,...rabbitCandidates]:[],
     };
-  },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinMonitorStrategy,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinMonitorStrategy,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -2603,6 +2660,29 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         :"等待开盘结构与连续秒级证据",
     };
   },[decisionActionDirection,decisionActionSide,decisionModel.confirmed,decisionModel.mode,isZijinStock,liveL2HasTicks,liveL2Stale,positiveTBlockedByFlow,secondLevelSignal,signalFunnel.currentObservations,signalMode,zijinPreopenGate]);
+  const zijinV1ContextStatus=useMemo(()=>{
+    const latestAction=zijinV1ContextReplay?.actions.at(-1)??null;
+    const latestObservation=zijinV1ContextReplay?.observations?.at(-1)??null;
+    const hintCount=(zijinV1ContextReplay?.actions.length??0)+(zijinV1ContextReplay?.observations?.length??0);
+    if(latestAction)return {
+      signal:v1ContextActionLabel(latestAction),
+      tone:"confirmed",
+      summary:`已回放 ${minutePoints.length} 分钟 · ${hintCount} 个提示点`,
+      detail:`${formatTime(latestAction.time)} 形成情境确认；仅作只读参考，不进入正式闭环。`,
+    };
+    if(latestObservation)return {
+      signal:latestObservation.direction==="反T"?"V1 反T观察":"V1 正T观察",
+      tone:"waiting",
+      summary:`已回放 ${minutePoints.length} 分钟 · ${hintCount} 个提示点`,
+      detail:"情境证据尚未完成联合确认；仅作只读参考，不进入正式闭环。",
+    };
+    return {
+      signal:zijinV1ContextReplay?"等待情境数据":"尚未启动",
+      tone:"waiting",
+      summary:zijinV1ContextReplay?`已回放 ${minutePoints.length} 分钟 · 暂无提示点`:"切换后运行当日只读回放",
+      detail:"V1 情境用于辅助观察，不影响专属闭环、提醒、账户或下单。",
+    };
+  },[minutePoints.length,zijinV1ContextReplay]);
   const zijinRealtimeFactors=useMemo(()=>{
     const contextItems=currentContext?.items??[];
     const findContextItem=(labels:string[])=>labels
@@ -4122,8 +4202,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${zijinMonitorStrategy==="v29"?"v29-shadow-marker":""} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.currentLabel}${zijinMonitorStrategy==="v29"?" · 影子参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.y-5} x2={marker.labelX} y2={marker.labelY+5} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/></g>)}
-              {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker v29-shadow-marker ${marker.isSell?'sell':'buy'} with-label`} key={`v29-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title><line x1={marker.x} y1={marker.y-5} x2={marker.labelX} y2={marker.labelY+5} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="4.5"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text></g>)}
+              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${zijinMonitorStrategy==="v29"?"v29-shadow-marker":zijinMonitorStrategy==="v1"?"v1-context-marker":""} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.currentLabel}${zijinMonitorStrategy!=="closure"?" · 影子参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.y-5} x2={marker.labelX} y2={marker.labelY+5} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{zijinMonitorStrategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>)}
+              {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title><line x1={marker.x} y1={marker.y-5} x2={marker.labelX} y2={marker.labelY+5} className="marker-label-leader"/>{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}<rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text></g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.y} x2={marker.labelX} y2={marker.labelY<marker.y?marker.labelY+6:marker.labelY-13} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
@@ -4303,25 +4383,28 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <em>陪你盯盘</em>
           </div>}
           {alertQueue.length>0&&<div className="trade-alert-stack" aria-label="股票提醒列表">{alertQueue.slice(0,3).map((item,index)=><div key={item.id??`${item.title}-${index}`} className={`trade-alert-toast ${item.level} rabbit-${item.rabbit}`} role="alert"><span className={`rabbit-speaker ${item.rabbit}`} aria-hidden="true"/><div className="rabbit-speech"><small>{tradeAlertLabel(item)}</small><b>{item.title}</b><span>{tradeAlertGuide(item)}</span><details className="trade-alert-detail"><summary>查看依据</summary><p>{item.message}</p></details></div>{index===2&&alertQueue.length>3&&<em className="alert-queue-count">+{alertQueue.length-3}</em>}<button onClick={()=>setAlertQueue(current=>current.filter(alert=>alert.id!==item.id))} aria-label={`关闭${item.title}提醒`}>×</button></div>)}</div>}
-          {isZijinStock&&<section className={`zijin-strategy-control ${zijinMonitorStrategy==="v29"?"experiment-active":"closure-active"}`} aria-label="紫金矿业策略总控台">
+          {isZijinStock&&<section className={`zijin-strategy-control ${zijinMonitorStrategy==="closure"?"closure-active":"experiment-active"}`} aria-label="紫金矿业策略总控台">
             <header className="zijin-strategy-control-head">
-              <div><span>紫金策略总控</span><b>{zijinMonitorStrategy==="closure"?liveStrategyExperiment.label:"V2.9 辅助监控"}</b></div>
-              <em>3 套并行</em>
+              <div><span>紫金策略总控</span><b>{zijinMonitorStrategy==="closure"?liveStrategyExperiment.label:zijinMonitorStrategy==="v29"?"V2.9 辅助监控":"V1 情境监控"}</b></div>
+              <em>4 套并行</em>
             </header>
             <div className="zijin-strategy-control-actions" role="group" aria-label="紫金矿业监控策略选择">
               <button className={zijinMonitorStrategy==="closure"?"active":""} type="button" onClick={()=>setZijinMonitorStrategy("closure")} aria-pressed={zijinMonitorStrategy==="closure"}>专属闭环</button>
               <button className={zijinMonitorStrategy==="v29"?"active experimental":"experimental"} type="button" onClick={()=>setZijinMonitorStrategy("v29")} aria-pressed={zijinMonitorStrategy==="v29"}>V2.9 辅助</button>
+              <button className={zijinMonitorStrategy==="v1"?"active experimental v1":"experimental v1"} type="button" onClick={()=>setZijinMonitorStrategy("v1")} aria-pressed={zijinMonitorStrategy==="v1"}>V1 情境</button>
               <button className={zijinResearchEnabled?"research active":"research"} type="button" onClick={()=>setZijinResearchEnabled(current=>!current)} aria-pressed={zijinResearchEnabled}>研究解释</button>
             </div>
-            <div className={`zijin-strategy-now ${zijinMonitorStrategy==="closure"?formalStrategyCompareTone:zijinV29OpeningShadow.tone}`}>
+            <div className={`zijin-strategy-now ${zijinMonitorStrategy==="closure"?formalStrategyCompareTone:zijinMonitorStrategy==="v29"?zijinV29OpeningShadow.tone:zijinV1ContextStatus.tone}`}>
               <i aria-hidden="true"/>
-              <div><span>{zijinMonitorStrategy==="closure"?"正式策略":"辅助策略"}</span><b>{zijinMonitorStrategy==="closure"?formalStrategyCompareStatus:zijinV29OpeningShadow.signal}</b><small>{zijinMonitorStrategy==="closure"?(personalStrategyStats.cycles?`${personalStrategyStats.cycles} 笔闭环 · 胜率 ${(Number(personalStrategyStats.winRate)*100).toFixed(0)}%`:`${personalStrategyStats.sessions} 日有效样本`):zijinV29Replay?`已回放 ${minutePoints.length} 分钟 · ${(zijinV29Replay.observations?.length??0)+zijinV29Replay.actions.length} 个提示点`:zijinV29OpeningShadow.advice}</small></div>
-              <em>{zijinMonitorStrategy==="closure"?"正式":"参考"}</em>
+              <div><span>{zijinMonitorStrategy==="closure"?"正式策略":zijinMonitorStrategy==="v29"?"辅助策略":"情境影子"}</span><b>{zijinMonitorStrategy==="closure"?formalStrategyCompareStatus:zijinMonitorStrategy==="v29"?zijinV29OpeningShadow.signal:zijinV1ContextStatus.signal}</b><small>{zijinMonitorStrategy==="closure"?(personalStrategyStats.cycles?`${personalStrategyStats.cycles} 笔闭环 · 胜率 ${(Number(personalStrategyStats.winRate)*100).toFixed(0)}%`:`${personalStrategyStats.sessions} 日有效样本`):zijinMonitorStrategy==="v29"?(zijinV29Replay?`已回放 ${minutePoints.length} 分钟 · ${(zijinV29Replay.observations?.length??0)+zijinV29Replay.actions.length} 个提示点`:zijinV29OpeningShadow.advice):zijinV1ContextStatus.summary}</small></div>
+              <em>{zijinMonitorStrategy==="closure"?"正式":zijinMonitorStrategy==="v1"?"只读":"参考"}</em>
             </div>
             {zijinMonitorStrategy==="v29"&&<p className="zijin-strategy-now-detail">{zijinV29OpeningShadow.detail}</p>}
-            <div className="zijin-strategy-lanes" aria-label="三套策略状态对比">
+            {zijinMonitorStrategy==="v1"&&<p className="zijin-strategy-now-detail">{zijinV1ContextStatus.detail}</p>}
+            <div className="zijin-strategy-lanes" aria-label="四套策略状态对比">
               <article className={`formal ${formalStrategyCompareTone}`}><header><i aria-hidden="true"/><b>专属闭环</b><em>正式</em></header><strong>{formalStrategyCompareStatus}</strong><small>{personalStrategyStats.cycles?`${personalStrategyStats.sessions}日 · ${personalStrategyStats.cycles}笔`:`${personalStrategyStats.sessions}日 · 待闭环`}</small></article>
               <article className={`auxiliary ${zijinV29OpeningShadow.tone}`}><header><i aria-hidden="true"/><b>V2.9</b><em>参考</em></header><strong>{zijinV29OpeningShadow.signal}</strong><small>实时独立对照</small></article>
+              <article className={`v1-context ${zijinV1ContextStatus.tone}`}><header><i aria-hidden="true"/><b>V1 情境</b><em>只读</em></header><strong>{zijinV1ContextStatus.signal}</strong><small>菱形信号 · 不可执行</small></article>
               <article className={`research ${zijinShadowV2Progress.ready?"positive":zijinShadowV2Progress.available?"waiting":"muted"}`}><header><i aria-hidden="true"/><b>影子 V3</b><em>研究</em></header><strong>{zijinShadowV2Progress.progress}%</strong><div className="zijin-strategy-lane-meter" role="progressbar" aria-label={`影子 V3 学习进度 ${zijinShadowV2Progress.progress}%`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={zijinShadowV2Progress.progress}><i style={{width:`${zijinShadowV2Progress.progress}%`}}/></div></article>
             </div>
             <details className="zijin-strategy-evidence">
