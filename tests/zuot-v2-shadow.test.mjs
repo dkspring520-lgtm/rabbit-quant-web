@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   assertZuoTExperimentFactorIsolation,
   buildZuoTCandidateEvents,
+  buildZuoTShadowDecisions,
   evaluateZuoTShadowRow,
   runZijinV29ShadowReplay,
   runZuoTV1ReconstructedReplay,
@@ -50,6 +51,9 @@ function confirmedV1Structure(overrides = {}) {
     reverseVolumeResponse: false,
     openingDirection: "neutral",
     belowVwapShare: 0.5,
+    fiveMinuteDirection: "neutral",
+    bearishContinuation: false,
+    bullishContinuation: false,
     positiveVeto: false,
     reverseVeto: false,
     ...overrides,
@@ -210,6 +214,74 @@ test("V1 persistent-below-VWAP veto blocks positive-T", () => {
   assert.equal(decision.v1Structure.vetoed, true);
   assert.equal(decision.formal, false);
   assert.ok(decision.rejectionReasons.includes("v1-persistent-below-vwap"));
+});
+
+test("V1 bearish five-minute continuation veto blocks positive-T", () => {
+  const decision = evaluateZuoTShadowRow({
+    row: {
+      ...row(),
+      v1Structure: confirmedV1Structure({
+        fiveMinuteDirection: "bearish",
+        bearishContinuation: true,
+        positiveVeto: true,
+      }),
+    },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  assert.equal(decision.formal, false);
+  assert.ok(decision.rejectionReasons.includes("v1-bearish-continuation"));
+});
+
+test("V1 bullish five-minute continuation veto blocks reverse-T", () => {
+  const factors = {
+    ...row().factors,
+    "vwap.bias": 0.001,
+    "technical.macd_histogram": 0.0001,
+    "technical.macd_histogram_delta": -0.0001,
+    "orderflow.active_buy_imbalance": -0.2,
+    "technical.rsi14": 0.3,
+  };
+  const decision = evaluateZuoTShadowRow({
+    row: {
+      ...row(),
+      factors,
+      v1Structure: confirmedV1Structure({
+        positiveMacdReversal: false,
+        reverseMacdReversal: true,
+        positiveVolumeResponse: false,
+        reverseVolumeResponse: true,
+        fiveMinuteDirection: "bullish",
+        bullishContinuation: true,
+        reverseVeto: true,
+      }),
+    },
+    direction: "reverseT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  assert.equal(decision.formal, false);
+  assert.ok(decision.rejectionReasons.includes("v1-bullish-continuation"));
+});
+
+test("V1 batch decisions enrich causal structure before evaluation", () => {
+  const factors = v1ReplayFactors({
+    "price.return_5m": -0.003,
+    "volume.ratio_5_20": 1.3,
+    "volume.price_alignment_5m": -0.2,
+    "technical.macd_histogram": -0.0002,
+    "technical.macd_histogram_delta": -0.0001,
+    "vwap.persistence_5m": -0.5,
+  });
+  const decisions = buildZuoTShadowDecisions([{
+    rows: [
+      { date: "20260814", time: "1000", index: 0, price: 35, factors: v1ReplayFactors({ "vwap.bias": 0 }) },
+      { date: "20260814", time: "1001", index: 1, price: 34.9, factors },
+    ],
+  }], { experimentId: "v1-reconstructed-baseline" });
+  const positive = decisions.find(decision => decision.direction === "positiveT");
+  assert.equal(positive.v1Structure.bearishContinuation, true);
+  assert.equal(positive.formal, false);
+  assert.ok(positive.rejectionReasons.includes("v1-bearish-continuation"));
 });
 
 test("V1 only accepts learned-rule votes after full shadow validation", () => {
@@ -391,6 +463,100 @@ test("reconstructed runner returns the shared BacktestResult shape", () => {
   assert.equal(result.curve.length, session.minutes.length);
   assert.equal(result.observations[0].stage, "candidate");
   assert.ok(Number.isFinite(result.maxDrawdown));
+});
+
+test("V1 reverse-T confirms a stalled high only when volume decays", () => {
+  const session = replaySession([
+    { time: "1000", price: 35 },
+    { time: "1001", price: 35 },
+    { time: "1002", price: 34.9, low: 34.88 },
+  ]);
+  const firstFactors = v1ReplayFactors({
+    "vwap.bias": 0,
+    "technical.macd_histogram": 0.0002,
+    "technical.macd_histogram_delta": 0,
+  });
+  const reverseFactors = v1ReplayFactors({
+    "vwap.bias": 0.002,
+    "price.return_5m": 0.001,
+    "price.session_return": 0.002,
+    "volume.price_alignment_5m": -0.1,
+    "technical.macd_histogram": 0.0001,
+    "technical.macd_histogram_delta": -0.0001,
+    "orderflow.active_buy_imbalance": -0.2,
+    "orderflow.ofi_change_3m": -0.1,
+    "technical.rsi14": 0.3,
+    "technical.kdj_j9": 0.3,
+    "technical.bollinger_position_20": 0.3,
+    "vwap.persistence_5m": 0.1,
+    "volume.momentum_3_15": -0.1,
+    "volume.dry_up_5_20": 0.2,
+  });
+  const factorRows = [
+    { date: session.date, time: "1000", index: 0, price: 35, factors: firstFactors },
+    { date: session.date, time: "1001", index: 1, price: 35, factors: reverseFactors },
+  ];
+  const options = {
+    feeRate: 0,
+    slippage: 0,
+    minCommission: false,
+    baseShares: 1600,
+    sellable: 1600,
+  };
+  const decaying = runZuoTV1ReconstructedReplay(session, {
+    ...options,
+    factorEngine: replayFactorEngine(factorRows),
+  });
+  const expandingRows = structuredClone(factorRows);
+  expandingRows[1].factors["volume.momentum_3_15"] = 0.1;
+  expandingRows[1].factors["volume.dry_up_5_20"] = -0.1;
+  const expanding = runZuoTV1ReconstructedReplay(session, {
+    ...options,
+    factorEngine: replayFactorEngine(expandingRows),
+  });
+  assert.equal(decaying.trades, 1);
+  assert.equal(decaying.actions[0].direction, "反T");
+  assert.equal(expanding.trades, 0);
+});
+
+test("future factor mutations cannot alter an earlier V1 entry", () => {
+  const session = replaySession([
+    { time: "1000", price: 35 },
+    { time: "1001", price: 35 },
+    { time: "1002", price: 34.9, low: 34.88 },
+  ]);
+  const signalFactors = v1ReplayFactors({
+    "vwap.bias": 0.002,
+    "price.return_5m": 0.001,
+    "price.session_return": 0.002,
+    "technical.macd_histogram": 0.0001,
+    "technical.macd_histogram_delta": -0.0001,
+    "orderflow.active_buy_imbalance": -0.2,
+    "technical.rsi14": 0.3,
+    "technical.kdj_j9": 0.3,
+    "technical.bollinger_position_20": 0.3,
+    "volume.momentum_3_15": -0.1,
+    "volume.dry_up_5_20": 0.2,
+  });
+  const rows = [
+    { date: session.date, time: "1000", index: 0, price: 35, factors: v1ReplayFactors({ "vwap.bias": 0 }) },
+    { date: session.date, time: "1001", index: 1, price: 35, factors: signalFactors },
+    { date: session.date, time: "1002", index: 2, price: 34.9, factors: v1ReplayFactors() },
+  ];
+  const changedFuture = structuredClone(rows);
+  changedFuture[2].price = 999;
+  changedFuture[2].factors["price.return_5m"] = 99;
+  changedFuture[2].factors["technical.macd_histogram"] = 99;
+  const options = { feeRate: 0, slippage: 0, minCommission: false, baseShares: 1600, sellable: 1600 };
+  const first = runZuoTV1ReconstructedReplay(session, {
+    ...options,
+    factorEngine: replayFactorEngine(rows),
+  });
+  const second = runZuoTV1ReconstructedReplay(session, {
+    ...options,
+    factorEngine: replayFactorEngine(changedFuture),
+  });
+  assert.deepEqual(second.actions[0], first.actions[0]);
 });
 
 test("V1 positive-T exits after 30 causal minutes below VWAP with weakening MACD", () => {
