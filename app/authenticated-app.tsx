@@ -2262,7 +2262,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           return [{...point,...placed,isSell,label,labelWidth,time:rabbitTrackerSignal.time,price:rabbitTrackerSignal.price,key:rabbitTrackerSignal.key}];
         })()
       :[];
-    const tooltipSelected=zijinMonitorStrategy==="v29"?zijinV29ChartObservations:currentObservations;
+    const tooltipSelected=zijinMonitorStrategy==="v29"
+      ?[...zijinV29ChartObservations,...currentObservations.filter(observation=>
+        !zijinV29ChartObservations.some(selected=>selected.time===observation.time&&selected.direction===observation.direction),
+      )]
+      :currentObservations;
     const tooltipEligible=zijinMonitorStrategy==="closure"&&positiveTBlockedByFlow
       ? tooltipSelected.filter(observation=>observation.direction!=="正T")
       : tooltipSelected;
