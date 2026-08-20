@@ -6,11 +6,14 @@ import {
   buildZuoTCandidateEvents,
   buildZuoTShadowDecisions,
   evaluateZuoTShadowRow,
+  evaluateZuoTV1ContextShadowDecision,
   runZijinV29ShadowReplay,
+  runZuoTV1ContextShadowReplay,
   runZuoTV1ReconstructedReplay,
   selectSpacedZuoTSignals,
   simulateZuoTShadowCycle,
   ZUOT_V2_CORE_FACTOR_IDS,
+  ZUOT_V1_CONTEXT_SHADOW_SAFETY,
   ZUOT_V2_SHADOW_SAFETY,
 } from "../lib/factor-research/zuot-v2-shadow.mjs";
 import { resolveZuoTShadowBacktestConfig } from "../scripts/backtest-zuot-v2-shadow.mjs";
@@ -57,6 +60,31 @@ function confirmedV1Structure(overrides = {}) {
     positiveVeto: false,
     reverseVeto: false,
     ...overrides,
+  };
+}
+
+function validContextAssessment(overrides = {}) {
+  const base = {
+    asOfDate: "20260814",
+    asOfIndex: 30,
+    direction: "positiveT",
+    confidence: 0.72,
+    dataQuality: 0.85,
+    probabilities: { "5m": 0.66, "15m": 0.7, "30m": 0.62 },
+    confirmations: { opening: "neutral", fiveMinute: "confirm", sector: "confirm", l2: "confirm" },
+    evidence: ["五分钟止跌", "板块同步转强", "L2卖压回落"],
+    invalidation: "跌破当时低点且OFI重新转负",
+    usesFutureData: false,
+    futureLeakagePassed: true,
+    dataLeakagePassed: true,
+    approvedForShadow: true,
+    calibrated: false,
+  };
+  return {
+    ...base,
+    ...overrides,
+    probabilities: { ...base.probabilities, ...overrides.probabilities },
+    confirmations: { ...base.confirmations, ...overrides.confirmations },
   };
 }
 
@@ -334,6 +362,56 @@ test("research safety flags prohibit automatic production promotion", () => {
   assert.equal(ZUOT_V2_SHADOW_SAFETY.affectsProductionStrategy, false);
   assert.equal(ZUOT_V2_SHADOW_SAFETY.canPromoteAutomatically, false);
   assert.equal(ZUOT_V2_SHADOW_SAFETY.requiresHumanApproval, true);
+  assert.equal(ZUOT_V1_CONTEXT_SHADOW_SAFETY.consumesFrozenAssessmentOnly, true);
+  assert.equal(ZUOT_V1_CONTEXT_SHADOW_SAFETY.canElevateBaselineCandidate, false);
+});
+
+test("V1 context shadow can confirm only an already formal baseline signal", () => {
+  const baseline = evaluateZuoTShadowRow({
+    row: { ...row(), v1Structure: confirmedV1Structure() },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  const accepted = evaluateZuoTV1ContextShadowDecision({
+    decision: baseline,
+    assessment: validContextAssessment(),
+  });
+  const weakBaseline = evaluateZuoTShadowRow({
+    row: { ...row(), v1Structure: confirmedV1Structure({ distanceReady: false }) },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  const cannotElevate = evaluateZuoTV1ContextShadowDecision({
+    decision: weakBaseline,
+    assessment: validContextAssessment(),
+  });
+  assert.equal(accepted.formal, true);
+  assert.equal(accepted.context.probabilities["15m"], 0.7);
+  assert.equal(cannotElevate.formal, false);
+  assert.ok(cannotElevate.rejectionReasons.includes("context-baseline-unconfirmed"));
+});
+
+test("V1 context shadow rejects missing, future or explicitly vetoed assessments", () => {
+  const baseline = evaluateZuoTShadowRow({
+    row: { ...row(), v1Structure: confirmedV1Structure() },
+    direction: "positiveT",
+    experimentId: "v1-reconstructed-baseline",
+  });
+  const missing = evaluateZuoTV1ContextShadowDecision({ decision: baseline });
+  const future = evaluateZuoTV1ContextShadowDecision({
+    decision: baseline,
+    assessment: validContextAssessment({ asOfIndex: 31 }),
+  });
+  const vetoed = evaluateZuoTV1ContextShadowDecision({
+    decision: baseline,
+    assessment: validContextAssessment({ confirmations: { l2: "veto" } }),
+  });
+  assert.equal(missing.formal, false);
+  assert.ok(missing.rejectionReasons.includes("context-missing-assessment"));
+  assert.equal(future.formal, false);
+  assert.ok(future.rejectionReasons.includes("context-noncausal-assessment"));
+  assert.equal(vetoed.formal, false);
+  assert.ok(vetoed.rejectionReasons.includes("context-explicit-veto"));
 });
 
 test("V1 and V2 comparisons share exactly the same cost and exit configuration", () => {
@@ -376,6 +454,7 @@ function replaySession(prices, code) {
     date: "20260814",
     previousClose: 35,
     minutes: prices.map((point, index) => ({
+      ...point,
       time: point.time ?? `10${String(index).padStart(2, "0")}`,
       price: point.price,
       high: point.high ?? point.price,
@@ -463,6 +542,51 @@ test("reconstructed runner returns the shared BacktestResult shape", () => {
   assert.equal(result.curve.length, session.minutes.length);
   assert.equal(result.observations[0].stage, "candidate");
   assert.ok(Number.isFinite(result.maxDrawdown));
+});
+
+test("V1 context shadow replay needs a frozen causal assessment before trading", () => {
+  const points = [
+    { time: "0945", price: 35 },
+    {
+      time: "0946",
+      price: 35,
+      v1ContextAssessment: validContextAssessment({ asOfIndex: 1 }),
+    },
+    { time: "0947", price: 35.12, high: 35.15 },
+  ];
+  const session = replaySession(points);
+  const factors = v1ReplayFactors();
+  const factorEngine = {
+    computeSession(input) {
+      return {
+        session: input,
+        rows: [
+          { date: input.date, time: "0945", index: 0, price: 35, factors },
+          { date: input.date, time: "0946", index: 1, price: 35, factors },
+        ],
+      };
+    },
+  };
+  const options = {
+    factorEngine,
+    feeRate: 0,
+    slippage: 0,
+    minCommission: false,
+    baseShares: 1600,
+    sellable: 1600,
+  };
+  const accepted = runZuoTV1ContextShadowReplay(session, options);
+  const withoutAssessment = runZuoTV1ContextShadowReplay(replaySession(points.map(point => ({
+    ...point,
+    v1ContextAssessment: undefined,
+  }))), options);
+  assert.equal(accepted.trades, 1);
+  assert.equal(accepted.actions[0].direction, "正T");
+  assert.equal(accepted.observations[0].probabilities["15m"], 0.7);
+  assert.equal(accepted.observations[0].calibrated, false);
+  assert.equal(accepted.diagnostics.contextApproved, 1);
+  assert.equal(withoutAssessment.trades, 0);
+  assert.ok(withoutAssessment.diagnostics.contextMissing > 0);
 });
 
 test("V1 reverse-T confirms a stalled high only when volume decays", () => {
