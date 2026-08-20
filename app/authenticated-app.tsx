@@ -2251,7 +2251,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
       const rawLabel=observationConfirmationLabel(observation)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
-      const currentLabel=rawLabel;
+      const currentLabel=zijinMonitorStrategy==="v1"
+        ?`V1 ${rawLabel}`
+        :zijinMonitorStrategy==="v29"
+          ?`V2.9 ${rawLabel}`
+          :rawLabel;
       const labelWidth=currentLabel.length*8+14;
       const labelVisible=true;
       const labelRendered=observationLabelSlots.has(index);
