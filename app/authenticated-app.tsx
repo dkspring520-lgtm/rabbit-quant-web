@@ -2103,7 +2103,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     };
   },[currentObservations,isZijinStock,liveEngine.actions,minutePoints,positiveTBlockedByFlow]);
   const intradayMarkerLayout=useMemo(()=>{
-    if(!chartModel)return {observations:[],actions:[],shadowActions:[],rabbitCandidates:[]};
+    if(!chartModel)return {observations:[],tooltipObservations:[],actions:[],shadowActions:[],rabbitCandidates:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
     const occupied:LabelBox[]=[];
     const pointPosition=(time:string,price?:number,allowRecentFallback=false)=>{
@@ -2262,16 +2262,31 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           return [{...point,...placed,isSell,label,labelWidth,time:rabbitTrackerSignal.time,price:rabbitTrackerSignal.price,key:rabbitTrackerSignal.key}];
         })()
       :[];
-    return {observations,actions,shadowActions,rabbitCandidates:zijinMonitorStrategy==="closure"?[...recordedCandidates,...rabbitCandidates]:[]};
-  },[activeChartDate,alertHistory,chartModel,isZijinStock,minutePoints,stock.code,stock.name,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinMonitorStrategy,zijinV29Replay]);
+    const tooltipSelected=zijinMonitorStrategy==="v29"?zijinV29ChartObservations:currentObservations;
+    const tooltipEligible=zijinMonitorStrategy==="closure"&&positiveTBlockedByFlow
+      ? tooltipSelected.filter(observation=>observation.direction!=="正T")
+      : tooltipSelected;
+    return {
+      observations,
+      // Keep every causal observation available to the crosshair without
+      // rendering every label on the chart. Compaction is visual-only.
+      tooltipObservations:tooltipEligible,
+      actions,
+      shadowActions,
+      rabbitCandidates:zijinMonitorStrategy==="closure"?[...recordedCandidates,...rabbitCandidates]:[],
+    };
+  },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinMonitorStrategy,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
     if(action)return action.label;
     const shadowAction=intradayMarkerLayout.shadowActions.find(marker=>marker.action.time===intradayCursor.time);
     if(shadowAction)return `${shadowAction.label}（影子）`;
-    const observation=intradayMarkerLayout.observations.find(marker=>marker.observation.time===intradayCursor.time);
-    return observation?.currentLabel??"暂无提醒";
+    const observation=intradayMarkerLayout.observations.find(marker=>marker.observation.time===intradayCursor.time)?.observation
+      ?? intradayMarkerLayout.tooltipObservations.find(observation=>observation.time===intradayCursor.time);
+    if(observation)return observationConfirmationLabel(observation);
+    const recordedCandidate=intradayMarkerLayout.rabbitCandidates.find(marker=>marker.time===intradayCursor.time);
+    return recordedCandidate?.label??"暂无提醒";
   },[intradayCursor,intradayMarkerLayout]);
   const signalFunnel = (() => {
     const rows=stockList.flatMap(item=>{
