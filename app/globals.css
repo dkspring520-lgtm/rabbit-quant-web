@@ -2476,3 +2476,71 @@
 :root[data-theme="light"] .app-shell.minimal-ui .interactive-intraday-chart .intraday-price-flag text{
   fill:var(--text);
 }
+
+/* Black-gold cockpit refinement: hierarchy and contrast only. */
+:root:not([data-theme="light"]) .app-shell.minimal-ui{
+  --bg:#090a09;
+  --surface:#101110;
+  --surface-2:#151614;
+  --line:#2a2a24;
+  --line-soft:#1d1e1a;
+  --amber:#e5b85b;
+  --muted:#92958d;
+  --dim:#686b63;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .decision-zone{
+  background:linear-gradient(180deg,#0c0d0c,#090a09);
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .decision-primary-card.global-decision-card{
+  padding:12px;
+  border-color:color-mix(in srgb,var(--amber) 34%,var(--line));
+  box-shadow:0 8px 22px rgba(0,0,0,.22);
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-card .global-decision-status{
+  font-size:19px;
+  letter-spacing:0;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-live-signal{
+  margin-bottom:8px;
+  padding:7px 9px;
+  background:rgba(229,184,91,.045);
+  border-color:rgba(229,184,91,.25);
+  box-shadow:none;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-live-signal.active{
+  border-color:rgba(255,98,93,.38);
+  background:rgba(255,98,93,.07);
+  box-shadow:none;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .decision-condition-grid{
+  gap:5px;
+  padding-top:8px;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .decision-zone-tabs{
+  background:rgba(14,15,14,.94);
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .decision-zone-tabs button.active{
+  border-color:rgba(229,184,91,.48);
+  background:rgba(229,184,91,.08);
+  color:var(--amber);
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>text{
+  font-size:7px;
+  letter-spacing:0;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker,
+:root:not([data-theme="light"]) .app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.v1-context-marker{
+  opacity:.72;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .interactive-intraday-chart .live-signal-marker{
+  opacity:1;
+}
+@media(max-width:760px){
+  :root:not([data-theme="light"]) .app-shell.minimal-ui .decision-primary-card.global-decision-card{
+    padding:10px;
+  }
+  :root:not([data-theme="light"]) .app-shell.minimal-ui .decision-zone-tabs{
+    gap:5px;
+    padding:7px 10px 6px;
+  }
+}
