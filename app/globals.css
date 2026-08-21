@@ -2573,18 +2573,18 @@
 .interactive-intraday-chart .candidate-signal-marker.with-label>.marker-label-leader{
   stroke-width:1.5;
   stroke-dasharray:5 3;
-  opacity:.78;
+  opacity:.78!important;
 }
 .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker .marker-label-leader{
   stroke-dasharray:5 3;
-  opacity:.72;
+  opacity:.72!important;
 }
 .interactive-intraday-chart .candidate-signal-marker.v1-context-marker .marker-label-leader{
   stroke-dasharray:4 3;
-  opacity:.76;
+  opacity:.76!important;
 }
 .interactive-intraday-chart .live-signal-marker>.marker-label-leader{
   stroke-width:1.6;
   stroke-dasharray:5 3;
-  opacity:.9;
+  opacity:.9!important;
 }
