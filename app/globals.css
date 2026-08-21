@@ -2103,6 +2103,124 @@
 .zijin-strategy-lane-meter{height:3px;margin-top:auto;border-radius:99px;background:var(--line-soft);overflow:hidden}.zijin-strategy-lane-meter i{display:block;height:100%;border-radius:inherit;background:var(--amber)}.zijin-strategy-lanes article.positive .zijin-strategy-lane-meter i{background:var(--teal)}
 .zijin-strategy-evidence{border-top:1px solid var(--line-soft);padding-top:6px}.zijin-strategy-evidence>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;list-style:none;cursor:pointer;color:var(--dim);font-size:8px}.zijin-strategy-evidence>summary::-webkit-details-marker{display:none}.zijin-strategy-evidence>summary:after{content:"+";color:var(--dim);font:700 11px/1 var(--font-geist-mono),monospace}.zijin-strategy-evidence[open]>summary:after{content:"−"}.zijin-strategy-evidence>summary b{margin-left:auto;color:var(--amber);font-size:8px}.zijin-strategy-evidence>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:7px}.zijin-strategy-evidence>div>span{display:grid;gap:3px;padding:6px;border:1px solid var(--line-soft);border-radius:5px}.zijin-strategy-evidence small{color:var(--dim);font-size:7px}.zijin-strategy-evidence b{color:var(--text);font:750 11px/1 var(--font-geist-mono),monospace}.zijin-strategy-evidence b em{margin-left:2px;color:var(--dim);font:500 7px/1 var(--font-geist-sans),sans-serif;font-style:normal}
 :root[data-theme="light"] .zijin-strategy-control{background:#fff;box-shadow:0 3px 10px rgba(25,42,35,.05)}
+
+/* Day cockpit comfort pass: lower contrast and keep the decision stack compact. */
+:root[data-theme="light"] .minimal-ui .decision-zone{
+  padding:10px;
+  background:#f1f5f3;
+  border-left-color:#dbe5df;
+}
+:root[data-theme="light"] .minimal-ui .decision-primary-card,
+:root[data-theme="light"] .minimal-ui .decision-position-card,
+:root[data-theme="light"] .minimal-ui .zijin-price-plan,
+:root[data-theme="light"] .minimal-ui .t-calculator{
+  background:#fbfdfc;
+  border-color:#dbe5df;
+  box-shadow:0 4px 12px rgba(37,56,48,.055);
+}
+:root[data-theme="light"] .minimal-ui .global-decision-card:not(.ready):not(.locked) .global-decision-status{
+  background:#f5f1e7;
+  border-color:#e5d7ad;
+  color:#947331;
+}
+:root[data-theme="light"] .minimal-ui .global-decision-status{
+  min-height:36px;
+  padding:7px 9px;
+  font-size:18px;
+}
+:root[data-theme="light"] .minimal-ui .global-decision-card.ready.positive .global-decision-status,
+:root[data-theme="light"] .minimal-ui .global-decision-card.locked .global-decision-status{
+  min-height:38px;
+  padding:7px 9px;
+  background:#edf7f3;
+  border-color:#b9ddd2;
+  color:#2d8b7b;
+  font-size:19px;
+}
+:root[data-theme="light"] .minimal-ui .global-decision-card.ready.reverse .global-decision-status{
+  min-height:38px;
+  padding:7px 9px;
+  background:#fbf1ef;
+  border-color:#e5c4bd;
+  color:#a45b51;
+  font-size:19px;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-control{
+  gap:6px;
+  padding:8px;
+  background:#fbfdfc;
+  border-color:#c8ded6;
+  box-shadow:0 3px 10px rgba(37,56,48,.045);
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-control.experiment-active{
+  background:#fcfaf4;
+  border-color:#e5d7ad;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-control-actions{
+  gap:3px;
+  padding:2px;
+  background:#f3f6f4;
+  border-color:#dce5e0;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-control-actions button{
+  min-height:24px;
+  color:#65736e;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-control-actions button.active{
+  background:#e8f4f0;
+  box-shadow:inset 0 0 0 1px #b9ddd2;
+  color:#2d8b7b;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-control-actions button.experimental.active,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-control-actions button.research.active{
+  background:#f7f0de;
+  box-shadow:inset 0 0 0 1px #e5d7ad;
+  color:#947331;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now{
+  padding:7px;
+  background:#f5f8f6;
+  border-color:#dce5e0;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.positive b,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.positive>em,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.confirmed b,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.confirmed>em{
+  color:#2d8b7b;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.negative b,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.negative>em,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.warning b,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.warning>em{
+  color:#a45b51;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.waiting b,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-now.waiting>em{
+  color:#947331;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-lanes article{
+  gap:4px;
+  min-height:60px;
+  padding:6px;
+  background:#f8faf9;
+  border-color:#dce5e0;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-lanes article.positive>strong,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-lanes article.confirmed>strong{
+  color:#2d8b7b;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-lanes article.negative>strong,
+:root[data-theme="light"] .minimal-ui .zijin-strategy-lanes article.warning>strong{
+  color:#a45b51;
+}
+:root[data-theme="light"] .minimal-ui .zijin-strategy-lanes article.waiting>strong{
+  color:#947331;
+}
+:root[data-theme="light"] .minimal-ui .zijin-factor-engine{
+  background:#fbfdfc;
+  border-color:#dbe5df;
+  box-shadow:0 3px 10px rgba(37,56,48,.045);
+}
 @media(max-width:420px){.zijin-strategy-control{padding:9px}.zijin-strategy-lanes{gap:4px}.zijin-strategy-lanes article{min-height:66px;padding:6px}.zijin-strategy-lanes article>header em{display:none}.zijin-strategy-now b{font-size:12px}}
 .zijin-factor-engine.research-fold>summary span{font-size:8px;color:var(--teal);letter-spacing:.04em}
 .zijin-factor-engine.research-fold>summary b{font-size:11px;color:var(--text)}
@@ -2286,3 +2404,75 @@
 .ai-daily-assignment-foot{display:grid;grid-template-columns:150px 150px minmax(0,1fr);gap:8px;margin-top:10px}.ai-daily-assignment-foot>div{border-top:1px solid var(--line-soft);padding-top:8px;display:grid;grid-template-columns:auto auto;gap:4px 8px;align-content:start}.ai-daily-assignment-foot b{font-size:8px;color:var(--dim)}.ai-daily-assignment-foot span{font:10px var(--font-geist-mono);color:var(--muted)}.ai-daily-assignment-foot small{grid-column:1/-1;font-size:8px;line-height:1.45;color:var(--dim)}.ai-daily-assignment-next span{font-family:inherit;font-size:9px;line-height:1.45}
 @media(max-width:900px){.ai-daily-assignment-grid{grid-template-columns:1fr}.ai-daily-horizons{grid-template-columns:repeat(5,minmax(74px,1fr));overflow-x:auto}.ai-daily-factors{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:600px){.ai-daily-assignment{padding:14px}.ai-daily-assignment-head{display:grid}.ai-daily-direction{text-align:left;width:max-content;min-width:96px}.ai-daily-horizons{grid-template-columns:repeat(5,78px)}.ai-daily-factors{grid-template-columns:repeat(2,1fr)}.ai-daily-assignment-foot{grid-template-columns:1fr 1fr}.ai-daily-assignment-next{grid-column:1/-1}}
+
+/* Cockpit daytime comfort pass: neutral surfaces and restrained semantic accents. */
+:root[data-theme="light"] .app-shell.minimal-ui{
+  --bg:#f4f7f5;
+  --surface:#ffffff;
+  --surface-2:#f7faf8;
+  --panel:#fbfcfb;
+  --field:#ffffff;
+  --line:#dfe7e3;
+  --line-soft:#edf2ef;
+  --text:#27332f;
+  --text-soft:#4e5c56;
+  --muted:#6d7b75;
+  --dim:#89958f;
+  --teal:#2b8e82;
+  --teal-2:#28776f;
+  --coral:#bd655d;
+  --amber:#9a7a31;
+  --green:#3a9174;
+  background:#f7f9f8;
+}
+:root[data-theme="light"] .app-shell.minimal-ui .topbar,
+:root[data-theme="light"] .app-shell.minimal-ui .ticker,
+:root[data-theme="light"] .app-shell.minimal-ui .stock-head,
+:root[data-theme="light"] .app-shell.minimal-ui .workspace,
+:root[data-theme="light"] .app-shell.minimal-ui .chart-zone,
+:root[data-theme="light"] .app-shell.minimal-ui .chart-tools,
+:root[data-theme="light"] .app-shell.minimal-ui .chart-wrap,
+:root[data-theme="light"] .app-shell.minimal-ui .decision-zone{
+  border-color:var(--line);
+  background:var(--surface);
+}
+:root[data-theme="light"] .app-shell.minimal-ui .topbar,
+:root[data-theme="light"] .app-shell.minimal-ui .ticker{
+  box-shadow:none;
+}
+:root[data-theme="light"] .app-shell.minimal-ui .workspace{
+  background:var(--bg);
+}
+:root[data-theme="light"] .app-shell.minimal-ui .chart-zone,
+:root[data-theme="light"] .app-shell.minimal-ui .decision-zone{
+  box-shadow:0 3px 12px rgba(39,51,47,.035);
+}
+:root[data-theme="light"] .app-shell.minimal-ui .global-decision-card{
+  border-color:#c9ddd7;
+  background:#f9fcfb;
+  box-shadow:0 5px 16px rgba(39,51,47,.07);
+}
+:root[data-theme="light"] .app-shell.minimal-ui .zijin-strategy-control,
+:root[data-theme="light"] .app-shell.minimal-ui .zijin-strategy-now{
+  border-color:var(--line);
+  background:var(--surface-2);
+}
+:root[data-theme="light"] .app-shell.minimal-ui .zijin-strategy-lanes article{
+  border-color:var(--line);
+  background:#fbfcfb;
+}
+:root[data-theme="light"] .app-shell.minimal-ui .zijin-factor-engine{
+  border-color:var(--line);
+  background:#fbfcfb;
+  box-shadow:0 3px 10px rgba(39,51,47,.04);
+}
+:root[data-theme="light"] .app-shell.minimal-ui .interactive-intraday-chart .price-path{
+  stroke:var(--coral);
+}
+:root[data-theme="light"] .app-shell.minimal-ui .interactive-intraday-chart .intraday-price-flag rect{
+  fill:#fffdfc;
+  stroke:var(--line);
+}
+:root[data-theme="light"] .app-shell.minimal-ui .interactive-intraday-chart .intraday-price-flag text{
+  fill:var(--text);
+}
