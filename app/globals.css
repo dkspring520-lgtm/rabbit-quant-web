@@ -2544,3 +2544,47 @@
     padding:7px 10px 6px;
   }
 }
+
+/* Fullscreen chart and marker readability: keep the SVG's native 920:320
+   composition instead of stretching it to the available panel height. */
+@media(min-width:761px){
+  .workspace.workspace-fullscreen .chart-zone{
+    min-height:0;
+  }
+  .workspace.workspace-fullscreen .chart-wrap{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:0;
+    overflow:hidden;
+  }
+  .workspace.workspace-fullscreen .chart-wrap>svg.interactive-intraday-chart{
+    display:block;
+    flex:0 1 auto;
+    width:100%;
+    height:auto;
+    max-height:100%;
+    aspect-ratio:920 / 320;
+    object-fit:contain;
+  }
+}
+
+/* Dashed label leaders remain readable on both black-gold and light themes. */
+.interactive-intraday-chart .candidate-signal-marker.with-label>.marker-label-leader{
+  stroke-width:1.5;
+  stroke-dasharray:5 3;
+  opacity:.78;
+}
+.interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker .marker-label-leader{
+  stroke-dasharray:5 3;
+  opacity:.72;
+}
+.interactive-intraday-chart .candidate-signal-marker.v1-context-marker .marker-label-leader{
+  stroke-dasharray:4 3;
+  opacity:.76;
+}
+.interactive-intraday-chart .live-signal-marker>.marker-label-leader{
+  stroke-width:1.6;
+  stroke-dasharray:5 3;
+  opacity:.9;
+}
