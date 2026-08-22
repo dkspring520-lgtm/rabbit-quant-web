@@ -2106,7 +2106,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const eligible=zijinMonitorStrategy==="closure"&&positiveTBlockedByFlow
         ? selected.filter(observation=>observation.direction!=="正T")
         : selected;
-      return compactChartObservations(eligible,isZijinStock?45:30,{mergeRepairPhases:isZijinStock&&zijinMonitorStrategy==="closure"}) as ReplayObservation[];
+      return compactChartObservations(eligible,isZijinStock?45:30,{mergeRepairPhases:isZijinStock&&zijinMonitorStrategy==="closure",retainAll:true}) as ReplayObservation[];
     },
     [currentObservations,isZijinStock,positiveTBlockedByFlow,zijinMonitorStrategy,zijinV1ChartObservations,zijinV29ChartObservations],
   );
