@@ -2301,7 +2301,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const label=compactIntradayPrompt(alert.title.replace(`${stock.name} · `,"").replace(`${stock.name} `,"").trim(),"候选提醒");
       const isSell=alert.rabbit==="sell";
       const labelWidth=label.length*8+16;
-      const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
+      const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell);
       return [{...point,...placed,isSell,label,labelWidth,time,price:markerPrice,key:`recorded-${alert.eventKey??alert.id??index}`}];
     });
     // The rabbit can surface the faster displacement candidate before the
@@ -2318,7 +2318,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           const isSell=rabbitTrackerSignal.tone==="sell";
           const label=compactIntradayPrompt(rabbitTrackerSignal.label);
           const labelWidth=label.length*8+16;
-          const placed=reserveLabel(point.x,isSell?point.y+22:point.y-15,labelWidth,16,isSell?1:-1);
+          const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell);
           return [{...point,...placed,isSell,label,labelWidth,time:rabbitTrackerSignal.time,price:rabbitTrackerSignal.price,key:rabbitTrackerSignal.key}];
         })()
       :[];
