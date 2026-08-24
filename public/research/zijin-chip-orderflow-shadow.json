@@ -1,0 +1,3089 @@
+{
+  "mode": "zijin-chip-map-order-flow-four-layer-shadow",
+  "symbol": "601899",
+  "createdAt": "2026-08-24T13:00:48.655Z",
+  "version": "1.0.0-research",
+  "baselineVersion": "2.0.0-research",
+  "safety": {
+    "symbol": "601899",
+    "researchOnly": true,
+    "shadowOnly": true,
+    "confirmationOnly": true,
+    "canCreateSignal": false,
+    "affectsProductionStrategy": false,
+    "canPromoteAutomatically": false,
+    "requiresOutOfSampleValidation": true,
+    "requiresHumanApproval": true
+  },
+  "disclosure": {
+    "chipMapIsProxy": true,
+    "chipMapDefinition": "Causal minute volume-at-price proxy; it is not account-level holder cost distribution.",
+    "cancellationIsHeuristic": true,
+    "cancellationDefinition": "Abnormal depth disappearance inferred from adjacent retained snapshots; no order IDs are available.",
+    "confirmationCannotCreateSignals": true
+  },
+  "requestedRange": {
+    "startDate": null,
+    "endDate": null
+  },
+  "dataset": {
+    "datasetId": "zijin-601899-minute-ohlc-l2-5a53421170e8",
+    "path": "E:\\zijin-l2\\601899-factor-minute-ohlc-v1.jsonl",
+    "checksum": "5a53421170e83abf5818ca9b9f744f243ecdfb8e21b5f4ce00d90204eb191dd2",
+    "loadedSessions": 384,
+    "selectedSessions": 384,
+    "firstAvailableDate": "20250102",
+    "lastAvailableDate": "20260807",
+    "firstSelectedDate": "20250102",
+    "lastSelectedDate": "20260807",
+    "availableYears": [
+      "2025",
+      "2026"
+    ],
+    "requested2024Available": false,
+    "contextPath": "E:\\zijin-l2\\zijin-market-sector-daily-2024-2026.json"
+  },
+  "reproducibility": {
+    "datasetChecksum": "5a53421170e83abf5818ca9b9f744f243ecdfb8e21b5f4ce00d90204eb191dd2",
+    "engineVersion": "1.0.0+zuot-2.0.0-research+chip-flow-1.0.0-research",
+    "factorVersion": "1.0.0",
+    "configHash": "f63f3362faeebc7f010480410272e1d2763b118927e40ae871da853a2d749e66",
+    "asOf": "20260807T1456",
+    "gitCommit": "d9069691a76d901d1c83f04e242b9ebc4ca04dd1"
+  },
+  "config": {
+    "baselineExperimentId": "v2-standalone",
+    "slippageBpsPerSide": 2,
+    "chipOrderFlow": {
+      "lookbackSessions": 20,
+      "minimumHistoricalSessions": 5,
+      "valueAreaFraction": 0.7,
+      "highVolumeNodeCount": 5,
+      "highVolumeNodeSeparationTicks": 3,
+      "priceTick": 0.01,
+      "minimumLocationTolerancePct": 0.0015,
+      "locationToleranceAtrMultiple": 0.75,
+      "minimumAlignedObi": 0.04,
+      "absorptionLookbackMinutes": 3,
+      "minimumAbsorbedAggressionRatio": 0.55,
+      "maximumAbsorptionPriceMovePct": 0.001
+    }
+  },
+  "timeSplits": {
+    "train": [
+      "20250102",
+      "20250103",
+      "20250106",
+      "20250107",
+      "20250108",
+      "20250109",
+      "20250110",
+      "20250113",
+      "20250114",
+      "20250115",
+      "20250116",
+      "20250117",
+      "20250120",
+      "20250121",
+      "20250122",
+      "20250123",
+      "20250124",
+      "20250127",
+      "20250206",
+      "20250207",
+      "20250210",
+      "20250211",
+      "20250212",
+      "20250213",
+      "20250214",
+      "20250217",
+      "20250218",
+      "20250219",
+      "20250220",
+      "20250221",
+      "20250224",
+      "20250225",
+      "20250226",
+      "20250227",
+      "20250228",
+      "20250303",
+      "20250304",
+      "20250305",
+      "20250306",
+      "20250307",
+      "20250310",
+      "20250311",
+      "20250312",
+      "20250313",
+      "20250314",
+      "20250317",
+      "20250318",
+      "20250319",
+      "20250320",
+      "20250321",
+      "20250324",
+      "20250325",
+      "20250326",
+      "20250327",
+      "20250328",
+      "20250331",
+      "20250401",
+      "20250402",
+      "20250403",
+      "20250407",
+      "20250408",
+      "20250409",
+      "20250410",
+      "20250411",
+      "20250414",
+      "20250415",
+      "20250416",
+      "20250417",
+      "20250418",
+      "20250421",
+      "20250422",
+      "20250423",
+      "20250424",
+      "20250425",
+      "20250428",
+      "20250429",
+      "20250430",
+      "20250506",
+      "20250507",
+      "20250508",
+      "20250509",
+      "20250512",
+      "20250513",
+      "20250514",
+      "20250515",
+      "20250516",
+      "20250519",
+      "20250520",
+      "20250521",
+      "20250522",
+      "20250523",
+      "20250526",
+      "20250527",
+      "20250528",
+      "20250529",
+      "20250530",
+      "20250603",
+      "20250604",
+      "20250605",
+      "20250606",
+      "20250609",
+      "20250610",
+      "20250611",
+      "20250612",
+      "20250613",
+      "20250616",
+      "20250617",
+      "20250618",
+      "20250619",
+      "20250620",
+      "20250623",
+      "20250624",
+      "20250625",
+      "20250626",
+      "20250627",
+      "20250630",
+      "20250701",
+      "20250702",
+      "20250703",
+      "20250704",
+      "20250707",
+      "20250708",
+      "20250709",
+      "20250710",
+      "20250711",
+      "20250714",
+      "20250715",
+      "20250716",
+      "20250717",
+      "20250718",
+      "20250721",
+      "20250722",
+      "20250723",
+      "20250724",
+      "20250725",
+      "20250728",
+      "20250729",
+      "20250730",
+      "20250731",
+      "20250801",
+      "20250804",
+      "20250805",
+      "20250806",
+      "20250807",
+      "20250808",
+      "20250811",
+      "20250812",
+      "20250813",
+      "20250814",
+      "20250815",
+      "20250818",
+      "20250819",
+      "20250820",
+      "20250821",
+      "20250822",
+      "20250825",
+      "20250826",
+      "20250827",
+      "20250828",
+      "20250829",
+      "20250901",
+      "20250902",
+      "20250903",
+      "20250904",
+      "20250905",
+      "20250908",
+      "20250909",
+      "20250910",
+      "20250911",
+      "20250912",
+      "20250915",
+      "20250916",
+      "20250917",
+      "20250918",
+      "20250919",
+      "20250922",
+      "20250923",
+      "20250924",
+      "20250925",
+      "20250926",
+      "20250929",
+      "20250930",
+      "20251009",
+      "20251010",
+      "20251013",
+      "20251014",
+      "20251015",
+      "20251016",
+      "20251017",
+      "20251020",
+      "20251021",
+      "20251022",
+      "20251023",
+      "20251024",
+      "20251027",
+      "20251028",
+      "20251029",
+      "20251030",
+      "20251031",
+      "20251105",
+      "20251106",
+      "20251107",
+      "20251110",
+      "20251111",
+      "20251112",
+      "20251113",
+      "20251114",
+      "20251117",
+      "20251118",
+      "20251119",
+      "20251120",
+      "20251121",
+      "20251124",
+      "20251125",
+      "20251126",
+      "20251127",
+      "20251128",
+      "20251201",
+      "20251202",
+      "20251203",
+      "20251204",
+      "20251205",
+      "20251208",
+      "20251209",
+      "20251210",
+      "20251211",
+      "20251212",
+      "20251215",
+      "20251216",
+      "20251217"
+    ],
+    "validation": [
+      "20251218",
+      "20251219",
+      "20251222",
+      "20251223",
+      "20251224",
+      "20251225",
+      "20251226",
+      "20251229",
+      "20251230",
+      "20251231",
+      "20260105",
+      "20260106",
+      "20260107",
+      "20260108",
+      "20260109",
+      "20260112",
+      "20260113",
+      "20260114",
+      "20260115",
+      "20260116",
+      "20260119",
+      "20260120",
+      "20260121",
+      "20260122",
+      "20260123",
+      "20260126",
+      "20260127",
+      "20260128",
+      "20260129",
+      "20260130",
+      "20260202",
+      "20260203",
+      "20260204",
+      "20260205",
+      "20260206",
+      "20260209",
+      "20260210",
+      "20260211",
+      "20260212",
+      "20260213",
+      "20260224",
+      "20260225",
+      "20260226",
+      "20260227",
+      "20260302",
+      "20260303",
+      "20260304",
+      "20260305",
+      "20260306",
+      "20260309",
+      "20260310",
+      "20260311",
+      "20260312",
+      "20260313",
+      "20260316",
+      "20260317",
+      "20260318",
+      "20260319",
+      "20260320",
+      "20260323",
+      "20260324",
+      "20260325",
+      "20260326",
+      "20260327",
+      "20260330",
+      "20260331",
+      "20260401",
+      "20260402",
+      "20260403",
+      "20260407",
+      "20260408",
+      "20260409",
+      "20260410",
+      "20260413",
+      "20260414",
+      "20260415",
+      "20260416"
+    ],
+    "test": [
+      "20260417",
+      "20260420",
+      "20260421",
+      "20260422",
+      "20260423",
+      "20260424",
+      "20260427",
+      "20260428",
+      "20260429",
+      "20260430",
+      "20260506",
+      "20260507",
+      "20260508",
+      "20260511",
+      "20260512",
+      "20260513",
+      "20260514",
+      "20260515",
+      "20260518",
+      "20260519",
+      "20260520",
+      "20260521",
+      "20260522",
+      "20260525",
+      "20260526",
+      "20260527",
+      "20260528",
+      "20260529",
+      "20260601",
+      "20260602",
+      "20260603",
+      "20260604",
+      "20260605",
+      "20260608",
+      "20260609",
+      "20260610",
+      "20260611",
+      "20260612",
+      "20260615",
+      "20260616",
+      "20260617",
+      "20260618",
+      "20260622",
+      "20260623",
+      "20260624",
+      "20260625",
+      "20260626",
+      "20260629",
+      "20260630",
+      "20260701",
+      "20260702",
+      "20260703",
+      "20260706",
+      "20260707",
+      "20260708",
+      "20260709",
+      "20260710",
+      "20260713",
+      "20260714",
+      "20260715",
+      "20260716",
+      "20260717",
+      "20260720",
+      "20260721",
+      "20260722",
+      "20260723",
+      "20260724",
+      "20260727",
+      "20260728",
+      "20260729",
+      "20260730",
+      "20260731",
+      "20260803",
+      "20260804",
+      "20260805",
+      "20260806",
+      "20260807"
+    ]
+  },
+  "antiOverfitting": {
+    "chronologicalSplit": true,
+    "disjointSplitAudit": true,
+    "lockedFinal20Percent": true,
+    "fixedRulesNoLockedTestRefit": true,
+    "rollingOutOfSample": true,
+    "causalChipMap": true,
+    "missingL2CannotConfirm": true
+  },
+  "scopes": {
+    "fullSample": {
+      "baselineSignals": 1153,
+      "retainedSignals": 120,
+      "signalRetentionRate": 0.10407632,
+      "baseline": {
+        "trades": 1153,
+        "wins": 447,
+        "losses": 706,
+        "afterCostWinRate": 0.3876843,
+        "grossPnl": -25580.2432,
+        "fees": 47944.2662,
+        "netPnl": -73524.5092,
+        "profitFactor": 0.33409869,
+        "maximumDrawdown": 0.83821828,
+        "exits": {
+          "stopLoss": 673,
+          "takeProfit": 435,
+          "timeout": 45
+        }
+      },
+      "fourLayerConfirmation": {
+        "trades": 120,
+        "wins": 42,
+        "losses": 78,
+        "afterCostWinRate": 0.35,
+        "grossPnl": -3237.8752,
+        "fees": 4310.1652,
+        "netPnl": -7548.0403,
+        "profitFactor": 0.3092524,
+        "maximumDrawdown": 0.19975292,
+        "exits": {
+          "takeProfit": 39,
+          "stopLoss": 71,
+          "timeout": 10
+        }
+      },
+      "impact": {
+        "rejectedTrades": 1033,
+        "lossesCorrectlyIntercepted": 628,
+        "winningTradesMistakenlyRejected": 405,
+        "winnerVetoRate": 0.90604027,
+        "vetoFalsePositiveRate": 0.39206196,
+        "rejectionReasons": {
+          "insufficient-historical-sessions": 17,
+          "abnormal-depth-disappearance-veto": 112,
+          "order-flow-not-confirmed": 419,
+          "no-nearby-causal-chip-level": 912,
+          "order-book-trap-veto": 70
+        }
+      },
+      "byDirection": {
+        "positiveT": {
+          "baselineSignals": 576,
+          "retainedSignals": 65,
+          "signalRetentionRate": 0.11284722,
+          "baseline": {
+            "trades": 576,
+            "wins": 213,
+            "losses": 363,
+            "afterCostWinRate": 0.36979167,
+            "grossPnl": -15120.3968,
+            "fees": 23731.2474,
+            "netPnl": -38851.6441,
+            "profitFactor": 0.30270153,
+            "maximumDrawdown": 0.62229326,
+            "exits": {
+              "stopLoss": 344,
+              "takeProfit": 205,
+              "timeout": 27
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 65,
+            "wins": 23,
+            "losses": 42,
+            "afterCostWinRate": 0.35384615,
+            "grossPnl": -1638.3568,
+            "fees": 2318.9792,
+            "netPnl": -3957.336,
+            "profitFactor": 0.31778267,
+            "maximumDrawdown": 0.11855405,
+            "exits": {
+              "stopLoss": 38,
+              "takeProfit": 21,
+              "timeout": 6
+            }
+          },
+          "impact": {
+            "rejectedTrades": 511,
+            "lossesCorrectlyIntercepted": 321,
+            "winningTradesMistakenlyRejected": 190,
+            "winnerVetoRate": 0.89201878,
+            "vetoFalsePositiveRate": 0.37181996,
+            "rejectionReasons": {
+              "insufficient-historical-sessions": 8,
+              "order-flow-not-confirmed": 177,
+              "abnormal-depth-disappearance-veto": 58,
+              "no-nearby-causal-chip-level": 452,
+              "order-book-trap-veto": 44
+            }
+          }
+        },
+        "reverseT": {
+          "baselineSignals": 577,
+          "retainedSignals": 55,
+          "signalRetentionRate": 0.09532062,
+          "baseline": {
+            "trades": 577,
+            "wins": 234,
+            "losses": 343,
+            "afterCostWinRate": 0.40554593,
+            "grossPnl": -10459.8464,
+            "fees": 24213.0188,
+            "netPnl": -34672.8651,
+            "profitFactor": 0.36608207,
+            "maximumDrawdown": 0.57284629,
+            "exits": {
+              "stopLoss": 329,
+              "takeProfit": 230,
+              "timeout": 18
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 55,
+            "wins": 19,
+            "losses": 36,
+            "afterCostWinRate": 0.34545455,
+            "grossPnl": -1599.5184,
+            "fees": 1991.186,
+            "netPnl": -3590.7043,
+            "profitFactor": 0.29960058,
+            "maximumDrawdown": 0.09645782,
+            "exits": {
+              "takeProfit": 18,
+              "stopLoss": 33,
+              "timeout": 4
+            }
+          },
+          "impact": {
+            "rejectedTrades": 522,
+            "lossesCorrectlyIntercepted": 307,
+            "winningTradesMistakenlyRejected": 215,
+            "winnerVetoRate": 0.91880342,
+            "vetoFalsePositiveRate": 0.41187739,
+            "rejectionReasons": {
+              "insufficient-historical-sessions": 9,
+              "abnormal-depth-disappearance-veto": 54,
+              "order-flow-not-confirmed": 242,
+              "no-nearby-causal-chip-level": 460,
+              "order-book-trap-veto": 26
+            }
+          }
+        }
+      }
+    },
+    "train": {
+      "baselineSignals": 703,
+      "retainedSignals": 95,
+      "signalRetentionRate": 0.13513514,
+      "baseline": {
+        "trades": 703,
+        "wins": 266,
+        "losses": 437,
+        "afterCostWinRate": 0.37837838,
+        "grossPnl": -15295.1808,
+        "fees": 23919.5941,
+        "netPnl": -39214.7748,
+        "profitFactor": 0.35433412,
+        "maximumDrawdown": 0.69210903,
+        "exits": {
+          "stopLoss": 404,
+          "takeProfit": 254,
+          "timeout": 45
+        }
+      },
+      "fourLayerConfirmation": {
+        "trades": 95,
+        "wins": 30,
+        "losses": 65,
+        "afterCostWinRate": 0.31578947,
+        "grossPnl": -3098.6752,
+        "fees": 2997.2736,
+        "netPnl": -6095.9487,
+        "profitFactor": 0.28494531,
+        "maximumDrawdown": 0.17725647,
+        "exits": {
+          "takeProfit": 27,
+          "stopLoss": 58,
+          "timeout": 10
+        }
+      },
+      "impact": {
+        "rejectedTrades": 608,
+        "lossesCorrectlyIntercepted": 372,
+        "winningTradesMistakenlyRejected": 236,
+        "winnerVetoRate": 0.88721805,
+        "vetoFalsePositiveRate": 0.38815789,
+        "rejectionReasons": {
+          "insufficient-historical-sessions": 17,
+          "abnormal-depth-disappearance-veto": 75,
+          "order-flow-not-confirmed": 212,
+          "no-nearby-causal-chip-level": 526,
+          "order-book-trap-veto": 57
+        }
+      },
+      "byDirection": {
+        "positiveT": {
+          "baselineSignals": 358,
+          "retainedSignals": 52,
+          "signalRetentionRate": 0.1452514,
+          "baseline": {
+            "trades": 358,
+            "wins": 129,
+            "losses": 229,
+            "afterCostWinRate": 0.3603352,
+            "grossPnl": -9063.7456,
+            "fees": 12163.2363,
+            "netPnl": -21226.9819,
+            "profitFactor": 0.32461058,
+            "maximumDrawdown": 0.47242701,
+            "exits": {
+              "stopLoss": 210,
+              "takeProfit": 121,
+              "timeout": 27
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 52,
+            "wins": 16,
+            "losses": 36,
+            "afterCostWinRate": 0.30769231,
+            "grossPnl": -1732.0288,
+            "fees": 1594.3802,
+            "netPnl": -3326.409,
+            "profitFactor": 0.28132572,
+            "maximumDrawdown": 0.10622987,
+            "exits": {
+              "stopLoss": 32,
+              "takeProfit": 14,
+              "timeout": 6
+            }
+          },
+          "impact": {
+            "rejectedTrades": 306,
+            "lossesCorrectlyIntercepted": 193,
+            "winningTradesMistakenlyRejected": 113,
+            "winnerVetoRate": 0.87596899,
+            "vetoFalsePositiveRate": 0.36928105,
+            "rejectionReasons": {
+              "insufficient-historical-sessions": 8,
+              "order-flow-not-confirmed": 87,
+              "abnormal-depth-disappearance-veto": 37,
+              "no-nearby-causal-chip-level": 266,
+              "order-book-trap-veto": 32
+            }
+          }
+        },
+        "reverseT": {
+          "baselineSignals": 345,
+          "retainedSignals": 43,
+          "signalRetentionRate": 0.12463768,
+          "baseline": {
+            "trades": 345,
+            "wins": 137,
+            "losses": 208,
+            "afterCostWinRate": 0.39710145,
+            "grossPnl": -6231.4352,
+            "fees": 11756.3578,
+            "netPnl": -17987.7929,
+            "profitFactor": 0.386211,
+            "maximumDrawdown": 0.41640119,
+            "exits": {
+              "stopLoss": 194,
+              "takeProfit": 133,
+              "timeout": 18
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 43,
+            "wins": 14,
+            "losses": 29,
+            "afterCostWinRate": 0.3255814,
+            "grossPnl": -1366.6464,
+            "fees": 1402.8934,
+            "netPnl": -2769.5397,
+            "profitFactor": 0.28924479,
+            "maximumDrawdown": 0.08130481,
+            "exits": {
+              "takeProfit": 13,
+              "stopLoss": 26,
+              "timeout": 4
+            }
+          },
+          "impact": {
+            "rejectedTrades": 302,
+            "lossesCorrectlyIntercepted": 179,
+            "winningTradesMistakenlyRejected": 123,
+            "winnerVetoRate": 0.89781022,
+            "vetoFalsePositiveRate": 0.40728477,
+            "rejectionReasons": {
+              "insufficient-historical-sessions": 9,
+              "abnormal-depth-disappearance-veto": 38,
+              "order-flow-not-confirmed": 125,
+              "no-nearby-causal-chip-level": 260,
+              "order-book-trap-veto": 25
+            }
+          }
+        }
+      }
+    },
+    "validation": {
+      "baselineSignals": 228,
+      "retainedSignals": 15,
+      "signalRetentionRate": 0.06578947,
+      "baseline": {
+        "trades": 228,
+        "wins": 84,
+        "losses": 144,
+        "afterCostWinRate": 0.36842105,
+        "grossPnl": -6924.4832,
+        "fees": 13169.4216,
+        "netPnl": -20093.9047,
+        "profitFactor": 0.28240206,
+        "maximumDrawdown": 0.30079856,
+        "exits": {
+          "takeProfit": 84,
+          "stopLoss": 144
+        }
+      },
+      "fourLayerConfirmation": {
+        "trades": 15,
+        "wins": 7,
+        "losses": 8,
+        "afterCostWinRate": 0.46666667,
+        "grossPnl": -91.7312,
+        "fees": 850.0247,
+        "netPnl": -941.7559,
+        "profitFactor": 0.37432548,
+        "maximumDrawdown": 0.01970686,
+        "exits": {
+          "takeProfit": 7,
+          "stopLoss": 8
+        }
+      },
+      "impact": {
+        "rejectedTrades": 213,
+        "lossesCorrectlyIntercepted": 136,
+        "winningTradesMistakenlyRejected": 77,
+        "winnerVetoRate": 0.91666667,
+        "vetoFalsePositiveRate": 0.36150235,
+        "rejectionReasons": {
+          "no-nearby-causal-chip-level": 197,
+          "order-flow-not-confirmed": 99,
+          "abnormal-depth-disappearance-veto": 19,
+          "order-book-trap-veto": 6
+        }
+      },
+      "byDirection": {
+        "positiveT": {
+          "baselineSignals": 107,
+          "retainedSignals": 10,
+          "signalRetentionRate": 0.09345794,
+          "baseline": {
+            "trades": 107,
+            "wins": 39,
+            "losses": 68,
+            "afterCostWinRate": 0.36448598,
+            "grossPnl": -3415.6352,
+            "fees": 6150.7804,
+            "netPnl": -9566.4155,
+            "profitFactor": 0.26274808,
+            "maximumDrawdown": 0.15739909,
+            "exits": {
+              "takeProfit": 39,
+              "stopLoss": 68
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 10,
+            "wins": 5,
+            "losses": 5,
+            "afterCostWinRate": 0.5,
+            "grossPnl": -11.3808,
+            "fees": 578.283,
+            "netPnl": -589.6638,
+            "profitFactor": 0.40723825,
+            "maximumDrawdown": 0.0115709,
+            "exits": {
+              "takeProfit": 5,
+              "stopLoss": 5
+            }
+          },
+          "impact": {
+            "rejectedTrades": 97,
+            "lossesCorrectlyIntercepted": 63,
+            "winningTradesMistakenlyRejected": 34,
+            "winnerVetoRate": 0.87179487,
+            "vetoFalsePositiveRate": 0.35051546,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 90,
+              "abnormal-depth-disappearance-veto": 9,
+              "order-flow-not-confirmed": 39,
+              "order-book-trap-veto": 6
+            }
+          }
+        },
+        "reverseT": {
+          "baselineSignals": 121,
+          "retainedSignals": 5,
+          "signalRetentionRate": 0.04132231,
+          "baseline": {
+            "trades": 121,
+            "wins": 45,
+            "losses": 76,
+            "afterCostWinRate": 0.37190083,
+            "grossPnl": -3508.848,
+            "fees": 7018.6412,
+            "netPnl": -10527.4892,
+            "profitFactor": 0.29937453,
+            "maximumDrawdown": 0.17250073,
+            "exits": {
+              "takeProfit": 45,
+              "stopLoss": 76
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 5,
+            "wins": 2,
+            "losses": 3,
+            "afterCostWinRate": 0.4,
+            "grossPnl": -80.3504,
+            "fees": 271.7417,
+            "netPnl": -352.0921,
+            "profitFactor": 0.31017965,
+            "maximumDrawdown": 0.00961888,
+            "exits": {
+              "takeProfit": 2,
+              "stopLoss": 3
+            }
+          },
+          "impact": {
+            "rejectedTrades": 116,
+            "lossesCorrectlyIntercepted": 73,
+            "winningTradesMistakenlyRejected": 43,
+            "winnerVetoRate": 0.95555556,
+            "vetoFalsePositiveRate": 0.37068966,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 107,
+              "order-flow-not-confirmed": 60,
+              "abnormal-depth-disappearance-veto": 10
+            }
+          }
+        }
+      }
+    },
+    "lockedTest": {
+      "baselineSignals": 222,
+      "retainedSignals": 10,
+      "signalRetentionRate": 0.04504505,
+      "baseline": {
+        "trades": 222,
+        "wins": 97,
+        "losses": 125,
+        "afterCostWinRate": 0.43693694,
+        "grossPnl": -3360.5792,
+        "fees": 10855.2505,
+        "netPnl": -14215.8297,
+        "profitFactor": 0.34418251,
+        "maximumDrawdown": 0.25581887,
+        "exits": {
+          "takeProfit": 97,
+          "stopLoss": 125
+        }
+      },
+      "fourLayerConfirmation": {
+        "trades": 10,
+        "wins": 5,
+        "losses": 5,
+        "afterCostWinRate": 0.5,
+        "grossPnl": -47.4688,
+        "fees": 462.8669,
+        "netPnl": -510.3357,
+        "profitFactor": 0.43107276,
+        "maximumDrawdown": 0.01403314,
+        "exits": {
+          "stopLoss": 5,
+          "takeProfit": 5
+        }
+      },
+      "impact": {
+        "rejectedTrades": 212,
+        "lossesCorrectlyIntercepted": 120,
+        "winningTradesMistakenlyRejected": 92,
+        "winnerVetoRate": 0.94845361,
+        "vetoFalsePositiveRate": 0.43396226,
+        "rejectionReasons": {
+          "abnormal-depth-disappearance-veto": 18,
+          "no-nearby-causal-chip-level": 189,
+          "order-flow-not-confirmed": 108,
+          "order-book-trap-veto": 7
+        }
+      },
+      "byDirection": {
+        "positiveT": {
+          "baselineSignals": 111,
+          "retainedSignals": 3,
+          "signalRetentionRate": 0.02702703,
+          "baseline": {
+            "trades": 111,
+            "wins": 45,
+            "losses": 66,
+            "afterCostWinRate": 0.40540541,
+            "grossPnl": -2641.016,
+            "fees": 5417.2307,
+            "netPnl": -8058.2467,
+            "profitFactor": 0.28765974,
+            "maximumDrawdown": 0.15624121,
+            "exits": {
+              "takeProfit": 45,
+              "stopLoss": 66
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 3,
+            "wins": 2,
+            "losses": 1,
+            "afterCostWinRate": 0.66666667,
+            "grossPnl": 105.0528,
+            "fees": 146.316,
+            "netPnl": -41.2632,
+            "profitFactor": 0.76738502,
+            "maximumDrawdown": 0.0036362,
+            "exits": {
+              "stopLoss": 1,
+              "takeProfit": 2
+            }
+          },
+          "impact": {
+            "rejectedTrades": 108,
+            "lossesCorrectlyIntercepted": 65,
+            "winningTradesMistakenlyRejected": 43,
+            "winnerVetoRate": 0.95555556,
+            "vetoFalsePositiveRate": 0.39814815,
+            "rejectionReasons": {
+              "abnormal-depth-disappearance-veto": 12,
+              "no-nearby-causal-chip-level": 96,
+              "order-book-trap-veto": 6,
+              "order-flow-not-confirmed": 51
+            }
+          }
+        },
+        "reverseT": {
+          "baselineSignals": 111,
+          "retainedSignals": 7,
+          "signalRetentionRate": 0.06306306,
+          "baseline": {
+            "trades": 111,
+            "wins": 52,
+            "losses": 59,
+            "afterCostWinRate": 0.46846847,
+            "grossPnl": -719.5632,
+            "fees": 5438.0198,
+            "netPnl": -6157.583,
+            "profitFactor": 0.40587651,
+            "maximumDrawdown": 0.12043123,
+            "exits": {
+              "takeProfit": 52,
+              "stopLoss": 59
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 7,
+            "wins": 3,
+            "losses": 4,
+            "afterCostWinRate": 0.42857143,
+            "grossPnl": -152.5216,
+            "fees": 316.5509,
+            "netPnl": -469.0725,
+            "profitFactor": 0.34817147,
+            "maximumDrawdown": 0.01403314,
+            "exits": {
+              "takeProfit": 3,
+              "stopLoss": 4
+            }
+          },
+          "impact": {
+            "rejectedTrades": 104,
+            "lossesCorrectlyIntercepted": 55,
+            "winningTradesMistakenlyRejected": 49,
+            "winnerVetoRate": 0.94230769,
+            "vetoFalsePositiveRate": 0.47115385,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 93,
+              "order-flow-not-confirmed": 57,
+              "order-book-trap-veto": 1,
+              "abnormal-depth-disappearance-veto": 6
+            }
+          }
+        }
+      }
+    }
+  },
+  "rollingOutOfSample": {
+    "fixedRulesNoRefit": true,
+    "folds": [
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20250407",
+        "testStart": "20250408",
+        "testEnd": "20250508",
+        "trainDays": 60,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 59,
+          "retainedSignals": 9,
+          "signalRetentionRate": 0.15254237,
+          "baseline": {
+            "trades": 59,
+            "wins": 25,
+            "losses": 34,
+            "afterCostWinRate": 0.42372881,
+            "grossPnl": -372.096,
+            "fees": 1650.1469,
+            "netPnl": -2022.2429,
+            "profitFactor": 0.52410316,
+            "maximumDrawdown": 0.0725179,
+            "exits": {
+              "takeProfit": 25,
+              "stopLoss": 30,
+              "timeout": 4
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 9,
+            "wins": 3,
+            "losses": 6,
+            "afterCostWinRate": 0.33333333,
+            "grossPnl": -291.4624,
+            "fees": 248.5832,
+            "netPnl": -540.0456,
+            "profitFactor": 0.33239836,
+            "maximumDrawdown": 0.022903,
+            "exits": {
+              "takeProfit": 3,
+              "stopLoss": 6
+            }
+          },
+          "impact": {
+            "rejectedTrades": 50,
+            "lossesCorrectlyIntercepted": 28,
+            "winningTradesMistakenlyRejected": 22,
+            "winnerVetoRate": 0.88,
+            "vetoFalsePositiveRate": 0.44,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 45,
+              "order-flow-not-confirmed": 16,
+              "abnormal-depth-disappearance-veto": 4,
+              "order-book-trap-veto": 4
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 31,
+              "retainedSignals": 5,
+              "signalRetentionRate": 0.16129032,
+              "baseline": {
+                "trades": 31,
+                "wins": 13,
+                "losses": 18,
+                "afterCostWinRate": 0.41935484,
+                "grossPnl": -234.5056,
+                "fees": 866.2054,
+                "netPnl": -1100.711,
+                "profitFactor": 0.51347465,
+                "maximumDrawdown": 0.0470242,
+                "exits": {
+                  "takeProfit": 13,
+                  "stopLoss": 16,
+                  "timeout": 2
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 5,
+                "wins": 1,
+                "losses": 4,
+                "afterCostWinRate": 0.2,
+                "grossPnl": -309.8304,
+                "fees": 134.4986,
+                "netPnl": -444.329,
+                "profitFactor": 0.17356695,
+                "maximumDrawdown": 0.0194584,
+                "exits": {
+                  "takeProfit": 1,
+                  "stopLoss": 4
+                }
+              },
+              "impact": {
+                "rejectedTrades": 26,
+                "lossesCorrectlyIntercepted": 14,
+                "winningTradesMistakenlyRejected": 12,
+                "winnerVetoRate": 0.92307692,
+                "vetoFalsePositiveRate": 0.46153846,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 25,
+                  "order-flow-not-confirmed": 5,
+                  "abnormal-depth-disappearance-veto": 2,
+                  "order-book-trap-veto": 2
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 28,
+              "retainedSignals": 4,
+              "signalRetentionRate": 0.14285714,
+              "baseline": {
+                "trades": 28,
+                "wins": 12,
+                "losses": 16,
+                "afterCostWinRate": 0.42857143,
+                "grossPnl": -137.5904,
+                "fees": 783.9415,
+                "netPnl": -921.5319,
+                "profitFactor": 0.53620512,
+                "maximumDrawdown": 0.03286055,
+                "exits": {
+                  "stopLoss": 14,
+                  "takeProfit": 12,
+                  "timeout": 2
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 4,
+                "wins": 2,
+                "losses": 2,
+                "afterCostWinRate": 0.5,
+                "grossPnl": 18.368,
+                "fees": 114.0846,
+                "netPnl": -95.7166,
+                "profitFactor": 0.64717613,
+                "maximumDrawdown": 0.00658655,
+                "exits": {
+                  "takeProfit": 2,
+                  "stopLoss": 2
+                }
+              },
+              "impact": {
+                "rejectedTrades": 24,
+                "lossesCorrectlyIntercepted": 14,
+                "winningTradesMistakenlyRejected": 10,
+                "winnerVetoRate": 0.83333333,
+                "vetoFalsePositiveRate": 0.41666667,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 20,
+                  "order-flow-not-confirmed": 11,
+                  "abnormal-depth-disappearance-veto": 2,
+                  "order-book-trap-veto": 2
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20250508",
+        "testStart": "20250509",
+        "testEnd": "20250606",
+        "trainDays": 80,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 61,
+          "retainedSignals": 11,
+          "signalRetentionRate": 0.18032787,
+          "baseline": {
+            "trades": 61,
+            "wins": 16,
+            "losses": 45,
+            "afterCostWinRate": 0.26229508,
+            "grossPnl": -2445.3024,
+            "fees": 1752.6444,
+            "netPnl": -4197.9468,
+            "profitFactor": 0.2328111,
+            "maximumDrawdown": 0.13763608,
+            "exits": {
+              "stopLoss": 36,
+              "timeout": 11,
+              "takeProfit": 14
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 11,
+            "wins": 4,
+            "losses": 7,
+            "afterCostWinRate": 0.36363636,
+            "grossPnl": -189.344,
+            "fees": 313.3127,
+            "netPnl": -502.6567,
+            "profitFactor": 0.35065479,
+            "maximumDrawdown": 0.02211349,
+            "exits": {
+              "timeout": 3,
+              "takeProfit": 3,
+              "stopLoss": 5
+            }
+          },
+          "impact": {
+            "rejectedTrades": 50,
+            "lossesCorrectlyIntercepted": 38,
+            "winningTradesMistakenlyRejected": 12,
+            "winnerVetoRate": 0.75,
+            "vetoFalsePositiveRate": 0.24,
+            "rejectionReasons": {
+              "abnormal-depth-disappearance-veto": 10,
+              "order-flow-not-confirmed": 12,
+              "no-nearby-causal-chip-level": 42,
+              "order-book-trap-veto": 5
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 32,
+              "retainedSignals": 5,
+              "signalRetentionRate": 0.15625,
+              "baseline": {
+                "trades": 32,
+                "wins": 4,
+                "losses": 28,
+                "afterCostWinRate": 0.125,
+                "grossPnl": -2351.936,
+                "fees": 919.2519,
+                "netPnl": -3271.1879,
+                "profitFactor": 0.08487395,
+                "maximumDrawdown": 0.11026189,
+                "exits": {
+                  "stopLoss": 24,
+                  "timeout": 5,
+                  "takeProfit": 3
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 5,
+                "wins": 0,
+                "losses": 5,
+                "afterCostWinRate": 0,
+                "grossPnl": -457.0784,
+                "fees": 142.5818,
+                "netPnl": -599.6602,
+                "profitFactor": 0,
+                "maximumDrawdown": 0.0207809,
+                "exits": {
+                  "timeout": 1,
+                  "stopLoss": 4
+                }
+              },
+              "impact": {
+                "rejectedTrades": 27,
+                "lossesCorrectlyIntercepted": 23,
+                "winningTradesMistakenlyRejected": 4,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.14814815,
+                "rejectionReasons": {
+                  "abnormal-depth-disappearance-veto": 5,
+                  "order-flow-not-confirmed": 4,
+                  "order-book-trap-veto": 3,
+                  "no-nearby-causal-chip-level": 22
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 29,
+              "retainedSignals": 6,
+              "signalRetentionRate": 0.20689655,
+              "baseline": {
+                "trades": 29,
+                "wins": 12,
+                "losses": 17,
+                "afterCostWinRate": 0.4137931,
+                "grossPnl": -93.3664,
+                "fees": 833.3925,
+                "netPnl": -926.7589,
+                "profitFactor": 0.51153267,
+                "maximumDrawdown": 0.03812227,
+                "exits": {
+                  "timeout": 6,
+                  "stopLoss": 12,
+                  "takeProfit": 11
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 6,
+                "wins": 4,
+                "losses": 2,
+                "afterCostWinRate": 0.66666667,
+                "grossPnl": 267.7344,
+                "fees": 170.7309,
+                "netPnl": 97.0035,
+                "profitFactor": 1.55609284,
+                "maximumDrawdown": 0.00620757,
+                "exits": {
+                  "timeout": 2,
+                  "takeProfit": 3,
+                  "stopLoss": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 23,
+                "lossesCorrectlyIntercepted": 15,
+                "winningTradesMistakenlyRejected": 8,
+                "winnerVetoRate": 0.66666667,
+                "vetoFalsePositiveRate": 0.34782609,
+                "rejectionReasons": {
+                  "order-flow-not-confirmed": 8,
+                  "no-nearby-causal-chip-level": 20,
+                  "abnormal-depth-disappearance-veto": 5,
+                  "order-book-trap-veto": 2
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20250606",
+        "testStart": "20250609",
+        "testEnd": "20250704",
+        "trainDays": 100,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 60,
+          "retainedSignals": 5,
+          "signalRetentionRate": 0.08333333,
+          "baseline": {
+            "trades": 60,
+            "wins": 24,
+            "losses": 36,
+            "afterCostWinRate": 0.4,
+            "grossPnl": -1213.6768,
+            "fees": 1833.8885,
+            "netPnl": -3047.5653,
+            "profitFactor": 0.38307479,
+            "maximumDrawdown": 0.10159161,
+            "exits": {
+              "stopLoss": 34,
+              "takeProfit": 22,
+              "timeout": 4
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 5,
+            "wins": 4,
+            "losses": 1,
+            "afterCostWinRate": 0.8,
+            "grossPnl": 356.2112,
+            "fees": 149.561,
+            "netPnl": 206.6502,
+            "profitFactor": 2.48092925,
+            "maximumDrawdown": 0.00447706,
+            "exits": {
+              "takeProfit": 4,
+              "stopLoss": 1
+            }
+          },
+          "impact": {
+            "rejectedTrades": 55,
+            "lossesCorrectlyIntercepted": 35,
+            "winningTradesMistakenlyRejected": 20,
+            "winnerVetoRate": 0.83333333,
+            "vetoFalsePositiveRate": 0.36363636,
+            "rejectionReasons": {
+              "abnormal-depth-disappearance-veto": 8,
+              "no-nearby-causal-chip-level": 52,
+              "order-book-trap-veto": 8,
+              "order-flow-not-confirmed": 17
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 27,
+              "retainedSignals": 4,
+              "signalRetentionRate": 0.14814815,
+              "baseline": {
+                "trades": 27,
+                "wins": 12,
+                "losses": 15,
+                "afterCostWinRate": 0.44444444,
+                "grossPnl": -377.7568,
+                "fees": 824.2975,
+                "netPnl": -1202.0543,
+                "profitFactor": 0.42101356,
+                "maximumDrawdown": 0.04294694,
+                "exits": {
+                  "stopLoss": 15,
+                  "takeProfit": 10,
+                  "timeout": 2
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 4,
+                "wins": 3,
+                "losses": 1,
+                "afterCostWinRate": 0.75,
+                "grossPnl": 240.0704,
+                "fees": 119.884,
+                "netPnl": 120.1864,
+                "profitFactor": 1.86129873,
+                "maximumDrawdown": 0.00447706,
+                "exits": {
+                  "takeProfit": 3,
+                  "stopLoss": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 23,
+                "lossesCorrectlyIntercepted": 14,
+                "winningTradesMistakenlyRejected": 9,
+                "winnerVetoRate": 0.75,
+                "vetoFalsePositiveRate": 0.39130435,
+                "rejectionReasons": {
+                  "abnormal-depth-disappearance-veto": 1,
+                  "no-nearby-causal-chip-level": 22,
+                  "order-book-trap-veto": 3,
+                  "order-flow-not-confirmed": 7
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 33,
+              "retainedSignals": 1,
+              "signalRetentionRate": 0.03030303,
+              "baseline": {
+                "trades": 33,
+                "wins": 12,
+                "losses": 21,
+                "afterCostWinRate": 0.36363636,
+                "grossPnl": -835.92,
+                "fees": 1009.591,
+                "netPnl": -1845.511,
+                "profitFactor": 0.35557069,
+                "maximumDrawdown": 0.06195375,
+                "exits": {
+                  "stopLoss": 19,
+                  "takeProfit": 12,
+                  "timeout": 2
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 1,
+                "wins": 1,
+                "losses": 0,
+                "afterCostWinRate": 1,
+                "grossPnl": 116.1408,
+                "fees": 29.677,
+                "netPnl": 86.4638,
+                "profitFactor": null,
+                "maximumDrawdown": 0,
+                "exits": {
+                  "takeProfit": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 32,
+                "lossesCorrectlyIntercepted": 21,
+                "winningTradesMistakenlyRejected": 11,
+                "winnerVetoRate": 0.91666667,
+                "vetoFalsePositiveRate": 0.34375,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 30,
+                  "abnormal-depth-disappearance-veto": 7,
+                  "order-book-trap-veto": 5,
+                  "order-flow-not-confirmed": 10
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20250704",
+        "testStart": "20250707",
+        "testEnd": "20250801",
+        "trainDays": 120,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 70,
+          "retainedSignals": 11,
+          "signalRetentionRate": 0.15714286,
+          "baseline": {
+            "trades": 70,
+            "wins": 25,
+            "losses": 45,
+            "afterCostWinRate": 0.35714286,
+            "grossPnl": -1258.5792,
+            "fees": 2186.1333,
+            "netPnl": -3444.7125,
+            "profitFactor": 0.36616318,
+            "maximumDrawdown": 0.10524993,
+            "exits": {
+              "stopLoss": 36,
+              "timeout": 11,
+              "takeProfit": 23
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 11,
+            "wins": 1,
+            "losses": 10,
+            "afterCostWinRate": 0.09090909,
+            "grossPnl": -663.4016,
+            "fees": 338.3383,
+            "netPnl": -1001.7399,
+            "profitFactor": 0.07816529,
+            "maximumDrawdown": 0.03488694,
+            "exits": {
+              "takeProfit": 1,
+              "stopLoss": 7,
+              "timeout": 3
+            }
+          },
+          "impact": {
+            "rejectedTrades": 59,
+            "lossesCorrectlyIntercepted": 35,
+            "winningTradesMistakenlyRejected": 24,
+            "winnerVetoRate": 0.96,
+            "vetoFalsePositiveRate": 0.40677966,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 52,
+              "order-flow-not-confirmed": 18,
+              "abnormal-depth-disappearance-veto": 6,
+              "order-book-trap-veto": 9
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 35,
+              "retainedSignals": 7,
+              "signalRetentionRate": 0.2,
+              "baseline": {
+                "trades": 35,
+                "wins": 9,
+                "losses": 26,
+                "afterCostWinRate": 0.25714286,
+                "grossPnl": -1043.8272,
+                "fees": 1089.3071,
+                "netPnl": -2133.1343,
+                "profitFactor": 0.26161843,
+                "maximumDrawdown": 0.06666158,
+                "exits": {
+                  "stopLoss": 19,
+                  "takeProfit": 9,
+                  "timeout": 7
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 7,
+                "wins": 1,
+                "losses": 6,
+                "afterCostWinRate": 0.14285714,
+                "grossPnl": -229.8144,
+                "fees": 214.4785,
+                "netPnl": -444.2929,
+                "profitFactor": 0.16049756,
+                "maximumDrawdown": 0.01729335,
+                "exits": {
+                  "takeProfit": 1,
+                  "stopLoss": 3,
+                  "timeout": 3
+                }
+              },
+              "impact": {
+                "rejectedTrades": 28,
+                "lossesCorrectlyIntercepted": 20,
+                "winningTradesMistakenlyRejected": 8,
+                "winnerVetoRate": 0.88888889,
+                "vetoFalsePositiveRate": 0.28571429,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 25,
+                  "order-flow-not-confirmed": 7,
+                  "abnormal-depth-disappearance-veto": 3,
+                  "order-book-trap-veto": 4
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 35,
+              "retainedSignals": 4,
+              "signalRetentionRate": 0.11428571,
+              "baseline": {
+                "trades": 35,
+                "wins": 16,
+                "losses": 19,
+                "afterCostWinRate": 0.45714286,
+                "grossPnl": -214.752,
+                "fees": 1096.8262,
+                "netPnl": -1311.5782,
+                "profitFactor": 0.4848004,
+                "maximumDrawdown": 0.04134444,
+                "exits": {
+                  "stopLoss": 17,
+                  "timeout": 4,
+                  "takeProfit": 14
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 4,
+                "wins": 0,
+                "losses": 4,
+                "afterCostWinRate": 0,
+                "grossPnl": -433.5872,
+                "fees": 123.8598,
+                "netPnl": -557.447,
+                "profitFactor": 0,
+                "maximumDrawdown": 0.0179032,
+                "exits": {
+                  "stopLoss": 4
+                }
+              },
+              "impact": {
+                "rejectedTrades": 31,
+                "lossesCorrectlyIntercepted": 15,
+                "winningTradesMistakenlyRejected": 16,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.51612903,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 27,
+                  "abnormal-depth-disappearance-veto": 3,
+                  "order-flow-not-confirmed": 11,
+                  "order-book-trap-veto": 5
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20250801",
+        "testStart": "20250804",
+        "testEnd": "20250829",
+        "trainDays": 140,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 59,
+          "retainedSignals": 4,
+          "signalRetentionRate": 0.06779661,
+          "baseline": {
+            "trades": 59,
+            "wins": 24,
+            "losses": 35,
+            "afterCostWinRate": 0.40677966,
+            "grossPnl": -1083.3952,
+            "fees": 1981.2155,
+            "netPnl": -3064.6107,
+            "profitFactor": 0.38829974,
+            "maximumDrawdown": 0.09206659,
+            "exits": {
+              "takeProfit": 24,
+              "stopLoss": 35
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 4,
+            "wins": 1,
+            "losses": 3,
+            "afterCostWinRate": 0.25,
+            "grossPnl": -212.3776,
+            "fees": 130.891,
+            "netPnl": -343.2686,
+            "profitFactor": 0.19495163,
+            "maximumDrawdown": 0.01288651,
+            "exits": {
+              "takeProfit": 1,
+              "stopLoss": 3
+            }
+          },
+          "impact": {
+            "rejectedTrades": 55,
+            "lossesCorrectlyIntercepted": 32,
+            "winningTradesMistakenlyRejected": 23,
+            "winnerVetoRate": 0.95833333,
+            "vetoFalsePositiveRate": 0.41818182,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 52,
+              "order-flow-not-confirmed": 20,
+              "order-book-trap-veto": 10,
+              "abnormal-depth-disappearance-veto": 8
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 27,
+              "retainedSignals": 2,
+              "signalRetentionRate": 0.07407407,
+              "baseline": {
+                "trades": 27,
+                "wins": 12,
+                "losses": 15,
+                "afterCostWinRate": 0.44444444,
+                "grossPnl": -268.3744,
+                "fees": 903.8676,
+                "netPnl": -1172.242,
+                "profitFactor": 0.45349677,
+                "maximumDrawdown": 0.03471784,
+                "exits": {
+                  "stopLoss": 15,
+                  "takeProfit": 12
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 2,
+                "wins": 1,
+                "losses": 1,
+                "afterCostWinRate": 0.5,
+                "grossPnl": 6.1888,
+                "fees": 64.5296,
+                "netPnl": -58.3408,
+                "profitFactor": 0.58760193,
+                "maximumDrawdown": 0.00434695,
+                "exits": {
+                  "takeProfit": 1,
+                  "stopLoss": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 25,
+                "lossesCorrectlyIntercepted": 14,
+                "winningTradesMistakenlyRejected": 11,
+                "winnerVetoRate": 0.91666667,
+                "vetoFalsePositiveRate": 0.44,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 24,
+                  "order-book-trap-veto": 8,
+                  "abnormal-depth-disappearance-veto": 5,
+                  "order-flow-not-confirmed": 6
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 32,
+              "retainedSignals": 2,
+              "signalRetentionRate": 0.0625,
+              "baseline": {
+                "trades": 32,
+                "wins": 12,
+                "losses": 20,
+                "afterCostWinRate": 0.375,
+                "grossPnl": -815.0208,
+                "fees": 1077.3479,
+                "netPnl": -1892.3687,
+                "profitFactor": 0.33948764,
+                "maximumDrawdown": 0.06400455,
+                "exits": {
+                  "takeProfit": 12,
+                  "stopLoss": 20
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 2,
+                "wins": 0,
+                "losses": 2,
+                "afterCostWinRate": 0,
+                "grossPnl": -218.5664,
+                "fees": 66.3614,
+                "netPnl": -284.9278,
+                "profitFactor": 0,
+                "maximumDrawdown": 0.00857684,
+                "exits": {
+                  "stopLoss": 2
+                }
+              },
+              "impact": {
+                "rejectedTrades": 30,
+                "lossesCorrectlyIntercepted": 18,
+                "winningTradesMistakenlyRejected": 12,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.4,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 28,
+                  "order-flow-not-confirmed": 14,
+                  "order-book-trap-veto": 2,
+                  "abnormal-depth-disappearance-veto": 3
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20250829",
+        "testStart": "20250901",
+        "testEnd": "20250926",
+        "trainDays": 160,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 57,
+          "retainedSignals": 3,
+          "signalRetentionRate": 0.05263158,
+          "baseline": {
+            "trades": 57,
+            "wins": 20,
+            "losses": 37,
+            "afterCostWinRate": 0.35087719,
+            "grossPnl": -2038.728,
+            "fees": 2313.3102,
+            "netPnl": -4352.0382,
+            "profitFactor": 0.25160546,
+            "maximumDrawdown": 0.10408548,
+            "exits": {
+              "stopLoss": 37,
+              "takeProfit": 20
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 3,
+            "wins": 0,
+            "losses": 3,
+            "afterCostWinRate": 0,
+            "grossPnl": -336.4416,
+            "fees": 121.0199,
+            "netPnl": -457.4615,
+            "profitFactor": 0,
+            "maximumDrawdown": 0.0112852,
+            "exits": {
+              "stopLoss": 3
+            }
+          },
+          "impact": {
+            "rejectedTrades": 54,
+            "lossesCorrectlyIntercepted": 34,
+            "winningTradesMistakenlyRejected": 20,
+            "winnerVetoRate": 1,
+            "vetoFalsePositiveRate": 0.37037037,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 51,
+              "order-flow-not-confirmed": 24,
+              "abnormal-depth-disappearance-veto": 4,
+              "order-book-trap-veto": 1
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 31,
+              "retainedSignals": 2,
+              "signalRetentionRate": 0.06451613,
+              "baseline": {
+                "trades": 31,
+                "wins": 9,
+                "losses": 22,
+                "afterCostWinRate": 0.29032258,
+                "grossPnl": -1561.6928,
+                "fees": 1260.8414,
+                "netPnl": -2822.5342,
+                "profitFactor": 0.184239,
+                "maximumDrawdown": 0.06864137,
+                "exits": {
+                  "stopLoss": 22,
+                  "takeProfit": 9
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 2,
+                "wins": 0,
+                "losses": 2,
+                "afterCostWinRate": 0,
+                "grossPnl": -224.1728,
+                "fees": 80.376,
+                "netPnl": -304.5488,
+                "profitFactor": 0,
+                "maximumDrawdown": 0.00754952,
+                "exits": {
+                  "stopLoss": 2
+                }
+              },
+              "impact": {
+                "rejectedTrades": 29,
+                "lossesCorrectlyIntercepted": 20,
+                "winningTradesMistakenlyRejected": 9,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.31034483,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 28,
+                  "order-flow-not-confirmed": 11,
+                  "order-book-trap-veto": 1,
+                  "abnormal-depth-disappearance-veto": 1
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 26,
+              "retainedSignals": 1,
+              "signalRetentionRate": 0.03846154,
+              "baseline": {
+                "trades": 26,
+                "wins": 11,
+                "losses": 15,
+                "afterCostWinRate": 0.42307692,
+                "grossPnl": -477.0352,
+                "fees": 1052.4688,
+                "netPnl": -1529.504,
+                "profitFactor": 0.35057437,
+                "maximumDrawdown": 0.04032616,
+                "exits": {
+                  "stopLoss": 15,
+                  "takeProfit": 11
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 1,
+                "wins": 0,
+                "losses": 1,
+                "afterCostWinRate": 0,
+                "grossPnl": -112.2688,
+                "fees": 40.6439,
+                "netPnl": -152.9127,
+                "profitFactor": 0,
+                "maximumDrawdown": 0.0037641,
+                "exits": {
+                  "stopLoss": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 25,
+                "lossesCorrectlyIntercepted": 14,
+                "winningTradesMistakenlyRejected": 11,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.44,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 23,
+                  "order-flow-not-confirmed": 13,
+                  "abnormal-depth-disappearance-veto": 3
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20250926",
+        "testStart": "20250929",
+        "testEnd": "20251105",
+        "trainDays": 180,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 58,
+          "retainedSignals": 5,
+          "signalRetentionRate": 0.0862069,
+          "baseline": {
+            "trades": 58,
+            "wins": 27,
+            "losses": 31,
+            "afterCostWinRate": 0.46551724,
+            "grossPnl": -514.4832,
+            "fees": 2803.4542,
+            "netPnl": -3317.9374,
+            "profitFactor": 0.41319095,
+            "maximumDrawdown": 0.06999443,
+            "exits": {
+              "takeProfit": 27,
+              "stopLoss": 31
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 5,
+            "wins": 3,
+            "losses": 2,
+            "afterCostWinRate": 0.6,
+            "grossPnl": 115.5744,
+            "fees": 246.8654,
+            "netPnl": -131.291,
+            "profitFactor": 0.6427377,
+            "maximumDrawdown": 0.00737973,
+            "exits": {
+              "takeProfit": 3,
+              "stopLoss": 2
+            }
+          },
+          "impact": {
+            "rejectedTrades": 53,
+            "lossesCorrectlyIntercepted": 29,
+            "winningTradesMistakenlyRejected": 24,
+            "winnerVetoRate": 0.88888889,
+            "vetoFalsePositiveRate": 0.45283019,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 49,
+              "order-flow-not-confirmed": 29,
+              "abnormal-depth-disappearance-veto": 2
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 28,
+              "retainedSignals": 2,
+              "signalRetentionRate": 0.07142857,
+              "baseline": {
+                "trades": 28,
+                "wins": 16,
+                "losses": 12,
+                "afterCostWinRate": 0.57142857,
+                "grossPnl": 449.4416,
+                "fees": 1352.0156,
+                "netPnl": -902.574,
+                "profitFactor": 0.58290056,
+                "maximumDrawdown": 0.02861486,
+                "exits": {
+                  "stopLoss": 12,
+                  "takeProfit": 16
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 2,
+                "wins": 2,
+                "losses": 0,
+                "afterCostWinRate": 1,
+                "grossPnl": 264.5536,
+                "fees": 97.85,
+                "netPnl": 166.7036,
+                "profitFactor": null,
+                "maximumDrawdown": 0,
+                "exits": {
+                  "takeProfit": 2
+                }
+              },
+              "impact": {
+                "rejectedTrades": 26,
+                "lossesCorrectlyIntercepted": 12,
+                "winningTradesMistakenlyRejected": 14,
+                "winnerVetoRate": 0.875,
+                "vetoFalsePositiveRate": 0.53846154,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 23,
+                  "order-flow-not-confirmed": 12,
+                  "abnormal-depth-disappearance-veto": 2
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 30,
+              "retainedSignals": 3,
+              "signalRetentionRate": 0.1,
+              "baseline": {
+                "trades": 30,
+                "wins": 11,
+                "losses": 19,
+                "afterCostWinRate": 0.36666667,
+                "grossPnl": -963.9248,
+                "fees": 1451.4386,
+                "netPnl": -2415.3634,
+                "profitFactor": 0.30797289,
+                "maximumDrawdown": 0.05388614,
+                "exits": {
+                  "takeProfit": 11,
+                  "stopLoss": 19
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 3,
+                "wins": 1,
+                "losses": 2,
+                "afterCostWinRate": 0.33333333,
+                "grossPnl": -148.9792,
+                "fees": 149.0154,
+                "netPnl": -297.9946,
+                "profitFactor": 0.18911247,
+                "maximumDrawdown": 0.00737973,
+                "exits": {
+                  "stopLoss": 2,
+                  "takeProfit": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 27,
+                "lossesCorrectlyIntercepted": 17,
+                "winningTradesMistakenlyRejected": 10,
+                "winnerVetoRate": 0.90909091,
+                "vetoFalsePositiveRate": 0.37037037,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 26,
+                  "order-flow-not-confirmed": 17
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20251105",
+        "testStart": "20251106",
+        "testEnd": "20251203",
+        "trainDays": 200,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 65,
+          "retainedSignals": 6,
+          "signalRetentionRate": 0.09230769,
+          "baseline": {
+            "trades": 65,
+            "wins": 24,
+            "losses": 41,
+            "afterCostWinRate": 0.36923077,
+            "grossPnl": -2063.4768,
+            "fees": 3053.3849,
+            "netPnl": -5116.8617,
+            "profitFactor": 0.23691839,
+            "maximumDrawdown": 0.10776459,
+            "exits": {
+              "stopLoss": 41,
+              "takeProfit": 24
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 6,
+            "wins": 0,
+            "losses": 6,
+            "afterCostWinRate": 0,
+            "grossPnl": -694.5376,
+            "fees": 281.7435,
+            "netPnl": -976.2811,
+            "profitFactor": 0,
+            "maximumDrawdown": 0.02060377,
+            "exits": {
+              "stopLoss": 6
+            }
+          },
+          "impact": {
+            "rejectedTrades": 59,
+            "lossesCorrectlyIntercepted": 35,
+            "winningTradesMistakenlyRejected": 24,
+            "winnerVetoRate": 1,
+            "vetoFalsePositiveRate": 0.40677966,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 49,
+              "order-flow-not-confirmed": 23,
+              "order-book-trap-veto": 5,
+              "abnormal-depth-disappearance-veto": 8
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 33,
+              "retainedSignals": 3,
+              "signalRetentionRate": 0.09090909,
+              "baseline": {
+                "trades": 33,
+                "wins": 11,
+                "losses": 22,
+                "afterCostWinRate": 0.33333333,
+                "grossPnl": -1284.3296,
+                "fees": 1549.9711,
+                "netPnl": -2834.3007,
+                "profitFactor": 0.20512276,
+                "maximumDrawdown": 0.06847232,
+                "exits": {
+                  "takeProfit": 11,
+                  "stopLoss": 22
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 3,
+                "wins": 0,
+                "losses": 3,
+                "afterCostWinRate": 0,
+                "grossPnl": -350.7296,
+                "fees": 142.3095,
+                "netPnl": -493.0391,
+                "profitFactor": 0,
+                "maximumDrawdown": 0.01034134,
+                "exits": {
+                  "stopLoss": 3
+                }
+              },
+              "impact": {
+                "rejectedTrades": 30,
+                "lossesCorrectlyIntercepted": 19,
+                "winningTradesMistakenlyRejected": 11,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.36666667,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 26,
+                  "order-flow-not-confirmed": 11,
+                  "abnormal-depth-disappearance-veto": 2,
+                  "order-book-trap-veto": 2
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 32,
+              "retainedSignals": 3,
+              "signalRetentionRate": 0.09375,
+              "baseline": {
+                "trades": 32,
+                "wins": 13,
+                "losses": 19,
+                "afterCostWinRate": 0.40625,
+                "grossPnl": -779.1472,
+                "fees": 1503.4138,
+                "netPnl": -2282.561,
+                "profitFactor": 0.27302687,
+                "maximumDrawdown": 0.04884398,
+                "exits": {
+                  "stopLoss": 19,
+                  "takeProfit": 13
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 3,
+                "wins": 0,
+                "losses": 3,
+                "afterCostWinRate": 0,
+                "grossPnl": -343.808,
+                "fees": 139.434,
+                "netPnl": -483.242,
+                "profitFactor": 0,
+                "maximumDrawdown": 0.01036966,
+                "exits": {
+                  "stopLoss": 3
+                }
+              },
+              "impact": {
+                "rejectedTrades": 29,
+                "lossesCorrectlyIntercepted": 16,
+                "winningTradesMistakenlyRejected": 13,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.44827586,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 23,
+                  "order-flow-not-confirmed": 12,
+                  "order-book-trap-veto": 3,
+                  "abnormal-depth-disappearance-veto": 6
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20251203",
+        "testStart": "20251204",
+        "testEnd": "20251231",
+        "trainDays": 220,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 58,
+          "retainedSignals": 6,
+          "signalRetentionRate": 0.10344828,
+          "baseline": {
+            "trades": 58,
+            "wins": 25,
+            "losses": 33,
+            "afterCostWinRate": 0.43103448,
+            "grossPnl": -762.768,
+            "fees": 2948.7408,
+            "netPnl": -3711.5087,
+            "profitFactor": 0.34617342,
+            "maximumDrawdown": 0.07871856,
+            "exits": {
+              "takeProfit": 25,
+              "stopLoss": 33
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 6,
+            "wins": 3,
+            "losses": 3,
+            "afterCostWinRate": 0.5,
+            "grossPnl": -14.232,
+            "fees": 300.1626,
+            "netPnl": -314.3945,
+            "profitFactor": 0.39940968,
+            "maximumDrawdown": 0.01037552,
+            "exits": {
+              "takeProfit": 3,
+              "stopLoss": 3
+            }
+          },
+          "impact": {
+            "rejectedTrades": 52,
+            "lossesCorrectlyIntercepted": 30,
+            "winningTradesMistakenlyRejected": 22,
+            "winnerVetoRate": 0.88,
+            "vetoFalsePositiveRate": 0.42307692,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 48,
+              "order-flow-not-confirmed": 27,
+              "order-book-trap-veto": 1,
+              "abnormal-depth-disappearance-veto": 2
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 29,
+              "retainedSignals": 2,
+              "signalRetentionRate": 0.06896552,
+              "baseline": {
+                "trades": 29,
+                "wins": 13,
+                "losses": 16,
+                "afterCostWinRate": 0.44827586,
+                "grossPnl": -326.4368,
+                "fees": 1465.8564,
+                "netPnl": -1792.2932,
+                "profitFactor": 0.3401235,
+                "maximumDrawdown": 0.03902962,
+                "exits": {
+                  "takeProfit": 13,
+                  "stopLoss": 16
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 2,
+                "wins": 1,
+                "losses": 1,
+                "afterCostWinRate": 0.5,
+                "grossPnl": 3.0016,
+                "fees": 100.0063,
+                "netPnl": -97.0047,
+                "profitFactor": 0.41694866,
+                "maximumDrawdown": 0.00330527,
+                "exits": {
+                  "stopLoss": 1,
+                  "takeProfit": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 27,
+                "lossesCorrectlyIntercepted": 15,
+                "winningTradesMistakenlyRejected": 12,
+                "winnerVetoRate": 0.92307692,
+                "vetoFalsePositiveRate": 0.44444444,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 26,
+                  "order-flow-not-confirmed": 12,
+                  "order-book-trap-veto": 1,
+                  "abnormal-depth-disappearance-veto": 2
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 29,
+              "retainedSignals": 4,
+              "signalRetentionRate": 0.13793103,
+              "baseline": {
+                "trades": 29,
+                "wins": 12,
+                "losses": 17,
+                "afterCostWinRate": 0.4137931,
+                "grossPnl": -436.3312,
+                "fees": 1482.8844,
+                "netPnl": -1919.2155,
+                "profitFactor": 0.35172392,
+                "maximumDrawdown": 0.04397438,
+                "exits": {
+                  "takeProfit": 12,
+                  "stopLoss": 17
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 4,
+                "wins": 2,
+                "losses": 2,
+                "afterCostWinRate": 0.5,
+                "grossPnl": -17.2336,
+                "fees": 200.1563,
+                "netPnl": -217.3898,
+                "profitFactor": 0.39123824,
+                "maximumDrawdown": 0.0070937,
+                "exits": {
+                  "takeProfit": 2,
+                  "stopLoss": 2
+                }
+              },
+              "impact": {
+                "rejectedTrades": 25,
+                "lossesCorrectlyIntercepted": 15,
+                "winningTradesMistakenlyRejected": 10,
+                "winnerVetoRate": 0.83333333,
+                "vetoFalsePositiveRate": 0.4,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 22,
+                  "order-flow-not-confirmed": 15
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20251231",
+        "testStart": "20260105",
+        "testEnd": "20260130",
+        "trainDays": 240,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 58,
+          "retainedSignals": 4,
+          "signalRetentionRate": 0.06896552,
+          "baseline": {
+            "trades": 58,
+            "wins": 30,
+            "losses": 28,
+            "afterCostWinRate": 0.51724138,
+            "grossPnl": 162.5136,
+            "fees": 3554.1,
+            "netPnl": -3391.5864,
+            "profitFactor": 0.47567423,
+            "maximumDrawdown": 0.0559685,
+            "exits": {
+              "takeProfit": 30,
+              "stopLoss": 28
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 4,
+            "wins": 2,
+            "losses": 2,
+            "afterCostWinRate": 0.5,
+            "grossPnl": 3.7568,
+            "fees": 238.0664,
+            "netPnl": -234.3096,
+            "profitFactor": 0.41506085,
+            "maximumDrawdown": 0.00671888,
+            "exits": {
+              "stopLoss": 2,
+              "takeProfit": 2
+            }
+          },
+          "impact": {
+            "rejectedTrades": 54,
+            "lossesCorrectlyIntercepted": 26,
+            "winningTradesMistakenlyRejected": 28,
+            "winnerVetoRate": 0.93333333,
+            "vetoFalsePositiveRate": 0.51851852,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 50,
+              "order-flow-not-confirmed": 29,
+              "order-book-trap-veto": 1,
+              "abnormal-depth-disappearance-veto": 4
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 26,
+              "retainedSignals": 4,
+              "signalRetentionRate": 0.15384615,
+              "baseline": {
+                "trades": 26,
+                "wins": 12,
+                "losses": 14,
+                "afterCostWinRate": 0.46153846,
+                "grossPnl": -230.96,
+                "fees": 1586.64,
+                "netPnl": -1817.6,
+                "profitFactor": 0.39700206,
+                "maximumDrawdown": 0.0299769,
+                "exits": {
+                  "takeProfit": 12,
+                  "stopLoss": 14
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 4,
+                "wins": 2,
+                "losses": 2,
+                "afterCostWinRate": 0.5,
+                "grossPnl": 3.7568,
+                "fees": 238.0664,
+                "netPnl": -234.3096,
+                "profitFactor": 0.41506085,
+                "maximumDrawdown": 0.00671888,
+                "exits": {
+                  "stopLoss": 2,
+                  "takeProfit": 2
+                }
+              },
+              "impact": {
+                "rejectedTrades": 22,
+                "lossesCorrectlyIntercepted": 12,
+                "winningTradesMistakenlyRejected": 10,
+                "winnerVetoRate": 0.83333333,
+                "vetoFalsePositiveRate": 0.45454545,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 21,
+                  "order-flow-not-confirmed": 12,
+                  "order-book-trap-veto": 1
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 32,
+              "retainedSignals": 0,
+              "signalRetentionRate": 0,
+              "baseline": {
+                "trades": 32,
+                "wins": 18,
+                "losses": 14,
+                "afterCostWinRate": 0.5625,
+                "grossPnl": 393.4736,
+                "fees": 1967.46,
+                "netPnl": -1573.9864,
+                "profitFactor": 0.54432671,
+                "maximumDrawdown": 0.02679483,
+                "exits": {
+                  "stopLoss": 14,
+                  "takeProfit": 18
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 0,
+                "wins": 0,
+                "losses": 0,
+                "afterCostWinRate": null,
+                "grossPnl": 0,
+                "fees": 0,
+                "netPnl": 0,
+                "profitFactor": 0,
+                "maximumDrawdown": 0,
+                "exits": {}
+              },
+              "impact": {
+                "rejectedTrades": 32,
+                "lossesCorrectlyIntercepted": 14,
+                "winningTradesMistakenlyRejected": 18,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.5625,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 29,
+                  "order-flow-not-confirmed": 17,
+                  "abnormal-depth-disappearance-veto": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20260130",
+        "testStart": "20260202",
+        "testEnd": "20260309",
+        "trainDays": 260,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 59,
+          "retainedSignals": 3,
+          "signalRetentionRate": 0.05084746,
+          "baseline": {
+            "trades": 59,
+            "wins": 22,
+            "losses": 37,
+            "afterCostWinRate": 0.37288136,
+            "grossPnl": -1419.448,
+            "fees": 3641.5933,
+            "netPnl": -5061.0412,
+            "profitFactor": 0.3098616,
+            "maximumDrawdown": 0.08323037,
+            "exits": {
+              "takeProfit": 22,
+              "stopLoss": 37
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 3,
+            "wins": 2,
+            "losses": 1,
+            "afterCostWinRate": 0.66666667,
+            "grossPnl": 113.5632,
+            "fees": 187.1611,
+            "netPnl": -73.5979,
+            "profitFactor": 0.70625054,
+            "maximumDrawdown": 0.00412409,
+            "exits": {
+              "stopLoss": 1,
+              "takeProfit": 2
+            }
+          },
+          "impact": {
+            "rejectedTrades": 56,
+            "lossesCorrectlyIntercepted": 36,
+            "winningTradesMistakenlyRejected": 20,
+            "winnerVetoRate": 0.90909091,
+            "vetoFalsePositiveRate": 0.35714286,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 53,
+              "order-flow-not-confirmed": 23,
+              "abnormal-depth-disappearance-veto": 2,
+              "order-book-trap-veto": 2
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 26,
+              "retainedSignals": 2,
+              "signalRetentionRate": 0.07692308,
+              "baseline": {
+                "trades": 26,
+                "wins": 10,
+                "losses": 16,
+                "afterCostWinRate": 0.38461538,
+                "grossPnl": -677.6832,
+                "fees": 1611.462,
+                "netPnl": -2289.1451,
+                "profitFactor": 0.29491012,
+                "maximumDrawdown": 0.04189147,
+                "exits": {
+                  "takeProfit": 10,
+                  "stopLoss": 16
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 2,
+                "wins": 1,
+                "losses": 1,
+                "afterCostWinRate": 0.5,
+                "grossPnl": -38.6384,
+                "fees": 123.8038,
+                "netPnl": -162.4422,
+                "profitFactor": 0.3516485,
+                "maximumDrawdown": 0.00412409,
+                "exits": {
+                  "stopLoss": 1,
+                  "takeProfit": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 24,
+                "lossesCorrectlyIntercepted": 15,
+                "winningTradesMistakenlyRejected": 9,
+                "winnerVetoRate": 0.9,
+                "vetoFalsePositiveRate": 0.375,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 22,
+                  "order-flow-not-confirmed": 7,
+                  "order-book-trap-veto": 2,
+                  "abnormal-depth-disappearance-veto": 1
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 33,
+              "retainedSignals": 1,
+              "signalRetentionRate": 0.03030303,
+              "baseline": {
+                "trades": 33,
+                "wins": 12,
+                "losses": 21,
+                "afterCostWinRate": 0.36363636,
+                "grossPnl": -741.7648,
+                "fees": 2030.1313,
+                "netPnl": -2771.8961,
+                "profitFactor": 0.32173931,
+                "maximumDrawdown": 0.04802669,
+                "exits": {
+                  "takeProfit": 12,
+                  "stopLoss": 21
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 1,
+                "wins": 1,
+                "losses": 0,
+                "afterCostWinRate": 1,
+                "grossPnl": 152.2016,
+                "fees": 63.3573,
+                "netPnl": 88.8443,
+                "profitFactor": null,
+                "maximumDrawdown": 0,
+                "exits": {
+                  "takeProfit": 1
+                }
+              },
+              "impact": {
+                "rejectedTrades": 32,
+                "lossesCorrectlyIntercepted": 21,
+                "winningTradesMistakenlyRejected": 11,
+                "winnerVetoRate": 0.91666667,
+                "vetoFalsePositiveRate": 0.34375,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 31,
+                  "order-flow-not-confirmed": 16,
+                  "abnormal-depth-disappearance-veto": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20260309",
+        "testStart": "20260310",
+        "testEnd": "20260407",
+        "trainDays": 280,
+        "testDays": 20,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 63,
+          "retainedSignals": 6,
+          "signalRetentionRate": 0.0952381,
+          "baseline": {
+            "trades": 63,
+            "wins": 14,
+            "losses": 49,
+            "afterCostWinRate": 0.22222222,
+            "grossPnl": -4499.2464,
+            "fees": 3413.1075,
+            "netPnl": -7912.3539,
+            "profitFactor": 0.11730898,
+            "maximumDrawdown": 0.13724049,
+            "exits": {
+              "stopLoss": 49,
+              "takeProfit": 14
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 6,
+            "wins": 1,
+            "losses": 5,
+            "afterCostWinRate": 0.16666667,
+            "grossPnl": -447.1872,
+            "fees": 325.5056,
+            "netPnl": -772.6928,
+            "profitFactor": 0.09527911,
+            "maximumDrawdown": 0.01588715,
+            "exits": {
+              "takeProfit": 1,
+              "stopLoss": 5
+            }
+          },
+          "impact": {
+            "rejectedTrades": 57,
+            "lossesCorrectlyIntercepted": 44,
+            "winningTradesMistakenlyRejected": 13,
+            "winnerVetoRate": 0.92857143,
+            "vetoFalsePositiveRate": 0.22807018,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 50,
+              "order-flow-not-confirmed": 27,
+              "abnormal-depth-disappearance-veto": 6
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 34,
+              "retainedSignals": 3,
+              "signalRetentionRate": 0.08823529,
+              "baseline": {
+                "trades": 34,
+                "wins": 7,
+                "losses": 27,
+                "afterCostWinRate": 0.20588235,
+                "grossPnl": -2452.8208,
+                "fees": 1835.4554,
+                "netPnl": -4288.2762,
+                "profitFactor": 0.10776856,
+                "maximumDrawdown": 0.07608154,
+                "exits": {
+                  "stopLoss": 27,
+                  "takeProfit": 7
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 3,
+                "wins": 1,
+                "losses": 2,
+                "afterCostWinRate": 0.33333333,
+                "grossPnl": -95.616,
+                "fees": 166.6655,
+                "netPnl": -262.2815,
+                "profitFactor": 0.23679124,
+                "maximumDrawdown": 0.00632915,
+                "exits": {
+                  "takeProfit": 1,
+                  "stopLoss": 2
+                }
+              },
+              "impact": {
+                "rejectedTrades": 31,
+                "lossesCorrectlyIntercepted": 25,
+                "winningTradesMistakenlyRejected": 6,
+                "winnerVetoRate": 0.85714286,
+                "vetoFalsePositiveRate": 0.19354839,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 27,
+                  "order-flow-not-confirmed": 13,
+                  "abnormal-depth-disappearance-veto": 5
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 29,
+              "retainedSignals": 3,
+              "signalRetentionRate": 0.10344828,
+              "baseline": {
+                "trades": 29,
+                "wins": 7,
+                "losses": 22,
+                "afterCostWinRate": 0.24137931,
+                "grossPnl": -2046.4256,
+                "fees": 1577.6521,
+                "netPnl": -3624.0777,
+                "profitFactor": 0.12833765,
+                "maximumDrawdown": 0.06750176,
+                "exits": {
+                  "stopLoss": 22,
+                  "takeProfit": 7
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 3,
+                "wins": 0,
+                "losses": 3,
+                "afterCostWinRate": 0,
+                "grossPnl": -351.5712,
+                "fees": 158.8401,
+                "netPnl": -510.4113,
+                "profitFactor": 0,
+                "maximumDrawdown": 0.00961888,
+                "exits": {
+                  "stopLoss": 3
+                }
+              },
+              "impact": {
+                "rejectedTrades": 26,
+                "lossesCorrectlyIntercepted": 19,
+                "winningTradesMistakenlyRejected": 7,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.26923077,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 23,
+                  "order-flow-not-confirmed": 14,
+                  "abnormal-depth-disappearance-veto": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "trainStart": "20250102",
+        "trainThrough": "20260407",
+        "testStart": "20260408",
+        "testEnd": "20260416",
+        "trainDays": 300,
+        "testDays": 7,
+        "fixedRulesNoRefit": true,
+        "result": {
+          "baselineSignals": 19,
+          "retainedSignals": 0,
+          "signalRetentionRate": 0,
+          "baseline": {
+            "trades": 19,
+            "wins": 5,
+            "losses": 14,
+            "afterCostWinRate": 0.26315789,
+            "grossPnl": -988.3472,
+            "fees": 1051.6503,
+            "netPnl": -2039.9975,
+            "profitFactor": 0.16135207,
+            "maximumDrawdown": 0.04191752,
+            "exits": {
+              "takeProfit": 5,
+              "stopLoss": 14
+            }
+          },
+          "fourLayerConfirmation": {
+            "trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "afterCostWinRate": null,
+            "grossPnl": 0,
+            "fees": 0,
+            "netPnl": 0,
+            "profitFactor": 0,
+            "maximumDrawdown": 0,
+            "exits": {}
+          },
+          "impact": {
+            "rejectedTrades": 19,
+            "lossesCorrectlyIntercepted": 14,
+            "winningTradesMistakenlyRejected": 5,
+            "winnerVetoRate": 1,
+            "vetoFalsePositiveRate": 0.26315789,
+            "rejectionReasons": {
+              "no-nearby-causal-chip-level": 18,
+              "order-flow-not-confirmed": 6,
+              "abnormal-depth-disappearance-veto": 5,
+              "order-book-trap-veto": 3
+            }
+          },
+          "byDirection": {
+            "positiveT": {
+              "baselineSignals": 8,
+              "retainedSignals": 0,
+              "signalRetentionRate": 0,
+              "baseline": {
+                "trades": 8,
+                "wins": 2,
+                "losses": 6,
+                "afterCostWinRate": 0.25,
+                "grossPnl": -436.048,
+                "fees": 443.1378,
+                "netPnl": -879.1858,
+                "profitFactor": 0.15259984,
+                "maximumDrawdown": 0.01734464,
+                "exits": {
+                  "stopLoss": 6,
+                  "takeProfit": 2
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 0,
+                "wins": 0,
+                "losses": 0,
+                "afterCostWinRate": null,
+                "grossPnl": 0,
+                "fees": 0,
+                "netPnl": 0,
+                "profitFactor": 0,
+                "maximumDrawdown": 0,
+                "exits": {}
+              },
+              "impact": {
+                "rejectedTrades": 8,
+                "lossesCorrectlyIntercepted": 6,
+                "winningTradesMistakenlyRejected": 2,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.25,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 8,
+                  "abnormal-depth-disappearance-veto": 1,
+                  "order-book-trap-veto": 3,
+                  "order-flow-not-confirmed": 2
+                }
+              }
+            },
+            "reverseT": {
+              "baselineSignals": 11,
+              "retainedSignals": 0,
+              "signalRetentionRate": 0,
+              "baseline": {
+                "trades": 11,
+                "wins": 3,
+                "losses": 8,
+                "afterCostWinRate": 0.27272727,
+                "grossPnl": -552.2992,
+                "fees": 608.5125,
+                "netPnl": -1160.8117,
+                "profitFactor": 0.16786153,
+                "maximumDrawdown": 0.02500661,
+                "exits": {
+                  "takeProfit": 3,
+                  "stopLoss": 8
+                }
+              },
+              "fourLayerConfirmation": {
+                "trades": 0,
+                "wins": 0,
+                "losses": 0,
+                "afterCostWinRate": null,
+                "grossPnl": 0,
+                "fees": 0,
+                "netPnl": 0,
+                "profitFactor": 0,
+                "maximumDrawdown": 0,
+                "exits": {}
+              },
+              "impact": {
+                "rejectedTrades": 11,
+                "lossesCorrectlyIntercepted": 8,
+                "winningTradesMistakenlyRejected": 3,
+                "winnerVetoRate": 1,
+                "vetoFalsePositiveRate": 0.27272727,
+                "rejectionReasons": {
+                  "no-nearby-causal-chip-level": 10,
+                  "order-flow-not-confirmed": 4,
+                  "abnormal-depth-disappearance-veto": 4
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "promotionReview": {
+    "gates": {
+      "minimumLockedTestTrades30": false,
+      "lockedTestNetPositive": false,
+      "lockedTestNetNoWorseThanBaseline": true,
+      "lockedTestProfitFactorAtLeast12": false,
+      "lockedTestProfitFactorNoWorseThanBaseline": true,
+      "lockedTestDrawdownNoWorseThanBaseline": true,
+      "winnerVetoRateAtMost20Percent": false
+    },
+    "passed": false,
+    "status": "continue-shadow-research",
+    "automaticPromotion": false,
+    "productionSignalImpact": false
+  }
+}
