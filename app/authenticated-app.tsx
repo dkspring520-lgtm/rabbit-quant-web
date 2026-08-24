@@ -1490,6 +1490,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     return segments.length?{segments,last:segments.at(-1)!.last}:null;
   },[chartModel,liveSecondPoints]);
+  const liveChartLast=useMemo(()=>{
+    if(!chartModel)return null;
+    const quotePrice=activeQuote?.price;
+    if(marketSession.live&&typeof quotePrice==="number"&&Number.isFinite(quotePrice)&&quotePrice>0){
+      return {
+        price:quotePrice,
+        x:liveSecondChart?.last.x??chartModel.lastX,
+        y:liveChartPriceY(quotePrice,chartModel.min,chartModel.max),
+      };
+    }
+    return {price:chartModel.last.price,x:chartModel.lastX,y:chartModel.lastY};
+  },[chartModel,liveSecondChart,activeQuote?.price,marketSession.live]);
   const zijinAhLinkage=useMemo(()=>{
     if(stock?.code!=="601899"||!zijinHkMarket)return analyzeZijinAhLinkage();
     const sourceTime=zijinHkMarket.sourceTimestamp?new Date(zijinHkMarket.sourceTimestamp).getTime():NaN;
@@ -4250,7 +4262,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                   </g>;
                 })()}
               </g>
-              <line x1={LIVE_CHART.plotLeft} y1={chartModel.lastY} x2={LIVE_CHART.plotRight} y2={chartModel.lastY} className="last-line"/><circle cx={chartModel.lastX} cy={chartModel.lastY} r="4" className="last-dot"/><g className="intraday-price-flag"><rect x="0" y={Math.max(6,Math.min(294,chartModel.lastY-12))} width="54" height="24" rx={uiTheme==="light"?7:0}/><text x="27" y={Math.max(6,Math.min(294,chartModel.lastY-12))+16} textAnchor="middle">{chartModel.last.price.toFixed(2)}</text></g></>}
+              {liveChartLast&&<><line x1={LIVE_CHART.plotLeft} y1={liveChartLast.y} x2={LIVE_CHART.plotRight} y2={liveChartLast.y} className="last-line"/><circle cx={liveChartLast.x} cy={liveChartLast.y} r="4" className="last-dot"/><g className="intraday-price-flag"><rect x="0" y={Math.max(6,Math.min(294,liveChartLast.y-12))} width="54" height="24" rx={uiTheme==="light"?7:0}/><text x="27" y={Math.max(6,Math.min(294,liveChartLast.y-12))+16} textAnchor="middle">{liveChartLast.price.toFixed(2)}</text></g></>}</>}
               <line x1={LIVE_CHART.plotLeft} y1={LIVE_CHART.volumeTop} x2={LIVE_CHART.plotRight} y2={LIVE_CHART.volumeTop} className="volume-divider"/>
               {chartModel?.biasAlert&&<rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.volumeTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.volumeTop} className={`bias-alert-band ${chartModel.latestBias>=0?"up":"down"}`}/>}
               {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x-1.35} y={LIVE_CHART.volumeBottom-bar.height} width="2.7" height={bar.height} rx=".45" className={`${bar.up?'volume':'volume red'}${bar.abnormal?' abnormal':''}`}/>) }
