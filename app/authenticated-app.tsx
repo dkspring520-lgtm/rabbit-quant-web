@@ -2195,18 +2195,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return {labelX:fallback.labelX,labelY:fallback.baseline};
     };
     const reserveMarkerLabelAbove=(pointX:number,pointY:number,width:number,height:number)=>{
-      const horizontalOffsets=[0,-Math.max(22,width*.8),Math.max(22,width*.8),-Math.max(38,width*1.35),Math.max(38,width*1.35)];
-      const lifts=[0,22,44,66,88,110];
+      const horizontalOffsets=[0,-Math.max(30,width),Math.max(30,width),-Math.max(54,width*1.55),Math.max(54,width*1.55)];
+      const lifts=[0,26,52,78,104,130];
       for(const lift of lifts){
-        const baseline=Math.max(13,pointY-14-lift);
+        const baseline=Math.max(13,pointY-28-lift);
         for(const horizontalOffset of horizontalOffsets){
-          const labelX=Math.max(width/2+2,Math.min(LIVE_CHART.width-width/2-2,pointX+horizontalOffset));
+          const labelX=Math.max(LIVE_CHART.plotLeft+width/2+4,Math.min(LIVE_CHART.plotRight-width/2-18,pointX+horizontalOffset));
           const box={left:labelX-width/2-4,right:labelX+width/2+4,top:baseline-height+1,bottom:baseline+6};
-          const collision=occupied.some(other=>box.left<other.right+3&&box.right>other.left-3&&box.top<other.bottom+3&&box.bottom>other.top-3);
+          const collision=occupied.some(other=>box.left<other.right+8&&box.right>other.left-8&&box.top<other.bottom+8&&box.bottom>other.top-8);
           if(!collision){occupied.push(box);return {labelX,labelY:baseline};}
         }
       }
-      const labelX=Math.max(width/2+2,Math.min(LIVE_CHART.width-width/2-2,pointX));
+      const labelX=Math.max(LIVE_CHART.plotLeft+width/2+4,Math.min(LIVE_CHART.plotRight-width/2-18,pointX));
       const labelY=Math.max(13,pointY-124);
       occupied.push({left:labelX-width/2-4,right:labelX+width/2+4,top:labelY-height+1,bottom:labelY+6});
       return {labelX,labelY};
