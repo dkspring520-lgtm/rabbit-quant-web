@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessMarketDataQuality } from "../lib/market-data-quality.mjs";
+import { assessMarketDataQuality, marketTimestampMillis, shouldPreferL2Quote } from "../lib/market-data-quality.mjs";
 
 function points(count, start = 9 * 60 + 30) {
   return Array.from({ length: count }, (_, index) => {
@@ -39,4 +39,27 @@ test("closed market data never creates realtime signals", () => {
   const quality = assessMarketDataQuality({ provider: "tencent-public", sourceTimestamp: "2026-07-21T15:00:00+08:00", fetchedAt: now.toISOString(), minutes: points(20), requestedRealtime: true, now });
   assert.equal(quality.status, "closed");
   assert.equal(quality.signalEligible, false);
+});
+
+test("Shanghai L2 exchange timestamps are parsed as real instants", () => {
+  assert.equal(
+    marketTimestampMillis("20260825-093524000"),
+    Date.parse("2026-08-25T09:35:24.000+08:00"),
+  );
+});
+
+test("an L2 price older than the public quote cannot hold back the visible price", () => {
+  assert.equal(shouldPreferL2Quote({
+    exchangeTimestamp: "20260825-093524000",
+    quoteTimestamp: "2026-08-25T09:36:45+08:00",
+    now: new Date("2026-08-25T09:36:48+08:00"),
+  }), false);
+});
+
+test("a current L2 price remains the preferred low-latency source", () => {
+  assert.equal(shouldPreferL2Quote({
+    exchangeTimestamp: "20260825-093647500",
+    quoteTimestamp: "2026-08-25T09:36:45+08:00",
+    now: new Date("2026-08-25T09:36:48+08:00"),
+  }), true);
 });
