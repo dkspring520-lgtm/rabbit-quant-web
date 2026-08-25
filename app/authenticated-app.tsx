@@ -58,6 +58,7 @@ import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.
 import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining, summarizeTrainingCycles } from "@/lib/personal-replay-training.mjs";
 import { runZijinV29ShadowReplay, runZuoTV1ContextShadowReplay, runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
+import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 const PublicLanding = dynamic(() => import("./public-landing"), {
   loading: () => <main className="public-site public-site-loading" aria-busy="true" />,
 });
@@ -1189,10 +1190,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ? Math.max(0,Math.round(liveL2Status?.status?.heartbeatAgeSeconds??0))
     : null;
   const liveL2LastPrice=Number(liveL2Status?.book?.lastPrice);
+  const liveL2TimelineUsable=shouldPreferL2Quote({
+    exchangeTimestamp:liveL2Status?.lastExchangeTime,
+    quoteTimestamp:currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp,
+  });
   const liveL2PriceUsable=stock?.code==="601899"
     &&liveL2Status?.status?.connected===true
     &&!liveL2Stale
     &&liveL2HasTicks
+    &&liveL2TimelineUsable
     &&Number.isFinite(liveL2LastPrice)
     &&liveL2LastPrice>0
     &&(!baseActiveQuote?.price||Math.abs(liveL2LastPrice-baseActiveQuote.price)/Math.max(baseActiveQuote.price,.01)<=.05);
