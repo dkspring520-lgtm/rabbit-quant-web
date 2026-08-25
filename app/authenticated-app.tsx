@@ -5301,6 +5301,11 @@ function AIQuantResearchInstituteView(){
   const assignmentDirectionTone=assignmentDirection?.state==="up"?"up":assignmentDirection?.state==="down"?"down":assignmentDirection?.state==="range"?"range":"pending";
   const assignmentDate=dailyAssignment?.marketDate??"等待生成";
   const onlineLearning=dailyAssignment?.onlineLearning;
+  const plainDirection=assignmentDirection?.state==="up"?"更可能走强":assignmentDirection?.state==="down"?"更可能走弱":assignmentDirection?.state==="range"?"可能来回震荡":"暂时看不清";
+  const plainDirectionNote=assignmentDirection?.state==="up"?"先等回踩确认，不追高":assignmentDirection?.state==="down"?"先观察，不急着接飞刀":assignmentDirection?.state==="range"?"等方向明确再行动":"数据还不够，先不下结论";
+  const plainHorizon=(item:{state:string})=>item.state==="up"?"可能走强":item.state==="down"?"可能走弱":item.state==="range"?"可能震荡":"待观察";
+  const plainFactorState=(item:{state:string})=>item.state==="confirmed"?"在帮忙":item.state==="否决"?"在拖后腿":"还没确认";
+  const plainNextAction=dailyAssignment?.promotion.nextAction?.includes("人工评审")?"继续观察，等样本外、扣费后收益和回撤都达标，再交给人工审核。":dailyAssignment?.promotion.nextAction??"等待下一次作业";
   return <main className="ai-institute-view">
     <header className="ai-institute-head">
       <div><span>AI QUANT RESEARCH INSTITUTE</span><h1>AI量化研究院</h1><p>做T因子研究与样本外验证</p></div>
@@ -5338,21 +5343,22 @@ function AIQuantResearchInstituteView(){
 
     <section className="ai-daily-assignment" aria-labelledby="ai-daily-assignment-title">
       <header className="ai-daily-assignment-head">
-        <div><span>RESEARCH RABBIT · DAILY ASSIGNMENT</span><h2 id="ai-daily-assignment-title">研策兔每日作业</h2><p>紫金矿业 601899 · {assignmentDate} · 影子层 · 联网 {onlineLearning?`${onlineLearning.readySources}/${onlineLearning.totalSources}`:"待连接"}</p></div>
-        <div className={`ai-daily-direction ${assignmentDirectionTone}`}><small>今日方向</small><b>{assignmentDirection?.label??"连接中"}</b><em>{assignmentDirection?.confidence!==null&&assignmentDirection?.confidence!==undefined?`${Math.round(assignmentDirection.confidence*100)}% 置信度`:"待验证"}</em></div>
+        <div><span>RESEARCH RABBIT · DAILY ASSIGNMENT</span><h2 id="ai-daily-assignment-title">研策兔每日作业</h2><p>紫金矿业 · {assignmentDate} · 仅供研究参考 · 数据 {onlineLearning?`${onlineLearning.readySources}/${onlineLearning.totalSources}`:"待连接"}</p></div>
+        <div className={`ai-daily-direction ${assignmentDirectionTone}`}><small>今天怎么看</small><b>{plainDirection}</b><em>{assignmentDirection?.confidence!==null&&assignmentDirection?.confidence!==undefined?`${Math.round(assignmentDirection.confidence*100)}% 把握`:"等待数据"}</em></div>
       </header>
+      <p className="ai-daily-plain-summary">一句话：{plainDirectionNote}。</p>
       <div className="ai-daily-assignment-grid">
         <div className="ai-daily-horizons" aria-label="多周期方向判断">
-          {(dailyAssignment?.horizons??[]).map(item=><div key={item.id} className={item.state}><span>{item.label}</span><b>{item.direction}</b><small>{item.probability!==null?`${Math.round(item.probability*100)}%`:"—"}</small></div>)}
+          {(dailyAssignment?.horizons??[]).map(item=><div key={item.id} className={item.state}><span>{item.label}之后</span><b>{plainHorizon(item)}</b><small>{item.probability!==null?`概率 ${Math.round(item.probability*100)}%`:"概率待补"}</small></div>)}
         </div>
         <div className="ai-daily-factors" aria-label="因子联动状态">
-          {(dailyAssignment?.factorResonance??[]).map(item=><div key={item.id}><span><i className={item.state}/>{item.label}</span><b>{item.score!==null?item.score:"—"}</b></div>)}
+          {(dailyAssignment?.factorResonance??[]).map(item=><div key={item.id}><span><i className={item.state}/>{item.label}</span><b>{plainFactorState(item)}</b><small>{item.score!==null?`${item.score}分`:"—"}</small></div>)}
         </div>
       </div>
       <div className="ai-daily-assignment-foot">
-        <div><b>影子样本</b><span>{dailyAssignment?.evidence.sampleCount??"—"}</span><small>{dailyAssignment?.evidence.status==="insufficient"?"证据不足":dailyAssignment?.evidence.note??"继续验证"}</small></div>
-        <div><b>候选规则</b><span>{dailyAssignment?.candidateRules?.length??0}</span><small>不触发正式交易</small></div>
-        <div className="ai-daily-assignment-next"><b>下一步</b><span>{dailyAssignment?.promotion.nextAction??"读取每日作业"}</span></div>
+        <div><b>以前记录过</b><span>{dailyAssignment?.evidence.sampleCount??"—"} 次</span><small>{dailyAssignment?.evidence.status==="insufficient"?"次数还不够，不能下结论":dailyAssignment?.evidence.note??"继续积累记录"}</small></div>
+        <div><b>正在试的方法</b><span>{dailyAssignment?.candidateRules?.length??0} 个</span><small>只观察，不自动交易</small></div>
+        <div className="ai-daily-assignment-next"><b>接下来做什么</b><span>{plainNextAction}</span></div>
       </div>
     </section>
 
