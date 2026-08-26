@@ -895,6 +895,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [tEntryPrice,setTEntryPrice]=useState("");
   const [tExitPrice,setTExitPrice]=useState("");
   const [tQuantity,setTQuantity]=useState("1000");
+  const [quickOrderPrice,setQuickOrderPrice]=useState("");
+  const [quickOrderQuantity,setQuickOrderQuantity]=useState("1000");
+  const [quickOrderFeedback,setQuickOrderFeedback]=useState("");
   const [tUseConservativeFee,setTUseConservativeFee]=useState(true);
   const [decisionAuditOpen,setDecisionAuditOpen]=useState(false);
   const [tCalculatorOpen,setTCalculatorOpen]=useState(false);
@@ -2231,7 +2234,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     };
   },[currentObservations,isZijinStock,liveEngine.actions,minutePoints,positiveTBlockedByFlow]);
   const intradayMarkerLayout=useMemo(()=>{
-    if(!chartModel)return {observations:[],tooltipObservations:[],actions:[],shadowActions:[],rabbitCandidates:[]};
+    if(!chartModel)return {observations:[],tooltipObservations:[],actions:[],shadowActions:[],rabbitCandidates:[],manualTrades:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
     const occupied:LabelBox[]=[];
     const pointPosition=(time:string,price?:number,allowRecentFallback=false)=>{
@@ -2266,7 +2269,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       occupied.push({left:labelX-width/2-4,right:labelX+width/2+4,top:labelY-height+1,bottom:labelY+6});
       return {labelX,labelY};
     };
-    // Formal orders get first choice of label space. Every other marker is
+    // A user's simulated fills remain visible and get first choice of label
+    // space. They never become strategy signals or broker orders.
+    const manualTrades=tradeLedgerRows.flatMap((row,index)=>{
+      if(row.status==="已失效"||String(row.marketDate??row.tradingDate)!==activeChartDate)return [];
+      const time=String(row.chartTime??row.time??"").replace(/\D/g,"").slice(0,4);
+      if(!/^\d{4}$/.test(time))return [];
+      const point=pointPosition(time,row.price,true);
+      if(!point)return [];
+      const isSell=row.side==="卖出";
+      const label=isSell?"S":"B";
+      const placed=reserveDirectionalMarkerLabel(point.x,point.y,20,18,isSell);
+      return [{...point,...placed,index,isSell,label,row,time}];
+    });
+    // Formal orders get the next choice of label space. Every other marker is
     // stamped at its real confirmation minute; no historical pivot is backfilled.
     const actions=liveEngine.actions.flatMap((action,index)=>{
       // A live minute can be updated more than once by the public quote feed.
@@ -2388,14 +2404,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       actions,
       shadowActions,
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
+      manualTrades,
     };
-  },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
     if(action)return action.label;
     const shadowAction=intradayMarkerLayout.shadowActions.find(marker=>marker.action.time===intradayCursor.time);
     if(shadowAction)return `${shadowAction.label}（影子）`;
+    const manualTrade=intradayMarkerLayout.manualTrades.find(marker=>marker.time===intradayCursor.time);
+    if(manualTrade)return `${manualTrade.row.side}模拟成交 ${manualTrade.row.quantity.toLocaleString("zh-CN")} 股`;
     const observation=intradayMarkerLayout.observations.find(marker=>marker.observation.time===intradayCursor.time)?.observation
       ?? intradayMarkerLayout.tooltipObservations.find(observation=>observation.time===intradayCursor.time);
     if(observation)return observationConfirmationLabel(observation);
@@ -2987,6 +3006,34 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       feeLabel:tUseConservativeFee?"保守综合费率 0.10%":"佣金、印花税及过户费",
     };
   },[tEntryPrice,tExitPrice,tQuantity,tUseConservativeFee,effectiveLivePosition.openingShares]);
+  const manualTradeCostImpact=useMemo(()=>{
+    const rows=tradeLedgerRows
+      .filter(row=>row.status!=="已失效")
+      .sort((left,right)=>String(left.time??"").localeCompare(String(right.time??"")));
+    const used=new Set<number>();
+    let net=0;
+    let closedCycles=0;
+    rows.forEach((first,index)=>{
+      if(used.has(index))return;
+      const pairIndex=rows.findIndex((candidate,candidateIndex)=>candidateIndex>index&&!used.has(candidateIndex)&&candidate.side!==first.side&&candidate.quantity===first.quantity);
+      if(pairIndex<0)return;
+      const second=rows[pairIndex];
+      const gross=(first.side==="买入"?second.price-first.price:first.price-second.price)*first.quantity;
+      const buy=first.side==="买入"?first:second;
+      const sell=first.side==="卖出"?first:second;
+      const buyTurnover=buy.price*buy.quantity;
+      const sellTurnover=sell.price*sell.quantity;
+      const turnover=buyTurnover+sellTurnover;
+      const calculatedFees=Math.max(5,buyTurnover*.00025)+Math.max(5,sellTurnover*.00025)+sellTurnover*.0005+turnover*.00001;
+      const fees=tUseConservativeFee?Math.max(calculatedFees,turnover*.001):calculatedFees;
+      net+=gross-fees;
+      closedCycles+=1;
+      used.add(index);
+      used.add(pairIndex);
+    });
+    const perShare=closedCycles>0&&effectiveLivePosition.openingShares>0?net/effectiveLivePosition.openingShares:null;
+    return {closedCycles,net,perShare};
+  },[effectiveLivePosition.openingShares,tUseConservativeFee,tradeLedgerRows]);
   const confirmedCycleRows=useMemo<DeskHistoryRow[]>(()=>{
     const trades=tradeLedgerRows
       .filter(row=>row.status!=="已失效")
@@ -3513,6 +3560,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return()=>window.clearTimeout(timer);
   },[ledgerStorageKey,tradingDate,stock?.code]);
   useEffect(()=>{
+    setQuickOrderPrice("");
+    setQuickOrderQuantity("1000");
+    setQuickOrderFeedback("");
+  },[stock?.code]);
+  useEffect(()=>{
     const timer=window.setTimeout(()=>{
       setCycleStage('ready');
       setOpenedCycleSide(null);
@@ -3715,6 +3767,32 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const normalized=normalizeTradeLedgerRows(next,tradingDate);
     setTradeLedgerState({key:ledgerStorageKey,rows:normalized});
     try{localStorage.setItem(ledgerStorageKey,JSON.stringify(normalized));}catch{}
+  };
+  const quickOrderLatestPrice=liveSecondPoints.at(-1)?.price??activeQuote?.price??null;
+  const recordQuickSimulatedTrade=(side:TradeLedgerRow["side"])=>{
+    setQuickOrderFeedback("");
+    if(!ledgerStorageKey){setQuickOrderFeedback("本机模拟账本尚未就绪");return;}
+    const price=Number(quickOrderPrice||quickOrderLatestPrice);
+    const quantity=Number(quickOrderQuantity);
+    if(!Number.isFinite(price)||price<=0){setQuickOrderFeedback("请输入有效成交价");return;}
+    if(!Number.isInteger(quantity)||quantity<100||quantity%100!==0){setQuickOrderFeedback("数量必须是100股的整数倍");return;}
+    const maxSellable=Math.min(tradeLedgerSummary.remainingSellable,Math.max(0,tradeLedgerSummary.currentShares));
+    if(side==="卖出"&&quantity>maxSellable){setQuickOrderFeedback(`当前最多可卖 ${maxSellable.toLocaleString("zh-CN")} 股`);return;}
+    const now=clockNow??new Date();
+    const time=now.toLocaleTimeString("en-GB",{timeZone:"Asia/Shanghai",hour12:false});
+    const wallMinute=time.replace(/\D/g,"").slice(0,4);
+    const chartTime=minutePoints.some(point=>point.time===wallMinute)?wallMinute:(minutePoints.at(-1)?.time??wallMinute);
+    const id=globalThis.crypto?.randomUUID?.()??`${now.getTime()}-${Math.random().toString(36).slice(2)}`;
+    const row:TradeLedgerRow={
+      id,tradingDate,time,side,price,quantity,
+      cycle:"操盘台模拟待配对",fee:"待计算",result:"—",status:"未配对",
+      source:"cockpit-simulated",simulated:true,marketDate:activeChartDate??tradingDate,chartTime,
+    };
+    const next=[row,...tradeLedgerRows];
+    saveTradeLedgerRows(next);
+    const nextSummary=summarizeTradeLedger(next,activePosition,tradingDate);
+    setQuickOrderPrice(price.toFixed(2));
+    setQuickOrderFeedback(`${side}已记录 · 持仓 ${nextSummary.currentShares.toLocaleString("zh-CN")} · 可卖 ${nextSummary.remainingSellable.toLocaleString("zh-CN")}`);
   };
 
   const tShareFormalActions=(liveEngine.actions??[]) as ReplayAction[];
@@ -4225,6 +4303,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
               {indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}
               {isZijinStock&&<span className="strategy-signal-legend" aria-label="信号分类图例"><span title="紫金专属闭环正式信号"><i className="formal"/>正式</span><span title="V2.9 影子参考，不可执行"><i className="v29"/>V2.9</span><span title="V1 影子参考，不可执行"><i className="v1"/>V1</span></span>}
+              {intradayMarkerLayout.manualTrades.length>0&&<span className="manual-trade-legend" title="本机快捷打点，不会发送到券商"><i className="buy">B</i><i className="sell">S</i>模拟成交</span>}
               <details className="auxiliary-indicators">
                 <summary>辅助指标</summary>
                 <div>
@@ -4267,6 +4346,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title><line x1={marker.x} y1={marker.isSell?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.isSell?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/>{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}<rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.isSell?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.isSell?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
+              {intradayMarkerLayout.manualTrades.map(marker=><g className={`manual-trade-marker ${marker.isSell?"sell":"buy"}`} key={`manual-${marker.row.id}`}><title>{`${marker.row.time??marker.time} · ${marker.row.side}模拟成交 · ¥${marker.row.price.toFixed(2)} · ${marker.row.quantity.toLocaleString("zh-CN")}股`}</title><circle className="manual-trade-anchor" cx={marker.x} cy={marker.y} r="3"/><line x1={marker.x} y1={marker.isSell?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.isSell?marker.labelY+4:marker.labelY-12} className="marker-label-leader"/><circle className="manual-trade-badge" cx={marker.labelX} cy={marker.labelY-4} r="8"/><text x={marker.labelX} y={marker.labelY-1} textAnchor="middle">{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
                 <image className="rabbit-brand-reference" href="/rabbit-daylight-pair.webp" width="0" height="0" opacity="0" aria-hidden="true"/>
                 <circle className="rabbit-tracker-halo" r="15"/>
@@ -4436,6 +4516,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <p><span>可卖数量</span><b>{effectiveLivePosition.sellable.toLocaleString()}<small> 股</small></b></p>
               <p className="accent"><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></p>
               <p><span>预估净收益</span><b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"--"}</b></p>
+            </div>
+            <div className="quick-sim-order" aria-label="快捷模拟下单">
+              <div className="quick-sim-order-inputs">
+                <label><span>模拟成交价</span><span className="quick-price-field"><input aria-label="模拟成交价" inputMode="decimal" value={quickOrderPrice} onChange={event=>{setQuickOrderPrice(event.target.value);setQuickOrderFeedback("")}} placeholder={quickOrderLatestPrice?.toFixed(2)??"0.00"}/><button type="button" onClick={()=>quickOrderLatestPrice&&setQuickOrderPrice(quickOrderLatestPrice.toFixed(2))}>最新</button></span></label>
+                <label><span>数量</span><input aria-label="模拟成交数量" inputMode="numeric" value={quickOrderQuantity} onChange={event=>{setQuickOrderQuantity(event.target.value.replace(/\D/g,""));setQuickOrderFeedback("")}} placeholder="1000"/></label>
+              </div>
+              <div className="quick-sim-order-actions"><button type="button" className="buy" onClick={()=>recordQuickSimulatedTrade("买入")}><b>B</b>买入</button><button type="button" className="sell" onClick={()=>recordQuickSimulatedTrade("卖出")} disabled={effectiveLivePosition.sellable<=0}><b>S</b>卖出</button></div>
+              <div className="quick-sim-order-status"><span>{quickOrderFeedback||"只记入本机模拟账本，不会真实下单"}</span><b className={(manualTradeCostImpact.perShare??0)>=0?"positive":"negative"}>摊薄成本 {manualTradeCostImpact.perShare===null?"待闭环":`${manualTradeCostImpact.perShare>=0?"-":"+"}¥${Math.abs(manualTradeCostImpact.perShare).toFixed(3)}/股`}</b></div>
             </div>
           </section>
           {uiTheme==="light"&&<div className="rabbit-decision-header" aria-hidden="true">

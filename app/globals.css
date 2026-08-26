@@ -885,6 +885,61 @@
   font-weight:500;
   letter-spacing:.08em
 }
+.quick-sim-order{
+  display:grid;
+  gap:7px;
+  margin-top:9px;
+  padding-top:9px;
+  border-top:1px solid var(--line-soft)
+}
+.quick-sim-order-inputs{
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(72px,.65fr);
+  gap:6px
+}
+.quick-sim-order-inputs label{display:grid;gap:4px;min-width:0;color:var(--dim);font-size:8px}
+.quick-sim-order-inputs input{
+  width:100%;
+  min-width:0;
+  height:30px;
+  box-sizing:border-box;
+  border:1px solid var(--line-soft);
+  border-radius:6px;
+  outline:0;
+  background:color-mix(in srgb,var(--surface) 82%,var(--bg));
+  color:var(--text);
+  padding:0 8px;
+  font:700 11px/1 var(--font-geist-mono),monospace
+}
+.quick-sim-order-inputs input:focus{border-color:color-mix(in srgb,var(--amber) 58%,var(--line))}
+.quick-price-field{display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:4px;min-width:0}
+.quick-price-field button{
+  border:1px solid var(--line-soft);
+  border-radius:6px;
+  background:transparent;
+  color:var(--muted);
+  font-size:8px;
+  cursor:pointer
+}
+.quick-sim-order-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.quick-sim-order-actions button{
+  height:31px;
+  border:1px solid;
+  border-radius:6px;
+  font-size:10px;
+  font-weight:750;
+  cursor:pointer
+}
+.quick-sim-order-actions button b{margin-right:5px;font-family:var(--font-geist-mono),monospace}
+.quick-sim-order-actions .buy{border-color:rgba(239,92,92,.48);background:rgba(239,92,92,.11);color:#ef6b6b}
+.quick-sim-order-actions .sell{border-color:rgba(53,183,121,.48);background:rgba(53,183,121,.1);color:#46c887}
+.quick-sim-order-actions button:hover{filter:brightness(1.12)}
+.quick-sim-order-actions button:disabled{opacity:.38;cursor:not-allowed;filter:none}
+.quick-sim-order-status{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;font-size:8px}
+.quick-sim-order-status span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.quick-sim-order-status b{flex:0 0 auto;font-size:8px;color:var(--amber)}
+.quick-sim-order-status b.positive{color:var(--coral)}
+.quick-sim-order-status b.negative{color:var(--teal)}
 .zijin-price-plan.compact-waiting{
   gap:5px;
   padding-top:9px;
@@ -2667,6 +2722,61 @@
   stroke-width:1.6;
   stroke-dasharray:5 3;
   opacity:.9!important;
+}
+.manual-trade-legend{display:inline-flex!important;align-items:center;gap:3px}
+.manual-trade-legend i{
+  display:inline-grid!important;
+  place-items:center;
+  width:14px!important;
+  height:14px!important;
+  border:0!important;
+  border-radius:50%;
+  color:#fff;
+  font:800 8px/1 var(--font-geist-mono),monospace
+}
+.manual-trade-legend i.buy{background:#ef5c5c}
+.manual-trade-legend i.sell{background:#35b779;margin-left:1px}
+.interactive-intraday-chart .manual-trade-marker{
+  visibility:visible;
+  opacity:1;
+  pointer-events:all;
+  cursor:help
+}
+.interactive-intraday-chart .manual-trade-marker .marker-label-leader{
+  fill:none;
+  stroke-width:1.6;
+  stroke-dasharray:4 3;
+  opacity:.92;
+  vector-effect:non-scaling-stroke
+}
+.interactive-intraday-chart .manual-trade-marker.buy .marker-label-leader{stroke:#ef5c5c}
+.interactive-intraday-chart .manual-trade-marker.sell .marker-label-leader{stroke:#35b779}
+.interactive-intraday-chart .manual-trade-marker circle{
+  vector-effect:non-scaling-stroke;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.42))
+}
+.interactive-intraday-chart .manual-trade-marker.buy .manual-trade-anchor{fill:#ef5c5c;stroke:#fff;stroke-width:1}
+.interactive-intraday-chart .manual-trade-marker.sell .manual-trade-anchor{fill:#35b779;stroke:#fff;stroke-width:1}
+.interactive-intraday-chart .manual-trade-marker.buy .manual-trade-badge{fill:#ef5c5c;stroke:#ffd4d4;stroke-width:1.2}
+.interactive-intraday-chart .manual-trade-marker.sell .manual-trade-badge{fill:#35b779;stroke:#d3f7e5;stroke-width:1.2}
+.interactive-intraday-chart .manual-trade-marker text{
+  fill:#fff;
+  font:800 8px/1 var(--font-geist-mono),monospace;
+  letter-spacing:0;
+  pointer-events:none
+}
+@media(max-width:760px){
+  .quick-sim-order-status{align-items:flex-start;flex-direction:column;gap:3px}
+  .quick-sim-order-status span{width:100%}
+  .minimal-ui .interactive-intraday-chart .manual-trade-marker,
+  .minimal-ui .interactive-intraday-chart .manual-trade-marker>*{
+    visibility:visible!important;
+    opacity:1!important
+  }
+  .minimal-ui .interactive-intraday-chart .manual-trade-marker text{
+    display:block!important;
+    font-size:8px!important
+  }
 }
 
 /* Ordinary stocks do not render Zijin's L2 track, so keep their desktop
