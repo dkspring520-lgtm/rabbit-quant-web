@@ -2294,29 +2294,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,17,isSell);
       return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action,strategy}];
     });
-    // Keep the chart readable: each side gets one latest, highest-priority
-    // candidate label. Earlier candidates remain as hoverable dots with their
-    // full text in <title>; formal execution markers are handled separately.
-    const observationLabelSlots=new Set<number>();
-    for(const strategy of ["closure","v29","v1"] as const){
-      for(const side of ["buy","sell"] as const){
-        let best:{index:number;priority:number;time:number}|null=null;
-        for(const [index,candidate] of visibleChartObservations.entries()){
-          const candidateSide=candidate.direction==="反T"?"sell":"buy";
-          if(candidate.strategy!==strategy||candidateSide!==side||candidate.stage==="watch")continue;
-          const priority=candidate.repairPhase==="repair-confirmed"
-            ?4
-            :candidate.pivotAssessment==="confirmed"
-              ?3
-              :candidate.pivotAssessment==="strong"
-                ?2
-                :candidate.stage==="candidate"?1:0;
-          const time=Number(String(candidate.time??"").replace(/\D/g,"").slice(-4))||0;
-          if(!best||priority>best.priority||(priority===best.priority&&time>=best.time))best={index,priority,time};
-        }
-        if(best)observationLabelSlots.add(best.index);
-      }
-    }
     const observations=visibleChartObservations.flatMap((observation,index)=>{
       const markerPrice=observation.coverageOnly&&Number.isFinite(observation.pivotPrice) ? observation.pivotPrice : observation.price;
       const point=pointPosition(observation.time,markerPrice);
@@ -2336,7 +2313,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         :rawLabel;
       const labelWidth=Math.max(38,currentLabel.length*8+14);
       const labelVisible=true;
-      const labelRendered=observationLabelSlots.has(index);
+      // Candidate and confirmed evidence stays reviewable for the whole session;
+      // low-priority watch observations remain compact dots.
+      const labelRendered=qualified;
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
         : {labelX:point.x,labelY:point.y};
