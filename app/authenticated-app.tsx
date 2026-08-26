@@ -5287,6 +5287,8 @@ type ZijinDailyAssignment={
   findings:string[];
   candidateRules:Array<{title:string;direction:string;status:string;source:string;rule:string}>;
   evidence:{status:string;sampleCount:number;supportSamples:number;failedSamples:number;postFeeReturnPct:number|null;profitFactor:number|null;maxDrawdownPct:number|null;note:string};
+  researchOutlook:{summary:string;coreThesis:string;horizons:Array<{id:string;label:string;period:string;state:string;direction:string;confidence:number|null;evidenceStatus:string;summary:string}>;risks:string[];invalidationConditions:string[]};
+  sourceDigest:{groups:Array<{id:string;label:string;tier:string;state:string;count:number;note:string}>;highlights:Array<{title:string;source:string;status:string}>;note:string};
   onlineLearning?:{status:string;readySources:number;totalSources:number;officialEvents:number;leadEvents:number;affectsFormalStrategy:boolean;canTrade:boolean};
   promotion:{state:string;nextAction:string;affectsFormalStrategy:boolean;canTrade:boolean};
   integrity:{reportHash:string};
@@ -5352,6 +5354,7 @@ function AIQuantResearchInstituteView(){
   const plainDirectionNote=assignmentDirection?.state==="up"?"先等回踩确认，不追高":assignmentDirection?.state==="down"?"先观察，不急着接飞刀":assignmentDirection?.state==="range"?"等方向明确再行动":"数据还不够，先不下结论";
   const plainHorizon=(item:{state:string})=>item.state==="up"?"可能走强":item.state==="down"?"可能走弱":item.state==="range"?"可能震荡":"待观察";
   const plainFactorState=(item:{state:string})=>item.state==="confirmed"?"在帮忙":item.state==="否决"?"在拖后腿":"还没确认";
+  const plainOutlook=(item:{state:string;direction:string})=>item.state==="up"?"偏强":item.state==="down"?"偏弱":item.state==="range"?"震荡":item.direction||"待观察";
   const plainNextAction=dailyAssignment?.promotion.nextAction?.includes("人工评审")?"继续观察，等样本外、扣费后收益和回撤都达标，再交给人工审核。":dailyAssignment?.promotion.nextAction??"等待下一次作业";
   return <main className="ai-institute-view">
     <header className="ai-institute-head">
@@ -5393,15 +5396,34 @@ function AIQuantResearchInstituteView(){
         <div><span>RESEARCH RABBIT · DAILY ASSIGNMENT</span><h2 id="ai-daily-assignment-title">研策兔每日作业</h2><p>紫金矿业 · {assignmentDate} · 仅供研究参考 · 数据 {onlineLearning?`${onlineLearning.readySources}/${onlineLearning.totalSources}`:"待连接"}</p></div>
         <div className={`ai-daily-direction ${assignmentDirectionTone}`}><small>今天怎么看</small><b>{plainDirection}</b><em>{assignmentDirection?.confidence!==null&&assignmentDirection?.confidence!==undefined?`${Math.round(assignmentDirection.confidence*100)}% 把握`:"等待数据"}</em></div>
       </header>
-      <p className="ai-daily-plain-summary">一句话：{plainDirectionNote}。</p>
+      <p className="ai-daily-plain-summary"><b>研策兔判断</b>{dailyAssignment?.researchOutlook?.summary??`${plainDirectionNote}。`}</p>
       <div className="ai-daily-assignment-grid">
-        <div className="ai-daily-horizons" aria-label="多周期方向判断">
-          {(dailyAssignment?.horizons??[]).map(item=><div key={item.id} className={item.state}><span>{item.label}之后</span><b>{plainHorizon(item)}</b><small>{item.probability!==null?`概率 ${Math.round(item.probability*100)}%`:"概率待补"}</small></div>)}
+        <div className="ai-daily-outlook" aria-label="短中长期方向判断">
+          {(dailyAssignment?.researchOutlook?.horizons??[]).map(item=><article key={item.id} className={item.state}>
+            <header><span>{item.label}</span><small>{item.period}</small></header>
+            <strong>{plainOutlook(item)}</strong>
+            <div aria-hidden="true"><i style={{width:`${item.confidence!==null?Math.round(item.confidence*100):0}%`}}/></div>
+            <p>{item.summary}</p>
+            <em>{item.confidence!==null?`${Math.round(item.confidence*100)}% 观察把握`:item.evidenceStatus}</em>
+          </article>)}
         </div>
-        <div className="ai-daily-factors" aria-label="因子联动状态">
-          {(dailyAssignment?.factorResonance??[]).map(item=><div key={item.id}><span><i className={item.state}/>{item.label}</span><b>{plainFactorState(item)}</b><small>{item.score!==null?`${item.score}分`:"—"}</small></div>)}
+        <div className="ai-daily-sources" aria-label="今日信息来源">
+          <h3>今天读了什么</h3>
+          {(dailyAssignment?.sourceDigest?.groups??[]).map(item=><div key={item.id} className={item.state}><span><i/>{item.label}</span><b>{item.count}</b><small>{item.note}</small></div>)}
         </div>
       </div>
+      <div className="ai-daily-factors" aria-label="因子联动状态">
+        {(dailyAssignment?.factorResonance??[]).map(item=><div key={item.id}><span><i className={item.state}/>{item.label}</span><b>{plainFactorState(item)}</b><small>{item.score!==null?`${item.score}分`:"—"}</small></div>)}
+      </div>
+      <details className="ai-daily-details">
+        <summary><span>查看今日线索与风险</span><em>{dailyAssignment?.sourceDigest?.highlights?.length??0} 条线索 · 仅研究</em><i aria-hidden="true">＋</i></summary>
+        <div>
+          <section><h3>待验证线索</h3><ul>{(dailyAssignment?.sourceDigest?.highlights??[]).map((item,index)=><li key={`${item.source}-${index}`}><span>{item.source}</span><b>{item.title}</b><small>{item.status}</small></li>)}</ul></section>
+          <section><h3>什么会推翻判断</h3><ul>{(dailyAssignment?.researchOutlook?.invalidationConditions??[]).map(item=><li key={item}><b>{item}</b></li>)}</ul><h3>还要防什么</h3><ul>{(dailyAssignment?.researchOutlook?.risks??[]).map(item=><li key={item}><b>{item}</b></li>)}</ul></section>
+          <section className="ai-daily-raw-horizons"><h3>原始周期记录</h3><ul>{(dailyAssignment?.horizons??[]).map(item=><li key={item.id} className={item.state}><span>{item.label}</span><b>{plainHorizon(item)}</b><small>{item.probability!==null?`${Math.round(item.probability*100)}%`:"待补"}</small></li>)}</ul></section>
+        </div>
+        <p>{dailyAssignment?.sourceDigest?.note}</p>
+      </details>
       <div className="ai-daily-assignment-foot">
         <div><b>以前记录过</b><span>{dailyAssignment?.evidence.sampleCount??"—"} 次</span><small>{dailyAssignment?.evidence.status==="insufficient"?"次数还不够，不能下结论":dailyAssignment?.evidence.note??"继续积累记录"}</small></div>
         <div><b>正在试的方法</b><span>{dailyAssignment?.candidateRules?.length??0} 个</span><small>只观察，不自动交易</small></div>
