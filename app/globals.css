@@ -2620,3 +2620,17 @@
   stroke-dasharray:5 3;
   opacity:.9!important;
 }
+
+/* Ordinary stocks do not render Zijin's L2 track, so keep their desktop
+   cockpit compact instead of stretching the intraday chart into that space. */
+@media(min-width:1101px){
+  .minimal-ui .ticker-item{
+    flex:0 0 clamp(300px,24vw,360px);
+    max-width:360px;
+  }
+  .minimal-ui .workspace:not(.with-main-force):not(.workspace-fullscreen):not(:fullscreen){
+    height:clamp(500px,calc(100vh - 250px),560px);
+    min-height:500px;
+    max-height:560px;
+  }
+}
