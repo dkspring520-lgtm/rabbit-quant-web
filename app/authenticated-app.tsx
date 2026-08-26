@@ -2407,6 +2407,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       manualTrades,
     };
   },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  const intradayMarkerActionsRef=useRef(intradayMarkerLayout.actions);
+  useEffect(()=>{
+    intradayMarkerActionsRef.current=intradayMarkerLayout.actions;
+  },[intradayMarkerLayout.actions]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -3431,7 +3435,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           const action=item.payload?.action;const observation=item.payload?.observation;
           const actionSide=action?.side?formalActionSide(action.side):null;
           const activeFormalMarkerReady=item.level!=="formal"||item.code!==stockList[activeStock]?.code||Boolean(
-            action&&intradayMarkerLayout.actions.some(marker=>marker.action.time===action.time&&formalActionSide(marker.action.side)===actionSide),
+            action&&intradayMarkerActionsRef.current.some(marker=>marker.action.time===action.time&&formalActionSide(marker.action.side)===actionSide),
           );
           // Keep a server-pushed formal alert pending until its chart marker is
           // present, so speech, toast, and the visible buy/sell point agree.
@@ -3463,7 +3467,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void pull()};
     document.addEventListener('visibilitychange',onVisibility);
     return()=>{cancelled=true;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisibility)};
-  },[localAuth,demoMode,alertSettings.sound,alertSettings.system,stockList,activeStock,intradayMarkerLayout,queueAlert,speakAlert]);
+  },[localAuth,demoMode,alertSettings.sound,alertSettings.system,stockList,activeStock,queueAlert,speakAlert]);
   useEffect(() => {
     if(initialAuth)return;
     const timer = window.setTimeout(() => {void (async()=>{
