@@ -2078,6 +2078,18 @@
 .backtest-training-body{display:grid;gap:12px;padding:14px 18px}.training-progress{display:grid;grid-template-columns:auto auto;gap:5px 10px;align-items:center}.training-progress span,.training-progress b{font-size:10px}.training-progress b{font:700 11px var(--font-geist-mono);color:var(--teal);text-align:right}.training-progress i{grid-column:1/-1;height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}.training-progress i em{display:block;height:100%;border-radius:inherit;background:var(--teal);transition:width .2s ease}.training-progress small{grid-column:1/-1;color:var(--dim);font-size:9px}.training-prompt{display:grid;gap:5px;padding:14px;border:1px solid var(--line-soft);border-radius:9px;background:rgba(0,0,0,.18)}.training-prompt span{color:var(--amber);font:600 10px var(--font-geist-mono)}.training-prompt b{font-size:18px}.training-prompt small{color:var(--muted);font-size:9px}.training-choice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.training-choice-grid button{display:grid;gap:4px;min-height:58px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.025);color:var(--text);cursor:pointer;font-size:14px;font-weight:700}.training-choice-grid button:first-child{border-color:rgba(40,215,196,.45);color:var(--teal)}.training-choice-grid button:nth-child(2){border-color:rgba(255,100,98,.45);color:var(--coral)}.training-choice-grid button:hover{background:rgba(255,255,255,.08)}.training-choice-grid small{color:var(--muted);font-size:9px;font-weight:400}.training-feedback{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 11px;border-radius:7px;font-size:10px}.training-feedback.correct{border:1px solid rgba(40,215,196,.35);background:rgba(40,215,196,.08);color:var(--teal)}.training-feedback.wrong{border:1px solid rgba(226,177,83,.35);background:rgba(226,177,83,.07);color:var(--amber)}.training-feedback span{color:var(--muted);font-size:9px}.training-complete{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px;border:1px solid rgba(40,215,196,.35);border-radius:8px}.training-complete b{color:var(--teal)}.training-complete span{color:var(--muted);font:600 10px var(--font-geist-mono)}.training-active .result-summary,.training-active .equity-panel,.training-active .replay-actions,.training-active .candidate-audit,.training-active .result-bottom{display:none}
 @media(max-width:700px){.backtest-training-head{align-items:flex-start;flex-direction:column}.backtest-training-head button{width:100%}.training-choice-grid{grid-template-columns:1fr}.training-feedback{align-items:flex-start;flex-direction:column}}
 
+/* Backtest equity is a research-only view of completed, post-fee T cycles. */
+.capital-curve-panel{margin-top:14px;padding:16px 18px;border:1px solid var(--line);background:var(--surface);overflow:hidden}
+.capital-curve-panel .panel-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:13px}
+.capital-curve-panel .panel-heading h2{margin:0 0 4px;font-size:14px}.capital-curve-panel .panel-heading span{color:var(--dim);font-size:8px}
+.capital-curve-legend{display:flex;align-items:center;gap:6px;white-space:nowrap}.capital-curve-legend i{width:18px;height:2px;background:var(--teal);box-shadow:0 0 8px rgba(40,215,196,.28)}
+.capital-curve-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin-bottom:11px;background:var(--line-soft)}
+.capital-curve-metrics>span{min-width:0;padding:9px 10px;background:#090c0b;display:grid;gap:4px}.capital-curve-metrics small{color:var(--dim);font-size:8px}.capital-curve-metrics b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font:700 11px var(--font-geist-mono),monospace}
+.capital-curve-chart{display:block;width:100%;height:202px;overflow:visible}.capital-curve-chart .equity-grid{stroke:var(--line-soft);stroke-width:1;vector-effect:non-scaling-stroke}.capital-curve-chart .equity-axis-label,.capital-curve-chart .equity-time-label{fill:var(--dim);font:500 8px var(--font-geist-mono),monospace}.capital-curve-line{stroke:var(--teal);stroke-width:2;vector-effect:non-scaling-stroke}.capital-curve-chart circle{fill:var(--surface);stroke:var(--teal);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.capital-curve-panel .chart-truth-note{display:flex;justify-content:space-between;gap:16px;padding-top:9px;border-top:1px solid var(--line-soft);color:var(--dim);font-size:8px;line-height:1.5}.capital-curve-panel .chart-truth-note b{color:var(--muted);font-weight:550;text-align:right}
+:root[data-theme="light"] .capital-curve-metrics>span{background:#f8fbf9}
+@media(max-width:700px){.capital-curve-panel{padding:13px 10px}.capital-curve-panel .panel-heading{align-items:flex-start;flex-direction:column}.capital-curve-metrics{grid-template-columns:1fr 1fr}.capital-curve-chart{height:174px}.capital-curve-panel .chart-truth-note{display:grid;gap:4px}.capital-curve-panel .chart-truth-note b{text-align:left}}
+
 /* Zijin factors summarize existing evidence only; formal trade gates remain unchanged. */
 .zijin-factor-engine{margin:0 0 10px;padding:11px;border:1px solid var(--line);border-left:3px solid #70807c;border-radius:8px;background:rgba(255,255,255,.018)}
 .zijin-factor-engine.ready{border-left-color:var(--teal)}.zijin-factor-engine.partial{border-left-color:var(--amber)}
@@ -2551,6 +2563,42 @@
   :root:not([data-theme="light"]) .app-shell.minimal-ui .decision-zone-tabs{
     gap:5px;
     padding:7px 10px 6px;
+  }
+}
+
+/* Keep the three actionable strategy layers visible on portrait screens.
+   Generic watch labels remain suppressed by the rule above. */
+@media(max-width:760px) and (orientation:portrait){
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.v1-context-marker,
+  .minimal-ui .interactive-intraday-chart .live-signal-marker{
+    visibility:visible!important;
+    opacity:1!important
+  }
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker.with-label>.marker-label-leader,
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.v1-context-marker.with-label>.marker-label-leader,
+  .minimal-ui .interactive-intraday-chart .live-signal-marker>.marker-label-leader{
+    display:block!important;
+    visibility:visible!important;
+    opacity:.9!important;
+    vector-effect:non-scaling-stroke
+  }
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker circle{
+    fill:rgba(7,19,18,.9);
+    stroke:#e5b85b;
+    stroke-width:1.8;
+    vector-effect:non-scaling-stroke
+  }
+  .minimal-ui .interactive-intraday-chart .candidate-signal-marker.v1-context-marker polygon{
+    fill:rgba(105,174,252,.18);
+    stroke:#69aefc;
+    stroke-width:1.8;
+    vector-effect:non-scaling-stroke
+  }
+  .minimal-ui .interactive-intraday-chart .live-signal-marker circle{
+    visibility:visible!important;
+    opacity:1!important;
+    vector-effect:non-scaling-stroke
   }
 }
 

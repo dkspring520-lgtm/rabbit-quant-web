@@ -6766,6 +6766,59 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       return { index: index + 1, first, second, direction, holdingMinutes, gross, executionCost, fees, net: gross - executionCost - fees };
     });
   })();
+  const capitalCurve = (() => {
+    const initial=capital>0?capital:200_000;
+    const samples:{label:string;value:number}[]=[{label:"起始",value:initial}];
+    if(multiDay){
+      let equity=initial;
+      [...multiDay.outcomes].sort((left,right)=>left.date.localeCompare(right.date)).forEach(outcome=>{
+        equity+=outcome.net;
+        samples.push({label:formatDate(outcome.date),value:equity});
+      });
+    }else{
+      let equity=initial;
+      cycles.forEach(cycle=>{
+        equity+=cycle.net;
+        samples.push({label:formatTime(cycle.second.time),value:equity});
+      });
+    }
+    if(samples.length===1)samples.push({label:multiDay?"暂无交易日":"收盘",value:initial});
+    let peak=samples[0].value;
+    let maxDrawdown=0;
+    let maxDrawdownPct=0;
+    samples.forEach(sample=>{
+      peak=Math.max(peak,sample.value);
+      const drawdown=Math.max(0,peak-sample.value);
+      if(drawdown>maxDrawdown){
+        maxDrawdown=drawdown;
+        maxDrawdownPct=peak>0?drawdown/peak:0;
+      }
+    });
+    const values=samples.map(sample=>sample.value);
+    const observedLow=Math.min(...values);
+    const observedHigh=Math.max(...values);
+    const padding=Math.max(1,(observedHigh-observedLow)*.16);
+    const min=observedLow-padding;
+    const max=observedHigh+padding;
+    const point=(value:number,index:number)=>({
+      x:65+(index/Math.max(1,samples.length-1))*755,
+      y:20+((max-value)/Math.max(1,max-min))*142,
+    });
+    const coordinates=samples.map((sample,index)=>point(sample.value,index));
+    const points=coordinates.map(current=>`${current.x},${current.y}`).join(" ");
+    const ticks=Array.from({length:4},(_,index)=>max-(max-min)*index/3);
+    return {
+      samples,
+      coordinates,
+      points,
+      ticks,
+      initial,
+      ending:samples.at(-1)?.value??initial,
+      net:(samples.at(-1)?.value??initial)-initial,
+      maxDrawdown,
+      maxDrawdownPct,
+    };
+  })();
   const replayFunnel=useMemo(()=>{
     const diagnostics=result?.diagnostics??{};
     const candidates=Math.max(0,diagnostics.candidates??0);
@@ -6865,6 +6918,29 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           <div className="result-primary"><span>{batch?"批次样本净收益":"净收益"}</span><strong className={result?pnlClass(result.net):""}>{result ? money(result.net) : "—"}</strong><em className={result?pnlClass(result.net):""}>{result ? `${(result.net/capital*100).toFixed(3)}%` : "运行后显示"}</em></div>
           <div><span>理论毛收益</span><b className={result?pnlClass(result.gross):""}>{result ? money(result.gross) : "—"}</b><small>未扣费用与滑点</small></div><div><span>费用与滑点</span><b className={result?"pnl-loss":""}>{result ? money(-(result.fees+result.executionCost)) : "—"}</b><small>佣金、印花税及双向滑点</small></div><div><span>最大回撤</span><b className={result&&result.maxDrawdown>0?"pnl-loss":""}>{result ? `-${(result.maxDrawdown*100).toFixed(3)}%` : "—"}</b><small>{source ? "费用进入逐点资金曲线" : "运行后显示"}</small></div>
         </div>
+        {result&&<div className="equity-panel capital-curve-panel">
+          <div className="panel-heading">
+            <div><h2>历史资金曲线</h2><span>{multiDay?`${multiDay.scopeLabel} · 各交易日独立复位后累计研究盈亏`:`${formatDate(source?.sampleDate)} · 每个完整闭环后更新`} · 做T扣费后累计权益</span></div>
+            <div className="curve-legend"><span className="capital-curve-legend"><i/>扣费后累计权益</span></div>
+          </div>
+          <div className="capital-curve-metrics">
+            <span><small>初始权益</small><b>{money(capitalCurve.initial)}</b></span>
+            <span><small>结束权益</small><b className={pnlClass(capitalCurve.net)}>{money(capitalCurve.ending)}</b></span>
+            <span><small>累计净收益</small><b className={pnlClass(capitalCurve.net)}>{money(capitalCurve.net)}</b></span>
+            <span><small>曲线最大回撤</small><b className={capitalCurve.maxDrawdown>0?"pnl-loss":""}>{capitalCurve.maxDrawdown>0?`-${money(capitalCurve.maxDrawdown).replace(/^[-+]/,"")} · ${(capitalCurve.maxDrawdownPct*100).toFixed(2)}%`:"¥0.00 · 0.00%"}</b></span>
+          </div>
+          <svg className="capital-curve-chart" viewBox="0 0 840 202" preserveAspectRatio="none" aria-label="做T扣费后历史资金曲线">
+            <defs><linearGradient id="capitalCurveFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".18"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>
+            {capitalCurve.ticks.map((value,index)=>{const y=20+index*142/3;return <g key={`${value}-${index}`}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">{money(value)}</text></g>})}
+            <polygon points={`65,162 ${capitalCurve.points} 820,162`} fill="url(#capitalCurveFill)"/>
+            <polyline points={capitalCurve.points} className="capital-curve-line" fill="none"/>
+            {capitalCurve.samples.map((sample,index)=><circle key={`${sample.label}-${index}`} cx={capitalCurve.coordinates[index].x} cy={capitalCurve.coordinates[index].y} r={index===capitalCurve.samples.length-1?3.6:2.2}><title>{sample.label} · {money(sample.value)}</title></circle>)}
+            <text x="65" y="190" className="equity-time-label">{capitalCurve.samples[0].label}</text>
+            <text x="442" y="190" textAnchor="middle" className="equity-time-label">{capitalCurve.samples[Math.floor((capitalCurve.samples.length-1)/2)]?.label}</text>
+            <text x="820" y="190" textAnchor="end" className="equity-time-label">{capitalCurve.samples.at(-1)?.label}</text>
+          </svg>
+          <div className="chart-truth-note"><span>只累计已闭环、扣除佣金/印花税/滑点后的做T收益，不包含底仓市值涨跌。</span><b>{multiDay?"逐日策略仍独立复位，本图仅串联研究盈亏":"零闭环时权益保持水平，不补造收益"}</b></div>
+        </div>}
         <div className="equity-panel">
           <div className="panel-heading">
             <div><h2>{source?`完整交易日真实分时 · ${source.quote.code} ${source.quote.name}`:"完整交易日真实分时"}</h2><span>{result ? `${formatDate(source?.sampleDate)} · ${formatTime(fullDayMinutes[0]?.time)} 至 ${formatTime(fullDayMinutes.at(-1)?.time)} · 策略从 ${formatTime(result.startTime)} 起逐分钟判断` : "运行后显示"}</span></div>
