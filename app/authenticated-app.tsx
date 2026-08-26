@@ -24,6 +24,7 @@ import { confirmStockPosition, loadStockPosition, migrateLegacyPosition, normali
 import type { StockPosition } from "@/lib/stock-position.mjs";
 import { normalizeTradeLedgerRows, summarizeTradeLedger, tradeLedgerDate, tradeLedgerKey } from "@/lib/trade-ledger.mjs";
 import type { TradeLedgerRow } from "@/lib/trade-ledger.mjs";
+import { buildStrategyClosedLoopLedger } from "@/lib/strategy-closed-loop-ledger.mjs";
 import { analyzeZijinFactorResearch } from "@/lib/zijin-factor-research.mjs";
 import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { evaluateStockAgent, STOCK_AGENTS } from "@/lib/stock-agent-router.mjs";
@@ -733,6 +734,67 @@ function ReleaseVersion() {
   return <span className="release-version" title={title}><b>版本 闭环-{shortCommit}</b><span><a href="/terms">协议</a> · <a href="/privacy">隐私</a></span></span>;
 }
 
+type StrategyClosedLoopReview = ReturnType<typeof buildStrategyClosedLoopLedger>;
+
+function DailyClosedLoopReview({review,tradingDate}:{review:StrategyClosedLoopReview;tradingDate:string}) {
+  const {summary,chart}=review;
+  const chartMarkers=chart.markers.filter(marker=>marker.kind!=="observation");
+  const visibleMarkers=chartMarkers.length<=28
+    ?chartMarkers
+    :[
+      ...chartMarkers.filter(marker=>marker.kind==="actual-buy"||marker.kind==="actual-sell"),
+      ...chartMarkers.filter(marker=>marker.kind!=="actual-buy"&&marker.kind!=="actual-sell").slice(-20),
+    ];
+  const profitFactor=summary.profitFactor===null
+    ?summary.completedLoops&&summary.wins?"∞":"—"
+    :summary.profitFactor.toFixed(2);
+  return <div className="daily-review" aria-label={`${tradingDate}策略闭环账本与每日图形复盘`}>
+    <div className="daily-review-title">
+      <div><span>DAILY REVIEW · {tradingDate}</span><b>{review.verdict.title}</b></div>
+      <em className={review.verdict.tone}>{summary.completedLoops?`${summary.wins}胜 ${summary.losses}负`:"事实记录"}</em>
+    </div>
+    <div className="daily-review-metrics">
+      <span><small>盘中观察</small><b>{summary.observations}</b></span>
+      <span><small>通过候选</small><b>{summary.candidates}</b></span>
+      <span><small>门槛拦截</small><b>{summary.rejected}</b></span>
+      <span><small>实成交</small><b>{summary.actualTrades}</b></span>
+      <span><small>完成闭环</small><b>{summary.completedLoops}</b></span>
+      <span><small>扣费净盈亏</small><b className={summary.netPnl>0?"positive":summary.netPnl<0?"negative":""}>{summary.completedLoops?money(summary.netPnl):"—"}</b></span>
+    </div>
+    <div className="daily-review-body">
+      <figure className="daily-review-chart">
+        <figcaption><span>日内价格与事件</span><small>候选 {summary.candidates} · 模拟 {summary.simulatedActions} · 实盘 {summary.actualTrades}</small></figcaption>
+        {chart.ready?<div className="daily-review-plot">
+          <svg viewBox="0 0 100 44" preserveAspectRatio="none" role="img" aria-label="今日价格曲线">
+            <line x1="3" x2="97" y1="20" y2="20" className="daily-review-grid" />
+            <line x1="3" x2="97" y1="36" y2="36" className="daily-review-grid" />
+            <path d={chart.path} className="daily-review-price-path" />
+          </svg>
+          {visibleMarkers.map(marker=><i
+            key={marker.id}
+            className={`daily-review-marker ${marker.kind}`}
+            style={{left:`${marker.x}%`,top:`${marker.y/44*100}%`}}
+            title={`${marker.displayTime} · ${marker.label} · ¥${marker.price.toFixed(2)}`}
+          />)}
+          {chart.high&&<span className="daily-review-extreme high" style={{left:`${Math.min(86,Math.max(4,chart.high.x))}%`}}>{chart.high.label}</span>}
+          {chart.low&&<span className="daily-review-extreme low" style={{left:`${Math.min(86,Math.max(4,chart.low.x))}%`}}>{chart.low.label}</span>}
+          <span className="daily-review-time start">{chart.firstTime.slice(0,5)}</span>
+          <span className="daily-review-time end">{chart.lastTime.slice(0,5)}</span>
+        </div>:<div className="daily-review-chart-empty"><b>价格线待生成</b><span>收到今日分钟行情后自动绘制</span></div>}
+        <div className="daily-review-legend"><span className="candidate"><i/>候选</span><span className="simulation"><i/>模拟</span><span className="actual-buy"><i/>实买</span><span className="actual-sell"><i/>实卖</span></div>
+      </figure>
+      <div className="daily-review-ledger">
+        <div className="daily-review-ledger-head"><span>闭环账本</span><small>胜率 {summary.winRate===null?"—":`${summary.winRate.toFixed(1)}%`} · PF {profitFactor}</small></div>
+        {review.cycles.length?<div className="daily-review-cycle-list">{[...review.cycles].reverse().map(cycle=><div key={cycle.id}>
+          <span><b className={cycle.direction==="正T"?"buy":"sell"}>{cycle.direction}</b><small>{cycle.entry.displayTime.slice(0,5)}–{cycle.exit.displayTime.slice(0,5)}</small></span>
+          <span><b>{cycle.entry.price.toFixed(2)}→{cycle.exit.price.toFixed(2)}</b><small>{cycle.quantity.toLocaleString("zh-CN")}股 · {cycle.holdingMinutes??"—"}分</small></span>
+          <strong className={cycle.netPnl>=0?"positive":"negative"}>{money(cycle.netPnl)}<small>费 {cycle.fees.toFixed(2)}</small></strong>
+        </div>)}</div>:<div className="daily-review-ledger-empty"><b>尚无真实闭环</b><span>{summary.openTrades?`${summary.openTrades} 笔成交等待等量配对`:"人工成交等量配对后自动入账"}</span></div>}
+      </div>
+    </div>
+    <div className="daily-review-conclusion"><div><span>复盘结论</span><b>{review.verdict.detail}</b></div><div className="daily-review-rejections"><span>主要拦截</span>{review.rejectionReasons.length?review.rejectionReasons.slice(0,3).map(item=><em key={item.reason}>{item.reason}<b>{item.count}</b></em>):<em>暂无</em>}</div></div>
+  </div>;
+}
 
 export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:toggleUiTheme}:{initialAuth?:InitialAuth;onLogout?:()=>void;theme:UiTheme;onToggleTheme:()=>void}) {
   const [authReady, setAuthReady] = useState(Boolean(initialAuth));
@@ -2967,6 +3029,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     return rows;
   },[tradeLedgerRows]);
+  const dailyClosedLoopReview=useMemo(()=>buildStrategyClosedLoopLedger({
+    trades:tradeLedgerRows,
+    observations:currentObservations,
+    simulatedActions:liveEngine.actions,
+    minutes:minutePoints,
+  }),[tradeLedgerRows,currentObservations,liveEngine.actions,minutePoints]);
   const deskHistoryRows=useMemo<DeskHistoryRow[]>(()=>{
     if(panel==="今日T循环")return confirmedCycleRows;
     if(panel==="历史信号"){
@@ -2989,6 +3057,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       };
       return [agentRow,...observationRows].filter((row,index,rows)=>rows.findIndex(item=>item.time===row.time&&item.direction===row.direction)===index);
     }
+    if(panel==="每日复盘")return [];
     return [...liveEngine.actions].reverse().map(action=>({time:`${action.time.slice(0,2)}:${action.time.slice(2)}`,direction:`${action.direction??"T"}${action.side}`,price:action.price.toFixed(2),quantity:`${action.quantity.toLocaleString("zh-CN")}股`,spread:"引擎模拟",status:action.reason??"正式过滤通过",tone:action.side==="卖出"?"sell":"buy"}));
   },[panel,confirmedCycleRows,visibleStockAgentEvaluation,currentObservations,minutePoints,liveEngine.actions]);
   useEffect(() => {
@@ -4624,9 +4693,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
 
       <section className="lower-panel">
         <div className={`history ${historyCollapsed?'collapsed':''}`}>
-          <div className="lower-tabs">{['今日T循环','历史信号','模拟记录'].map(item=><button key={item} onClick={()=>{setPanel(item);setHistoryCollapsed(false)}} className={panel===item?'active':''}>{item}</button>)}<button type="button" className="history-collapse-toggle" onClick={()=>setHistoryCollapsed(current=>!current)} aria-expanded={!historyCollapsed}>{historyCollapsed?'展开':'收起'} <span aria-hidden="true">{historyCollapsed?'▾':'▴'}</span></button></div>
-          {!historyCollapsed&&<><div className="history-head"><span>时间</span><span>方向</span><span>价格</span><span>数量</span><span>价差</span><span>状态</span></div>
-          {deskHistoryRows.length?deskHistoryRows.map((row,index)=><div className="history-row" key={`${row.time}-${row.direction}-${index}`}><span>{row.time}</span><span className={row.tone??""}>{row.direction}</span><span>{row.price}</span><span>{row.quantity}</span><span className={row.spread.startsWith("+")?"accent":""}>{row.spread}</span><span>{row.status}</span></div>):<div className="history-empty"><b>{panel==="今日T循环"?"暂无已确认闭环":panel==="历史信号"?"当前尚无候选或正式信号":"当前尚无正式模拟动作"}</b><span>{panel==="今日T循环"?"真实成交等量配对后显示":panel==="历史信号"?"候选或正式信号出现后显示":"正式模拟动作出现后显示"}</span></div>}</>}
+          <div className="lower-tabs">{['今日T循环','历史信号','模拟记录','每日复盘'].map(item=><button key={item} onClick={()=>{setPanel(item);setHistoryCollapsed(false)}} className={panel===item?'active':''}>{item}</button>)}<button type="button" className="history-collapse-toggle" onClick={()=>setHistoryCollapsed(current=>!current)} aria-expanded={!historyCollapsed}>{historyCollapsed?'展开':'收起'} <span aria-hidden="true">{historyCollapsed?'▾':'▴'}</span></button></div>
+          {!historyCollapsed&&(panel==="每日复盘"?<DailyClosedLoopReview review={dailyClosedLoopReview} tradingDate={tradingDate}/>:<><div className="history-head"><span>时间</span><span>方向</span><span>价格</span><span>数量</span><span>价差</span><span>状态</span></div>
+          {deskHistoryRows.length?deskHistoryRows.map((row,index)=><div className="history-row" key={`${row.time}-${row.direction}-${index}`}><span>{row.time}</span><span className={row.tone??""}>{row.direction}</span><span>{row.price}</span><span>{row.quantity}</span><span className={row.spread.startsWith("+")?"accent":""}>{row.spread}</span><span>{row.status}</span></div>):<div className="history-empty"><b>{panel==="今日T循环"?"暂无已确认闭环":panel==="历史信号"?"当前尚无候选或正式信号":"当前尚无正式模拟动作"}</b><span>{panel==="今日T循环"?"真实成交等量配对后显示":panel==="历史信号"?"候选或正式信号出现后显示":"正式模拟动作出现后显示"}</span></div>}</>)}
         </div>
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
           <button className="agents-title" onClick={()=>setAgentOpen(!agentOpen)}><span>四兔研究证据</span><small>当前股票 · {personalStrategyStats.sessions} 日 / {personalStrategyStats.cycles} 闭环</small><b>{agentOpen?'收起':'详情'}⌃</b></button>
