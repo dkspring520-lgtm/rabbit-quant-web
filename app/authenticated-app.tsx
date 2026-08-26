@@ -2057,7 +2057,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     });
   },[minutePoints,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,profile,activeQuote?.previousClose,stock?.code,preferences.profitMode,similarityArchive,liveStrategyExperiment,isZijinStock,zijinPreopenGate]);
   const zijinV29Replay=useMemo<BacktestResult|null>(()=>{
-    if(!isZijinStock||zijinMonitorStrategy!=="v29"||!minutePoints.length)return null;
+    if(!isZijinStock||!minutePoints.length)return null;
     const replayDate=currentTrial?.sampleDate??currentMarket?.sampleDate??preopenPlanDate;
     const matchingPreopenPlan=frozenZijinPreopenPlan?.date===replayDate
       ?frozenZijinPreopenPlan.plan
@@ -2083,9 +2083,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }catch{
       return null;
     }
-  },[activeQuote?.previousClose,currentMarket?.sampleDate,currentTrial?.sampleDate,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,frozenZijinPreopenPlan,isZijinStock,minutePoints,preopenPlanDate,profile,zijinMonitorStrategy]);
+  },[activeQuote?.previousClose,currentMarket?.sampleDate,currentTrial?.sampleDate,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,frozenZijinPreopenPlan,isZijinStock,minutePoints,preopenPlanDate,profile]);
   const zijinV1ContextReplay=useMemo<BacktestResult|null>(()=>{
-    if(!isZijinStock||zijinMonitorStrategy!=="v1"||!minutePoints.length)return null;
+    if(!isZijinStock||!minutePoints.length)return null;
     const replayDate=currentTrial?.sampleDate??currentMarket?.sampleDate??preopenPlanDate;
     try{
       return runZuoTV1ContextShadowReplay({
@@ -2107,7 +2107,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }catch{
       return null;
     }
-  },[activeQuote?.previousClose,currentMarket?.sampleDate,currentTrial?.sampleDate,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,isZijinStock,minutePoints,preopenPlanDate,profile,zijinMonitorStrategy]);
+  },[activeQuote?.previousClose,currentMarket?.sampleDate,currentTrial?.sampleDate,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,isZijinStock,minutePoints,preopenPlanDate,profile]);
   const zijinRepairHistory=useMemo(
     ()=>(isZijinStock?buildZijinL2CausalReplayObservations(minutePoints):[]) as ReplayObservation[],
     [isZijinStock,minutePoints],
@@ -2176,20 +2176,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       : "等待均价上方观察与回落确认";
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
-  const visibleChartObservations=useMemo(
-    ()=>{
-      const selected=zijinMonitorStrategy==="v29"
-        ?zijinV29ChartObservations
-        :zijinMonitorStrategy==="v1"
-          ?zijinV1ChartObservations
-          :currentObservations;
-      const eligible=zijinMonitorStrategy==="closure"&&positiveTBlockedByFlow
-        ? selected.filter(observation=>observation.direction!=="正T")
-        : selected;
-      return compactChartObservations(eligible,isZijinStock?45:30,{mergeRepairPhases:isZijinStock&&zijinMonitorStrategy==="closure",retainAll:true}) as ReplayObservation[];
-    },
-    [currentObservations,isZijinStock,positiveTBlockedByFlow,zijinMonitorStrategy,zijinV1ChartObservations,zijinV29ChartObservations],
-  );
+  type ChartObservation=ReplayObservation&{strategy:"closure"|"v29"|"v1"};
+  const visibleChartObservations=useMemo<ChartObservation[]>(()=>{
+    const closureEligible=positiveTBlockedByFlow
+      ?currentObservations.filter(observation=>observation.direction!=="正T")
+      :currentObservations;
+    const compactTagged=(observations:ReplayObservation[],strategy:ChartObservation["strategy"],mergeRepairPhases=false)=>(
+      compactChartObservations(observations,isZijinStock?45:30,{mergeRepairPhases,retainAll:true}) as ReplayObservation[]
+    ).map(observation=>({...observation,strategy}));
+    return [
+      ...compactTagged(closureEligible,"closure",isZijinStock),
+      ...compactTagged(zijinV29ChartObservations,"v29"),
+      ...compactTagged(zijinV1ChartObservations,"v1"),
+    ];
+  },[currentObservations,isZijinStock,positiveTBlockedByFlow,zijinV1ChartObservations,zijinV29ChartObservations]);
   const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
   const rabbitTrackerSignal=useMemo(()=>{
     const latestTime=minutePoints.at(-1)?.time;
@@ -2262,7 +2262,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     };
     // Formal orders get first choice of label space. Every other marker is
     // stamped at its real confirmation minute; no historical pivot is backfilled.
-    const actions=(zijinMonitorStrategy==="closure"?liveEngine.actions:[]).flatMap((action,index)=>{
+    const actions=liveEngine.actions.flatMap((action,index)=>{
       // A live minute can be updated more than once by the public quote feed.
       // Anchor the marker to the price captured by the causal decision instead
       // of the first point sharing the same HHmm timestamp.
@@ -2274,43 +2274,43 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,18,isSell);
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
-    const shadowStrategy=zijinMonitorStrategy==="v1"?"v1":"v29";
-    const selectedShadowActions=zijinMonitorStrategy==="v29"
-      ?zijinV29Replay?.actions??[]
-      :zijinMonitorStrategy==="v1"
-        ?zijinV1ContextReplay?.actions??[]
-        :[];
-    const shadowActions=selectedShadowActions.flatMap((action,index)=>{
+    const selectedShadowActions=[
+      ...(zijinV29Replay?.actions??[]).map(action=>({action,strategy:"v29" as const})),
+      ...(zijinV1ContextReplay?.actions??[]).map(action=>({action,strategy:"v1" as const})),
+    ];
+    const shadowActions=selectedShadowActions.flatMap(({action,strategy},index)=>{
       const point=pointPosition(action.time,action.price,true);
       if(!point)return [];
       const isSell=action.side==="卖出";
-      const label=shadowStrategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action);
+      const label=strategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action);
       const chartLabel=shadowChartActionLabel(action);
       const labelWidth=Math.max(38,chartLabel.length*8+14);
       const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,17,isSell);
-      return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action,strategy:shadowStrategy}];
+      return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action,strategy}];
     });
     // Keep the chart readable: each side gets one latest, highest-priority
     // candidate label. Earlier candidates remain as hoverable dots with their
     // full text in <title>; formal execution markers are handled separately.
     const observationLabelSlots=new Set<number>();
-    (['buy','sell'] as const).forEach(side=>{
-      let best:{index:number;priority:number;time:number}|null=null;
-      visibleChartObservations.forEach((candidate,index)=>{
-        const candidateSide=candidate.direction==="反T"?"sell":"buy";
-        if(candidateSide!==side||candidate.stage==="watch")return;
-        const priority=candidate.repairPhase==="repair-confirmed"
-          ?4
-          :candidate.pivotAssessment==="confirmed"
-            ?3
-            :candidate.pivotAssessment==="strong"
-              ?2
-              :candidate.stage==="candidate"?1:0;
-        const time=Number(String(candidate.time??"").replace(/\D/g,"").slice(-4))||0;
-        if(!best||priority>best.priority||(priority===best.priority&&time>=best.time))best={index,priority,time};
-      });
-      if(best)observationLabelSlots.add(best.index);
-    });
+    for(const strategy of ["closure","v29","v1"] as const){
+      for(const side of ["buy","sell"] as const){
+        let best:{index:number;priority:number;time:number}|null=null;
+        for(const [index,candidate] of visibleChartObservations.entries()){
+          const candidateSide=candidate.direction==="反T"?"sell":"buy";
+          if(candidate.strategy!==strategy||candidateSide!==side||candidate.stage==="watch")continue;
+          const priority=candidate.repairPhase==="repair-confirmed"
+            ?4
+            :candidate.pivotAssessment==="confirmed"
+              ?3
+              :candidate.pivotAssessment==="strong"
+                ?2
+                :candidate.stage==="candidate"?1:0;
+          const time=Number(String(candidate.time??"").replace(/\D/g,"").slice(-4))||0;
+          if(!best||priority>best.priority||(priority===best.priority&&time>=best.time))best={index,priority,time};
+        }
+        if(best)observationLabelSlots.add(best.index);
+      }
+    }
     const observations=visibleChartObservations.flatMap((observation,index)=>{
       const markerPrice=observation.coverageOnly&&Number.isFinite(observation.pivotPrice) ? observation.pivotPrice : observation.price;
       const point=pointPosition(observation.time,markerPrice);
@@ -2320,12 +2320,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
       const rawLabel=observationConfirmationLabel(observation)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
-      const fullLabel=zijinMonitorStrategy==="v1"
+      const fullLabel=observation.strategy==="v1"
         ?`V1 ${rawLabel}`
-        :zijinMonitorStrategy==="v29"
+        :observation.strategy==="v29"
           ?`V2.9 ${rawLabel}`
           :rawLabel;
-      const currentLabel=zijinMonitorStrategy==="v1"||zijinMonitorStrategy==="v29"
+      const currentLabel=observation.strategy==="v1"||observation.strategy==="v29"
         ?isSell?"候卖":"候买"
         :rawLabel;
       const labelWidth=Math.max(38,currentLabel.length*8+14);
@@ -2334,7 +2334,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
         : {labelX:point.x,labelY:point.y};
-      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,fullLabel,labelWidth,labelVisible,labelRendered,observation}];
+      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,fullLabel,labelWidth,labelVisible,labelRendered,observation,strategy:observation.strategy}];
     });
     // Every delivered candidate reminder is evidence, not just the latest
     // rabbit state. Plot the recorded minute on its own chart so an alert such
@@ -2390,19 +2390,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           return [{...point,...placed,isSell,label,labelWidth,time:rabbitTrackerSignal.time,price:rabbitTrackerSignal.price,key:rabbitTrackerSignal.key}];
         })()
       :[];
-    const activeShadowObservations=zijinMonitorStrategy==="v29"
-      ?zijinV29ChartObservations
-      :zijinMonitorStrategy==="v1"
-        ?zijinV1ChartObservations
-        :null;
-    const tooltipSelected=activeShadowObservations
-      ?[...activeShadowObservations,...currentObservations.filter(observation=>
-        !activeShadowObservations.some(selected=>selected.time===observation.time&&selected.direction===observation.direction),
-      )]
-      :currentObservations;
-    const tooltipEligible=zijinMonitorStrategy==="closure"&&positiveTBlockedByFlow
-      ? tooltipSelected.filter(observation=>observation.direction!=="正T")
-      : tooltipSelected;
+    const tooltipEligible=[
+      ...(positiveTBlockedByFlow?currentObservations.filter(observation=>observation.direction!=="正T"):currentObservations),
+      ...zijinV29ChartObservations,
+      ...zijinV1ChartObservations,
+    ];
     return {
       observations,
       // Keep every causal observation available to the crosshair without
@@ -2410,9 +2402,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       tooltipObservations:tooltipEligible,
       actions,
       shadowActions,
-      rabbitCandidates:zijinMonitorStrategy==="closure"?[...recordedCandidates,...rabbitCandidates]:[],
+      rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
     };
-  },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinMonitorStrategy,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -4247,6 +4239,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
               {indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}
+              {isZijinStock&&<span className="strategy-signal-legend" aria-label="信号分类图例"><span title="紫金专属闭环正式信号"><i className="formal"/>正式</span><span title="V2.9 影子参考，不可执行"><i className="v29"/>V2.9</span><span title="V1 影子参考，不可执行"><i className="v1"/>V1</span></span>}
               <details className="auxiliary-indicators">
                 <summary>辅助指标</summary>
                 <div>
@@ -4285,7 +4278,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${zijinMonitorStrategy==="v29"?"v29-shadow-marker":zijinMonitorStrategy==="v1"?"v1-context-marker":""} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${zijinMonitorStrategy!=="closure"?" · 影子参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.isSell?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.isSell?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{zijinMonitorStrategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>)}
+              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":""} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${marker.strategy!=="closure"?" · 影子参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.isSell?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.isSell?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>)}
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title><line x1={marker.x} y1={marker.isSell?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.isSell?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/>{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}<rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx={uiTheme==="light"?7:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.isSell?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.isSell?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx={uiTheme==="light"?8:4}/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
