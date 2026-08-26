@@ -2246,16 +2246,22 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return {x:liveChartX(point.time),y:liveChartPriceY(price??point.price,chartModel.min,chartModel.max)};
     };
     const reserveDirectionalMarkerLabel=(pointX:number,pointY:number,width:number,height:number,isSell:boolean)=>{
-      const labelX=Math.max(width/2+4,Math.min(LIVE_CHART.width-width/2-4,pointX));
+      const clampLabelX=(value:number)=>Math.max(width/2+4,Math.min(LIVE_CHART.width-width/2-4,value));
+      const preferredLabelX=clampLabelX(pointX);
       const direction=isSell?-1:1;
       const baseGap=isSell?38:42;
       const verticalLevels=[0,24,48,72,96,120];
       const baselines=[...new Set(verticalLevels.map(level=>Math.max(13,Math.min(245,pointY+direction*(baseGap+level)))))];
-      for(const baseline of baselines){
-        const box={left:labelX-width/2-4,right:labelX+width/2+4,top:baseline-height+1,bottom:baseline+6};
-        const collision=occupied.some(other=>box.left<other.right+8&&box.right>other.left-8&&box.top<other.bottom+8&&box.bottom>other.top-8);
-        if(!collision){occupied.push(box);return {labelX,labelY:baseline};}
+      const horizontalStep=width+18;
+      const labelXs=[...new Set([0,-1,1,-2,2].map(step=>clampLabelX(preferredLabelX+step*horizontalStep)))];
+      for(const labelX of labelXs){
+        for(const baseline of baselines){
+          const box={left:labelX-width/2-4,right:labelX+width/2+4,top:baseline-height+1,bottom:baseline+6};
+          const collision=occupied.some(other=>box.left<other.right+8&&box.right>other.left-8&&box.top<other.bottom+8&&box.bottom>other.top-8);
+          if(!collision){occupied.push(box);return {labelX,labelY:baseline};}
+        }
       }
+      const labelX=labelXs.at(-1)??preferredLabelX;
       const labelY=baselines.at(-1)??Math.max(13,Math.min(245,pointY+direction*baseGap));
       occupied.push({left:labelX-width/2-4,right:labelX+width/2+4,top:labelY-height+1,bottom:labelY+6});
       return {labelX,labelY};
