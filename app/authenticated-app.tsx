@@ -2194,6 +2194,37 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
   },[currentObservations,isZijinStock,positiveTBlockedByFlow,zijinV1ChartObservations,zijinV29ChartObservations]);
   const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
+  const chartFormalStorageKey=activeChartDate
+    ?`rabbit-formal-chart-actions:${accountName.toLowerCase()}:${stock.code}:${activeChartDate}`
+    :null;
+  const [persistedChartFormalActions,setPersistedChartFormalActions]=useState<{key:string|null;actions:ReplayAction[]}>({key:null,actions:[]});
+  useEffect(()=>{
+    if(!chartFormalStorageKey){setPersistedChartFormalActions({key:null,actions:[]});return}
+    try{
+      const saved=localStorage.getItem(chartFormalStorageKey);
+      const parsed=saved?JSON.parse(saved):[];
+      const actions=(Array.isArray(parsed)?parsed:[]).flatMap((item):ReplayAction[]=>{
+        if(!item||typeof item!=="object")return [];
+        const action=item as Partial<ReplayAction>;
+        if(!/^\d{4}$/.test(String(action.time??""))||!Number.isFinite(action.price))return [];
+        if(!["买入","卖出","买回"].includes(String(action.side??""))||!["正T","反T"].includes(String(action.direction??"")))return [];
+        return [{time:String(action.time),price:Number(action.price),side:action.side as ReplayAction["side"],direction:action.direction as ReplayAction["direction"],quantity:Number(action.quantity)||0,curveIndex:Number(action.curveIndex)||-1,reason:String(action.reason??"正式信号")}];
+      }).slice(0,80);
+      setPersistedChartFormalActions({key:chartFormalStorageKey,actions});
+    }catch{setPersistedChartFormalActions({key:chartFormalStorageKey,actions:[]})}
+  },[chartFormalStorageKey]);
+  useEffect(()=>{
+    if(!chartFormalStorageKey||liveEngine.actions.length===0)return;
+    setPersistedChartFormalActions(current=>{
+      const previous=current.key===chartFormalStorageKey?current.actions:[];
+      const liveKeys=new Set(liveEngine.actions.map(action=>`${action.time}:${action.side}:${action.direction??"正T"}`));
+      const actions=[...liveEngine.actions,...previous.filter(action=>!liveKeys.has(`${action.time}:${action.side}:${action.direction??"正T"}`))].slice(0,80);
+      const unchanged=current.key===chartFormalStorageKey&&current.actions.length===actions.length&&current.actions.every((action,index)=>`${action.time}:${action.side}:${action.direction??"正T"}:${action.price}`===`${actions[index]?.time}:${actions[index]?.side}:${actions[index]?.direction??"正T"}:${actions[index]?.price}`);
+      if(unchanged)return current;
+      try{localStorage.setItem(chartFormalStorageKey,JSON.stringify(actions))}catch{}
+      return {key:chartFormalStorageKey,actions};
+    });
+  },[chartFormalStorageKey,liveEngine.actions]);
   const recordedFormalActions=useMemo<ReplayAction[]>(()=>{
     if(!activeChartDate)return [];
     return alertHistory.flatMap(alert=>{
@@ -2218,12 +2249,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     });
   },[activeChartDate,alertHistory,minutePoints,stock.code]);
   const chartFormalActions=useMemo<ReplayAction[]>(()=>{
-    const liveActionKeys=new Set(liveEngine.actions.map(action=>`${action.time}:${action.side}:${action.direction??"正T"}`));
-    return [
-      ...liveEngine.actions,
-      ...recordedFormalActions.filter(action=>!liveActionKeys.has(`${action.time}:${action.side}:${action.direction??"正T"}`)),
-    ];
-  },[liveEngine.actions,recordedFormalActions]);
+    const actions=[...liveEngine.actions];
+    const keys=new Set(actions.map(action=>`${action.time}:${action.side}:${action.direction??"正T"}`));
+    const append=(items:ReplayAction[])=>items.forEach(action=>{
+      const key=`${action.time}:${action.side}:${action.direction??"正T"}`;
+      if(!keys.has(key)){keys.add(key);actions.push(action)}
+    });
+    if(persistedChartFormalActions.key===chartFormalStorageKey)append(persistedChartFormalActions.actions);
+    append(recordedFormalActions);
+    return actions;
+  },[chartFormalStorageKey,liveEngine.actions,persistedChartFormalActions,recordedFormalActions]);
   const rabbitTrackerSignal=useMemo(()=>{
     const latestTime=minutePoints.at(-1)?.time;
     if(!latestTime)return null;
