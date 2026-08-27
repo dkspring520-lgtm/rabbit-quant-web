@@ -2194,6 +2194,56 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
   },[currentObservations,isZijinStock,positiveTBlockedByFlow,zijinV1ChartObservations,zijinV29ChartObservations]);
   const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
+  const chartObservationStorageKey=activeChartDate
+    ?`rabbit-chart-observations:${accountName.toLowerCase()}:${stock.code}:${activeChartDate}`
+    :null;
+  const [persistedChartObservations,setPersistedChartObservations]=useState<{key:string|null;observations:ReplayObservation[]}>({key:null,observations:[]});
+  useEffect(()=>{
+    if(!chartObservationStorageKey){setPersistedChartObservations({key:null,observations:[]});return}
+    try{
+      const saved=localStorage.getItem(chartObservationStorageKey);
+      const parsed=saved?JSON.parse(saved):[];
+      const observations=(Array.isArray(parsed)?parsed:[]).flatMap((item):ReplayObservation[]=>{
+        if(!item||typeof item!=="object")return [];
+        const observation=item as Partial<ReplayObservation>;
+        if(!/^\d{4}$/.test(String(observation.time??""))||!["正T","反T"].includes(String(observation.direction??"")))return [];
+        if(!Number.isFinite(observation.score)||!Number.isFinite(observation.threshold))return [];
+        return [{...observation,time:String(observation.time),direction:observation.direction as ReplayObservation["direction"],score:Number(observation.score),threshold:Number(observation.threshold),edge:Number(observation.edge)||0,executable:Boolean(observation.executable),blockers:Array.isArray(observation.blockers)?observation.blockers.map(String).slice(0,12):[],reason:String(observation.reason??"历史候选信号")} as ReplayObservation];
+      }).slice(0,120);
+      setPersistedChartObservations({key:chartObservationStorageKey,observations});
+    }catch{setPersistedChartObservations({key:chartObservationStorageKey,observations:[]})}
+  },[chartObservationStorageKey]);
+  useEffect(()=>{
+    if(!chartObservationStorageKey)return;
+    const live=visibleChartObservations.filter(observation=>observation.strategy==="closure");
+    if(live.length===0)return;
+    setPersistedChartObservations(current=>{
+      const previous=current.key===chartObservationStorageKey?current.observations:[];
+      const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.stage??"watch"}`;
+      const liveKeys=new Set(live.map(observationKey));
+      const observations=[...live,...previous.filter(observation=>!liveKeys.has(observationKey(observation)))].slice(0,120);
+      const unchanged=current.key===chartObservationStorageKey&&current.observations.length===observations.length&&current.observations.every((observation,index)=>`${observationKey(observation)}:${observation.score}:${observation.price??""}`===`${observationKey(observations[index])}:${observations[index]?.score}:${observations[index]?.price??""}`);
+      if(unchanged)return current;
+      try{localStorage.setItem(chartObservationStorageKey,JSON.stringify(observations))}catch{}
+      return {key:chartObservationStorageKey,observations};
+    });
+  },[chartObservationStorageKey,visibleChartObservations]);
+  const durableVisibleChartObservations=useMemo<ChartObservation[]>(()=>{
+    if(persistedChartObservations.key!==chartObservationStorageKey||persistedChartObservations.observations.length===0)return visibleChartObservations;
+    const shadow=visibleChartObservations.filter(observation=>observation.strategy!=="closure");
+    const closure=visibleChartObservations.filter(observation=>observation.strategy==="closure");
+    const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.stage??"watch"}`;
+    const keys=new Set(closure.map(observationKey));
+    const persistedEligible=positiveTBlockedByFlow
+      ?persistedChartObservations.observations.filter(observation=>observation.direction!=="正T")
+      :persistedChartObservations.observations;
+    persistedEligible.forEach(observation=>{
+      const key=observationKey(observation);
+      if(!keys.has(key)){keys.add(key);closure.push({...observation,strategy:"closure"})}
+    });
+    const compactClosure=(compactChartObservations(closure,isZijinStock?45:30,{mergeRepairPhases:isZijinStock,retainAll:true}) as ReplayObservation[]).map(observation=>({...observation,strategy:"closure" as const}));
+    return [...compactClosure,...shadow];
+  },[chartObservationStorageKey,isZijinStock,persistedChartObservations,positiveTBlockedByFlow,visibleChartObservations]);
   const chartFormalStorageKey=activeChartDate
     ?`rabbit-formal-chart-actions:${accountName.toLowerCase()}:${stock.code}:${activeChartDate}`
     :null;
@@ -2375,7 +2425,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,17,isSell);
       return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action,strategy}];
     });
-    const observations=visibleChartObservations.flatMap((observation,index)=>{
+    const observations=durableVisibleChartObservations.flatMap((observation,index)=>{
       const markerPrice=observation.coverageOnly&&Number.isFinite(observation.pivotPrice) ? observation.pivotPrice : observation.price;
       const point=pointPosition(observation.time,markerPrice);
       if(!point)return [];
@@ -2471,7 +2521,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
       manualTrades,
     };
-  },[activeChartDate,alertHistory,chartFormalActions,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,visibleChartObservations,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,alertHistory,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayMarkerActionsRef=useRef(intradayMarkerLayout.actions);
   useEffect(()=>{
     intradayMarkerActionsRef.current=intradayMarkerLayout.actions;
