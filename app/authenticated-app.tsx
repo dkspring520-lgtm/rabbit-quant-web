@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import type { ZijinFactorLifecycle } from "./zijin-factor-lifecycle-panel";
@@ -2213,7 +2213,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       setPersistedChartObservations({key:chartObservationStorageKey,observations});
     }catch{setPersistedChartObservations({key:chartObservationStorageKey,observations:[]})}
   },[chartObservationStorageKey]);
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     if(!chartObservationStorageKey)return;
     const live=visibleChartObservations.filter(observation=>observation.strategy==="closure");
     if(live.length===0)return;
