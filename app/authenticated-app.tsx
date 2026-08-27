@@ -2194,6 +2194,36 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
   },[currentObservations,isZijinStock,positiveTBlockedByFlow,zijinV1ChartObservations,zijinV29ChartObservations]);
   const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
+  const recordedFormalActions=useMemo<ReplayAction[]>(()=>{
+    if(!activeChartDate)return [];
+    return alertHistory.flatMap(alert=>{
+      if(alert.level!=="signal"||alert.code!==stock.code||alert.source==="preview"||alert.source==="test")return [];
+      if(String(alert.eventKey??"").startsWith("preview:")||/测试|预览/.test(alert.title))return [];
+      const createdAt=alert.createdAt?new Date(alert.createdAt):null;
+      const createdDate=createdAt&&!Number.isNaN(createdAt.getTime())
+        ?createdAt.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})
+        :null;
+      if((alert.marketDate??createdDate)!==activeChartDate)return [];
+      const createdTime=createdAt&&!Number.isNaN(createdAt.getTime())
+        ?createdAt.toLocaleTimeString("en-GB",{timeZone:"Asia/Shanghai",hour12:false}).replace(/:/g,"")
+        :"";
+      const time=String(alert.marketTime??createdTime).replace(/\D/g,"").slice(-4);
+      if(!/^\d{4}$/.test(time))return [];
+      const minute=minutePoints.find(point=>point.time===time);
+      const price=Number.isFinite(alert.price)?Number(alert.price):minute?.price;
+      if(!Number.isFinite(price))return [];
+      const direction:ReplayAction["direction"]=alert.title.includes("反T")?"反T":"正T";
+      const side:ReplayAction["side"]=alert.rabbit==="sell"?"卖出":alert.title.includes("买回")?"买回":"买入";
+      return [{time,price:Number(price),side,direction,quantity:0,curveIndex:-1,reason:alert.message}];
+    });
+  },[activeChartDate,alertHistory,minutePoints,stock.code]);
+  const chartFormalActions=useMemo<ReplayAction[]>(()=>{
+    const liveActionKeys=new Set(liveEngine.actions.map(action=>`${action.time}:${action.side}:${action.direction??"正T"}`));
+    return [
+      ...liveEngine.actions,
+      ...recordedFormalActions.filter(action=>!liveActionKeys.has(`${action.time}:${action.side}:${action.direction??"正T"}`)),
+    ];
+  },[liveEngine.actions,recordedFormalActions]);
   const rabbitTrackerSignal=useMemo(()=>{
     const latestTime=minutePoints.at(-1)?.time;
     if(!latestTime)return null;
@@ -2284,7 +2314,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     });
     // Formal orders get the next choice of label space. Every other marker is
     // stamped at its real confirmation minute; no historical pivot is backfilled.
-    const actions=liveEngine.actions.flatMap((action,index)=>{
+    const actions=chartFormalActions.flatMap((action,index)=>{
       // A live minute can be updated more than once by the public quote feed.
       // Anchor the marker to the price captured by the causal decision instead
       // of the first point sharing the same HHmm timestamp.
@@ -2406,7 +2436,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
       manualTrades,
     };
-  },[activeChartDate,alertHistory,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,visibleChartObservations,liveEngine.actions,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,alertHistory,chartFormalActions,chartModel,currentObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,visibleChartObservations,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayMarkerActionsRef=useRef(intradayMarkerLayout.actions);
   useEffect(()=>{
     intradayMarkerActionsRef.current=intradayMarkerLayout.actions;
