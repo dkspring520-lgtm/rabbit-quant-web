@@ -149,6 +149,25 @@ type LiveSecondPoint = { date:string; time:string; timestamp:number; price:numbe
 type IntradaySession = { date:string; previousClose:number|null; minutes:IntradayMinute[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
 type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
+function normalizeMarketDate(value:unknown):string|null{
+  const raw=String(value??"").trim();
+  if(!raw)return null;
+  const match=raw.match(/(20\d{2})[-\/]?(\d{2})[-\/]?(\d{2})/);
+  if(match)return `${match[1]}-${match[2]}-${match[3]}`;
+  const numeric=Number(raw);
+  if(Number.isFinite(numeric)&&numeric>1_000_000_000){
+    const date=new Date(numeric<10_000_000_000?numeric*1000:numeric);
+    if(!Number.isNaN(date.getTime()))return date.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"});
+  }
+  const date=new Date(raw);
+  return Number.isNaN(date.getTime())?null:date.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"});
+}
+function formalSyncErrorMessage(status:number,serverMessage=""){
+  if(status===401)return "请重新登录";
+  if(status===403)return "当前股票不在服务器监控清单";
+  if(status>=500)return "服务器暂不可用，将自动重试";
+  return serverMessage||"同步异常 · 将自动重试";
+}
 type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string; details:string[] };
 type MarketContextItem = { id:string; label:string; group:"market"|"sector"|"related"|"cross"|"currency"; price:number|null; changePercent:number|null; sourceTimestamp:string|null; provider:string; inverse?:boolean };
 type MarketContext = { code:string; profile:string; fetchedAt:string; items:MarketContextItem[]; gate:{ score:number; level:"normal"|"caution"|"restricted"|"locked"|"degraded"; label:string; action:string; positionFraction:number; hardLock:boolean; reasons:string[] }; availableSources:string[]; errors:string[]; events:{ status:string; label:string; participatesInGate:boolean } };
@@ -158,6 +177,7 @@ type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; 
 type ZijinHkMarket = { symbol:string; name:string; provider:string; fetchedAt:string; sourceTimestamp:string|null; quote:{price:number;previousClose:number;changePercent:number}; minutes:{time:string;price:number}[] };
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; zijinHk:ZijinHkMarket|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
+type FormalSyncState = { status:"idle"|"syncing"|"ok"|"error"; message:string; at:number|null };
 type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; marketDate?:string; marketTime?:string; price?:number; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type ServerControlAlert = {
   id:string|number; code?:string; name?:string; createdAt:string; marketDate?:string; marketTime?:string;
@@ -849,6 +869,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [backgroundPushTesting,setBackgroundPushTesting]=useState(false);
   const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
   const [alertHistory,setAlertHistory]=useState<TradeAlertToast[]>([]);
+  const [formalSyncState,setFormalSyncState]=useState<FormalSyncState>({status:"idle",message:"等待正式信号",at:null});
   const alertToast=alertQueue[0]??null;
   const alertSequence=useRef(0);
   const latestActiveChange=useRef<number|null>(null);
@@ -869,21 +890,47 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const nextPreviewRabbit = useRef<"buy"|"sell">("buy");
   useEffect(()=>{cycleStageRef.current=cycleStage;},[cycleStage]);
   useEffect(()=>{openedCycleSideRef.current=openedCycleSide;},[openedCycleSide]);
-  useEffect(()=>{uploadedClientFormalKeys.current.clear()},[accountName]);
+  useEffect(()=>{
+    serverAlertCursor.current=0;
+    serverAlertsInitialized.current=false;
+    lastFormalAlertAtBySide.current={};
+    uploadedClientFormalKeys.current.clear();
+    setFormalSyncState({status:localAuth&&!demoMode?"idle":"error",message:localAuth&&!demoMode?"等待正式信号":"请重新登录",at:null});
+  },[accountName,localAuth,demoMode]);
   useEffect(()=>{try{localStorage.setItem(ZIJIN_MONITOR_STRATEGY_STORAGE_KEY,zijinMonitorStrategy)}catch{}},[zijinMonitorStrategy]);
   const uploadClientFormalAction=useCallback(async({code,marketDate,action}:{code:string;marketDate:string;action:ReplayAction})=>{
-    if(!localAuth||demoMode||!code||!marketDate)return;
+    if(!localAuth||demoMode||!code||!marketDate){
+      if(!demoMode&&!localAuth)setFormalSyncState({status:"error",message:"请重新登录",at:Date.now()});
+      return;
+    }
+    const normalizedDate=normalizeMarketDate(marketDate);
+    if(!normalizedDate){
+      setFormalSyncState({status:"error",message:"日期无效，稍后自动重试",at:Date.now()});
+      return;
+    }
     const direction=action.direction==="反T"?"反T":"正T";
-    const key=`${accountName.toLowerCase()}:${marketDate}:${code}:${action.time}:${direction}:${action.side}`;
+    const key=`${accountName.toLowerCase()}:${normalizedDate}:${code}:${action.time}:${direction}:${action.side}`;
     if(uploadedClientFormalKeys.current.has(key))return;
     uploadedClientFormalKeys.current.add(key);
+    setFormalSyncState({status:"syncing",message:"正在同步正式信号…",at:Date.now()});
     try{
       const response=await fetch('/api/control/alerts',{
         method:'POST',credentials:'include',cache:'no-store',headers:{'content-type':'application/json'},
-        body:JSON.stringify({code,marketDate,action:{time:action.time,price:action.price,side:action.side,direction,reason:action.reason}}),
+        body:JSON.stringify({code,marketDate:normalizedDate,action:{time:action.time,price:action.price,side:action.side,direction,reason:action.reason}}),
       });
-      if(!response.ok)throw new Error('formal sync failed');
-    }catch{uploadedClientFormalKeys.current.delete(key)}
+      let payload:unknown=null;
+      try{payload=await response.json()}catch{}
+      if(!response.ok){
+        const serverMessage=payload&&typeof payload==="object"&&"error" in payload&&typeof payload.error==="string"?payload.error:"";
+        throw new Error(formalSyncErrorMessage(response.status,serverMessage||"正式信号同步失败，将自动重试"));
+      }
+      const deduplicated=Boolean(payload&&typeof payload==="object"&&"deduplicated" in payload&&payload.deduplicated===true);
+      setFormalSyncState({status:"ok",message:deduplicated?"已同步 · 服务器已有记录":"已同步 · 刚刚",at:Date.now()});
+    }catch(error){
+      uploadedClientFormalKeys.current.delete(key);
+      const message=error instanceof Error&&error.message?error.message:"网络异常，将自动重试";
+      setFormalSyncState({status:"error",message,at:Date.now()});
+    }
   },[accountName,demoMode,localAuth]);
   useEffect(()=>{
     const timer=window.setTimeout(()=>{
@@ -2231,7 +2278,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...compactTagged(zijinV1ChartObservations,"v1"),
     ];
   },[currentObservations,isZijinStock,positiveTBlockedByFlow,zijinV1ChartObservations,zijinV29ChartObservations]);
-  const activeChartDate=currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??null;
+  const activeChartDate=normalizeMarketDate(currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??null);
   const chartObservationStorageKey=activeChartDate
     ?`rabbit-chart-observations:${accountName.toLowerCase()}:${stock.code}:${activeChartDate}`
     :null;
@@ -2322,7 +2369,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const createdDate=createdAt&&!Number.isNaN(createdAt.getTime())
         ?createdAt.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})
         :null;
-      if((alert.marketDate??createdDate)!==activeChartDate)return [];
+      if(normalizeMarketDate(alert.marketDate??createdDate)!==activeChartDate)return [];
       const createdTime=createdAt&&!Number.isNaN(createdAt.getTime())
         ?createdAt.toLocaleTimeString("en-GB",{timeZone:"Asia/Shanghai",hour12:false}).replace(/:/g,"")
         :"";
@@ -2437,7 +2484,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     // A user's simulated fills remain visible and get first choice of label
     // space. They never become strategy signals or broker orders.
     const manualTrades=tradeLedgerRows.flatMap((row,index)=>{
-      if(row.status==="已失效"||String(row.marketDate??row.tradingDate)!==activeChartDate)return [];
+      if(row.status==="已失效"||normalizeMarketDate(row.marketDate??row.tradingDate)!==activeChartDate)return [];
       const time=String(row.chartTime??row.time??"").replace(/\D/g,"").slice(0,4);
       if(!/^\d{4}$/.test(time))return [];
       const point=pointPosition(time,row.price,true);
@@ -2512,7 +2559,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const createdDate=createdAt&&!Number.isNaN(createdAt.getTime())
         ?createdAt.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})
         :null;
-      return Boolean(activeChartDate&&(alert.marketDate??createdDate)===activeChartDate);
+      return Boolean(activeChartDate&&normalizeMarketDate(alert.marketDate??createdDate)===activeChartDate);
     });
     const recordedCandidates=(isZijinStock
       ?compactCandidateAlertHistory(chartCandidateAlerts,{episodeMinutes:30,ignoreBefore:"0935"})
@@ -2522,7 +2569,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const createdDate=createdAt&&!Number.isNaN(createdAt.getTime())
         ?createdAt.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})
         :null;
-      if(!activeChartDate||(alert.marketDate??createdDate)!==activeChartDate)return [];
+      if(!activeChartDate||normalizeMarketDate(alert.marketDate??createdDate)!==activeChartDate)return [];
       const createdTime=createdAt&&!Number.isNaN(createdAt.getTime())
         ?createdAt.toLocaleTimeString("en-GB",{timeZone:"Asia/Shanghai",hour12:false}).replace(/:/g,"")
         :"";
@@ -3350,10 +3397,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const side=formalActionSide(action.side??item.title);
       const direction:ReplayAction["direction"]=action.direction==="反T"||String(item.title??"").includes("反T")?"反T":"正T";
       const executionLabel=formalExecutionLabel(direction,side);
-      const marketDateDigits=String(item.marketDate??item.payload?.marketDate??"").replace(/\D/g,"").slice(0,8);
-      const marketDate=marketDateDigits.length===8
-        ?`${marketDateDigits.slice(0,4)}-${marketDateDigits.slice(4,6)}-${marketDateDigits.slice(6,8)}`
-        :undefined;
+      const marketDate=normalizeMarketDate(item.marketDate??item.payload?.marketDate??item.createdAt)??undefined;
       return [{
         id:`server-${item.id}`,
         code:item.code,
@@ -3564,7 +3608,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       else if(selectedDisplacement)key=`${item.code}:displacement:${selectedDisplacement.id}`;
       else if(selectedAgent)key=`${item.code}:agent:${selectedAgent.asOfTime}:${selectedAgent.direction}`;
       else key=`${item.code}:candidate:${selectedEngineCandidate!.time}:${selectedEngineCandidate!.direction}`;
-      const eventDate=snapshot?.sampleDate??clockNow?.toLocaleDateString("sv-SE")??"unknown-date";
+      const eventDate=normalizeMarketDate(snapshot?.sampleDate??snapshot?.sourceTimestamp??clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"}))??"unknown-date";
       const persistedKey=`rabbit-alerted:${accountName.toLowerCase()}:${eventDate}:${key}`;
       let alreadyAlerted=!isRisk&&alertedEventKeys.current.has(persistedKey);
       try{alreadyAlerted=alreadyAlerted||(!isRisk&&localStorage.getItem(persistedKey)==="1");}catch{}
@@ -3630,9 +3674,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       try{
         const bootstrap=!serverAlertsInitialized.current;
         const response=await fetch(`/api/control/alerts?afterId=${bootstrap?0:serverAlertCursor.current}&limit=${bootstrap?100:30}`,{credentials:'include',cache:'no-store'});
-        if(!response.ok)return;
-        const payload=await response.json();
-        const alerts=(Array.isArray(payload.alerts)?payload.alerts:[]) as ServerControlAlert[];
+        let payload:unknown=null;
+        try{payload=await response.json()}catch{
+          if(!response.ok)throw new Error(formalSyncErrorMessage(response.status));
+          throw new Error("同步响应无法读取，将自动重试");
+        }
+        if(!response.ok){
+          const serverMessage=payload&&typeof payload==="object"&&"error" in payload&&typeof payload.error==="string"?payload.error:"";
+          throw new Error(formalSyncErrorMessage(response.status,serverMessage));
+        }
+        if(!payload||typeof payload!=="object"||!Array.isArray(payload.alerts))throw new Error("同步数据格式异常，将自动重试");
+        const alerts=payload.alerts as ServerControlAlert[];
         if(alerts.length)serverAlertCursor.current=Math.max(serverAlertCursor.current,...alerts.map(item=>Number(item.id)||0));
         if(cancelled)return;
         recordServerFormalAlerts(alerts);
@@ -3661,7 +3713,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           void fetch(`/api/control/alerts/${item.id}/ack`,{method:'POST',credentials:'include'}).catch(()=>{});
         }
         serverAlertsInitialized.current=true;
-      }catch{}finally{inFlight=false}
+        setFormalSyncState({status:"ok",message:alerts.length?`已同步 · ${alerts.length} 条提醒` : "已连接 · 暂无新提醒",at:Date.now()});
+      }catch(error){
+        if(!cancelled){
+          const message=error instanceof Error&&error.message?error.message:"网络异常，将自动重试";
+          setFormalSyncState({status:"error",message,at:Date.now()});
+        }
+      }finally{inFlight=false}
     };
     void pull();const timer=window.setInterval(()=>void pull(),5000);
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void pull()};
