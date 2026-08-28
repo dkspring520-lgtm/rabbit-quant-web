@@ -46,10 +46,11 @@ test("server accounts, sessions and cross-device profile data", () => {
     assert.deepEqual(ordered.map(item => item.code), ["600003", "600001", "600002", "600004", "600005"]);
     assert.deepEqual(store.listActiveMonitors().map(item => item.code), ["600003", "600001", "600002", "600004", "600005"]);
 
-    assert.equal(store.addAlert(member.id, { code: "601899", level: "candidate", title: "低位候选", message: "等待确认", eventKey: "601899:20260718:0940:buy" }), true);
+    assert.equal(store.addAlert(member.id, { code: "601899", level: "candidate", title: "低位候选", message: "等待确认", eventKey: "601899:20260718:0940:buy", marketDate: "2026-07-18" }), true);
     assert.equal(store.addAlert(member.id, { code: "601899", level: "candidate", title: "重复", message: "不应重复", eventKey: "601899:20260718:0940:buy" }), false);
     const alerts = store.listAlerts(member.id);
     assert.equal(alerts.length, 1);
+    assert.equal(alerts[0].marketDate, "2026-07-18");
     assert.equal(store.latestAlertForCode(member.id, "601899")?.eventKey, "601899:20260718:0940:buy");
     assert.equal(alerts[0].deliveryStatus, "stored");
     const delivery = store.markAlertDelivery(member.id, alerts[0].id, { status: "notified", channel: "in-app+system" });

@@ -164,6 +164,8 @@ type ServerControlAlert = {
   payload?:{
     action?:{time?:string;price?:number;side?:string;direction?:"正T"|"反T"};
     observation?:{time?:string;price?:number;direction?:"正T"|"反T"};
+    source?:string;
+    marketDate?:string;
   };
 };
 function tradeAlertLabel(alert:TradeAlertToast){
@@ -861,11 +863,27 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const openedCycleSideRef=useRef(openedCycleSide);
   const serverAlertCursor = useRef(0);
   const serverAlertsInitialized = useRef(false);
+  const uploadedClientFormalKeys = useRef<Set<string>>(new Set());
   const riskAlertEpisodes = useRef<Record<string,string>>({});
   const nextPreviewRabbit = useRef<"buy"|"sell">("buy");
   useEffect(()=>{cycleStageRef.current=cycleStage;},[cycleStage]);
   useEffect(()=>{openedCycleSideRef.current=openedCycleSide;},[openedCycleSide]);
+  useEffect(()=>{uploadedClientFormalKeys.current.clear()},[accountName]);
   useEffect(()=>{try{localStorage.setItem(ZIJIN_MONITOR_STRATEGY_STORAGE_KEY,zijinMonitorStrategy)}catch{}},[zijinMonitorStrategy]);
+  const uploadClientFormalAction=useCallback(async({code,marketDate,action}:{code:string;marketDate:string;action:ReplayAction})=>{
+    if(!localAuth||demoMode||!code||!marketDate)return;
+    const direction=action.direction==="反T"?"反T":"正T";
+    const key=`${accountName.toLowerCase()}:${marketDate}:${code}:${action.time}:${direction}:${action.side}`;
+    if(uploadedClientFormalKeys.current.has(key))return;
+    uploadedClientFormalKeys.current.add(key);
+    try{
+      const response=await fetch('/api/control/alerts',{
+        method:'POST',credentials:'include',cache:'no-store',headers:{'content-type':'application/json'},
+        body:JSON.stringify({code,marketDate,action:{time:action.time,price:action.price,side:action.side,direction,reason:action.reason}}),
+      });
+      if(!response.ok)throw new Error('formal sync failed');
+    }catch{uploadedClientFormalKeys.current.delete(key)}
+  },[accountName,demoMode,localAuth]);
   useEffect(()=>{
     const timer=window.setTimeout(()=>{
       try{
@@ -2328,6 +2346,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     append(recordedFormalActions);
     return actions;
   },[chartFormalStorageKey,liveEngine.actions,persistedChartFormalActions,recordedFormalActions]);
+  useEffect(()=>{
+    if(!activeChartDate||!chartFormalStorageKey)return;
+    const clientActions=[...liveEngine.actions];
+    if(persistedChartFormalActions.key===chartFormalStorageKey)clientActions.push(...persistedChartFormalActions.actions);
+    const seen=new Set<string>();
+    clientActions.forEach(action=>{
+      const key=`${action.time}:${action.side}:${action.direction??"正T"}`;
+      if(seen.has(key))return;
+      seen.add(key);
+      void uploadClientFormalAction({code:stock.code,marketDate:activeChartDate,action});
+    });
+  },[activeChartDate,chartFormalStorageKey,liveEngine.actions,persistedChartFormalActions,stock.code,uploadClientFormalAction]);
   const rabbitTrackerSignal=useMemo(()=>{
     const latestTime=minutePoints.at(-1)?.time;
     if(!latestTime)return null;
@@ -3319,7 +3349,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const side=formalActionSide(action.side??item.title);
       const direction:ReplayAction["direction"]=action.direction==="反T"||String(item.title??"").includes("反T")?"反T":"正T";
       const executionLabel=formalExecutionLabel(direction,side);
-      const marketDateDigits=String(item.marketDate??"").replace(/\D/g,"").slice(0,8);
+      const marketDateDigits=String(item.marketDate??item.payload?.marketDate??"").replace(/\D/g,"").slice(0,8);
       const marketDate=marketDateDigits.length===8
         ?`${marketDateDigits.slice(0,4)}-${marketDateDigits.slice(4,6)}-${marketDateDigits.slice(6,8)}`
         :undefined;
@@ -3565,6 +3595,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const alertTime=formalFresh?latest!.time:candidateTime;
       const alertPrice=formalFresh?latest!.price:selectedExperimental?.price??selectedDisplacement?.price??selectedEngineCandidate?.price??points.find(point=>point.time===alertTime)?.price;
       const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",marketDate:eventDate,marketTime:alertTime,price:alertPrice,level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
+      if(queued&&formalFresh&&latest)void uploadClientFormalAction({code:item.code,marketDate:eventDate,action:latest});
       if(queued&&formalFresh&&formalSideKey)lastFormalAlertAtBySide.current[formalSideKey]=Date.now();
       if(queued&&isZijinCandidate&&candidateSideKey)lastCandidateAlertBySide.current[candidateSideKey]={at:now,rank:candidateStageRank,time:candidateTime};
       const candidateSpeech=selectedExperimental
@@ -3587,7 +3618,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(queued&&alertSettings.sound&&(isRisk||formalFresh))speakAlert(isRisk?`${item.name}，风险锁定，暂停做T`:formalFresh?`${item.name}，${latestExecutionLabel}提醒`:candidateSpeech,isRisk,isRisk?"risk":formalFresh?"signal":"candidate",rabbit==="both"?null:rabbit);
       if(queued&&alertSettings.system&&"Notification" in window&&Notification.permission==="granted")new Notification(`双兔助手 · ${title}`,{body:message,tag:key,requireInteraction:isRisk});
     }
-  },[autoDecision.status,autoDecision.reason,liveEngine,intradayMarkerLayout,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName,zijinResearchEnabled,stockAgentEvaluation,queueAlert,speakAlert]);
+  },[autoDecision.status,autoDecision.reason,liveEngine,intradayMarkerLayout,minutePoints,marketSession.live,stockList,activeStock,currentTrial,currentMarket,marketSnapshots,effectiveLivePosition,stockPositions,preferences,profile,eventsByCode,alertSettings,clockNow,accountName,zijinResearchEnabled,stockAgentEvaluation,queueAlert,speakAlert,uploadClientFormalAction]);
   useEffect(()=>{
     if(!localAuth||demoMode)return;
     let cancelled=false;
