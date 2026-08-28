@@ -90,7 +90,11 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.doesNotMatch(source, /pivot-reference-marker/);
   assert.doesNotMatch(source, /pivot-confirmation-link/);
   assert.match(source, /visibleChartObservations/);
-  assert.match(source, /compactChartObservations\(eligible,isZijinStock\?45:30,\{mergeRepairPhases:isZijinStock\}\)/);
+  // Compaction moved into the `compactTagged` helper, so the Zijin-aware window
+  // and the repair-phase merging are now asserted separately: the helper passes
+  // mergeRepairPhases through, and the closure leg drives it from isZijinStock.
+  assert.match(source, /compactChartObservations\(observations,isZijinStock\?45:30,\{mergeRepairPhases\}\)/);
+  assert.match(source, /compactTagged\(closureEligible,"closure",isZijinStock\)/);
   assert.match(source, /compactChartObservations\(buildReplayChartObservations/);
   assert.match(source, /\{visibleBacktestObservations\.map\(\(observation,index\)=>\{/);
   assert.doesNotMatch(source, /result\?\.trades===0&&visibleBacktestObservations\.map/);
@@ -98,7 +102,7 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /observation\.confirmationLabel/);
   assert.match(source, /pointPosition\(observation\.time,markerPrice\)/);
   assert.doesNotMatch(source, /pointPosition\(observation\.pivotTime/);
-  assert.match(source, /const reserveLabel=/);
+  assert.match(source, /const reserveDirectionalMarkerLabel=/);
   assert.match(source, /const occupied:LabelBox\[\]=\[\]/);
   assert.match(source, /intradayMarkerLayout\.actions/);
   assert.match(source, /marker-label-leader/);
@@ -128,9 +132,23 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /alertedEventKeys\.current\.has\(persistedKey\)/);
   assert.match(source, /alertedEventKeys\.current\.add\(persistedKey\)/);
   assert.match(source, /localStorage\.setItem\(persistedKey,"1"\)/);
-  assert.match(styles, /candidate-signal-marker rect\{fill:rgba\(242,184,75,\.12\)/);
-  assert.match(styles, /live-signal-marker\.sell rect\{fill:rgba\(255,100,100,\.18\)/);
-  assert.match(styles, /live-signal-marker\.buy rect\{fill:rgba\(40,215,196,\.18\)/);
+  // Marker badges are opaque pills. The label has to stay legible wherever the
+  // collision layout drops it, so contrast comes from the fill and its stroke
+  // rather than from a translucent wash the price line shows through.
+  assert.match(styles, /candidate-signal-marker rect\{fill:rgba\(26,19,6,\.94\);stroke:rgba\(242,184,75,\.9\)/);
+  assert.match(styles, /live-signal-marker\.sell rect\{fill:rgba\(41,10,10,\.96\);stroke:rgba\(255,132,127,\.98\)/);
+  assert.match(styles, /live-signal-marker\.buy rect\{fill:rgba\(4,35,32,\.96\);stroke:rgba\(74,240,220,\.98\)/);
+  // A single group-opacity model. These stacked per-theme overrides used to make
+  // a badge's real contrast depend on which of thirteen blocks won the cascade;
+  // tier is now carried by size and stroke style instead.
+  assert.doesNotMatch(styles, /candidate-signal-marker\.with-label>rect\{opacity:\./);
+  assert.doesNotMatch(styles, /candidate-signal-marker\.with-label>\.marker-label-leader\{opacity:\./);
+  assert.doesNotMatch(styles, /candidate-signal-marker\.v29-shadow-marker\.with-label>rect\{opacity:\./);
+  // Three visual tiers: 正式 8px / 影子 7.5px / 观察候选 7px.
+  assert.match(styles, /\.live-signal-marker>text\{\s*font-size:8px/);
+  assert.match(styles, /v1-context-marker\.with-label>text\{\s*font-size:7\.5px/);
+  assert.match(styles, /candidate-signal-marker\.with-label>text\{font-size:7px\}/);
+  assert.match(styles, /live-signal-marker>rect\{\s*filter:drop-shadow/);
 });
 
 test("stock selector keeps horizontal scrolling without showing a full-width scrollbar", async () => {
