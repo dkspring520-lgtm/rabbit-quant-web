@@ -1,3 +1,5 @@
+import type { IntradayRegime } from "./market-regime-detector.d.mts";
+
 export type SmartTMinute = {
   time: string;
   price: number;
@@ -116,7 +118,14 @@ export type SmartTReplayResult = {
   status: string;
   actions: SmartTAction[];
   observations: SmartTObservation[];
-  diagnostics: Record<string, number>;
+  diagnostics: Record<string, number> & {
+    /** True when the V6 causal regime adaptation ran for this replay. */
+    marketRegimeAdaptation: boolean;
+    /** Minutes whose 正T/反T direction was vetoed by the detected regime. */
+    marketRegimeDirectionBlocked: number;
+    /** Minute count per detected regime. Empty when adaptation is off. */
+    marketRegimeCounts: Partial<Record<IntradayRegime, number>>;
+  };
   gateAudit: null | {
     mode: "research-only-post-replay";
     horizonMinutes: number;
@@ -160,6 +169,10 @@ export type SmartTOptions = {
   minimumNetProfitAmount?: number;
   minimumGrossSpreadAmount?: number;
   previousClose?: number | null;
+  /** Cross-day baselines for the V6 regime detector. Optional; 量比 and the ATR
+   *  ratio degrade to session-relative measures when they are absent. */
+  avgVolume5d?: number | null;
+  avgAtr5d?: number | null;
   randomValue?: number;
   strategyVersion?: string;
   gateAudit?: boolean;
