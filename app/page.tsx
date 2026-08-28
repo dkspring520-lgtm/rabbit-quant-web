@@ -50,7 +50,7 @@ type AuthenticatedHomeProps = {
 };
 
 const AuthView = dynamic<AuthViewProps>(
-  () => import("./authenticated-app").then(module => module.AuthView),
+  () => import("./auth-view").then(module => module.AuthView),
   { loading: () => <RabbitLoading /> },
 );
 
