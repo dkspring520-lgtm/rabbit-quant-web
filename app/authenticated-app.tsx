@@ -158,6 +158,14 @@ type ZijinHkMarket = { symbol:string; name:string; provider:string; fetchedAt:st
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; zijinHk:ZijinHkMarket|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; marketDate?:string; marketTime?:string; price?:number; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
+type ServerControlAlert = {
+  id:string|number; code?:string; name?:string; createdAt:string; marketDate?:string; marketTime?:string;
+  level?:string; title:string; message:string; eventKey?:string|null;
+  payload?:{
+    action?:{time?:string;price?:number;side?:string;direction?:"正T"|"反T"};
+    observation?:{time?:string;price?:number;direction?:"正T"|"反T"};
+  };
+};
 function tradeAlertLabel(alert:TradeAlertToast){
   if(alert.level==="risk"||alert.rabbit==="both")return "风险提醒";
   if(alert.level==="candidate")return alert.rabbit==="buy"?"低位观察":"高位观察";
@@ -2535,10 +2543,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       manualTrades,
     };
   },[activeChartDate,alertHistory,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
-  const intradayMarkerActionsRef=useRef(intradayMarkerLayout.actions);
-  useEffect(()=>{
-    intradayMarkerActionsRef.current=intradayMarkerLayout.actions;
-  },[intradayMarkerLayout.actions]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -3305,6 +3309,46 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     return true;
   },[accountName]);
+  const recordServerFormalAlerts=useCallback((serverAlerts:ServerControlAlert[])=>{
+    const normalized=serverAlerts.flatMap((item):TradeAlertToast[]=>{
+      const action=item.payload?.action;
+      if(item.level!=="formal"||!item.code||!action)return [];
+      const time=String(item.marketTime??action.time??"").replace(/\D/g,"").slice(-4);
+      const price=Number(action.price);
+      if(!/^\d{4}$/.test(time)||!Number.isFinite(price))return [];
+      const side=formalActionSide(action.side??item.title);
+      const direction:ReplayAction["direction"]=action.direction==="反T"||String(item.title??"").includes("反T")?"反T":"正T";
+      const executionLabel=formalExecutionLabel(direction,side);
+      const marketDateDigits=String(item.marketDate??"").replace(/\D/g,"").slice(0,8);
+      const marketDate=marketDateDigits.length===8
+        ?`${marketDateDigits.slice(0,4)}-${marketDateDigits.slice(4,6)}-${marketDateDigits.slice(6,8)}`
+        :undefined;
+      return [{
+        id:`server-${item.id}`,
+        code:item.code,
+        eventKey:item.eventKey??`server:${item.id}`,
+        source:"server",
+        createdAt:item.createdAt,
+        marketDate,
+        marketTime:time,
+        price,
+        level:"signal",
+        rabbit:side==="sell"?"sell":"buy",
+        title:`${item.name??item.code} ${executionLabel}`,
+        message:item.message??`${executionLabel}正式信号`,
+      }];
+    });
+    if(normalized.length===0)return;
+    setAlertHistory(current=>{
+      const incomingKeys=new Set(normalized.map(item=>item.eventKey??item.id));
+      const next=[...normalized,...current.filter(item=>!incomingKeys.has(item.eventKey??item.id))].slice(0,200);
+      const historyKey=(item:TradeAlertToast)=>`${item.eventKey??item.id}:${item.createdAt??""}:${item.price??""}`;
+      const unchanged=current.length===next.length&&current.every((item,index)=>historyKey(item)===historyKey(next[index]));
+      if(unchanged)return current;
+      try{localStorage.setItem(`rabbit-alert-history:${accountName.toLowerCase()}`,JSON.stringify(next))}catch{}
+      return next;
+    });
+  },[accountName]);
   const persistAlertSettings=(next:AlertSettings)=>{
     setAlertSettings(next);
     try{localStorage.setItem('rabbit-alert-settings',JSON.stringify(next));}catch{}
@@ -3552,22 +3596,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(inFlight||!shouldRunClientPolling(document.visibilityState))return;
       inFlight=true;
       try{
-        const response=await fetch(`/api/control/alerts?afterId=${serverAlertCursor.current}&limit=30`,{credentials:'include',cache:'no-store'});
+        const bootstrap=!serverAlertsInitialized.current;
+        const response=await fetch(`/api/control/alerts?afterId=${bootstrap?0:serverAlertCursor.current}&limit=${bootstrap?100:30}`,{credentials:'include',cache:'no-store'});
         if(!response.ok)return;
         const payload=await response.json();
-        const alerts=Array.isArray(payload.alerts)?payload.alerts:[];
-        if(alerts.length)serverAlertCursor.current=Math.max(serverAlertCursor.current,...alerts.map((item:{id:number})=>Number(item.id)||0));
+        const alerts=(Array.isArray(payload.alerts)?payload.alerts:[]) as ServerControlAlert[];
+        if(alerts.length)serverAlertCursor.current=Math.max(serverAlertCursor.current,...alerts.map(item=>Number(item.id)||0));
         if(cancelled)return;
-        const recent=alerts.filter((item:{createdAt:string})=>Date.now()-new Date(item.createdAt).getTime()<5*60_000).reverse();
+        recordServerFormalAlerts(alerts);
+        const recent=alerts.filter(item=>Date.now()-new Date(item.createdAt).getTime()<5*60_000).reverse();
         for(const item of recent){
           const action=item.payload?.action;const observation=item.payload?.observation;
           const actionSide=action?.side?formalActionSide(action.side):null;
-          const activeFormalMarkerReady=item.level!=="formal"||item.code!==stockList[activeStock]?.code||Boolean(
-            action&&intradayMarkerActionsRef.current.some(marker=>marker.action.time===action.time&&formalActionSide(marker.action.side)===actionSide),
-          );
-          // Keep a server-pushed formal alert pending until its chart marker is
-          // present, so speech, toast, and the visible buy/sell point agree.
-          if(!activeFormalMarkerReady)continue;
           const sell=actionSide?actionSide==="sell":String(observation?.direction??item.title).includes('卖');
           const actionDirection=(action?.direction??observation?.direction??(sell?"反T":"正T")) as "正T"|"反T";
           const executionLabel=actionSide?formalExecutionLabel(actionDirection,actionSide):item.title;
@@ -3595,7 +3635,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const onVisibility=()=>{if(shouldRunClientPolling(document.visibilityState))void pull()};
     document.addEventListener('visibilitychange',onVisibility);
     return()=>{cancelled=true;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisibility)};
-  },[localAuth,demoMode,alertSettings.sound,alertSettings.system,stockList,activeStock,queueAlert,speakAlert]);
+  },[localAuth,demoMode,alertSettings.sound,alertSettings.system,stockList,activeStock,queueAlert,recordServerFormalAlerts,speakAlert]);
   useEffect(() => {
     if(initialAuth)return;
     const timer = window.setTimeout(() => {void (async()=>{
@@ -3716,7 +3756,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const data = await response.json() as MarketData;
         if (!cancelled) { setMarketData(data); setMarketError(""); }
       } catch {
-        if (!cancelled) { setMarketData(null); setMarketError("行情服务暂不可用，页面不会使用示例价格代替。"); }
+        if (!cancelled) setMarketError("行情服务暂不可用，保留最后一次有效行情与提示点。");
       }
     };
     const start=()=>{
