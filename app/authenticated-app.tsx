@@ -33,7 +33,7 @@ import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
 import { mergeZijinReplayObservations } from "@/lib/zijin-replay-candidates.mjs";
 import { buildZijinL2CausalReplayObservations, mergeZijinL2ReplayMinutes } from "@/lib/zijin-l2-causal-replay.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
-import { compactCandidateAlertHistory, compactChartObservations, compactRepairChartMarkers, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
+import { compactCandidateAlertHistory, compactChartObservations, compactRepairChartMarkers, compactShadowChartActions, fulfilledWatchlistSnapshots, isRecentCausalEvent, isVwapDisplacementObservation, selectLatestAlertableObservation } from "@/lib/live-monitor-alerts.mjs";
 import { moveWatchlistItem, moveWatchlistItemByCode } from "@/lib/watchlist-order.mjs";
 import { enforceWatchlistLimit, watchlistLimitForRole } from "@/lib/watchlist-limits.mjs";
 import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
@@ -2185,7 +2185,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ?currentObservations.filter(observation=>observation.direction!=="正T")
       :currentObservations;
     const compactTagged=(observations:ReplayObservation[],strategy:ChartObservation["strategy"],mergeRepairPhases=false)=>(
-      compactChartObservations(observations,isZijinStock?45:30,{mergeRepairPhases,retainAll:true}) as ReplayObservation[]
+      compactChartObservations(observations,isZijinStock?45:30,{mergeRepairPhases}) as ReplayObservation[]
     ).map(observation=>({...observation,strategy}));
     return [
       ...compactTagged(closureEligible,"closure",isZijinStock),
@@ -2241,7 +2241,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const key=observationKey(observation);
       if(!keys.has(key)){keys.add(key);closure.push({...observation,strategy:"closure"})}
     });
-    const compactClosure=(compactChartObservations(closure,isZijinStock?45:30,{mergeRepairPhases:isZijinStock,retainAll:true}) as ReplayObservation[]).map(observation=>({...observation,strategy:"closure" as const}));
+    const compactClosure=(compactChartObservations(closure,isZijinStock?45:30,{mergeRepairPhases:isZijinStock}) as ReplayObservation[]).map(observation=>({...observation,strategy:"closure" as const}));
     return [...compactClosure,...shadow];
   },[chartObservationStorageKey,isZijinStock,persistedChartObservations,positiveTBlockedByFlow,visibleChartObservations]);
   const chartFormalStorageKey=activeChartDate
@@ -2411,10 +2411,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,18,isSell);
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
-    const selectedShadowActions=[
+    const selectedShadowActions=compactShadowChartActions([
       ...(zijinV29Replay?.actions??[]).map(action=>({action,strategy:"v29" as const})),
       ...(zijinV1ContextReplay?.actions??[]).map(action=>({action,strategy:"v1" as const})),
-    ];
+    ],20) as {action:ReplayAction;strategy:"v29"|"v1"}[];
     const shadowActions=selectedShadowActions.flatMap(({action,strategy},index)=>{
       const point=pointPosition(action.time,action.price,true);
       if(!point)return [];
@@ -2496,10 +2496,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ?(()=>{
           const point=pointPosition(rabbitTrackerSignal.time,rabbitTrackerSignal.price);
           if(!point)return [];
-          const duplicate=observations.some(marker=>marker.observation.time===rabbitTrackerSignal.time&&marker.currentLabel===rabbitTrackerSignal.label)
-            ||recordedCandidates.some(marker=>marker.key===`recorded-${rabbitTrackerSignal.key}`||marker.label===rabbitTrackerSignal.label&&marker.x===point.x);
-          if(duplicate)return [];
           const isSell=rabbitTrackerSignal.tone==="sell";
+          const duplicate=observations.some(marker=>marker.observation.time===rabbitTrackerSignal.time&&marker.currentLabel===rabbitTrackerSignal.label)
+            ||recordedCandidates.some(marker=>marker.key===`recorded-${rabbitTrackerSignal.key}`
+              ||marker.label===rabbitTrackerSignal.label&&marker.x===point.x
+              ||marker.isSell===isSell&&(isRecentCausalEvent(rabbitTrackerSignal.time,marker.time,20)||isRecentCausalEvent(marker.time,rabbitTrackerSignal.time,20)));
+          if(duplicate)return [];
           const label=compactIntradayPrompt(rabbitTrackerSignal.label);
           const labelWidth=label.length*8+16;
           const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell);
