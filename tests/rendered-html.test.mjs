@@ -45,7 +45,10 @@ test("Zijin research imports every opening-playbook symbol it executes", async (
 });
 
 test("brand uses the 双兔助手 and 做T神器 lockup without regressing to the wrong name", async () => {
-  const source = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
+  // The auth screen lives in its own module so the login route skips the console chunk.
+  const consoleSource = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
+  const authViewSource = await readFile(new URL("../app/auth-view.tsx", import.meta.url), "utf8");
+  const source = `${consoleSource}\n${authViewSource}`;
   const styles = await readFile(new URL("../app/typography.css", import.meta.url), "utf8");
   assert.match(source, /aria-label="双兔助手 做T神器 Rabbit Smart-T"/);
   assert.match(source, /<span>双兔助手<\/span>/);
