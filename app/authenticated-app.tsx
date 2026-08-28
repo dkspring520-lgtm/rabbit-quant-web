@@ -1352,10 +1352,21 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : marketSession.live
       ? {tone:"stale",label:"L2：行情中断",detail:`${l2ConsoleNode} · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
-  const rawMinutePoints = useMemo(
+  const incomingMinutePoints = useMemo(
     () => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [],
     [currentTrial,currentMarket?.minutes],
   );
+  const minutePointCacheKey=`${stock.code}:${currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??""}`;
+  const minutePointCacheRef=useRef<{key:string;points:typeof incomingMinutePoints}>({key:"",points:[]});
+  const rawMinutePoints=useMemo(()=>{
+    if(incomingMinutePoints.length){
+      minutePointCacheRef.current={key:minutePointCacheKey,points:incomingMinutePoints};
+      return incomingMinutePoints;
+    }
+    return minutePointCacheRef.current.key===minutePointCacheKey
+      ?minutePointCacheRef.current.points
+      :incomingMinutePoints;
+  },[incomingMinutePoints,minutePointCacheKey]);
   const l2MinutePoints=useMemo(()=>stock.code==="601899"?liveL2ByMinute:{},[stock.code,liveL2ByMinute]);
   const minutePoints = useMemo(() => {
     type LiveMinutePoint = {
