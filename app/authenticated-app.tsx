@@ -2121,9 +2121,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   );
   const zijinV29ChartObservations=useMemo(()=>{
     if(!zijinV29Replay)return [] as ReplayObservation[];
-    const actionKeys=new Set(zijinV29Replay.actions.map(action=>`${action.time}-${action.direction}`));
     return (zijinV29Replay.observations??[])
-      .filter(observation=>!actionKeys.has(`${observation.time}-${observation.direction}`))
+      .filter(observation=>!zijinV29Replay.actions.some(action=>action.direction===observation.direction
+        &&(isRecentCausalEvent(action.time,observation.time,20)||isRecentCausalEvent(observation.time,action.time,20))))
       .map(observation=>({
         ...observation,
         executable:false,
@@ -2133,9 +2133,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[zijinV29Replay]);
   const zijinV1ChartObservations=useMemo(()=>{
     if(!zijinV1ContextReplay)return [] as ReplayObservation[];
-    const actionKeys=new Set(zijinV1ContextReplay.actions.map(action=>`${action.time}-${action.direction}`));
     return (zijinV1ContextReplay.observations??[])
-      .filter(observation=>!actionKeys.has(`${observation.time}-${observation.direction}`))
+      .filter(observation=>!zijinV1ContextReplay.actions.some(action=>action.direction===observation.direction
+        &&(isRecentCausalEvent(action.time,observation.time,20)||isRecentCausalEvent(observation.time,action.time,20))))
       .map(observation=>({
         ...observation,
         executable:false,
@@ -2465,7 +2465,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return Boolean(activeChartDate&&(alert.marketDate??createdDate)===activeChartDate);
     });
     const recordedCandidates=(isZijinStock
-      ?compactCandidateAlertHistory(chartCandidateAlerts,{episodeMinutes:20,ignoreBefore:"0935"})
+      ?compactCandidateAlertHistory(chartCandidateAlerts,{episodeMinutes:30,ignoreBefore:"0935"})
       :chartCandidateAlerts).flatMap((alert,index)=>{
       if(alert.level!=="candidate"||alert.code!==stock.code)return [];
       const createdAt=alert.createdAt?new Date(alert.createdAt):null;
