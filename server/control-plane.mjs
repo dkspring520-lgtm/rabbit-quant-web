@@ -8,6 +8,7 @@ import { resolveAlertDelivery } from "../lib/alert-delivery-policy.mjs";
 import { evaluateScannerHealth } from "../lib/server-monitor-health.mjs";
 import { advanceScannerWatchdog } from "../lib/scanner-watchdog.mjs";
 import { watchlistLimitForRole } from "../lib/watchlist-limits.mjs";
+import { normalizeClientFormalAlert } from "../lib/client-formal-alert.mjs";
 
 const port = Number(process.env.CONTROL_PORT || 3010);
 const databasePath = process.env.CONTROL_DB_PATH || "/data/rabbit-control.sqlite";
@@ -241,6 +242,7 @@ function evaluateCausalMonitor(monitor, market, clock) {
       title: `${monitor.name} · ${action.direction || "做T"}${sideLabel} · 正式`,
       message: `${action.time} ${action.side} ${Number(action.price).toFixed(2)}，${action.reason || "V4 因果条件已确认"}`,
       eventKey: `${clock.date}:${monitor.code}:formal:${action.cycleId}:${action.meta?.phase || "entry"}:${action.time}`,
+      marketDate: clock.date,
       marketTime: action.time,
       payload: { action, diagnostics: result.diagnostics, provider: market.provider, quality: market.quality ?? null },
     };
@@ -254,6 +256,7 @@ function evaluateCausalMonitor(monitor, market, clock) {
       title: `${monitor.name} · ${candidateLabel}`,
       message: `${observation.time} ${observation.reason || "价格与 VWAP 出现显著偏离，等待确认"}`,
       eventKey: `${clock.date}:${monitor.code}:${observation.stage}:${observation.direction}:${observation.time}:${Math.round(Number(observation.price) * 100)}`,
+      marketDate: clock.date,
       marketTime: observation.time,
       payload: { observation, diagnostics: result.diagnostics, provider: market.provider, quality: market.quality ?? null },
     };
@@ -386,6 +389,12 @@ async function dispatch(req, res) {
       return json(res, 200, { monitors: store.replaceMonitors(user.id, (await bodyJson(req)).monitors, { maxMonitors: limit }), limit });
     }
     if (req.method === "GET" && path === "/alerts") return json(res, 200, { alerts: store.listAlerts(requireUser(req).id, { afterId: url.searchParams.get("afterId"), limit: url.searchParams.get("limit") }) });
+    if (req.method === "POST" && path === "/alerts") {
+      const user = requireUser(req);
+      const alert = normalizeClientFormalAlert(await bodyJson(req), { monitors: store.listMonitors(user.id) });
+      const stored = store.addAlert(user.id, alert);
+      return json(res, stored ? 201 : 200, { stored, deduplicated: !stored, eventKey: alert.eventKey });
+    }
     if (req.method === "GET" && path === "/push/public-key") {
       const user = requireUser(req);
       return json(res, 200, { publicKey: pushPublicKey(), enabled: store.listPushSubscriptions(user.id).length > 0 });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
+const server = await readFile(new URL("../server/control-plane.mjs", import.meta.url), "utf8");
 const desktopCss = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 const mobileCss = await readFile(new URL("../app/mobile.css", import.meta.url), "utf8");
 
@@ -28,6 +29,14 @@ test("browser delivery result is written back to the server alert record", () =>
   assert.match(page, /\/api\/control\/alerts\/\$\{item\.id\}\/delivery/);
   assert.match(page, /status:deliveryChannels\.length\?'notified':'displayed'/);
   assert.match(page, /channel:deliveryChannels\.length\?deliveryChannels\.join\('\+'\):'in-app'/);
+});
+
+test("client formal actions are persisted and restored across devices", () => {
+  assert.match(page, /fetch\('\/api\/control\/alerts',\{/);
+  assert.match(page, /uploadClientFormalAction/);
+  assert.match(page, /item\.marketDate\?\?item\.payload\?\.marketDate/);
+  assert.match(server, /req\.method === "POST" && path === "\/alerts"/);
+  assert.match(server, /normalizeClientFormalAlert/);
 });
 
 test("Zijin agent waiting state does not suppress a fresh engine candidate", () => {

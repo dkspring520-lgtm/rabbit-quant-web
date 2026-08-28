@@ -83,6 +83,7 @@ export function createControlStore(databasePath, options = {}) {
       title TEXT NOT NULL,
       message TEXT NOT NULL,
       event_key TEXT NOT NULL,
+      market_date TEXT,
       market_time TEXT,
       payload TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
@@ -185,6 +186,7 @@ export function createControlStore(databasePath, options = {}) {
   }
   const alertColumns = db.prepare("PRAGMA table_info(alerts)").all();
   const alertMigrations = [
+    ["market_date", "ALTER TABLE alerts ADD COLUMN market_date TEXT"],
     ["delivery_status", "ALTER TABLE alerts ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'stored'"],
     ["delivery_channel", "ALTER TABLE alerts ADD COLUMN delivery_channel TEXT"],
     ["delivered_at", "ALTER TABLE alerts ADD COLUMN delivered_at TEXT"],
@@ -521,9 +523,9 @@ export function createControlStore(databasePath, options = {}) {
 
   function addAlert(userId, alert) {
     const createdAt = nowIso();
-    const result = db.prepare(`INSERT OR IGNORE INTO alerts(user_id,code,level,title,message,event_key,market_time,payload,created_at)
-      VALUES(?,?,?,?,?,?,?,?,?)`).run(userId, alert.code, alert.level, alert.title, alert.message, alert.eventKey,
-        alert.marketTime ?? null, JSON.stringify(alert.payload ?? {}), createdAt);
+    const result = db.prepare(`INSERT INTO alerts(user_id,code,level,title,message,event_key,market_date,market_time,payload,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING`).run(userId, alert.code, alert.level, alert.title, alert.message, alert.eventKey,
+        alert.marketDate ?? null, alert.marketTime ?? null, JSON.stringify(alert.payload ?? {}), createdAt);
     return result.changes > 0;
   }
 
@@ -531,7 +533,7 @@ export function createControlStore(databasePath, options = {}) {
     return db.prepare("SELECT * FROM alerts WHERE user_id=? AND id>? ORDER BY id DESC LIMIT ?")
       .all(userId, Number(afterId) || 0, Math.min(100, Math.max(1, Number(limit) || 50))).map(row => ({
         id: row.id, code: row.code, level: row.level, title: row.title, message: row.message,
-        eventKey: row.event_key, marketTime: row.market_time, payload: safeJson(row.payload, {}),
+        eventKey: row.event_key, marketDate: row.market_date, marketTime: row.market_time, payload: safeJson(row.payload, {}),
         createdAt: row.created_at, acknowledgedAt: row.acknowledged_at,
         deliveryStatus: row.delivery_status, deliveryChannel: row.delivery_channel,
         deliveredAt: row.delivered_at, deliveryError: row.delivery_error,
@@ -544,7 +546,7 @@ export function createControlStore(databasePath, options = {}) {
     if (!row) return null;
     return {
       id: row.id, code: row.code, level: row.level, title: row.title, message: row.message,
-      eventKey: row.event_key, marketTime: row.market_time, payload: safeJson(row.payload, {}),
+      eventKey: row.event_key, marketDate: row.market_date, marketTime: row.market_time, payload: safeJson(row.payload, {}),
       createdAt: row.created_at,
     };
   }
