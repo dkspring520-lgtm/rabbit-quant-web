@@ -78,6 +78,8 @@ const POLL_MS = 1_000;
 const ALERT_POLL_MS = 5_000;
 const MARKET_CONTEXT_POLL_MS = 10_000;
 const RESEARCH_POLL_MS = 60_000;
+const ALERT_STORAGE_LIMIT = 500;
+const ALERT_STORAGE_PREFIX = "rabbit-realtime-lab-alerts:";
 const REPLAY_DATE = "2026-08-28";
 const ZIJIN_REPLAY_POINTS: PricePoint[] = [
   ["09:30", 34.5, 34.5], ["09:35", 34.12, 34.0802], ["09:40", 34.01, 34.0745], ["09:45", 34.04, 34.0525],
@@ -599,10 +601,10 @@ function modeFromAlerts(alerts: SignalAlert[], desk: AnyRecord, tone: "up" | "do
 function alertClass(alert: SignalAlert): AlertKind {
   if (alert.level === "replay-candidate") return "replay-candidate";
   if (alert.level === "replay-observation") return "replay-observation";
-  const value = `${alert.source || ""} ${alert.title || ""} ${alert.message || ""}`.toLowerCase();
+  const value = `${alert.level || ""} ${alert.source || ""} ${alert.title || ""} ${alert.message || ""} ${alert.direction || ""} ${alert.side || ""}`.toLowerCase();
   if (/v2[.]?9|v29|影子/.test(value)) return "v29";
   if (/v1|重建|菱形/.test(value)) return "v1";
-  if (/formal|正式|闭环|信号/.test(value) || alert.level === "signal") return "formal";
+  if (/formal|official|primary|trade|正式|闭环|专属|主策略|信号|买入|卖出|正t|反t|buy|sell/.test(value) || alert.level === "signal") return "formal";
   return "other";
 }
 
@@ -709,14 +711,68 @@ function sessionPosition(value: unknown): number | null {
   return 1;
 }
 
+function alertStorageKey(code: string): string {
+  return `${ALERT_STORAGE_PREFIX}${code}`;
+}
+
+function readStoredAlerts(code: string): SignalAlert[] {
+  try {
+    const raw = window.localStorage.getItem(alertStorageKey(code));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(item => {
+      const row = record(item);
+      return Boolean(text(row.id) || text(row.createdAt) || text(row.marketTime));
+    }) as SignalAlert[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistAlerts(code: string, alerts: SignalAlert[]): void {
+  try { window.localStorage.setItem(alertStorageKey(code), JSON.stringify(alerts)); } catch {}
+}
+
 function mergeAlerts(previous: SignalAlert[], incoming: SignalAlert[]): SignalAlert[] {
   const map = new Map<string, SignalAlert>();
-  for (const item of [...previous, ...incoming]) map.set(String(item.id), item);
+  const fields: Array<keyof SignalAlert> = ["code", "marketTime", "createdAt", "price", "title", "message", "source", "direction", "side", "level"];
+  for (const item of [...previous, ...incoming]) {
+    const id = text(item.id) || `${text(item.createdAt)}-${text(item.marketTime)}-${text(item.title)}-${text(item.side)}`;
+    const existing = map.get(id);
+    if (!existing) {
+      map.set(id, { ...item, id });
+      continue;
+    }
+    const merged = { ...existing, ...item, id };
+    fields.forEach(field => {
+      const next = merged[field];
+      if (next === undefined || next === null || (typeof next === "string" && !next.trim())) {
+        Object.assign(merged, { [field]: existing[field] });
+      }
+    });
+    map.set(id, merged);
+  }
   return [...map.values()].sort((a, b) => {
     const at = Date.parse(a.createdAt || "") || timeValue(a.marketTime) || 0;
     const bt = Date.parse(b.createdAt || "") || timeValue(b.marketTime) || 0;
     return bt - at;
-  }).slice(0, 120);
+  }).slice(0, ALERT_STORAGE_LIMIT);
+}
+
+function readAlertValues(payload: AnyRecord): unknown[] {
+  const roots = [payload, record(payload.data), record(payload.result)];
+  return roots.flatMap(root => [
+    ...array(root.alerts),
+    ...array(root.signals),
+    ...array(root.events),
+    ...array(root.items),
+  ]);
+}
+
+function normalizedCode(value: unknown): string {
+  const raw = text(value).toUpperCase();
+  const digits = raw.replace(/\D/g, "");
+  return digits.length >= 6 ? digits.slice(-6) : raw;
 }
 
 async function getJson(url: string, signal: AbortSignal): Promise<AnyRecord> {
@@ -767,9 +823,17 @@ export default function RealtimeLabPage() {
     setAlerts([]);
     alertCursor.current = 0;
     try {
-      const saved = localStorage.getItem(`rabbit-realtime-lab-alerts:${code}`);
-      if (saved) setAlerts(JSON.parse(saved) as SignalAlert[]);
+      setAlerts(readStoredAlerts(code));
     } catch {}
+  }, [code]);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== alertStorageKey(code)) return;
+      setAlerts(current => mergeAlerts(current, readStoredAlerts(code)));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [code]);
 
   const pullMarket = useCallback(async () => {
@@ -872,7 +936,7 @@ export default function RealtimeLabPage() {
       try {
         const payload = await getJson(`/api/control/alerts?afterId=${alertCursor.current}&limit=100`, controller.signal);
         if (cancelled) return;
-        const incoming = array(payload.alerts).map(item => {
+        const incoming = readAlertValues(payload).map(item => {
           const row = record(item);
           return {
             id: text(row.id) || `${text(row.createdAt)}-${text(row.marketTime)}-${text(row.title)}`,
@@ -887,13 +951,14 @@ export default function RealtimeLabPage() {
             side: firstText(row.side, path(row, "action", "side")),
             level: firstText(row.level, row.type),
           } satisfies SignalAlert;
-        }).filter(item => !item.code || item.code === code);
+        }).filter(item => !item.code || normalizedCode(item.code) === normalizedCode(code));
         if (incoming.length) {
-          const newest = incoming.reduce((max, item) => Math.max(max, Number(item.id) || 0), alertCursor.current);
-          alertCursor.current = newest;
+          const numericIds = incoming.map(item => Number(item.id)).filter(item => Number.isSafeInteger(item) && item >= 0);
+          const responseCursor = firstNumber(payload.nextId, payload.lastId, payload.cursor, path(payload, "meta", "nextId"));
+          alertCursor.current = Math.max(alertCursor.current, responseCursor ?? 0, ...numericIds);
           setAlerts(current => {
             const merged = mergeAlerts(current, incoming);
-            try { localStorage.setItem(`rabbit-realtime-lab-alerts:${code}`, JSON.stringify(merged)); } catch {}
+            persistAlerts(code, merged);
             return merged;
           });
         }
@@ -912,7 +977,7 @@ export default function RealtimeLabPage() {
   const researchSummary = useMemo(() => readResearchSummary(dailyAssignment), [dailyAssignment]);
   const points = useMemo(() => {
     const historical = readMarketPoints(market);
-    const ticks = liveTicks.map(item => ({ time: item.time, price: item.price, live: true, timestamp: item.timestamp }));
+    const ticks: PricePoint[] = liveTicks.map(item => ({ time: item.time, price: item.price, live: true, timestamp: item.timestamp }));
     return [...historical, ...ticks].slice(-500);
   }, [market, liveTicks]);
   const minutePoints = useMemo(() => {
