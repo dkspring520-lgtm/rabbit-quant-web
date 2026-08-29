@@ -31,11 +31,41 @@ type CrossMarketQuote = {
   updatedAt: string;
   state: "live" | "stale" | "partial" | "missing";
 };
+type HorizonSummary = {
+  minutes: 5 | 15 | 30;
+  probability: number | null;
+  confidence: number | null;
+  direction: string;
+};
+type ResearchSummary = {
+  direction: string;
+  confidence: number | null;
+  action: string;
+  invalidations: string[];
+  updatedAt: string;
+  horizons: HorizonSummary[];
+};
+type OutlookTone = "up" | "down" | "flat";
+type OpeningOutlook = {
+  label: string;
+  tone: OutlookTone;
+  score: number | null;
+  evidenceCount: number;
+  evidenceTotal: number;
+  reason: string;
+};
+type MediumStructureSummary = {
+  label: string;
+  tone: OutlookTone;
+  confidence: number | null;
+  note: string;
+};
 
 const DEFAULT_CODE = "601899";
 const POLL_MS = 1_000;
 const ALERT_POLL_MS = 5_000;
 const MARKET_CONTEXT_POLL_MS = 10_000;
+const RESEARCH_POLL_MS = 60_000;
 
 function record(value: unknown): AnyRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as AnyRecord : {};
@@ -55,7 +85,9 @@ function number(value: unknown): number | null {
 }
 
 function text(value: unknown): string {
-  return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
+  return "";
 }
 
 function firstText(...values: unknown[]): string {
@@ -118,12 +150,87 @@ function sourceAgeSeconds(value: unknown): number | null {
   const raw = text(value);
   if (!raw) return null;
   const timestamp = Date.parse(raw);
-  if (Number.isFinite(timestamp)) return Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+  if (Number.isFinite(timestamp)) return Math.max(0, Math.round((Date.now() - timestamp) / 100) / 10);
   const sourceClock = timeValue(raw);
   if (sourceClock === null) return null;
   const now = new Date();
   const currentClock = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   return Math.max(0, currentClock - sourceClock);
+}
+
+function percentValue(value: unknown): number | null {
+  const parsed = number(value);
+  if (parsed === null) return null;
+  const normalized = Math.abs(parsed) <= 1 ? parsed * 100 : parsed;
+  return Math.max(0, Math.min(100, normalized));
+}
+
+function researchRoots(payload: AnyRecord): AnyRecord[] {
+  return [
+    payload,
+    record(payload.data),
+    record(payload.assignment),
+    record(payload.report),
+    record(payload.result),
+    record(path(payload, "data", "assignment")),
+    record(path(payload, "data", "report")),
+  ].filter(root => Object.keys(root).length > 0);
+}
+
+function readHorizonSummary(payload: AnyRecord, minutes: 5 | 15 | 30): HorizonSummary {
+  const roots = researchRoots(payload);
+  const keys = [`${minutes}m`, `${minutes}min`, `${minutes}分钟`, String(minutes)];
+  const containers = roots.flatMap(root => [
+    record(root.horizons),
+    record(root.forecasts),
+    record(root.predictions),
+    record(root.probabilities),
+    record(path(root, "outlook", "horizons")),
+    record(path(root, "intraday", "horizons")),
+  ]);
+  const directRows = containers.flatMap(container => keys.map(key => container[key]));
+  const arrayRows = roots.flatMap(root => [
+    ...array(root.horizons),
+    ...array(root.forecasts),
+    ...array(root.predictions),
+    ...array(path(root, "outlook", "horizons")),
+  ]).map(record).filter(row => {
+    const label = firstText(row.horizon, row.timeframe, row.period, row.label);
+    return new RegExp(`(^|\\D)${minutes}(?:\\s*(?:m|min|分钟))?($|\\D)`, "i").test(label);
+  });
+  const rows = [...directRows.map(record), ...arrayRows].filter(row => Object.keys(row).length > 0);
+  const rawProbability = firstNumber(
+    ...roots.flatMap(root => keys.map(key => path(root, "probabilities", key))),
+    ...rows.flatMap(row => [row.probability, row.upProbability, row.riseProbability, row.directionProbability]),
+  );
+  const rawConfidence = firstNumber(...rows.flatMap(row => [row.confidence, row.structuralConfidence, row.score]));
+  return {
+    minutes,
+    probability: percentValue(rawProbability),
+    confidence: percentValue(rawConfidence),
+    direction: firstText(...rows.flatMap(row => [row.direction, row.label, row.outlook])),
+  };
+}
+
+function readResearchSummary(payload: AnyRecord): ResearchSummary {
+  const roots = researchRoots(payload);
+  const invalidations = roots.flatMap(root => [
+    ...array(root.invalidations),
+    ...array(root.invalidationConditions),
+    ...array(root.failureConditions),
+    ...array(path(root, "decision", "invalidations")),
+    root.invalidation,
+    root.invalidationCondition,
+    path(root, "decision", "invalidation"),
+  ]).map(text).filter(Boolean);
+  return {
+    direction: firstText(...roots.flatMap(root => [root.todayDirection, root.dailyDirection, root.closeDirection, path(root, "direction", "label"), path(root, "outlook", "direction")])),
+    confidence: percentValue(firstNumber(...roots.flatMap(root => [root.confidence, root.structuralConfidence, path(root, "direction", "confidence"), path(root, "outlook", "confidence")]))),
+    action: firstText(...roots.flatMap(root => [root.currentAction, root.action, root.advice, path(root, "decision", "action"), path(root, "outlook", "action")])),
+    invalidations: [...new Set(invalidations)].slice(0, 2),
+    updatedAt: firstText(...roots.flatMap(root => [root.asOf, root.updatedAt, root.generatedAt, root.date])),
+    horizons: [5, 15, 30].map(minutes => readHorizonSummary(payload, minutes as 5 | 15 | 30)),
+  };
 }
 
 function readContextRows(market: AnyRecord, desk: AnyRecord, marketContext: AnyRecord = {}): AnyRecord[] {
@@ -191,36 +298,157 @@ function readCrossMarkets(market: AnyRecord, desk: AnyRecord, marketContext: Any
   });
 }
 
-function directionFromData(market: AnyRecord, desk: AnyRecord): { label: string; tone: "up" | "down" | "flat"; confidence: number | null; note: string } {
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value));
+}
+
+function directionalSignal(value: unknown): number | null {
+  const label = text(value);
+  if (!label) return null;
+  if (/利空|偏空|负面|消极|下行|看空|弱|风险/.test(label)) return -1;
+  if (/利好|偏多|正面|积极|上行|看多|强/.test(label)) return 1;
+  if (/中性|平稳|无明显|分化/.test(label)) return 0;
+  return null;
+}
+
+function readOpeningOutlook(crossMarkets: CrossMarketQuote[], contextRows: AnyRecord[], researchPayload: AnyRecord): OpeningOutlook {
+  const factors: Array<{ label: string; signal: number; weight: number; detail: string }> = [];
+  const metalSettings: Record<CrossMarketKey, { weight: number; scale: number }> = {
+    copper: { weight: .42, scale: 1.5 },
+    gold: { weight: .32, scale: 1.2 },
+    silver: { weight: .1, scale: 2 },
+  };
+
+  crossMarkets.forEach(item => {
+    if (item.change === null || item.state === "missing" || item.state === "stale") return;
+    const setting = metalSettings[item.key];
+    const signal = clamp(item.change / setting.scale, -1, 1);
+    factors.push({
+      label: item.label,
+      signal,
+      weight: setting.weight,
+      detail: `${item.label} ${formatPercent(item.change)}${signal > .08 ? "支撑" : signal < -.08 ? "拖累" : "影响有限"}`,
+    });
+  });
+
+  const treasuryRow = contextRows.find(row => /美债|美国(?:10年|十年).*债|us\s*10y|ust\s*10|treasury|tnx/i.test(firstText(row.label, row.name, row.symbol, row.code, row.id)));
+  if (treasuryRow) {
+    const bps = firstNumber(treasuryRow.changeBps, treasuryRow.change_bp, treasuryRow.bpsChange);
+    const change = bps ?? firstNumber(treasuryRow.changePercent, treasuryRow.change_pct, treasuryRow.pct, treasuryRow.change);
+    if (change !== null) {
+      const normalizedMove = clamp(change / (bps !== null ? 8 : .8), -1, 1);
+      factors.push({
+        label: "美债",
+        signal: -normalizedMove,
+        weight: .16,
+        detail: `美债收益率${change > 0 ? "上行承压" : change < 0 ? "回落支撑" : "平稳"}`,
+      });
+    }
+  }
+
+  const roots = researchRoots(researchPayload);
+  const newsRows = roots.flatMap(root => [record(root.news), record(root.events), record(path(root, "outlook", "news"))]).filter(row => Object.keys(row).length > 0);
+  const newsDirection = firstText(
+    ...roots.flatMap(root => [root.newsDirection, root.eventDirection, root.newsSentiment, root.eventSentiment]),
+    ...newsRows.flatMap(row => [row.direction, row.sentiment, row.label]),
+  );
+  const newsSignal = directionalSignal(newsDirection);
+  if (newsSignal !== null) {
+    factors.push({
+      label: "消息",
+      signal: newsSignal,
+      weight: .2,
+      detail: `消息面${newsSignal > 0 ? "偏利好" : newsSignal < 0 ? "偏利空" : "中性"}`,
+    });
+  }
+
+  const evidenceTotal = 5;
+  if (!factors.length) {
+    return { label: "证据不足", tone: "flat", score: null, evidenceCount: 0, evidenceTotal, reason: "等待金银铜、美债和消息数据" };
+  }
+  const totalWeight = factors.reduce((sum, factor) => sum + factor.weight, 0);
+  const score = factors.reduce((sum, factor) => sum + factor.signal * factor.weight, 0) / totalWeight;
+  const copper = crossMarkets.find(item => item.key === "copper" && item.state !== "missing" && item.state !== "stale");
+  const copperChange = copper?.change ?? null;
+  const copperShock = copperChange !== null && Math.abs(copperChange) >= 1.2;
+  let label = "偏平开";
+  let tone: OutlookTone = "flat";
+  if (score <= -.28) { label = "偏低开"; tone = "down"; }
+  else if (score >= .28) { label = "偏高开"; tone = "up"; }
+  else if (copperShock && copperChange < 0) { label = "分化偏弱"; tone = "down"; }
+  else if (copperShock && copperChange > 0) { label = "分化偏强"; tone = "up"; }
+  const ranked = [...factors].sort((a, b) => Math.abs(b.signal * b.weight) - Math.abs(a.signal * a.weight));
+  const missing: string[] = [];
+  if (!treasuryRow || !factors.some(factor => factor.label === "美债")) missing.push("美债");
+  if (newsSignal === null) missing.push("消息");
+  const reason = `${ranked.slice(0, 2).map(factor => factor.detail).join("；")}${missing.length ? `；${missing.join("、")}待接入` : ""}`;
+  return { label, tone, score, evidenceCount: factors.length, evidenceTotal, reason };
+}
+
+function readMediumStructure(payload: AnyRecord, desk: AnyRecord): MediumStructureSummary {
+  const roots = researchRoots(payload);
+  const rows = roots.flatMap(root => [
+    record(root.mediumTerm),
+    record(root.marketRegime),
+    record(root.marketStage),
+    record(root.structureStage),
+    record(path(root, "outlook", "mediumTerm")),
+    record(path(root, "structure", "mediumTerm")),
+  ]).filter(row => Object.keys(row).length > 0);
+  const rawLabel = firstText(
+    ...roots.flatMap(root => [root.mediumTermRegime, root.mediumTermDirection, root.marketStage, root.structureStage, root.cycleStage]),
+    ...rows.flatMap(row => [row.label, row.regime, row.stage, row.direction]),
+    path(desk, "structure", "mediumTerm"),
+    path(desk, "regime", "mediumTerm"),
+  );
+  if (!rawLabel) {
+    return { label: "待日周线数据", tone: "flat", confidence: null, note: "当前仅有日内数据，不臆测中期位置" };
+  }
+  const confidence = percentValue(firstNumber(
+    ...rows.flatMap(row => [row.confidence, row.score]),
+    ...roots.flatMap(root => [root.mediumTermConfidence, root.structureConfidence]),
+  ));
+  const note = firstText(...rows.flatMap(row => [row.summary, row.reason, row.evidence])) || "来自每日结构研究";
+  if (/筑底|底部/.test(rawLabel)) return { label: "底部筑底", tone: "flat", confidence, note };
+  if (/高位|顶部|派发|过热|警惕/.test(rawLabel)) return { label: "高位警惕", tone: "down", confidence, note };
+  if (/上升|上涨|多头/.test(rawLabel)) return { label: "上升趋势", tone: "up", confidence, note };
+  if (/下跌|下降|空头/.test(rawLabel)) return { label: "下跌趋势", tone: "down", confidence, note };
+  if (/震荡|盘整|横盘/.test(rawLabel)) return { label: "中期震荡", tone: "flat", confidence, note };
+  return { label: rawLabel, tone: "flat", confidence, note };
+}
+
+function directionFromData(market: AnyRecord, desk: AnyRecord, research: ResearchSummary): { label: string; tone: "up" | "down" | "flat"; confidence: number | null; note: string } {
   const explicit = firstText(
     path(desk, "direction", "label"),
     path(desk, "decision", "direction"),
     path(desk, "market", "direction"),
     path(desk, "context", "gate", "label"),
+    research.direction,
   );
   const score = firstNumber(
     path(desk, "direction", "confidence"),
     path(desk, "decision", "confidence"),
     path(desk, "context", "gate", "score"),
+    research.confidence,
   );
   const normalizedScore = score !== null && score <= 1 ? score * 100 : score;
   const change = firstNumber(path(market, "quote", "changePercent"), path(market, "quote", "change_pct"));
   if (/弱|空|跌|下行|利空/.test(explicit) || (explicit === "" && change !== null && change < -0.35)) {
-    return { label: "偏弱", tone: "down", confidence: normalizedScore, note: "反弹优先观察，不追高" };
+    return { label: "偏弱", tone: "down", confidence: normalizedScore, note: "等待反弹，不追正T" };
   }
   if (/强|多|涨|上行|利好/.test(explicit) || (explicit === "" && change !== null && change > 0.35)) {
-    return { label: "偏强", tone: "up", confidence: normalizedScore, note: "回踩确认后再考虑正T" };
+    return { label: "偏强", tone: "up", confidence: normalizedScore, note: "等待回踩，不追反T" };
   }
   return { label: "震荡", tone: "flat", confidence: normalizedScore, note: "等待方向和盘口同时确认" };
 }
 
-function modeFromAlerts(alerts: SignalAlert[], desk: AnyRecord): string {
+function modeFromAlerts(alerts: SignalAlert[], desk: AnyRecord, tone: "up" | "down" | "flat"): string {
   const source = alerts.slice(0, 8).map(item => `${item.title || ""} ${item.message || ""} ${item.direction || ""}`).join(" ");
   const explicit = firstText(path(desk, "strategy", "mode"), path(desk, "decision", "mode"), path(desk, "mode"));
   const value = `${explicit} ${source}`;
   if (/反T/.test(value)) return "反T优先";
   if (/正T/.test(value)) return "正T优先";
-  return "观望";
+  return tone === "down" ? "反T优先" : tone === "up" ? "正T优先" : "观望";
 }
 
 function alertClass(alert: SignalAlert): "formal" | "v29" | "v1" | "other" {
@@ -256,16 +484,79 @@ function readMarketPoints(market: AnyRecord): PricePoint[] {
   return points.filter(item => item.time !== "—").slice(-240);
 }
 
-function extractL2(source: AnyRecord, fallback: AnyRecord): { pressure: number | null; ofi: number | null; activeBuy: number | null; activeSell: number | null; spread: number | null; status: string } {
+function extractL2(source: AnyRecord, fallback: AnyRecord): { pressure: number | null; ofi: number | null; activeBuy: number | null; activeSell: number | null; spread: number | null; absorption: string; status: string } {
   const roots = [source, path(source, "orderflow"), path(source, "l2"), path(source, "orderBook"), fallback, path(fallback, "orderflow")];
   const find = (...keys: string[]) => firstNumber(...roots.flatMap(root => keys.map(key => record(root)[key])));
-  const pressure = find("buyPressure", "buy_pressure", "imbalance", "obi", "pressure");
+  const rawPressure = find("buyPressure", "buy_pressure", "imbalance", "obi", "pressure");
+  const pressure = rawPressure === null ? null : rawPressure >= -1 && rawPressure <= 1 ? (rawPressure + 1) * 50 : Math.max(0, Math.min(100, rawPressure));
   const ofi = find("ofi", "orderFlowImbalance", "order_flow_imbalance");
   const activeBuy = find("activeBuy", "active_buy", "主动买入", "buyAmount");
   const activeSell = find("activeSell", "active_sell", "主动卖出", "sellAmount");
   const spread = find("spread", "价差");
+  const absorptionValue = roots.map(root => record(root)).find(root => ["buyAbsorption", "bidAbsorption", "absorption"].some(key => root[key] !== undefined));
+  const rawAbsorption = absorptionValue ? absorptionValue.buyAbsorption ?? absorptionValue.bidAbsorption ?? absorptionValue.absorption : undefined;
+  const absorption = typeof rawAbsorption === "boolean" ? (rawAbsorption ? "有" : "无") : text(rawAbsorption);
   const state = firstText(...roots.map(root => path(root, "status")), ...roots.map(root => path(root, "availability")));
-  return { pressure, ofi, activeBuy, activeSell, spread, status: state || (pressure !== null || ofi !== null ? "在线" : "暂无L2") };
+  return { pressure, ofi, activeBuy, activeSell, spread, absorption, status: state || (pressure !== null || ofi !== null ? "在线" : "暂无L2") };
+}
+
+function alertSide(alert: SignalAlert): "buy" | "sell" | "neutral" {
+  const value = `${alert.side || ""} ${alert.direction || ""} ${alert.title || ""} ${alert.message || ""}`;
+  if (/卖|反T|减仓|高抛/.test(value)) return "sell";
+  if (/买|正T|加仓|低吸/.test(value)) return "buy";
+  return "neutral";
+}
+
+function conciseAlertTitle(alert: SignalAlert): string {
+  const value = `${alert.title || ""} ${alert.message || ""} ${alert.direction || ""}`;
+  if (/买盘.*增强|承接.*增强/.test(value)) return "买盘增强，暂缓卖出";
+  if (/反弹.*失败|冲高.*失败|回落.*确认/.test(value)) return "反弹失败，重新评估";
+  if (/否决|失效/.test(value)) return `${alertLabel(alert)}条件失效`;
+  const side = alertSide(alert);
+  const stage = /确认|触发|执行/.test(value) ? "确认" : /候选|观察|等待|候/.test(value) ? "候选" : "变化";
+  if (side === "sell") return `${alertLabel(alert)}反T${stage}`;
+  if (side === "buy") return `${alertLabel(alert)}正T${stage}`;
+  return `${alertLabel(alert)}状态变化`;
+}
+
+function markerLabel(alert: SignalAlert): string {
+  const source = alertClass(alert) === "formal" ? "正" : alertClass(alert) === "v29" ? "2.9" : alertClass(alert) === "v1" ? "V1" : "观";
+  const side = alertSide(alert);
+  return `${source}${side === "buy" ? "买" : side === "sell" ? "卖" : "变"}`;
+}
+
+function keyTimelineAlerts(alerts: SignalAlert[]): SignalAlert[] {
+  const chronological = [...alerts].reverse().filter(alert => alertClass(alert) !== "other" || /增强|失败|暂缓|重新评估|失效|否决/.test(`${alert.title || ""} ${alert.message || ""}`));
+  const kept: SignalAlert[] = [];
+  const lastByKey = new Map<string, SignalAlert>();
+  for (const alert of chronological) {
+    const key = `${alertClass(alert)}:${conciseAlertTitle(alert)}`;
+    const previous = lastByKey.get(key);
+    const previousTime = previous ? timeValue(previous.marketTime || previous.createdAt) : null;
+    const currentTime = timeValue(alert.marketTime || alert.createdAt);
+    const closeInTime = previousTime !== null && currentTime !== null && currentTime - previousTime < 10 * 60;
+    const previousPrice = previous ? number(previous.price) : null;
+    const currentPrice = number(alert.price);
+    const closeInPrice = previousPrice === null || currentPrice === null || Math.abs(currentPrice - previousPrice) / Math.max(previousPrice, 0.01) < 0.003;
+    if (previous && closeInTime && closeInPrice) continue;
+    kept.push(alert);
+    lastByKey.set(key, alert);
+  }
+  return kept;
+}
+
+function sessionPosition(value: unknown): number | null {
+  const seconds = timeValue(value);
+  if (seconds === null) return null;
+  const morningStart = 9 * 3600 + 30 * 60;
+  const morningEnd = 11 * 3600 + 30 * 60;
+  const afternoonStart = 13 * 3600;
+  const afternoonEnd = 15 * 3600;
+  if (seconds <= morningStart) return 0;
+  if (seconds <= morningEnd) return (seconds - morningStart) / (4 * 3600);
+  if (seconds < afternoonStart) return 0.5;
+  if (seconds <= afternoonEnd) return 0.5 + (seconds - afternoonStart) / (4 * 3600);
+  return 1;
 }
 
 function mergeAlerts(previous: SignalAlert[], incoming: SignalAlert[]): SignalAlert[] {
@@ -295,6 +586,7 @@ export default function RealtimeLabPage() {
   const [desk, setDesk] = useState<AnyRecord>({});
   const [l2, setL2] = useState<AnyRecord>({});
   const [marketContext, setMarketContext] = useState<AnyRecord>({});
+  const [dailyAssignment, setDailyAssignment] = useState<AnyRecord>({});
   const [alerts, setAlerts] = useState<SignalAlert[]>([]);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [errorMessage, setErrorMessage] = useState("");
@@ -319,6 +611,7 @@ export default function RealtimeLabPage() {
     setDesk({});
     setL2({});
     setMarketContext({});
+    setDailyAssignment({});
     setLiveTicks([]);
     setAlerts([]);
     alertCursor.current = 0;
@@ -403,6 +696,25 @@ export default function RealtimeLabPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const pullResearch = async () => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 5_000);
+      try {
+        const payload = await getJson(`/api/research/zijin-daily-assignment?code=${encodeURIComponent(code)}`, controller.signal);
+        if (!cancelled) setDailyAssignment(payload);
+      } catch {
+        // Slow research is optional; fast market and order-flow data continue independently.
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    };
+    void pullResearch();
+    const timer = window.setInterval(() => void pullResearch(), RESEARCH_POLL_MS);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [code]);
+
+  useEffect(() => {
+    let cancelled = false;
     const pullAlerts = async () => {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 2_500);
@@ -446,25 +758,71 @@ export default function RealtimeLabPage() {
   }, [code]);
 
   const quote = useMemo(() => record(market.quote), [market]);
+  const researchSummary = useMemo(() => readResearchSummary(dailyAssignment), [dailyAssignment]);
   const points = useMemo(() => {
     const historical = readMarketPoints(market);
     const ticks = liveTicks.map(item => ({ time: item.time, price: item.price, live: true, timestamp: item.timestamp }));
     return [...historical, ...ticks].slice(-300);
   }, [market, liveTicks]);
-  const direction = useMemo(() => directionFromData(market, desk), [market, desk]);
-  const mode = useMemo(() => modeFromAlerts(alerts, desk), [alerts, desk]);
+  const direction = useMemo(() => directionFromData(market, desk, researchSummary), [market, desk, researchSummary]);
+  const mode = useMemo(() => modeFromAlerts(alerts, desk, direction.tone), [alerts, desk, direction.tone]);
+  const hasRealtimeDirectionConfidence = firstNumber(
+    path(desk, "direction", "confidence"),
+    path(desk, "decision", "confidence"),
+    path(desk, "context", "gate", "score"),
+  ) !== null;
+  const confidenceLabel = hasRealtimeDirectionConfidence ? "实时把握度" : researchSummary.confidence !== null ? "结构置信" : "把握度";
   const l2Metrics = useMemo(() => extractL2(l2, desk), [l2, desk]);
+  const timelineAlerts = useMemo(() => keyTimelineAlerts(alerts), [alerts]);
   const currentPrice = firstNumber(quote.price, quote.last);
-  const previousClose = firstNumber(quote.previousClose, quote.prevClose);
   const changePercent = firstNumber(quote.changePercent, quote.change_pct);
   const vwap = firstNumber(path(market, "quote", "vwap"), path(market, "vwap"), [...points].reverse().find(item => item.vwap !== null && item.vwap !== undefined)?.vwap);
   const sourceDelay = sourceAgeSeconds(sourceTimestamp);
   const stockName = firstText(quote.name, market.name, code === "601899" ? "紫金矿业" : "监控标的");
   const today = dateLabel(firstText(market.sampleDate, market.date, sourceTimestamp));
+  const currentAction = firstText(
+    path(desk, "decision", "action"),
+    path(desk, "strategy", "action"),
+    path(desk, "action", "label"),
+    researchSummary.action,
+  ) || direction.note;
+  const invalidation = firstText(
+    path(desk, "decision", "invalidation"),
+    path(desk, "strategy", "invalidation"),
+    path(desk, "risk", "invalidation"),
+    ...researchSummary.invalidations,
+  ) || (direction.tone === "down"
+    ? "重新站上VWAP并且买盘持续增强"
+    : direction.tone === "up"
+      ? "跌破VWAP并且主动卖盘持续增强"
+      : "脱离震荡区间且订单流持续同向");
+  const buyPressure = l2Metrics.pressure;
+  const sellPressure = buyPressure === null ? null : 100 - buyPressure;
+  const ofiLabel = l2Metrics.ofi === null ? "待L2" : l2Metrics.ofi > 0.05 ? "偏多" : l2Metrics.ofi < -0.05 ? "偏空" : "中性";
+  const activeOrderLabel = l2Metrics.activeBuy === null || l2Metrics.activeSell === null
+    ? "待L2"
+    : l2Metrics.activeSell > l2Metrics.activeBuy * 1.08
+      ? "主动卖单占优"
+      : l2Metrics.activeBuy > l2Metrics.activeSell * 1.08
+        ? "主动买单占优"
+        : "买卖接近";
+  const absorptionLabel = l2Metrics.absorption || "待L2";
+  const flowConclusion = buyPressure === null && l2Metrics.ofi === null
+    ? "盘口证据待补"
+    : sellPressure !== null && sellPressure >= 60 && (l2Metrics.ofi ?? 0) < 0 && activeOrderLabel === "主动卖单占优"
+      ? "反弹力度不足"
+      : buyPressure !== null && buyPressure >= 60 && (l2Metrics.ofi ?? 0) > 0 && activeOrderLabel === "主动买单占优"
+        ? "承接正在增强"
+        : "多空仍在拉锯";
   const contextRows = useMemo(() => readContextRows(market, desk, marketContext), [market, desk, marketContext]);
   const crossMarkets = useMemo(() => readCrossMarkets(market, desk, marketContext, sourceTimestamp), [desk, market, marketContext, sourceTimestamp]);
-  const otherContextRows = useMemo(() => contextRows.filter(row => commodityKey(firstText(row.label, row.name, row.symbol, row.code, row.id)) === null), [contextRows]);
+  const openingOutlook = useMemo(() => readOpeningOutlook(crossMarkets, contextRows, dailyAssignment), [contextRows, crossMarkets, dailyAssignment]);
+  const mediumStructure = useMemo(() => readMediumStructure(dailyAssignment, desk), [dailyAssignment, desk]);
+  const sectorRows = useMemo(() => contextRows.filter(row => commodityKey(firstText(row.label, row.name, row.symbol, row.code, row.id)) === null).slice(0, 3), [contextRows]);
   const commoditySummary = useMemo(() => {
+    const copper = crossMarkets.find(item => item.key === "copper" && item.state !== "missing" && item.state !== "stale");
+    const copperChange = copper?.change ?? null;
+    if (copperChange !== null && copperChange <= -1.2) return { label: "铜价显著走弱", tone: "down", detail: "已计入次日开盘预判" };
     const gate = record(marketContext.gate);
     const gateLabel = firstText(gate.label);
     if (gateLabel) {
@@ -482,16 +840,33 @@ export default function RealtimeLabPage() {
   const chart = useMemo(() => {
     if (!points.length) return null;
     const width = 920;
-    const height = 330;
-    const padX = 34;
-    const padY = 24;
+    const height = 360;
+    const padX = 42;
+    const padY = 30;
     const values = points.map(item => item.price);
+    const structureValues = points.filter(item => !item.live).map(item => item.price);
+    const distribution = (structureValues.length ? structureValues : values).sort((a, b) => a - b);
+    const quantile = (ratio: number) => distribution[Math.min(distribution.length - 1, Math.max(0, Math.round((distribution.length - 1) * ratio)))];
+    const rawRange = Math.max(Math.max(...distribution) - Math.min(...distribution), Math.max(distribution[0] * 0.001, 0.01));
+    const bandHalf = Math.max(rawRange * 0.035, distribution[0] * 0.0005);
+    const supportCenter = quantile(0.2);
+    const resistanceCenter = quantile(0.8);
+    const support = { low: supportCenter - bandHalf, high: supportCenter + bandHalf };
+    const resistance = { low: resistanceCenter - bandHalf, high: resistanceCenter + bandHalf };
     const vwapValue = vwap ?? null;
-    const allValues = vwapValue === null ? values : [...values, vwapValue];
-    const low = Math.min(...allValues);
-    const high = Math.max(...allValues);
-    const range = Math.max(high - low, Math.max(high * 0.001, 0.01));
-    const x = (index: number) => padX + (index / Math.max(points.length - 1, 1)) * (width - padX * 2);
+    const markerAlerts = timelineAlerts.filter(alert => alertClass(alert) !== "other");
+    const markerPrices = markerAlerts.map(alert => number(alert.price)).filter((value): value is number => value !== null);
+    const allValues = [...values, support.low, support.high, resistance.low, resistance.high, ...markerPrices, ...(vwapValue === null ? [] : [vwapValue])];
+    const dataLow = Math.min(...allValues);
+    const dataHigh = Math.max(...allValues);
+    const dataRange = Math.max(dataHigh - dataLow, Math.max(dataHigh * 0.001, 0.01));
+    const low = dataLow - dataRange * 0.08;
+    const high = dataHigh + dataRange * 0.08;
+    const range = high - low;
+    const x = (index: number) => {
+      const position = sessionPosition(points[index]?.time);
+      return padX + (position ?? index / Math.max(points.length - 1, 1)) * (width - padX * 2);
+    };
     const y = (value: number) => height - padY - ((value - low) / range) * (height - padY * 2);
     const firstLiveIndex = points.findIndex(item => item.live);
     const historicalEnd = firstLiveIndex < 0 ? points.length : firstLiveIndex;
@@ -499,7 +874,8 @@ export default function RealtimeLabPage() {
     const liveStart = firstLiveIndex > 0 ? firstLiveIndex - 1 : Math.max(firstLiveIndex, 0);
     const livePolyline = firstLiveIndex < 0 ? "" : points.slice(liveStart).map((item, offset) => `${x(liveStart + offset).toFixed(1)},${y(item.price).toFixed(1)}`).join(" ");
     const vwapY = vwapValue === null ? null : y(vwapValue);
-    const markerRows = alerts.slice(0, 12).map(alert => {
+    const markerLanes = new Map<string, number>();
+    const markerRows = markerAlerts.map(alert => {
       const targetTime = timeValue(alert.marketTime || alert.createdAt);
       let index = points.length - 1;
       if (targetTime !== null) {
@@ -512,10 +888,19 @@ export default function RealtimeLabPage() {
         });
       }
       const markerPrice = number(alert.price) ?? points[index]?.price ?? currentPrice ?? low;
-      return { alert, index, cx: x(index), cy: y(markerPrice), kind: alertClass(alert) };
+      const cx = x(index);
+      const cy = y(markerPrice);
+      const side = alertSide(alert);
+      const laneKey = `${Math.round(cx / 44)}:${side}`;
+      const lane = markerLanes.get(laneKey) || 0;
+      markerLanes.set(laneKey, lane + 1);
+      const desiredOffset = (side === "sell" ? -1 : 1) * (24 + Math.min(lane, 2) * 17);
+      const labelOffset = Math.max(padY + 8 - cy, Math.min(height - padY - 8 - cy, desiredOffset));
+      return { alert, index, cx, cy, kind: alertClass(alert), labelOffset };
     });
-    return { width, height, padY, x, y, low, high, historyPolyline, livePolyline, vwapY, markerRows };
-  }, [alerts, currentPrice, points, vwap]);
+    const band = (item: { low: number; high: number }) => ({ y: y(item.high), height: Math.max(2, y(item.low) - y(item.high)), value: (item.low + item.high) / 2 });
+    return { width, height, padX, padY, y, low, high, historyPolyline, livePolyline, vwapY, markerRows, support: band(support), resistance: band(resistance) };
+  }, [currentPrice, points, timelineAlerts, vwap]);
 
   const applyCode = () => {
     const next = codeInput.trim();
@@ -525,101 +910,123 @@ export default function RealtimeLabPage() {
     }
   };
 
-  const latencyLabel = connection === "live" ? (sourceDelay === null ? "已连接" : `${sourceDelay}s`) : connection === "auth" ? "需登录" : "重试中";
+  const latencyLabel = connection === "live" ? (sourceDelay === null ? "已连接" : `${sourceDelay.toFixed(1)} 秒`) : connection === "auth" ? "需登录" : "重试中";
 
   return (
     <main className="realtime-lab">
-      <header className="realtime-header">
-        <div>
-          <span className="eyebrow">DOUBLE RABBIT · MARKET INTELLIGENCE</span>
-          <h1>专业实时观察台</h1>
-          <p>行情、订单流与跨市场联动 · 只读观察，不提交订单</p>
-        </div>
-        <div className="header-actions">
-          <div className="terminal-badges"><span>股票 · 1S</span><span>期货 · 10S</span><span>READ ONLY</span></div>
-          <div className="symbol-picker">
-            <label htmlFor="realtime-code">监控标的</label>
-            <div>
-              <input id="realtime-code" value={codeInput} inputMode="numeric" maxLength={6} onChange={event => setCodeInput(event.target.value.replace(/\D/g, ""))} onKeyDown={event => { if (event.key === "Enter") applyCode(); }} />
-              <button type="button" onClick={applyCode}>切换</button>
+      <section className={`decision-card ${openingOutlook.tone}`} aria-label="当前决策摘要">
+        <div className="decision-card-head">
+          <div className="instrument">
+            <span className="eyebrow">DOUBLE RABBIT · TRADING DESK</span>
+            <strong>{stockName}</strong>
+            <span>{code} · {today}</span>
+          </div>
+          <div className="decision-tools">
+            <div className="health-pill"><i className={connection === "live" ? "ok" : "bad"} />{connection === "live" ? "实时" : connection === "auth" ? "需登录" : "连接异常"}<small>{latencyLabel}</small></div>
+            <div className="symbol-picker compact">
+              <label className="sr-only" htmlFor="realtime-code">监控标的</label>
+              <div>
+                <input id="realtime-code" aria-label="股票代码" value={codeInput} inputMode="numeric" maxLength={6} onChange={event => setCodeInput(event.target.value.replace(/\D/g, ""))} onKeyDown={event => { if (event.key === "Enter") applyCode(); }} />
+                <button type="button" onClick={applyCode}>切换</button>
+              </div>
             </div>
           </div>
         </div>
-      </header>
-
-      <section className={`decision-card ${direction.tone}`} aria-label="当前决策摘要">
-        <div className="decision-main">
-          <div className="instrument"><strong>{stockName}</strong><span>{code} · {today}</span></div>
-          <div className="decision-row"><b>{direction.label}</b><span>{mode}</span><small>{direction.confidence === null ? "把握度待补" : `${Math.round(direction.confidence)}% 把握度`}</small></div>
-          <p>{direction.note}</p>
+        <div className="decision-layout">
+          <div className="outlook-stack" aria-label="多周期方向判断">
+            <div className={`outlook-item ${openingOutlook.tone}`}>
+              <span>次日开盘</span><strong>{openingOutlook.label}</strong><small>{openingOutlook.score === null ? `证据 ${openingOutlook.evidenceCount}/${openingOutlook.evidenceTotal}` : `证据 ${openingOutlook.evidenceCount}/${openingOutlook.evidenceTotal} · 方向强度 ${Math.round(Math.abs(openingOutlook.score) * 100)}%`}</small>
+            </div>
+            <div className={`outlook-item ${mediumStructure.tone}`}>
+              <span>中期位置</span><strong>{mediumStructure.label}</strong><small>{mediumStructure.confidence === null ? "等待日周线引擎" : `结构置信 ${Math.round(mediumStructure.confidence)}%`}</small>
+            </div>
+            <div className={`outlook-item ${direction.tone}`}>
+              <span>盘中方向</span><strong>{direction.label}</strong><small>{mode} · {direction.confidence === null ? "把握度待补" : `${confidenceLabel} ${Math.round(direction.confidence)}%`}</small>
+            </div>
+          </div>
+          <div className="decision-facts">
+            <div className="fact-primary"><span>当前动作</span><b>{currentAction}</b></div>
+            <div className="fact-risk"><span>失效条件</span><b>{invalidation}</b></div>
+            <div><span>数据状态</span><b>{connection === "live" ? `实时 · 数据年龄 ${latencyLabel}` : errorMessage || "正在重连"}</b></div>
+            <div className="fact-evidence" title={openingOutlook.reason}><span>盘前依据</span><b>{openingOutlook.reason}</b></div>
+            <div className="fact-evidence" title={mediumStructure.note}><span>中期依据</span><b>{mediumStructure.note}</b></div>
+          </div>
+          <div className="decision-quote"><small>最新价</small><strong>{formatPrice(currentPrice)}</strong><span className={changePercent !== null && changePercent >= 0 ? "positive" : "negative"}>{formatPercent(changePercent)}</span><em>VWAP {formatPrice(vwap)}</em></div>
+          <div className="horizon-panel" aria-label="未来多周期评估">
+            <div className="horizon-heading"><span>未来窗口</span><small>概率与结构置信分开显示</small></div>
+            <div className="horizon-grid">
+              {researchSummary.horizons.map(horizon => {
+                const meter = horizon.probability ?? horizon.confidence ?? 0;
+                return <div className={horizon.probability === null ? "uncalibrated" : "calibrated"} key={horizon.minutes}>
+                  <span>{horizon.minutes}分钟</span>
+                  <strong>{horizon.probability === null ? "待校准" : `${Math.round(horizon.probability)}%`}</strong>
+                  <i><em style={{ width: `${Math.round(meter)}%` }} /></i>
+                  <small>{horizon.probability !== null ? `${horizon.direction || direction.label}模型概率` : horizon.confidence !== null ? `结构置信 ${Math.round(horizon.confidence)}%` : "暂无有效样本"}</small>
+                </div>;
+              })}
+            </div>
+          </div>
         </div>
-        <div className="decision-quote"><small>最新价</small><strong>{formatPrice(currentPrice)}</strong><span className={changePercent !== null && changePercent >= 0 ? "positive" : "negative"}>{formatPercent(changePercent)}</span></div>
-        <div className="health-pill"><i className={connection === "live" ? "ok" : "bad"} />{connection === "live" ? "实时" : connection === "auth" ? "需登录" : "连接异常"}<small>{latencyLabel}</small></div>
       </section>
 
       {errorMessage && <div className="notice" role="status"><span>ⓘ</span>{errorMessage}</div>}
 
-      <section className="panel market-radar" aria-label="金银铜跨市场监控">
-        <header className="panel-header radar-header">
-          <div><span className="panel-kicker">CROSS-MARKET RADAR</span><h2>金银铜联动</h2></div>
-          <div className={`radar-verdict ${commoditySummary.tone}`}><i /><span><strong>{commoditySummary.label}</strong><small>{commoditySummary.detail}</small></span></div>
-        </header>
-        <div className="futures-grid">
-          {crossMarkets.map(item => {
-            const tone = item.change === null ? "flat" : item.change >= 0 ? "up" : "down";
-            const width = item.change === null ? 0 : Math.min(100, Math.max(8, Math.abs(item.change) * 28));
-            return <article className={`future-card ${tone}`} key={item.key}>
-              <div className="future-card-head"><span><b>{item.label}</b><small>{item.symbol}</small></span><em className={`feed-state ${item.state}`}>{item.state === "live" ? "实时" : item.state === "stale" ? "最近行情" : item.state === "partial" ? "部分数据" : "未接入"}</em></div>
-              <div className="future-quote"><strong>{formatPrice(item.price, item.price !== null && item.price < 10 ? 3 : 2)}</strong><b className={tone === "up" ? "positive" : tone === "down" ? "negative" : ""}>{formatPercent(item.change)}</b></div>
-              <div className="future-move"><i style={{ width: `${width}%` }} /></div>
-              <footer><span>{item.source}</span><time>{item.updatedAt ? clockLabel(item.updatedAt) : "等待数据"}</time></footer>
-            </article>;
-          })}
-        </div>
-        <p className="radar-note">跨市场行情仅用于解释商品共振与预期差，不会单独触发正T或反T。</p>
-      </section>
-
       <section className="lab-grid">
         <article className="panel chart-panel">
-          <header className="panel-header"><div><span className="panel-kicker">PRICE STRUCTURE</span><h2>价格结构</h2></div><div className="legend"><span><i className="legend-price" />价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-live" />实时观察线</span></div></header>
+          <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>日内价格主图</h2></div><div className="legend"><span><i className="legend-price" />1分钟</span><span><i className="legend-live" />秒级</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></div></header>
+          <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><small>信号从本地账本恢复，刷新后仍保留</small></div>
           {chart ? <div className="chart-wrap"><svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={`${stockName}日内价格图`} preserveAspectRatio="none">
-            <line className="grid-line" x1="34" x2="886" y1={chart.padY} y2={chart.padY} />
-            <line className="grid-line" x1="34" x2="886" y1={chart.height / 2} y2={chart.height / 2} />
-            <line className="grid-line" x1="34" x2="886" y1={chart.height - chart.padY} y2={chart.height - chart.padY} />
-            {chart.vwapY !== null && <line className="vwap-line" x1="34" x2="886" y1={chart.vwapY} y2={chart.vwapY} />}
+            <rect className="support-band" x={chart.padX} y={chart.support.y} width={chart.width - chart.padX * 2} height={chart.support.height} />
+            <rect className="resistance-band" x={chart.padX} y={chart.resistance.y} width={chart.width - chart.padX * 2} height={chart.resistance.height} />
+            {[0, .25, .5, .75, 1].map(position => <line className="grid-line vertical" key={position} x1={chart.padX + position * (chart.width - chart.padX * 2)} x2={chart.padX + position * (chart.width - chart.padX * 2)} y1={chart.padY} y2={chart.height - chart.padY} />)}
+            <line className="grid-line" x1={chart.padX} x2={chart.width - chart.padX} y1={chart.padY} y2={chart.padY} />
+            <line className="grid-line" x1={chart.padX} x2={chart.width - chart.padX} y1={chart.height / 2} y2={chart.height / 2} />
+            <line className="grid-line" x1={chart.padX} x2={chart.width - chart.padX} y1={chart.height - chart.padY} y2={chart.height - chart.padY} />
+            <text className="band-label support" x={chart.padX + 7} y={chart.support.y + 12}>结构支撑 {formatPrice(chart.support.value)}</text>
+            <text className="band-label resistance" x={chart.padX + 7} y={chart.resistance.y + 12}>结构压力 {formatPrice(chart.resistance.value)}</text>
+            {chart.vwapY !== null && <><line className="vwap-line" x1={chart.padX} x2={chart.width - chart.padX} y1={chart.vwapY} y2={chart.vwapY} /><text className="vwap-label" x={chart.width - chart.padX - 5} y={chart.vwapY - 5} textAnchor="end">VWAP {formatPrice(vwap)}</text></>}
             {chart.historyPolyline && <polyline className="price-polyline" points={chart.historyPolyline} />}
             {chart.livePolyline && <polyline className="live-polyline" points={chart.livePolyline} />}
-            {chart.markerRows.map(marker => <g key={marker.alert.id} className={`chart-marker ${marker.kind}`} transform={`translate(${marker.cx},${marker.cy})`}>{marker.kind === "v1" ? <rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" /> : <circle r="7" />}<text y="-12" textAnchor="middle">{alertLabel(marker.alert)}</text></g>)}
-          </svg><div className="chart-axis"><span>{points[0]?.time || "—"}</span><span>{points[Math.floor(points.length / 2)]?.time || "—"}</span><span>{points.at(-1)?.time || "—"}</span></div></div> : <div className="empty-state">等待行情数据…</div>}
-          <div className="price-stats"><div><span>VWAP</span><b>{formatPrice(vwap)}</b></div><div><span>今开</span><b>{formatPrice(firstNumber(quote.open))}</b></div><div><span>日高</span><b>{formatPrice(firstNumber(quote.high))}</b></div><div><span>日低</span><b>{formatPrice(firstNumber(quote.low))}</b></div><div><span>昨收</span><b>{formatPrice(previousClose)}</b></div></div>
+            {chart.markerRows.map(marker => <g key={marker.alert.id} className={`chart-marker ${marker.kind}`} transform={`translate(${marker.cx},${marker.cy})`}>
+              <line className="marker-stem" x1="0" x2="0" y1="0" y2={marker.labelOffset} />
+              {marker.kind === "v1" ? <rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" /> : <circle r="7" />}
+              <text y={marker.labelOffset + (marker.labelOffset > 0 ? 13 : -7)} textAnchor="middle">{markerLabel(marker.alert)}</text>
+            </g>)}
+            <text className="price-axis-label" x={chart.width - 4} y={chart.y(chart.high) + 4} textAnchor="end">{formatPrice(chart.high)}</text>
+            <text className="price-axis-label" x={chart.width - 4} y={chart.y(chart.low) - 4} textAnchor="end">{formatPrice(chart.low)}</text>
+          </svg><div className="chart-axis"><span>09:30</span><span>10:30</span><span>11:30 / 13:00</span><span>14:00</span><span>15:00</span></div></div> : <div className="empty-state">等待行情数据…</div>}
+          <div className="price-stats"><div><span>VWAP</span><b>{formatPrice(vwap)}</b></div><div><span>结构支撑</span><b>{chart ? formatPrice(chart.support.value) : "—"}</b></div><div><span>结构压力</span><b>{chart ? formatPrice(chart.resistance.value) : "—"}</b></div><div><span>日高</span><b>{formatPrice(firstNumber(quote.high))}</b></div><div><span>日低</span><b>{formatPrice(firstNumber(quote.low))}</b></div></div>
         </article>
 
         <article className="panel flow-panel">
-          <header className="panel-header"><div><span className="panel-kicker">ORDER FLOW / L2</span><h2>盘口与资金</h2></div><span className={`mini-status ${l2Metrics.status === "在线" ? "ok" : "muted"}`}>{l2Metrics.status}</span></header>
-          <div className="pressure"><div className="pressure-head"><span>买卖压力</span><b>{l2Metrics.pressure === null ? "—" : `${Math.round(l2Metrics.pressure)}%`}</b></div><div className="pressure-track"><i style={{ width: `${Math.max(0, Math.min(100, l2Metrics.pressure ?? 50))}%` }} /></div><div className="pressure-label"><span>卖压</span><span>买压</span></div></div>
-          <div className="metric-grid"><div><span>OFI</span><b className={l2Metrics.ofi !== null && l2Metrics.ofi >= 0 ? "positive" : "negative"}>{l2Metrics.ofi === null ? "—" : l2Metrics.ofi.toFixed(2)}</b></div><div><span>主动买入</span><b>{l2Metrics.activeBuy === null ? "—" : l2Metrics.activeBuy.toLocaleString()}</b></div><div><span>主动卖出</span><b>{l2Metrics.activeSell === null ? "—" : l2Metrics.activeSell.toLocaleString()}</b></div><div><span>买卖价差</span><b>{l2Metrics.spread === null ? "—" : l2Metrics.spread.toFixed(3)}</b></div></div>
-          <div className="flow-verdict"><i className={direction.tone === "up" ? "up" : direction.tone === "down" ? "down" : "flat"} /><div><strong>{l2Metrics.status === "暂无L2" ? "暂不使用盘口确认" : direction.tone === "up" ? "买盘正在确认" : direction.tone === "down" ? "卖压仍需观察" : "盘口方向不明确"}</strong><small>{l2Metrics.status === "暂无L2" ? "数据恢复后再纳入信号判断" : "只作为辅助证据，不单独触发交易"}</small></div></div>
-        </article>
+          <header className="panel-header"><div><span className="panel-kicker">MARKET MICROSTRUCTURE / L2</span><h2>盘口状态</h2></div><span className={`mini-status ${l2Metrics.status === "在线" ? "ok" : "muted"}`}>{l2Metrics.status}</span></header>
+          <div className="pressure">
+            <div className="pressure-head"><span>买卖压力</span><b className={sellPressure !== null && sellPressure >= 55 ? "negative" : buyPressure !== null && buyPressure >= 55 ? "positive" : ""}>{sellPressure === null ? "待L2" : sellPressure >= (buyPressure ?? 0) ? `卖方 ${Math.round(sellPressure)}%` : `买方 ${Math.round(buyPressure ?? 0)}%`}</b></div>
+            <div className="pressure-track"><i className="sell" style={{ width: `${sellPressure ?? 50}%` }} /><i className="buy" style={{ width: `${buyPressure ?? 50}%` }} /></div>
+            <div className="pressure-label"><span>卖方 {sellPressure === null ? "—" : `${Math.round(sellPressure)}%`}</span><span>买方 {buyPressure === null ? "—" : `${Math.round(buyPressure)}%`}</span></div>
+          </div>
+          <div className="flow-facts">
+            <div><span>OFI</span><b className={ofiLabel === "偏多" ? "positive" : ofiLabel === "偏空" ? "negative" : ""}>{ofiLabel}</b><small>{l2Metrics.ofi === null ? "等待订单流" : l2Metrics.ofi.toFixed(2)}</small></div>
+            <div><span>主动成交</span><b>{activeOrderLabel}</b><small>{l2Metrics.activeBuy === null || l2Metrics.activeSell === null ? "等待逐笔数据" : `买 ${l2Metrics.activeBuy.toLocaleString()} / 卖 ${l2Metrics.activeSell.toLocaleString()}`}</small></div>
+            <div><span>买一吸收</span><b>{absorptionLabel}</b><small>{absorptionLabel === "待L2" ? "不把缺失数据判成无" : "来自盘口吸收字段"}</small></div>
+            <div><span>买卖价差</span><b>{l2Metrics.spread === null ? "待L2" : l2Metrics.spread.toFixed(3)}</b><small>仅作执行质量参考</small></div>
+          </div>
+          <div className={`flow-verdict ${flowConclusion.includes("增强") ? "up" : flowConclusion.includes("不足") ? "down" : "flat"}`}><i /><div><span>盘口结论</span><strong>{flowConclusion}</strong><small>盘口只负责确认或否决，不单独触发交易</small></div></div>
 
-        <article className="panel context-panel">
-          <header className="panel-header"><div><span className="panel-kicker">INDEX / SECTOR CONTEXT</span><h2>指数与板块</h2></div><span className="mini-status muted">辅助层</span></header>
-          <div className="context-list">{otherContextRows.slice(0, 8).map((row, index) => { const change = firstNumber(row.changePercent, row.change_pct, row.change); return <div key={`${text(row.id)}-${index}`}><span>{firstText(row.label, row.name, row.symbol) || "相关市场"}</span><b className={change !== null && change >= 0 ? "positive" : "negative"}>{formatPercent(change)}</b><small>{firstText(row.sourceTimestamp, row.provider) || "—"}</small></div>; })}</div>
-          {!otherContextRows.length && <div className="empty-inline">等待指数与有色板块数据</div>}
-        </article>
-
-        <article className="panel risk-panel">
-          <header className="panel-header"><div><span className="panel-kicker">RISK / EXECUTION</span><h2>风险与执行</h2></div><span className="mini-status ok">不下单</span></header>
-          <div className="risk-list"><div><span>当前持仓</span><b>{firstNumber(path(desk, "position", "shares"), path(desk, "holding", "shares")) === null ? "—" : `${firstNumber(path(desk, "position", "shares"), path(desk, "holding", "shares"))} 股`}</b></div><div><span>可卖数量</span><b>{firstNumber(path(desk, "position", "availableShares"), path(desk, "holding", "availableShares")) === null ? "—" : `${firstNumber(path(desk, "position", "availableShares"), path(desk, "holding", "availableShares"))} 股`}</b></div><div><span>目标/止损</span><b>{firstText(path(desk, "risk", "target"), path(desk, "risk", "stop")) || "由正式策略提供"}</b></div><div><span>日内风险</span><b>{firstText(path(desk, "risk", "status"), path(desk, "riskStatus")) || "待数据"}</b></div></div>
-          <p className="risk-note">本面板只展示风险状态，不会提交订单；买入当日的 A 股数量仍受 T+1 规则约束。</p>
+          <div className="auxiliary-block">
+            <div className="auxiliary-title"><span>金属联动</span><b className={commoditySummary.tone === "up" ? "positive" : commoditySummary.tone === "down" ? "negative" : ""}>{commoditySummary.label}</b></div>
+            <div className="compact-market-list">{crossMarkets.map(item => <div key={item.key}><span>{item.label}<small>{item.state === "missing" ? "未接入" : clockLabel(item.updatedAt)}</small></span><b>{formatPrice(item.price, item.price !== null && item.price < 10 ? 3 : 2)}</b><em className={item.change !== null && item.change >= 0 ? "positive" : "negative"}>{formatPercent(item.change)}</em></div>)}</div>
+            {!!sectorRows.length && <div className="sector-strip">{sectorRows.map((row, index) => { const change = firstNumber(row.changePercent, row.change_pct, row.change); return <span key={`${text(row.id)}-${index}`}>{firstText(row.label, row.name, row.symbol) || "相关市场"}<b className={change !== null && change >= 0 ? "positive" : "negative"}>{formatPercent(change)}</b></span>; })}</div>}
+          </div>
         </article>
       </section>
 
       <section className="panel signal-panel">
-        <header className="panel-header"><div><span className="panel-kicker">SIGNAL TIMELINE</span><h2>信号时间轴</h2></div><div className="signal-legend"><span><i className="dot formal" />正式</span><span><i className="dot v29" />V2.9</span><span><i className="dot v1" />V1</span></div></header>
-        {alerts.length ? <div className="signal-list">{alerts.slice(0, 16).map(alert => <div className={`signal-row ${alertClass(alert)}`} key={alert.id}><span className="signal-dot" /><time>{clockLabel(alert.marketTime || alert.createdAt)}</time><strong>{alertLabel(alert)}</strong><b>{firstText(alert.title, alert.side) || "观察"}</b><span>{firstText(alert.message, alert.direction) || "条件变化，等待下一次确认"}</span><em>{alert.price === null || alert.price === undefined ? "—" : formatPrice(alert.price)}</em></div>)}</div> : <div className="empty-state signal-empty">暂无正式或影子信号；面板会保留当天已出现的记录。</div>}
+        <header className="panel-header"><div><span className="panel-kicker">KEY CHANGES ONLY</span><h2>关键信号时间轴</h2></div><div className="signal-legend"><span><i className="dot formal" />正式</span><span><i className="dot v29" />V2.9</span><span><i className="dot v1" />V1</span></div></header>
+        {timelineAlerts.length ? <div className="signal-list">{timelineAlerts.slice(-12).map(alert => <div className={`signal-row ${alertClass(alert)}`} key={alert.id}><span className="signal-dot" /><time>{clockLabel(alert.marketTime || alert.createdAt)}</time><strong>{alertLabel(alert)}</strong><b>{conciseAlertTitle(alert)}</b><em>{alert.price === null || alert.price === undefined ? "—" : formatPrice(alert.price)}</em></div>)}</div> : <div className="empty-state signal-empty">暂无关键变化；重复提醒会自动合并，已出现的信号会常驻保存。</div>}
       </section>
 
-      <footer className="realtime-footer"><span>行情更新：{lastUpdate ? new Date(lastUpdate).toLocaleTimeString("zh-CN", { hour12: false }) : "等待中"}</span><span>源时间：{sourceTimestamp ? clockLabel(sourceTimestamp) : "—"}</span><span>价格线实时刷新约 1 秒；历史数据仍保持原始分钟粒度</span></footer>
+      <footer className="realtime-footer"><span>行情更新：{lastUpdate ? new Date(lastUpdate).toLocaleTimeString("zh-CN", { hour12: false }) : "等待中"}</span><span>源时间：{sourceTimestamp ? clockLabel(sourceTimestamp) : "—"}</span><span>研究更新：{researchSummary.updatedAt ? clockLabel(researchSummary.updatedAt) : "等待中"}</span><span>1分钟历史 + 约1秒实时观察；只读，不自动下单</span></footer>
     </main>
   );
 }
