@@ -654,6 +654,19 @@
 .chart-mode-switch button { min-height: 28px; padding: 4px 10px; color: var(--lab-muted); border: 0; border-right: 1px solid #2a3542; background: transparent; font: inherit; font-size: 10px; white-space: nowrap; cursor: pointer; }
 .chart-mode-switch button:last-child { border-right: 0; }
 .chart-mode-switch button.active { color: #f3d28b; background: rgba(198, 154, 75, .16); }
+.second-chart { margin-top: 8px; padding: 8px 10px 7px; border: 1px solid #243447; background: #060b11; }
+.second-chart-head { display: flex; align-items: center; gap: 12px; color: var(--lab-muted); font-size: 9px; }
+.second-chart-head span { display: inline-flex; align-items: center; gap: 6px; color: #8dc8ff; font-weight: 700; }
+.second-chart-head span i { width: 6px; height: 6px; border-radius: 50%; background: var(--lab-live); box-shadow: 0 0 8px rgba(91, 184, 255, .55); }
+.second-chart-head b { margin-left: auto; font-weight: 500; }
+.second-chart-head em { color: var(--lab-text); font-size: 12px; font-style: normal; font-weight: 750; }
+.second-chart svg { display: block; width: 100%; height: 84px; margin-top: 4px; }
+.second-chart svg line { stroke: #1d2b39; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.second-chart svg polyline { fill: none; stroke: var(--lab-live); stroke-width: 1.8; vector-effect: non-scaling-stroke; }
+.second-chart small { display: block; margin-top: 2px; font-size: 9px; }
+.second-chart small.moving { color: #72cda0; }
+.second-chart small.flat { color: #b99a62; }
+.second-chart-empty { min-height: 66px; display: grid; place-items: center; color: var(--lab-muted); font-size: 10px; }
 .signal-chart-legend {
   flex-wrap: wrap;
   gap: 11px;
@@ -829,6 +842,10 @@
   .chart-header-tools { width: 100%; justify-content: space-between; }
   .chart-mode-switch { width: 100%; }
   .chart-mode-switch button { min-height: 36px; flex: 1; }
+  .second-chart-head { flex-wrap: wrap; gap: 5px 10px; }
+  .second-chart-head b { width: 100%; margin-left: 0; }
+  .second-chart-head em { margin-left: auto; }
+  .second-chart svg { height: 72px; }
   .chart-wrap svg { height: 270px; }
   .chart-axis { padding: 7px 9px 9px; font-size: 8px; }
   .price-stats { grid-template-columns: repeat(3, 1fr); }
