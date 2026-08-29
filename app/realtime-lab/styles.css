@@ -651,7 +651,7 @@
 .chart-header { margin-bottom: 6px; }
 .chart-header-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .chart-mode-switch { display: inline-flex; overflow: hidden; border: 1px solid #2a3542; background: #080d13; }
-.chart-mode-switch button { min-height: 28px; padding: 4px 10px; color: var(--lab-muted); border: 0; border-right: 1px solid #2a3542; background: transparent; font: inherit; font-size: 10px; cursor: pointer; }
+.chart-mode-switch button { min-height: 28px; padding: 4px 10px; color: var(--lab-muted); border: 0; border-right: 1px solid #2a3542; background: transparent; font: inherit; font-size: 10px; white-space: nowrap; cursor: pointer; }
 .chart-mode-switch button:last-child { border-right: 0; }
 .chart-mode-switch button.active { color: #f3d28b; background: rgba(198, 154, 75, .16); }
 .signal-chart-legend {
