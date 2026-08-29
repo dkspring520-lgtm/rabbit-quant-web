@@ -20,7 +20,7 @@ type SignalAlert = {
   level?: string;
 };
 type AlertKind = "formal" | "v29" | "v1" | "replay-observation" | "replay-candidate" | "other";
-type ChartMode = "live" | "replay";
+type ChartMode = "minute" | "live" | "replay";
 type ConnectionState = "connecting" | "live" | "stale" | "offline" | "auth";
 type CrossMarketKey = "gold" | "silver" | "copper";
 type CrossMarketQuote = {
@@ -743,7 +743,7 @@ export default function RealtimeLabPage() {
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
   const [sourceTimestamp, setSourceTimestamp] = useState<string>("");
   const [liveTicks, setLiveTicks] = useState<LiveTick[]>([]);
-  const [chartMode, setChartMode] = useState<ChartMode>("live");
+  const [chartMode, setChartMode] = useState<ChartMode>("minute");
   const alertCursor = useRef(0);
   const marketInFlight = useRef(false);
 
@@ -913,8 +913,24 @@ export default function RealtimeLabPage() {
   const points = useMemo(() => {
     const historical = readMarketPoints(market);
     const ticks = liveTicks.map(item => ({ time: item.time, price: item.price, live: true, timestamp: item.timestamp }));
-    return [...historical, ...ticks].slice(-300);
+    return [...historical, ...ticks].slice(-500);
   }, [market, liveTicks]);
+  const minutePoints = useMemo(() => {
+    const minutes = new Map<string, PricePoint>();
+    points.forEach(point => {
+      const minute = point.time.match(/^\d{2}:\d{2}/)?.[0] || point.time;
+      const previous = minutes.get(minute);
+      minutes.set(minute, {
+        ...previous,
+        ...point,
+        time: minute,
+        live: false,
+        vwap: point.vwap ?? previous?.vwap,
+        volume: point.volume ?? previous?.volume,
+      });
+    });
+    return [...minutes.values()].slice(-242);
+  }, [points]);
   const direction = useMemo(() => directionFromData(market, desk, researchSummary), [market, desk, researchSummary]);
   const mode = useMemo(() => modeFromAlerts(alerts, desk, direction.tone), [alerts, desk, direction.tone]);
   const hasRealtimeDirectionConfidence = firstNumber(
@@ -929,7 +945,8 @@ export default function RealtimeLabPage() {
   const changePercent = firstNumber(quote.changePercent, quote.change_pct);
   const vwap = firstNumber(path(market, "quote", "vwap"), path(market, "vwap"), [...points].reverse().find(item => item.vwap !== null && item.vwap !== undefined)?.vwap);
   const isReplay = chartMode === "replay" && code === DEFAULT_CODE;
-  const chartPoints = isReplay ? ZIJIN_REPLAY_POINTS : points;
+  const isMinute = chartMode === "minute" || (chartMode === "replay" && code !== DEFAULT_CODE);
+  const chartPoints = isReplay ? ZIJIN_REPLAY_POINTS : isMinute ? minutePoints : points;
   const chartAlerts = isReplay ? ZIJIN_REPLAY_ALERTS : timelineAlerts;
   const chartVwap = isReplay ? ZIJIN_REPLAY_POINTS.at(-1)?.vwap ?? null : vwap;
   const sourceDelay = sourceAgeSeconds(sourceTimestamp);
@@ -1071,7 +1088,7 @@ export default function RealtimeLabPage() {
   const applyCode = () => {
     const next = codeInput.trim();
     if (/^\d{6}$/.test(next)) {
-      setChartMode("live");
+      setChartMode("minute");
       setCode(next);
       window.history.replaceState(null, "", `/realtime-lab?code=${next}`);
     }
@@ -1153,7 +1170,7 @@ export default function RealtimeLabPage() {
 
       <section className="lab-grid">
         <article className="panel chart-panel">
-          <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : "日内价格主图"}</h2></div><div className="chart-header-tools">{code === DEFAULT_CODE && <div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={!isReplay ? "active" : ""} aria-pressed={!isReplay} onClick={() => setChartMode("live")}>实时</button><button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button></div>}<div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />1分钟</span><span><i className="legend-live" />秒级</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
+          <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : isMinute ? "1分钟日内图" : "秒级实时叠加"}</h2></div><div className="chart-header-tools"><div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={isMinute ? "active" : ""} aria-pressed={isMinute} onClick={() => setChartMode("minute")}>1分钟</button><button type="button" className={chartMode === "live" ? "active" : ""} aria-pressed={chartMode === "live"} onClick={() => setChartMode("live")}>秒级叠加</button>{code === DEFAULT_CODE && <button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button>}</div><div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-band" />支撑/压力</span></> : isMinute ? <><span><i className="legend-price" />1分钟价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />1分钟</span><span><i className="legend-live" />秒级</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
           {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><small>回放数据，不是实时信号 · 完整242点回放压缩为6个观测点</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><small>信号从本地账本恢复，刷新后仍保留</small></div>}
           {chart ? <div className="chart-wrap"><svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={`${stockName}日内价格图`} preserveAspectRatio="none">
             <rect className="support-band" x={chart.padX} y={chart.support.y} width={chart.width - chart.padX * 2} height={chart.support.height} />
@@ -1207,7 +1224,7 @@ export default function RealtimeLabPage() {
         {chartAlerts.length ? <div className="signal-list">{chartAlerts.slice(-12).map(alert => <div className={`signal-row ${alertClass(alert)} ${alertSide(alert)}`} key={alert.id}><span className="signal-dot" /><time>{clockLabel(alert.marketTime || alert.createdAt)}</time><strong>{alertLabel(alert)}</strong><b title={alert.message}>{isReplay ? alert.message : conciseAlertTitle(alert)}</b><em>{alert.price === null || alert.price === undefined ? "—" : formatPrice(alert.price)}</em></div>)}</div> : <div className="empty-state signal-empty">暂无关键变化；重复提醒会自动合并，已出现的信号会常驻保存。</div>}
       </section>
 
-      <footer className="realtime-footer"><span>行情更新：{lastUpdate ? new Date(lastUpdate).toLocaleTimeString("zh-CN", { hour12: false }) : "等待中"}</span><span>源时间：{sourceTimestamp ? clockLabel(sourceTimestamp) : "—"}</span><span>研究更新：{researchSummary.updatedAt ? clockLabel(researchSummary.updatedAt) : "等待中"}</span><span>{isReplay ? `${REPLAY_DATE} 回放数据；只读，不是实时信号` : "1分钟历史 + 约1秒实时观察；只读，不自动下单"}</span></footer>
+      <footer className="realtime-footer"><span>行情更新：{lastUpdate ? new Date(lastUpdate).toLocaleTimeString("zh-CN", { hour12: false }) : "等待中"}</span><span>源时间：{sourceTimestamp ? clockLabel(sourceTimestamp) : "—"}</span><span>研究更新：{researchSummary.updatedAt ? clockLabel(researchSummary.updatedAt) : "等待中"}</span><span>{isReplay ? `${REPLAY_DATE} 回放数据；只读，不是实时信号` : isMinute ? "1分钟日内图；当前分钟持续更新；只读，不自动下单" : "1分钟历史 + 约1秒实时观察；只读，不自动下单"}</span></footer>
     </main>
   );
 }
