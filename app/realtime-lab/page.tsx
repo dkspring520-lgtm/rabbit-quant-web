@@ -60,6 +60,16 @@ type MediumStructureSummary = {
   confidence: number | null;
   note: string;
 };
+type BreakingNoticeTone = "positive" | "negative" | "warning" | "neutral";
+type BreakingNotice = {
+  id: string;
+  title: string;
+  source: string;
+  time: string;
+  level: string;
+  tone: BreakingNoticeTone;
+  rank: number;
+};
 
 const DEFAULT_CODE = "601899";
 const POLL_MS = 1_000;
@@ -158,6 +168,19 @@ function sourceAgeSeconds(value: unknown): number | null {
   return Math.max(0, currentClock - sourceClock);
 }
 
+function formatSourceAge(seconds: number | null): string {
+  if (seconds === null) return "等待源时间";
+  if (seconds < 1) return "刚刚";
+  if (seconds < 60) return `${Math.round(seconds)}秒前`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟前`;
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}小时${minutes ? `${minutes}分` : ""}前`;
+  }
+  return `${Math.floor(seconds / 86400)}天前`;
+}
+
 function percentValue(value: unknown): number | null {
   const parsed = number(value);
   if (parsed === null) return null;
@@ -231,6 +254,100 @@ function readResearchSummary(payload: AnyRecord): ResearchSummary {
     updatedAt: firstText(...roots.flatMap(root => [root.asOf, root.updatedAt, root.generatedAt, root.date])),
     horizons: [5, 15, 30].map(minutes => readHorizonSummary(payload, minutes as 5 | 15 | 30)),
   };
+}
+
+function noticeValues(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  const row = record(value);
+  const nested = [...array(row.items), ...array(row.list), ...array(row.rows), ...array(row.data)];
+  if (nested.length) return nested;
+  return text(value) || Object.keys(row).length ? [value] : [];
+}
+
+function readBreakingNotices(
+  researchPayload: AnyRecord,
+  marketContext: AnyRecord,
+  desk: AnyRecord,
+  market: AnyRecord,
+  connection: ConnectionState,
+  errorMessage: string,
+): BreakingNotice[] {
+  const roots = [
+    ...researchRoots(researchPayload),
+    marketContext,
+    record(marketContext.data),
+    desk,
+    record(desk.data),
+    record(desk.context),
+    record(desk.marketContext),
+    market,
+    record(market.data),
+  ].filter(root => Object.keys(root).length > 0);
+  const values = roots.flatMap(root => [
+    ...noticeValues(root.announcements),
+    ...noticeValues(root.announcement),
+    ...noticeValues(root.news),
+    ...noticeValues(root.events),
+    ...noticeValues(root.event),
+    ...noticeValues(root.headlines),
+    ...noticeValues(root.warnings),
+    ...noticeValues(root.riskAlerts),
+    ...noticeValues(path(root, "outlook", "news")),
+    ...noticeValues(path(root, "outlook", "events")),
+  ]);
+  const notices = values.map((value, index): BreakingNotice | null => {
+    const row = record(value);
+    const title = firstText(row.title, row.headline, row.message, row.summary, row.description, row.content, row.name, value)
+      .replace(/\s+/g, " ")
+      .slice(0, 160);
+    if (!title) return null;
+    const directionText = firstText(row.direction, row.sentiment, row.impact, row.tone, row.level, row.severity, title);
+    const signal = directionalSignal(directionText);
+    const warning = /警告|预警|风险|异常|紧急|重大|warning|critical/i.test(`${directionText} ${title}`);
+    const tone: BreakingNoticeTone = signal === -1 ? "negative" : signal === 1 ? "positive" : warning ? "warning" : "neutral";
+    const major = /重大|紧急|严重|停牌|处罚|事故|critical|high/i.test(`${firstText(row.level, row.severity, row.type)} ${title}`);
+    const level = major ? "重大" : warning ? "警告" : tone === "positive" || tone === "negative" ? "重要" : "关注";
+    const rank = major ? 4 : warning ? 3 : tone === "positive" || tone === "negative" ? 2 : 1;
+    return {
+      id: firstText(row.id, row.newsId, row.eventId) || `${title}-${index}`,
+      title,
+      source: firstText(row.source, row.provider, row.publisher, row.platform, row.exchange) || "公告监控",
+      time: clockLabel(firstText(row.publishedAt, row.publishTime, row.createdAt, row.updatedAt, row.time)),
+      level,
+      tone,
+      rank,
+    };
+  }).filter((item): item is BreakingNotice => item !== null);
+
+  if (connection !== "live") {
+    notices.push({
+      id: "realtime-data-warning",
+      title: errorMessage || "实时数据链路正在重连，当前判断可能滞后",
+      source: "数据链路",
+      time: clockLabel(new Date().toISOString()),
+      level: "数据警告",
+      tone: "warning",
+      rank: 5,
+    });
+  }
+
+  const unique = new Map<string, BreakingNotice>();
+  notices.forEach(item => {
+    const key = item.title.toLowerCase();
+    const previous = unique.get(key);
+    if (!previous || item.rank > previous.rank) unique.set(key, item);
+  });
+  const result = [...unique.values()].sort((a, b) => b.rank - a.rank || (timeValue(b.time) || 0) - (timeValue(a.time) || 0)).slice(0, 8);
+  if (result.length) return result;
+  return [{
+    id: "notice-monitor-standby",
+    title: "持续监控中，暂无重大利好、利空或风险事件",
+    source: "公告监控",
+    time: "实时",
+    level: "监控",
+    tone: "neutral",
+    rank: 0,
+  }];
 }
 
 function readContextRows(market: AnyRecord, desk: AnyRecord, marketContext: AnyRecord = {}): AnyRecord[] {
@@ -818,6 +935,16 @@ export default function RealtimeLabPage() {
   const crossMarkets = useMemo(() => readCrossMarkets(market, desk, marketContext, sourceTimestamp), [desk, market, marketContext, sourceTimestamp]);
   const openingOutlook = useMemo(() => readOpeningOutlook(crossMarkets, contextRows, dailyAssignment), [contextRows, crossMarkets, dailyAssignment]);
   const mediumStructure = useMemo(() => readMediumStructure(dailyAssignment, desk), [dailyAssignment, desk]);
+  const breakingNotices = useMemo(
+    () => readBreakingNotices(dailyAssignment, marketContext, desk, market, connection, errorMessage),
+    [connection, dailyAssignment, desk, errorMessage, market, marketContext],
+  );
+  const tickerTone = breakingNotices.some(item => item.tone === "warning")
+    ? "warning"
+    : breakingNotices.some(item => item.tone === "negative")
+      ? "negative"
+      : breakingNotices.some(item => item.tone === "positive") ? "positive" : "neutral";
+  const hasRealNotice = breakingNotices.some(item => item.id !== "notice-monitor-standby");
   const sectorRows = useMemo(() => contextRows.filter(row => commodityKey(firstText(row.label, row.name, row.symbol, row.code, row.id)) === null).slice(0, 3), [contextRows]);
   const commoditySummary = useMemo(() => {
     const copper = crossMarkets.find(item => item.key === "copper" && item.state !== "missing" && item.state !== "stale");
@@ -896,7 +1023,7 @@ export default function RealtimeLabPage() {
       markerLanes.set(laneKey, lane + 1);
       const desiredOffset = (side === "sell" ? -1 : 1) * (24 + Math.min(lane, 2) * 17);
       const labelOffset = Math.max(padY + 8 - cy, Math.min(height - padY - 8 - cy, desiredOffset));
-      return { alert, index, cx, cy, kind: alertClass(alert), labelOffset };
+      return { alert, index, cx, cy, kind: alertClass(alert), side, labelOffset };
     });
     const band = (item: { low: number; high: number }) => ({ y: y(item.high), height: Math.max(2, y(item.low) - y(item.high)), value: (item.low + item.high) / 2 });
     return { width, height, padX, padY, y, low, high, historyPolyline, livePolyline, vwapY, markerRows, support: band(support), resistance: band(resistance) };
@@ -910,7 +1037,8 @@ export default function RealtimeLabPage() {
     }
   };
 
-  const latencyLabel = connection === "live" ? (sourceDelay === null ? "已连接" : `${sourceDelay.toFixed(1)} 秒`) : connection === "auth" ? "需登录" : "重试中";
+  const sourceIsStale = sourceDelay !== null && sourceDelay > 60;
+  const latencyLabel = connection === "live" ? formatSourceAge(sourceDelay) : connection === "auth" ? "需登录" : "重试中";
 
   return (
     <main className="realtime-lab">
@@ -922,7 +1050,7 @@ export default function RealtimeLabPage() {
             <span>{code} · {today}</span>
           </div>
           <div className="decision-tools">
-            <div className="health-pill"><i className={connection === "live" ? "ok" : "bad"} />{connection === "live" ? "实时" : connection === "auth" ? "需登录" : "连接异常"}<small>{latencyLabel}</small></div>
+            <div className={`health-pill ${sourceIsStale ? "stale" : ""}`}><i className={connection === "live" ? sourceIsStale ? "stale" : "ok" : "bad"} />{connection === "live" ? sourceIsStale ? "行情未更新" : "实时" : connection === "auth" ? "需登录" : "连接异常"}<small>{latencyLabel}</small></div>
             <div className="symbol-picker compact">
               <label className="sr-only" htmlFor="realtime-code">监控标的</label>
               <div>
@@ -947,7 +1075,7 @@ export default function RealtimeLabPage() {
           <div className="decision-facts">
             <div className="fact-primary"><span>当前动作</span><b>{currentAction}</b></div>
             <div className="fact-risk"><span>失效条件</span><b>{invalidation}</b></div>
-            <div><span>数据状态</span><b>{connection === "live" ? `实时 · 数据年龄 ${latencyLabel}` : errorMessage || "正在重连"}</b></div>
+            <div><span>数据状态</span><b>{connection === "live" ? sourceIsStale ? `接口在线 · 最后行情 ${latencyLabel}` : `实时 · 最新行情 ${latencyLabel}` : errorMessage || "正在重连"}</b></div>
             <div className="fact-evidence" title={openingOutlook.reason}><span>盘前依据</span><b>{openingOutlook.reason}</b></div>
             <div className="fact-evidence" title={mediumStructure.note}><span>中期依据</span><b>{mediumStructure.note}</b></div>
           </div>
@@ -969,7 +1097,19 @@ export default function RealtimeLabPage() {
         </div>
       </section>
 
-      {errorMessage && <div className="notice" role="status"><span>ⓘ</span>{errorMessage}</div>}
+      <section className={`news-ticker ${tickerTone}`} aria-label="重大公告与风险警告">
+        <div className="ticker-label"><i /><span>公告警戒</span></div>
+        <div className="ticker-viewport" role="status" aria-live="polite">
+          <div className={`ticker-track ${breakingNotices.length > 1 ? "scrolling" : "static"}`}>
+            {[0, ...(breakingNotices.length > 1 ? [1] : [])].map(copy => <div className="ticker-group" aria-hidden={copy === 1 ? "true" : undefined} key={copy}>
+              {breakingNotices.map(item => <span className={`ticker-item ${item.tone}`} title={`${item.source} · ${item.title}`} key={`${copy}-${item.id}`}>
+                <b>{item.level}</b>{item.time !== "—" && <time>{item.time}</time>}<strong>{item.title}</strong><em>{item.source}</em>
+              </span>)}
+            </div>)}
+          </div>
+        </div>
+        <div className="ticker-count">{hasRealNotice ? `${breakingNotices.length} 条重要信息` : "实时监控"}</div>
+      </section>
 
       <section className="lab-grid">
         <article className="panel chart-panel">
@@ -987,7 +1127,7 @@ export default function RealtimeLabPage() {
             {chart.vwapY !== null && <><line className="vwap-line" x1={chart.padX} x2={chart.width - chart.padX} y1={chart.vwapY} y2={chart.vwapY} /><text className="vwap-label" x={chart.width - chart.padX - 5} y={chart.vwapY - 5} textAnchor="end">VWAP {formatPrice(vwap)}</text></>}
             {chart.historyPolyline && <polyline className="price-polyline" points={chart.historyPolyline} />}
             {chart.livePolyline && <polyline className="live-polyline" points={chart.livePolyline} />}
-            {chart.markerRows.map(marker => <g key={marker.alert.id} className={`chart-marker ${marker.kind}`} transform={`translate(${marker.cx},${marker.cy})`}>
+            {chart.markerRows.map(marker => <g key={marker.alert.id} className={`chart-marker ${marker.kind} ${marker.side}`} transform={`translate(${marker.cx},${marker.cy})`}>
               <line className="marker-stem" x1="0" x2="0" y1="0" y2={marker.labelOffset} />
               {marker.kind === "v1" ? <rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" /> : <circle r="7" />}
               <text y={marker.labelOffset + (marker.labelOffset > 0 ? 13 : -7)} textAnchor="middle">{markerLabel(marker.alert)}</text>
@@ -1023,7 +1163,7 @@ export default function RealtimeLabPage() {
 
       <section className="panel signal-panel">
         <header className="panel-header"><div><span className="panel-kicker">KEY CHANGES ONLY</span><h2>关键信号时间轴</h2></div><div className="signal-legend"><span><i className="dot formal" />正式</span><span><i className="dot v29" />V2.9</span><span><i className="dot v1" />V1</span></div></header>
-        {timelineAlerts.length ? <div className="signal-list">{timelineAlerts.slice(-12).map(alert => <div className={`signal-row ${alertClass(alert)}`} key={alert.id}><span className="signal-dot" /><time>{clockLabel(alert.marketTime || alert.createdAt)}</time><strong>{alertLabel(alert)}</strong><b>{conciseAlertTitle(alert)}</b><em>{alert.price === null || alert.price === undefined ? "—" : formatPrice(alert.price)}</em></div>)}</div> : <div className="empty-state signal-empty">暂无关键变化；重复提醒会自动合并，已出现的信号会常驻保存。</div>}
+        {timelineAlerts.length ? <div className="signal-list">{timelineAlerts.slice(-12).map(alert => <div className={`signal-row ${alertClass(alert)} ${alertSide(alert)}`} key={alert.id}><span className="signal-dot" /><time>{clockLabel(alert.marketTime || alert.createdAt)}</time><strong>{alertLabel(alert)}</strong><b>{conciseAlertTitle(alert)}</b><em>{alert.price === null || alert.price === undefined ? "—" : formatPrice(alert.price)}</em></div>)}</div> : <div className="empty-state signal-empty">暂无关键变化；重复提醒会自动合并，已出现的信号会常驻保存。</div>}
       </section>
 
       <footer className="realtime-footer"><span>行情更新：{lastUpdate ? new Date(lastUpdate).toLocaleTimeString("zh-CN", { hour12: false }) : "等待中"}</span><span>源时间：{sourceTimestamp ? clockLabel(sourceTimestamp) : "—"}</span><span>研究更新：{researchSummary.updatedAt ? clockLabel(researchSummary.updatedAt) : "等待中"}</span><span>1分钟历史 + 约1秒实时观察；只读，不自动下单</span></footer>
