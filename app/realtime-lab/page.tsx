@@ -931,6 +931,32 @@ export default function RealtimeLabPage() {
     });
     return [...minutes.values()].slice(-242);
   }, [points]);
+  const secondChart = useMemo(() => {
+    const samples = liveTicks.slice(-180);
+    if (!samples.length) return null;
+    const width = 920;
+    const height = 104;
+    const padX = 18;
+    const padY = 16;
+    const values = samples.map(item => item.price);
+    const dataLow = Math.min(...values);
+    const dataHigh = Math.max(...values);
+    const range = Math.max(dataHigh - dataLow, Math.max((values.at(-1) || 0) * 0.0003, 0.01));
+    const low = dataLow - range * 0.35;
+    const high = dataHigh + range * 0.35;
+    const x = (index: number) => padX + index / Math.max(samples.length - 1, 1) * (width - padX * 2);
+    const y = (value: number) => height - padY - (value - low) / (high - low) * (height - padY * 2);
+    return {
+      width,
+      height,
+      polyline: samples.map((item, index) => `${x(index).toFixed(1)},${y(item.price).toFixed(1)}`).join(" "),
+      count: samples.length,
+      start: samples[0]?.time || "—",
+      end: samples.at(-1)?.time || "—",
+      last: samples.at(-1)?.price ?? null,
+      moved: dataHigh > dataLow,
+    };
+  }, [liveTicks]);
   const direction = useMemo(() => directionFromData(market, desk, researchSummary), [market, desk, researchSummary]);
   const mode = useMemo(() => modeFromAlerts(alerts, desk, direction.tone), [alerts, desk, direction.tone]);
   const hasRealtimeDirectionConfidence = firstNumber(
@@ -1170,7 +1196,7 @@ export default function RealtimeLabPage() {
 
       <section className="lab-grid">
         <article className="panel chart-panel">
-          <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : isMinute ? "1分钟日内图" : "秒级实时叠加"}</h2></div><div className="chart-header-tools"><div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={isMinute ? "active" : ""} aria-pressed={isMinute} onClick={() => setChartMode("minute")}>1分钟</button><button type="button" className={chartMode === "live" ? "active" : ""} aria-pressed={chartMode === "live"} onClick={() => setChartMode("live")}>秒级叠加</button>{code === DEFAULT_CODE && <button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button>}</div><div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-band" />支撑/压力</span></> : isMinute ? <><span><i className="legend-price" />1分钟价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />1分钟</span><span><i className="legend-live" />秒级</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
+          <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : isMinute ? "1分钟日内图" : "秒级实时观察"}</h2></div><div className="chart-header-tools"><div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={isMinute ? "active" : ""} aria-pressed={isMinute} onClick={() => setChartMode("minute")}>1分钟</button><button type="button" className={chartMode === "live" ? "active" : ""} aria-pressed={chartMode === "live"} onClick={() => setChartMode("live")}>秒级观察</button>{code === DEFAULT_CODE && <button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button>}</div><div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-band" />支撑/压力</span></> : isMinute ? <><span><i className="legend-price" />1分钟价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />全天分钟线</span><span><i className="legend-live" />近3分钟放大</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
           {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><small>回放数据，不是实时信号 · 完整242点回放压缩为6个观测点</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><small>信号从本地账本恢复，刷新后仍保留</small></div>}
           {chart ? <div className="chart-wrap"><svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={`${stockName}日内价格图`} preserveAspectRatio="none">
             <rect className="support-band" x={chart.padX} y={chart.support.y} width={chart.width - chart.padX * 2} height={chart.support.height} />
@@ -1193,6 +1219,7 @@ export default function RealtimeLabPage() {
             <text className="price-axis-label" x={chart.width - 4} y={chart.y(chart.high) + 4} textAnchor="end">{formatPrice(chart.high)}</text>
             <text className="price-axis-label" x={chart.width - 4} y={chart.y(chart.low) - 4} textAnchor="end">{formatPrice(chart.low)}</text>
           </svg><div className="chart-axis"><span>09:30</span><span>10:30</span><span>11:30 / 13:00</span><span>14:00</span><span>15:00</span></div></div> : <div className="empty-state">等待行情数据…</div>}
+          {chartMode === "live" && <div className="second-chart"><div className="second-chart-head"><span><i />近3分钟秒级观察窗</span>{secondChart && <><b>{secondChart.count} 个采样 · {clockLabel(secondChart.start)}—{clockLabel(secondChart.end)}</b><em>{formatPrice(secondChart.last)}</em></>}</div>{secondChart ? <><svg viewBox={`0 0 ${secondChart.width} ${secondChart.height}`} role="img" aria-label="近3分钟秒级价格"><line x1="18" x2={secondChart.width - 18} y1={secondChart.height / 2} y2={secondChart.height / 2} /><polyline points={secondChart.polyline} /></svg><small className={secondChart.moved ? "moving" : "flat"}>{secondChart.moved ? "秒级报价已有变化" : "报价暂未变化；休市或上游尚未产生新报价"}</small></> : <div className="second-chart-empty">正在收集秒级报价…</div>}</div>}
           <div className="price-stats"><div><span>VWAP</span><b>{formatPrice(chartVwap)}</b></div><div><span>结构支撑</span><b>{chart ? formatPrice(chart.support.value) : "—"}</b></div><div><span>结构压力</span><b>{chart ? formatPrice(chart.resistance.value) : "—"}</b></div><div><span>日高</span><b>{formatPrice(isReplay && chart ? chart.dataHigh : firstNumber(quote.high))}</b></div><div><span>日低</span><b>{formatPrice(isReplay && chart ? chart.dataLow : firstNumber(quote.low))}</b></div></div>
         </article>
 
