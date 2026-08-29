@@ -649,6 +649,11 @@
 }
 
 .chart-header { margin-bottom: 6px; }
+.chart-header-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+.chart-mode-switch { display: inline-flex; overflow: hidden; border: 1px solid #2a3542; background: #080d13; }
+.chart-mode-switch button { min-height: 28px; padding: 4px 10px; color: var(--lab-muted); border: 0; border-right: 1px solid #2a3542; background: transparent; font: inherit; font-size: 10px; cursor: pointer; }
+.chart-mode-switch button:last-child { border-right: 0; }
+.chart-mode-switch button.active { color: #f3d28b; background: rgba(198, 154, 75, .16); }
 .signal-chart-legend {
   flex-wrap: wrap;
   gap: 11px;
@@ -663,6 +668,9 @@
 .shape.formal { border-radius: 50%; background: var(--lab-green); }
 .shape.v29 { border: 1px dashed var(--lab-yellow); border-radius: 50%; }
 .shape.v1 { border: 1px solid #c28cff; transform: rotate(45deg); }
+.shape.replay-observation { border: 2px solid #67a9e8; border-radius: 50%; }
+.shape.replay-candidate { border: 1px solid var(--lab-yellow); background: rgba(198, 154, 75, .18); transform: rotate(45deg); }
+.signal-chart-legend.replay small { color: #b99a62; }
 
 .legend-band {
   height: 7px !important;
@@ -683,6 +691,7 @@
 .price-axis-label { fill: #6f7c8d; }
 .price-polyline { stroke-width: 1.65; }
 .live-polyline { stroke-width: 1.9; stroke-dasharray: none; filter: none; }
+.vwap-polyline { fill: none; stroke: var(--lab-yellow); stroke-width: 1.45; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
 .chart-marker .marker-stem { stroke-width: 1.1; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
 .chart-marker.formal .marker-stem { stroke: var(--lab-green); }
 .chart-marker.v29 .marker-stem { stroke: var(--lab-yellow); }
@@ -690,12 +699,20 @@
 .chart-marker.formal circle { fill: var(--lab-green); stroke: #0f171d; }
 .chart-marker.v29 circle { fill: #151a22; stroke: var(--lab-yellow); stroke-dasharray: 2 2; }
 .chart-marker.v1 rect { fill: #151a22; stroke: #c28cff; }
+.chart-marker.replay-observation .marker-stem,
+.chart-marker.replay-candidate .marker-stem { stroke: #67a9e8; }
+.chart-marker.replay-observation circle { fill: #0b1118; stroke: #67a9e8; stroke-width: 2px; }
+.chart-marker.replay-candidate rect { fill: #332918; stroke: var(--lab-yellow); stroke-width: 1.5px; }
+.chart-marker.replay-observation text { fill: #91c6f7; }
+.chart-marker.replay-candidate text { fill: #e2bd75; }
 .chart-marker.buy .marker-stem { stroke: var(--lab-up); }
 .chart-marker.sell .marker-stem { stroke: var(--lab-down); }
 .chart-marker.formal.buy circle { fill: var(--lab-up); }
 .chart-marker.formal.sell circle { fill: var(--lab-down); }
 .chart-marker.v29.buy circle, .chart-marker.v1.buy rect { stroke: var(--lab-up); }
 .chart-marker.v29.sell circle, .chart-marker.v1.sell rect { stroke: var(--lab-down); }
+.chart-marker.replay-observation.buy circle, .chart-marker.replay-candidate.buy rect { stroke: var(--lab-up); }
+.chart-marker.replay-observation.sell circle, .chart-marker.replay-candidate.sell rect { stroke: var(--lab-down); }
 .chart-marker.buy text { fill: var(--lab-up); }
 .chart-marker.sell text { fill: var(--lab-down); }
 .chart-marker text { paint-order: stroke; stroke: #10151d; stroke-width: 3px; stroke-linejoin: round; }
@@ -758,6 +775,12 @@
 .signal-row.formal .signal-dot { background: var(--lab-green); }
 .signal-row.v29 .signal-dot { border: 1px dashed var(--lab-yellow); background: transparent; }
 .signal-row.v1 .signal-dot { border: 1px solid #c28cff; border-radius: 1px; background: transparent; transform: rotate(45deg); }
+.signal-row.replay-observation .signal-dot { border: 2px solid #67a9e8; background: transparent; }
+.signal-row.replay-candidate .signal-dot { border: 1px solid var(--lab-yellow); border-radius: 1px; background: rgba(198, 154, 75, .18); transform: rotate(45deg); }
+.signal-row.replay-observation strong { color: #91c6f7; }
+.signal-row.replay-candidate strong { color: #e2bd75; }
+.dot.replay-observation { border: 2px solid #67a9e8; background: transparent; }
+.dot.replay-candidate { border: 1px solid var(--lab-yellow); border-radius: 1px; background: rgba(198, 154, 75, .18); transform: rotate(45deg); }
 .signal-row.buy { border-left-color: var(--lab-up); }
 .signal-row.sell { border-left-color: var(--lab-down); }
 .signal-row.formal.buy .signal-dot { background: var(--lab-up); }
@@ -803,6 +826,9 @@
   .horizon-grid > div { padding: 7px; }
   .horizon-grid strong { font-size: 11px; }
   .signal-chart-legend small { width: 100%; margin-left: 0; }
+  .chart-header-tools { width: 100%; justify-content: space-between; }
+  .chart-mode-switch { width: 100%; }
+  .chart-mode-switch button { min-height: 36px; flex: 1; }
   .chart-wrap svg { height: 270px; }
   .chart-axis { padding: 7px 9px 9px; font-size: 8px; }
   .price-stats { grid-template-columns: repeat(3, 1fr); }
