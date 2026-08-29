@@ -20,10 +20,22 @@ type SignalAlert = {
   level?: string;
 };
 type ConnectionState = "connecting" | "live" | "stale" | "offline" | "auth";
+type CrossMarketKey = "gold" | "silver" | "copper";
+type CrossMarketQuote = {
+  key: CrossMarketKey;
+  label: string;
+  symbol: string;
+  price: number | null;
+  change: number | null;
+  source: string;
+  updatedAt: string;
+  state: "live" | "stale" | "partial" | "missing";
+};
 
 const DEFAULT_CODE = "601899";
 const POLL_MS = 1_000;
 const ALERT_POLL_MS = 5_000;
+const MARKET_CONTEXT_POLL_MS = 10_000;
 
 function record(value: unknown): AnyRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as AnyRecord : {};
@@ -112,6 +124,71 @@ function sourceAgeSeconds(value: unknown): number | null {
   const now = new Date();
   const currentClock = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
   return Math.max(0, currentClock - sourceClock);
+}
+
+function readContextRows(market: AnyRecord, desk: AnyRecord, marketContext: AnyRecord = {}): AnyRecord[] {
+  return [
+    ...array(marketContext.items),
+    ...array(path(desk, "context", "items")),
+    ...array(path(desk, "marketContext", "items")),
+    ...array(path(desk, "crossMarket", "items")),
+    ...array(path(desk, "futures")),
+    ...array(path(market, "context", "items")),
+  ].map(record);
+}
+
+function commodityKey(value: unknown): CrossMarketKey | null {
+  const normalized = text(value).toLowerCase();
+  if (/黄金|沪金|comex.?gold|\bgold\b|\bgc(?:\d|\b)|\bau(?:\d|\b)/i.test(normalized)) return "gold";
+  if (/白银|沪银|comex.?silver|\bsilver\b|\bsi(?:\d|\b)|\bag(?:\d|\b)/i.test(normalized)) return "silver";
+  if (/沪铜|伦铜|lme.?铜|comex.?copper|\bcopper\b|\bhg(?:\d|\b)|\bcu(?:\d|\b)/i.test(normalized)) return "copper";
+  return null;
+}
+
+function readCrossMarkets(market: AnyRecord, desk: AnyRecord, marketContext: AnyRecord, fallbackTime: string): CrossMarketQuote[] {
+  const definitions: Array<{ key: CrossMarketKey; label: string; symbol: string; aliases: string[] }> = [
+    { key: "gold", label: "黄金", symbol: "AU / GC", aliases: ["gold", "au", "gc"] },
+    { key: "silver", label: "白银", symbol: "AG / SI", aliases: ["silver", "ag", "si"] },
+    { key: "copper", label: "铜", symbol: "CU / HG", aliases: ["copper", "cu", "hg"] },
+  ];
+  const rows = readContextRows(market, desk, marketContext);
+  const objectRoots = [marketContext, record(path(desk, "context")), record(path(desk, "crossMarket")), record(path(desk, "futures")), record(path(market, "context"))];
+
+  return definitions.map(definition => {
+    const matched = rows
+      .filter(row => commodityKey(firstText(row.label, row.name, row.symbol, row.code, row.id)) === definition.key)
+      .sort((a, b) => {
+        const score = (row: AnyRecord) => {
+          const identity = firstText(row.label, row.name, row.symbol, row.code, row.id).toLowerCase();
+          return (/etf/.test(identity) ? -10 : 0) + (/连续|comex|lme|nf_|hf_/.test(identity) ? 8 : 0) + (text(row.group) === "related" ? 2 : 0);
+        };
+        return score(b) - score(a);
+      })[0];
+    const keyed = objectRoots.flatMap(root => definition.aliases.map(alias => record(root[alias]))).find(row => Object.keys(row).length > 0);
+    const row = matched || keyed || {};
+    const price = firstNumber(row.price, row.last, row.close, row.value, path(row, "quote", "price"));
+    const change = firstNumber(row.changePercent, row.change_pct, row.pct, row.change, path(row, "quote", "changePercent"));
+    const updatedAt = firstText(row.sourceTimestamp, row.updatedAt, row.fetchedAt, row.time, fallbackTime);
+    const age = sourceAgeSeconds(updatedAt);
+    const hasData = price !== null || change !== null;
+    const state: CrossMarketQuote["state"] = !hasData
+      ? "missing"
+      : age !== null && age > 180
+        ? "stale"
+        : price === null || change === null
+          ? "partial"
+          : "live";
+    return {
+      key: definition.key,
+      label: definition.label,
+      symbol: firstText(row.symbol, row.code, row.id) || definition.symbol,
+      price,
+      change,
+      source: firstText(row.provider, row.source, row.exchange) || (hasData ? "主站行情" : "等待行情源"),
+      updatedAt,
+      state,
+    };
+  });
 }
 
 function directionFromData(market: AnyRecord, desk: AnyRecord): { label: string; tone: "up" | "down" | "flat"; confidence: number | null; note: string } {
@@ -217,6 +294,7 @@ export default function RealtimeLabPage() {
   const [market, setMarket] = useState<AnyRecord>({});
   const [desk, setDesk] = useState<AnyRecord>({});
   const [l2, setL2] = useState<AnyRecord>({});
+  const [marketContext, setMarketContext] = useState<AnyRecord>({});
   const [alerts, setAlerts] = useState<SignalAlert[]>([]);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [errorMessage, setErrorMessage] = useState("");
@@ -240,6 +318,7 @@ export default function RealtimeLabPage() {
     setMarket({});
     setDesk({});
     setL2({});
+    setMarketContext({});
     setLiveTicks([]);
     setAlerts([]);
     alertCursor.current = 0;
@@ -305,6 +384,25 @@ export default function RealtimeLabPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const pullContext = async () => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 3_500);
+      try {
+        const payload = await getJson(`/api/market-context?code=${encodeURIComponent(code)}`, controller.signal);
+        if (!cancelled) setMarketContext(payload);
+      } catch {
+        // Keep the latest cross-market snapshot; every card exposes its own freshness state.
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    };
+    void pullContext();
+    const timer = window.setInterval(() => void pullContext(), MARKET_CONTEXT_POLL_MS);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [code]);
+
+  useEffect(() => {
+    let cancelled = false;
     const pullAlerts = async () => {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 2_500);
@@ -363,6 +461,23 @@ export default function RealtimeLabPage() {
   const sourceDelay = sourceAgeSeconds(sourceTimestamp);
   const stockName = firstText(quote.name, market.name, code === "601899" ? "紫金矿业" : "监控标的");
   const today = dateLabel(firstText(market.sampleDate, market.date, sourceTimestamp));
+  const contextRows = useMemo(() => readContextRows(market, desk, marketContext), [market, desk, marketContext]);
+  const crossMarkets = useMemo(() => readCrossMarkets(market, desk, marketContext, sourceTimestamp), [desk, market, marketContext, sourceTimestamp]);
+  const otherContextRows = useMemo(() => contextRows.filter(row => commodityKey(firstText(row.label, row.name, row.symbol, row.code, row.id)) === null), [contextRows]);
+  const commoditySummary = useMemo(() => {
+    const gate = record(marketContext.gate);
+    const gateLabel = firstText(gate.label);
+    if (gateLabel) {
+      const gateTone = /风险|偏弱|暂停|限制/.test(`${gateLabel} ${firstText(gate.action)}`) ? "down" : /偏强|积极|顺风/.test(gateLabel) ? "up" : "flat";
+      return { label: gateLabel, tone: gateTone, detail: firstText(gate.action) || "仅作紫金方向辅助" };
+    }
+    const changes = crossMarkets.map(item => item.change).filter((value): value is number => value !== null);
+    if (changes.length < 2) return { label: "联动证据不足", tone: "flat", detail: "至少需要两类金属行情" };
+    const average = changes.reduce((sum, value) => sum + value, 0) / changes.length;
+    if (average > 0.25) return { label: "金属共振偏强", tone: "up", detail: "仅作紫金方向辅助" };
+    if (average < -0.25) return { label: "金属共振偏弱", tone: "down", detail: "仅作紫金方向辅助" };
+    return { label: "金属表现分化", tone: "flat", detail: "暂不提供方向加分" };
+  }, [crossMarkets, marketContext]);
 
   const chart = useMemo(() => {
     if (!points.length) return null;
@@ -416,15 +531,18 @@ export default function RealtimeLabPage() {
     <main className="realtime-lab">
       <header className="realtime-header">
         <div>
-          <span className="eyebrow">LOCAL REAL-TIME OBSERVATION</span>
-          <h1>实时观察面板</h1>
-          <p>只读监控 · 不下单 · 与操盘台共用同一套行情和信号</p>
+          <span className="eyebrow">DOUBLE RABBIT · MARKET INTELLIGENCE</span>
+          <h1>专业实时观察台</h1>
+          <p>行情、订单流与跨市场联动 · 只读观察，不提交订单</p>
         </div>
-        <div className="symbol-picker">
-          <label htmlFor="realtime-code">股票代码</label>
-          <div>
-            <input id="realtime-code" value={codeInput} inputMode="numeric" maxLength={6} onChange={event => setCodeInput(event.target.value.replace(/\D/g, ""))} onKeyDown={event => { if (event.key === "Enter") applyCode(); }} />
-            <button type="button" onClick={applyCode}>查看</button>
+        <div className="header-actions">
+          <div className="terminal-badges"><span>股票 · 1S</span><span>期货 · 10S</span><span>READ ONLY</span></div>
+          <div className="symbol-picker">
+            <label htmlFor="realtime-code">监控标的</label>
+            <div>
+              <input id="realtime-code" value={codeInput} inputMode="numeric" maxLength={6} onChange={event => setCodeInput(event.target.value.replace(/\D/g, ""))} onKeyDown={event => { if (event.key === "Enter") applyCode(); }} />
+              <button type="button" onClick={applyCode}>切换</button>
+            </div>
           </div>
         </div>
       </header>
@@ -440,6 +558,26 @@ export default function RealtimeLabPage() {
       </section>
 
       {errorMessage && <div className="notice" role="status"><span>ⓘ</span>{errorMessage}</div>}
+
+      <section className="panel market-radar" aria-label="金银铜跨市场监控">
+        <header className="panel-header radar-header">
+          <div><span className="panel-kicker">CROSS-MARKET RADAR</span><h2>金银铜联动</h2></div>
+          <div className={`radar-verdict ${commoditySummary.tone}`}><i /><span><strong>{commoditySummary.label}</strong><small>{commoditySummary.detail}</small></span></div>
+        </header>
+        <div className="futures-grid">
+          {crossMarkets.map(item => {
+            const tone = item.change === null ? "flat" : item.change >= 0 ? "up" : "down";
+            const width = item.change === null ? 0 : Math.min(100, Math.max(8, Math.abs(item.change) * 28));
+            return <article className={`future-card ${tone}`} key={item.key}>
+              <div className="future-card-head"><span><b>{item.label}</b><small>{item.symbol}</small></span><em className={`feed-state ${item.state}`}>{item.state === "live" ? "实时" : item.state === "stale" ? "最近行情" : item.state === "partial" ? "部分数据" : "未接入"}</em></div>
+              <div className="future-quote"><strong>{formatPrice(item.price, item.price !== null && item.price < 10 ? 3 : 2)}</strong><b className={tone === "up" ? "positive" : tone === "down" ? "negative" : ""}>{formatPercent(item.change)}</b></div>
+              <div className="future-move"><i style={{ width: `${width}%` }} /></div>
+              <footer><span>{item.source}</span><time>{item.updatedAt ? clockLabel(item.updatedAt) : "等待数据"}</time></footer>
+            </article>;
+          })}
+        </div>
+        <p className="radar-note">跨市场行情仅用于解释商品共振与预期差，不会单独触发正T或反T。</p>
+      </section>
 
       <section className="lab-grid">
         <article className="panel chart-panel">
@@ -464,9 +602,9 @@ export default function RealtimeLabPage() {
         </article>
 
         <article className="panel context-panel">
-          <header className="panel-header"><div><span className="panel-kicker">MARKET CONTEXT</span><h2>市场环境</h2></div><span className="mini-status muted">只读</span></header>
-          <div className="context-list">{array(path(desk, "context", "items")).slice(0, 8).map((item, index) => { const row = record(item); const change = firstNumber(row.changePercent, row.change_pct, row.change); return <div key={`${text(row.id)}-${index}`}><span>{firstText(row.label, row.name, row.symbol) || "相关市场"}</span><b className={change !== null && change >= 0 ? "positive" : "negative"}>{formatPercent(change)}</b><small>{firstText(row.sourceTimestamp, row.provider) || "—"}</small></div>; })}</div>
-          {!array(path(desk, "context", "items")).length && <div className="empty-inline">等待大盘、板块和黄金/铜数据</div>}
+          <header className="panel-header"><div><span className="panel-kicker">INDEX / SECTOR CONTEXT</span><h2>指数与板块</h2></div><span className="mini-status muted">辅助层</span></header>
+          <div className="context-list">{otherContextRows.slice(0, 8).map((row, index) => { const change = firstNumber(row.changePercent, row.change_pct, row.change); return <div key={`${text(row.id)}-${index}`}><span>{firstText(row.label, row.name, row.symbol) || "相关市场"}</span><b className={change !== null && change >= 0 ? "positive" : "negative"}>{formatPercent(change)}</b><small>{firstText(row.sourceTimestamp, row.provider) || "—"}</small></div>; })}</div>
+          {!otherContextRows.length && <div className="empty-inline">等待指数与有色板块数据</div>}
         </article>
 
         <article className="panel risk-panel">
