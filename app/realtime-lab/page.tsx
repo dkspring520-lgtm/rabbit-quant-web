@@ -56,6 +56,17 @@ type OpeningOutlook = {
   evidenceTotal: number;
   reason: string;
 };
+type OpeningFocusSummary = {
+  gapPercent: number | null;
+  gapLabel: string;
+  riskLabel: string;
+  riskTone: "extreme" | "high" | "caution" | "neutral";
+  action: string;
+  actionTone: "sell" | "buy" | "wait";
+  probability: number | null;
+  probabilityLabel: string;
+  reason: string;
+};
 type MediumStructureSummary = {
   label: string;
   tone: OutlookTone;
@@ -530,6 +541,115 @@ function readOpeningOutlook(crossMarkets: CrossMarketQuote[], contextRows: AnyRe
   if (newsSignal === null) missing.push("消息");
   const reason = `${ranked.slice(0, 2).map(factor => factor.detail).join("；")}${missing.length ? `；${missing.join("、")}待接入` : ""}`;
   return { label, tone, score, evidenceCount: factors.length, evidenceTotal, reason };
+}
+
+function readOpeningFocusSummary(
+  quote: AnyRecord,
+  market: AnyRecord,
+  desk: AnyRecord,
+  researchPayload: AnyRecord,
+  openingOutlook: OpeningOutlook,
+  direction: { tone: OutlookTone },
+  l2: { pressure: number | null; ofi: number | null },
+  turningPoints: { ready: boolean; topProbability: number | null; bottomProbability: number | null; topStage: number; bottomStage: number },
+): OpeningFocusSummary {
+  const roots = researchRoots(researchPayload);
+  const directGap = firstNumber(
+    quote.openingGapPercent,
+    quote.openGapPercent,
+    quote.gapPercent,
+    path(market, "quote", "openingGapPercent"),
+    path(market, "quote", "openGapPercent"),
+    path(market, "opening", "gapPercent"),
+    path(desk, "preopen", "openingGapPercent"),
+    path(desk, "preopen", "gapPercent"),
+    ...roots.flatMap(root => [root.openingGapPercent, root.openGapPercent, root.gapPercent, path(root, "opening", "gapPercent"), path(root, "preopen", "gapPercent")]),
+  );
+  const openPrice = firstNumber(
+    quote.open,
+    quote.openPrice,
+    quote.openingPrice,
+    path(market, "quote", "open"),
+    path(market, "quote", "openPrice"),
+    path(market, "opening", "price"),
+  );
+  const previousClose = firstNumber(
+    quote.preClose,
+    quote.prevClose,
+    quote.previousClose,
+    quote.yesterdayClose,
+    path(market, "quote", "preClose"),
+    path(market, "quote", "previousClose"),
+    path(market, "previousClose"),
+  );
+  const calculatedGap = openPrice !== null && previousClose !== null && previousClose !== 0
+    ? (openPrice - previousClose) / Math.abs(previousClose) * 100
+    : null;
+  // Explicit percentage fields are normally already in percent units; tiny ratios (e.g. 0.05) are normalized.
+  const gapPercent = calculatedGap ?? (directGap === null ? null : Math.abs(directGap) <= 0.2 ? directGap * 100 : directGap);
+  const gapLabel = gapPercent === null ? "开盘幅度待数据" : `开盘 ${gapPercent >= 0 ? "+" : ""}${gapPercent.toFixed(2)}%`;
+  const absoluteGap = gapPercent === null ? 0 : Math.abs(gapPercent);
+  const positiveGap = gapPercent !== null && gapPercent > 0;
+  const negativeGap = gapPercent !== null && gapPercent < 0;
+  const riskTone: OpeningFocusSummary["riskTone"] = absoluteGap >= 4 ? "extreme" : absoluteGap >= 2.5 ? "high" : absoluteGap >= 1.2 ? "caution" : "neutral";
+  const riskLabel = gapPercent === null
+    ? "风险待确认"
+    : positiveGap && absoluteGap >= 4
+      ? "高开极高风险"
+      : positiveGap && absoluteGap >= 2.5
+        ? "高开高风险"
+        : negativeGap && absoluteGap >= 4
+          ? "低开极端波动"
+          : negativeGap && absoluteGap >= 2.5
+            ? "低开高波动"
+            : absoluteGap >= 1.2 ? "开盘波动偏高" : "常规开盘";
+  const sellFlow = (l2.pressure !== null && l2.pressure < 45) || (l2.ofi !== null && l2.ofi < -0.05);
+  const buyFlow = (l2.pressure !== null && l2.pressure > 55) || (l2.ofi !== null && l2.ofi > 0.05);
+  const reverseT = positiveGap && absoluteGap >= 2.5;
+  const positiveT = negativeGap && absoluteGap >= 2.5;
+  const extremeHighOpen = positiveGap && absoluteGap >= 4;
+  const actionTone: OpeningFocusSummary["actionTone"] = reverseT || (direction.tone === "down" && sellFlow) ? "sell" : positiveT || (direction.tone === "up" && buyFlow) ? "buy" : "wait";
+  const action = reverseT
+    ? (extremeHighOpen ? "反T优先" : "反T观察")
+    : positiveT
+      ? (buyFlow || direction.tone === "up" ? "正T优先" : "正T观察")
+      : direction.tone === "down" ? "等待反弹" : direction.tone === "up" ? "等待回踩" : "观望";
+  const explicitProbability = percentValue(positiveGap
+    ? firstNumber(
+      path(desk, "decision", "reverseTProbability"),
+      path(desk, "decision", "sellProbability"),
+      path(desk, "preopen", "reverseTProbability"),
+      path(desk, "preopen", "topProbability"),
+      ...roots.flatMap(root => [root.reverseTProbability, root.openingReverseTProbability, root.sellProbability, path(root, "opening", "reverseTProbability"), path(root, "preopen", "reverseTProbability")]),
+    )
+    : negativeGap
+      ? firstNumber(
+        path(desk, "decision", "positiveTProbability"),
+        path(desk, "decision", "buyProbability"),
+        path(desk, "preopen", "positiveTProbability"),
+        path(desk, "preopen", "bottomProbability"),
+        ...roots.flatMap(root => [root.positiveTProbability, root.openingPositiveTProbability, root.buyProbability, path(root, "opening", "positiveTProbability"), path(root, "preopen", "positiveTProbability")]),
+      )
+      : null);
+  const shadowProbability = reverseT && turningPoints.ready && turningPoints.topStage > 0
+    ? turningPoints.topProbability
+    : positiveT && turningPoints.ready && turningPoints.bottomStage > 0
+      ? turningPoints.bottomProbability
+      : null;
+  const probability = explicitProbability ?? shadowProbability;
+  const probabilityDirection = positiveGap ? "反T" : negativeGap ? "正T" : "方向";
+  const probabilityLabel = probability !== null
+    ? `${probabilityDirection}${explicitProbability !== null ? "概率" : "影子概率"}`
+    : `${probabilityDirection}概率待校准`;
+  const gapReason = gapPercent === null
+    ? "等待开盘价与昨收"
+    : extremeHighOpen
+      ? `${gapLabel}，高开过热`
+      : absoluteGap >= 2.5 ? `${gapLabel}，先看回吐而不是追价` : `${gapLabel}，幅度尚未达到极端阈值`;
+  const flowReason = sellFlow ? "卖盘/OFI偏空" : buyFlow ? "买盘/OFI偏多" : "盘口尚未确认";
+  const contextReason = openingOutlook.tone === "down" ? "外部环境偏弱" : openingOutlook.tone === "up" ? "外部环境偏强" : "外部环境分化";
+  const reason = [gapReason, extremeHighOpen ? flowReason : contextReason].join(" · ");
+  return { gapPercent, gapLabel, riskLabel, riskTone, action, actionTone, probability, probabilityLabel, reason };
 }
 
 function readMediumStructure(payload: AnyRecord, desk: AnyRecord): MediumStructureSummary {
@@ -1148,6 +1268,9 @@ export default function RealtimeLabPage() {
   const currentPrice = firstNumber(quote.price, quote.last);
   const changePercent = firstNumber(quote.changePercent, quote.change_pct);
   const vwap = firstNumber(path(market, "quote", "vwap"), path(market, "vwap"), [...points].reverse().find(item => item.vwap !== null && item.vwap !== undefined)?.vwap);
+  const contextRows = useMemo(() => readContextRows(market, desk, marketContext), [market, desk, marketContext]);
+  const crossMarkets = useMemo(() => readCrossMarkets(market, desk, marketContext, sourceTimestamp), [desk, market, marketContext, sourceTimestamp]);
+  const openingOutlook = useMemo(() => readOpeningOutlook(crossMarkets, contextRows, dailyAssignment), [contextRows, crossMarkets, dailyAssignment]);
   const isReplay = chartMode === "replay" && code === DEFAULT_CODE;
   const isMinute = chartMode === "minute" || (chartMode === "replay" && code !== DEFAULT_CODE);
   const chartPoints = isReplay ? ZIJIN_REPLAY_POINTS : isMinute ? minutePoints : points;
@@ -1156,6 +1279,10 @@ export default function RealtimeLabPage() {
   const turningPoints = useMemo(
     () => estimateTurningPoints(chartPoints, chartPoints.at(-1)?.price ?? currentPrice, chartVwap, l2Metrics),
     [chartPoints, chartVwap, currentPrice, l2Metrics],
+  );
+  const openingFocus = useMemo(
+    () => readOpeningFocusSummary(quote, market, desk, dailyAssignment, openingOutlook, direction, l2Metrics, turningPoints),
+    [dailyAssignment, desk, direction, l2Metrics, market, openingOutlook, quote, turningPoints],
   );
   const sourceDelay = sourceAgeSeconds(sourceTimestamp);
   const stockName = firstText(quote.name, market.name, code === "601899" ? "紫金矿业" : "监控标的");
@@ -1194,9 +1321,6 @@ export default function RealtimeLabPage() {
       : buyPressure !== null && buyPressure >= 60 && (l2Metrics.ofi ?? 0) > 0 && activeOrderLabel === "主动买单占优"
         ? "承接正在增强"
         : "多空仍在拉锯";
-  const contextRows = useMemo(() => readContextRows(market, desk, marketContext), [market, desk, marketContext]);
-  const crossMarkets = useMemo(() => readCrossMarkets(market, desk, marketContext, sourceTimestamp), [desk, market, marketContext, sourceTimestamp]);
-  const openingOutlook = useMemo(() => readOpeningOutlook(crossMarkets, contextRows, dailyAssignment), [contextRows, crossMarkets, dailyAssignment]);
   const mediumStructure = useMemo(() => readMediumStructure(dailyAssignment, desk), [dailyAssignment, desk]);
   const breakingNotices = useMemo(
     () => readBreakingNotices(dailyAssignment, marketContext, desk, market, connection, errorMessage),
@@ -1325,7 +1449,26 @@ export default function RealtimeLabPage() {
             </div>
           </div>
         </div>
-        <div className="decision-layout">
+        <div className={`opening-focus-card ${openingFocus.riskTone} ${openingFocus.actionTone}`} aria-label="开盘核心结论">
+          <div className="opening-focus-lead">
+            <span>开盘核心结论</span>
+            <strong>{openingFocus.gapLabel}</strong>
+            <b>{openingFocus.riskLabel}</b>
+          </div>
+          <div className="opening-focus-action">
+            <span>建议动作</span>
+            <strong>{openingFocus.action}</strong>
+            <small>{openingFocus.reason}</small>
+          </div>
+          <div className="opening-focus-probability">
+            <span>{openingFocus.probabilityLabel}</span>
+            <strong>{openingFocus.probability === null ? "待校准" : `${openingFocus.probability}%`}</strong>
+            <small>{openingFocus.probability === null ? "暂无经过校准的历史样本" : openingFocus.probabilityLabel.includes("影子") ? "影子估计，仅作观察" : "来自已校准研究结果"}</small>
+          </div>
+        </div>
+        <details className="decision-details">
+          <summary>展开方向、依据与未来窗口</summary>
+          <div className="decision-layout">
           <div className="outlook-stack" aria-label="多周期方向判断">
             <div className={`outlook-item ${openingOutlook.tone}`}>
               <span>次日开盘</span><strong>{openingOutlook.label}</strong><small>{openingOutlook.score === null ? `证据 ${openingOutlook.evidenceCount}/${openingOutlook.evidenceTotal}` : `证据 ${openingOutlook.evidenceCount}/${openingOutlook.evidenceTotal} · 方向强度 ${Math.round(Math.abs(openingOutlook.score) * 100)}%`}</small>
@@ -1359,7 +1502,8 @@ export default function RealtimeLabPage() {
               })}
             </div>
           </div>
-        </div>
+          </div>
+        </details>
       </section>
 
       <section className={`news-ticker ${tickerTone}`} aria-label="重大公告与风险警告">
