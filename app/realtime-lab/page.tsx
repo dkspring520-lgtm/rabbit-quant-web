@@ -658,6 +658,119 @@ function alertSide(alert: SignalAlert): "buy" | "sell" | "neutral" {
   return "neutral";
 }
 
+type TurningPointEstimate = {
+  ready: boolean;
+  topProbability: number | null;
+  bottomProbability: number | null;
+  topStage: number;
+  bottomStage: number;
+  topStatus: string;
+  bottomStatus: string;
+  topReason: string;
+  bottomReason: string;
+};
+
+function estimateTurningPoints(
+  points: PricePoint[],
+  currentPrice: number | null,
+  vwap: number | null,
+  l2: ReturnType<typeof extractL2> | null,
+): TurningPointEstimate {
+  const empty = (): TurningPointEstimate => ({
+    ready: false,
+    topProbability: null,
+    bottomProbability: null,
+    topStage: 0,
+    bottomStage: 0,
+    topStatus: "待数据",
+    bottomStatus: "待数据",
+    topReason: "需要至少 6 个已发生价格样本",
+    bottomReason: "需要至少 6 个已发生价格样本",
+  });
+  if (currentPrice === null) return empty();
+  const historicalPrices = points.map(item => item.price).filter(value => Number.isFinite(value)).slice(-36);
+  const prices = historicalPrices.at(-1) === currentPrice ? historicalPrices : [...historicalPrices, currentPrice];
+  if (prices.length < 6) return empty();
+
+  const recent = prices.slice(-6);
+  const prior = prices.slice(-12, -6);
+  const change = (values: number[]) => values.length < 2 ? 0 : (values.at(-1)! - values[0]) / Math.max(Math.abs(values[0]), 0.01);
+  const recentChange = change(recent);
+  const priorChange = change(prior);
+  const recentHigh = Math.max(...prices);
+  const recentLow = Math.min(...prices);
+  const range = Math.max(recentHigh - recentLow, Math.abs(currentPrice) * 0.0005, 0.01);
+  const position = clamp((currentPrice - recentLow) / range, 0, 1);
+  const vwapGap = vwap === null ? 0 : (currentPrice - vwap) / Math.max(Math.abs(vwap), 0.01);
+
+  const sellPressure = l2?.pressure === null || l2?.pressure === undefined ? null : 100 - l2.pressure;
+  const topFlowVotes = [
+    sellPressure !== null && sellPressure >= 58,
+    l2?.ofi !== null && l2?.ofi !== undefined && l2.ofi < -0.05,
+    l2?.activeBuy !== null && l2?.activeBuy !== undefined && l2?.activeSell !== null && l2?.activeSell !== undefined && l2.activeSell > l2.activeBuy * 1.08,
+  ].filter(Boolean).length;
+  const bottomFlowVotes = [
+    l2?.pressure !== null && l2?.pressure !== undefined && l2.pressure >= 58,
+    l2?.ofi !== null && l2?.ofi !== undefined && l2.ofi > 0.05,
+    l2?.activeBuy !== null && l2?.activeBuy !== undefined && l2?.activeSell !== null && l2?.activeSell !== undefined && l2.activeBuy > l2.activeSell * 1.08,
+  ].filter(Boolean).length;
+
+  // These inputs are all current-or-past observations; no future high/low is used.
+  const topStructure = position >= 0.72 && (recentChange <= priorChange + 0.0002 || vwapGap >= 0.004);
+  const bottomStructure = position <= 0.28 && (recentChange >= priorChange - 0.0002 || vwapGap <= -0.004);
+  const topPersistence = (position >= 0.55 && recentChange < priorChange - 0.001) || (position >= 0.72 && recentChange <= 0);
+  const bottomPersistence = (position <= 0.45 && recentChange > priorChange + 0.001) || (position <= 0.28 && recentChange >= 0);
+  const topEvidence = [topStructure, topFlowVotes > 0, topPersistence].filter(Boolean).length;
+  const bottomEvidence = [bottomStructure, bottomFlowVotes > 0, bottomPersistence].filter(Boolean).length;
+  const topIntensity = clamp(((position - 0.65) / 0.35 + Math.max(0, vwapGap) / 0.01 + topFlowVotes / 3) / 3, 0, 1);
+  const bottomIntensity = clamp(((0.35 - position) / 0.35 + Math.max(0, -vwapGap) / 0.01 + bottomFlowVotes / 3) / 3, 0, 1);
+  const probability = (evidence: number, intensity: number) => {
+    if (!evidence) return 50;
+    const base = evidence === 1 ? 62 : evidence === 2 ? 80 : 90;
+    return Math.round(clamp(base + intensity * 7, 50, 95));
+  };
+  const topProbability = probability(topEvidence, topIntensity);
+  const bottomProbability = probability(bottomEvidence, bottomIntensity);
+  const stage = (value: number) => value >= 90 ? 3 : value >= 80 ? 2 : value >= 60 ? 1 : 0;
+  const status = (value: number) => value >= 90 ? "强确认" : value >= 80 ? "候选" : value >= 60 ? "预警" : "观察";
+  const topReasons = [
+    topStructure ? "接近近期高位，涨势放缓" : "",
+    topFlowVotes ? "卖压/OFI转弱" : "",
+    topPersistence ? "上冲持续性减弱" : "",
+  ].filter(Boolean);
+  const bottomReasons = [
+    bottomStructure ? "接近近期低位，跌势放缓" : "",
+    bottomFlowVotes ? "买压/OFI转强" : "",
+    bottomPersistence ? "下探持续性减弱" : "",
+  ].filter(Boolean);
+  return {
+    ready: true,
+    topProbability,
+    bottomProbability,
+    topStage: stage(topProbability),
+    bottomStage: stage(bottomProbability),
+    topStatus: status(topProbability),
+    bottomStatus: status(bottomProbability),
+    topReason: topReasons.join(" · ") || "暂无明确顶部证据",
+    bottomReason: bottomReasons.join(" · ") || "暂无明确底部证据",
+  };
+}
+
+function alertActionLabel(alert: SignalAlert): string {
+  const side = alertSide(alert);
+  return side === "buy" ? "买入" : side === "sell" ? "卖出" : "观察";
+}
+
+function conciseAlertReason(alert: SignalAlert): string {
+  const raw = firstText(alert.message, alert.title);
+  if (!raw) return "暂无补充说明";
+  return raw
+    .replace(/\s+/g, " ")
+    .replace(/[；;]/g, " · ")
+    .replace(/\s*·\s*/g, " · ")
+    .slice(0, 84);
+}
+
 function conciseAlertTitle(alert: SignalAlert): string {
   const value = `${alert.title || ""} ${alert.message || ""} ${alert.direction || ""}`;
   if (/买盘.*增强|承接.*增强/.test(value)) return "买盘增强，暂缓卖出";
@@ -1040,6 +1153,10 @@ export default function RealtimeLabPage() {
   const chartPoints = isReplay ? ZIJIN_REPLAY_POINTS : isMinute ? minutePoints : points;
   const chartAlerts = isReplay ? ZIJIN_REPLAY_ALERTS : timelineAlerts;
   const chartVwap = isReplay ? ZIJIN_REPLAY_POINTS.at(-1)?.vwap ?? null : vwap;
+  const turningPoints = useMemo(
+    () => estimateTurningPoints(chartPoints, chartPoints.at(-1)?.price ?? currentPrice, chartVwap, l2Metrics),
+    [chartPoints, chartVwap, currentPrice, l2Metrics],
+  );
   const sourceDelay = sourceAgeSeconds(sourceTimestamp);
   const stockName = firstText(quote.name, market.name, code === "601899" ? "紫金矿业" : "监控标的");
   const today = dateLabel(firstText(market.sampleDate, market.date, sourceTimestamp));
@@ -1303,6 +1420,25 @@ export default function RealtimeLabPage() {
           </div>
           <div className={`flow-verdict ${flowConclusion.includes("增强") ? "up" : flowConclusion.includes("不足") ? "down" : "flat"}`}><i /><div><span>盘口结论</span><strong>{flowConclusion}</strong><small>盘口只负责确认或否决，不单独触发交易</small></div></div>
 
+          <div className="turning-point-panel" aria-label="顶底概率影子层">
+            <div className="turning-point-head"><div><span>顶底观察</span><small>只用当前及历史数据 · 影子层</small></div><em>三次确认</em></div>
+            <div className="turning-point-grid">
+              <div className="turning-point-card top">
+                <div className="turning-point-card-head"><span>顶部风险</span><b>{turningPoints.topStatus}</b></div>
+                <strong className="turning-point-probability">{turningPoints.topProbability === null ? "—" : `${turningPoints.topProbability}%`}</strong>
+                <div className="turning-point-meter" aria-label={`顶部确认进度 ${turningPoints.topStage}/3`}><i className={turningPoints.topStage >= 1 ? "active" : ""} /><i className={turningPoints.topStage >= 2 ? "active" : ""} /><i className={turningPoints.topStage >= 3 ? "active" : ""} /></div>
+                <small className="turning-point-reason" title={turningPoints.topReason}>{turningPoints.topReason}</small>
+              </div>
+              <div className="turning-point-card bottom">
+                <div className="turning-point-card-head"><span>底部机会</span><b>{turningPoints.bottomStatus}</b></div>
+                <strong className="turning-point-probability">{turningPoints.bottomProbability === null ? "—" : `${turningPoints.bottomProbability}%`}</strong>
+                <div className="turning-point-meter" aria-label={`底部确认进度 ${turningPoints.bottomStage}/3`}><i className={turningPoints.bottomStage >= 1 ? "active" : ""} /><i className={turningPoints.bottomStage >= 2 ? "active" : ""} /><i className={turningPoints.bottomStage >= 3 ? "active" : ""} /></div>
+                <small className="turning-point-reason" title={turningPoints.bottomReason}>{turningPoints.bottomReason}</small>
+              </div>
+            </div>
+            <small className="turning-point-note">60%预警 · 80%候选 · 90%强确认；未经过历史L2校准，不直接触发交易</small>
+          </div>
+
           <div className="auxiliary-block">
             <div className="auxiliary-title"><span>金属联动</span><b className={commoditySummary.tone === "up" ? "positive" : commoditySummary.tone === "down" ? "negative" : ""}>{commoditySummary.label}</b></div>
             <div className="compact-market-list">{crossMarkets.map(item => <div key={item.key}><span>{item.label}<small>{item.state === "missing" ? "未接入" : clockLabel(item.updatedAt)}</small></span><b>{formatPrice(item.price, item.price !== null && item.price < 10 ? 3 : 2)}</b><em className={item.change !== null && item.change >= 0 ? "positive" : "negative"}>{formatPercent(item.change)}</em></div>)}</div>
@@ -1313,7 +1449,20 @@ export default function RealtimeLabPage() {
 
       <section className="panel signal-panel">
         <header className="panel-header"><div><span className="panel-kicker">KEY CHANGES ONLY</span><h2>{isReplay ? "昨日观测点复盘" : "关键信号时间轴"}</h2></div>{isReplay ? <div className="signal-legend"><span><i className="dot replay-observation" />观察</span><span><i className="dot replay-candidate" />候选</span></div> : <div className="signal-legend"><span><i className="dot formal" />正式</span><span><i className="dot v29" />V2.9</span><span><i className="dot v1" />V1</span></div>}</header>
-        {chartAlerts.length ? <div className="signal-list">{chartAlerts.slice(-12).map(alert => <div className={`signal-row ${alertClass(alert)} ${alertSide(alert)}`} key={alert.id}><span className="signal-dot" /><time>{clockLabel(alert.marketTime || alert.createdAt)}</time><strong>{alertLabel(alert)}</strong><b title={alert.message}>{isReplay ? alert.message : conciseAlertTitle(alert)}</b><em>{alert.price === null || alert.price === undefined ? "—" : formatPrice(alert.price)}</em></div>)}</div> : <div className="empty-state signal-empty">暂无关键变化；重复提醒会自动合并，已出现的信号会常驻保存。</div>}
+        {chartAlerts.length ? <div className="signal-list">{chartAlerts.slice(-12).map(alert => {
+          const sourceTitle = isReplay ? firstText(alert.title, conciseAlertTitle(alert)) : conciseAlertTitle(alert);
+          const rawMessage = firstText(alert.message, alert.title);
+          return <div className={`signal-row ${alertClass(alert)} ${alertSide(alert)}`} key={alert.id}>
+            <span className="signal-dot" aria-hidden="true" />
+            <time>{clockLabel(alert.marketTime || alert.createdAt)}</time>
+            <strong>{alertLabel(alert)}</strong>
+            <div className="signal-copy">
+              <div className="signal-title"><b title={rawMessage}>{sourceTitle}</b><span>{alertActionLabel(alert)}</span></div>
+              <small title={rawMessage}>{conciseAlertReason(alert)}</small>
+            </div>
+            <em>{alert.price === null || alert.price === undefined ? "—" : formatPrice(alert.price)}</em>
+          </div>;
+        })}</div> : <div className="empty-state signal-empty">暂无关键变化；重复提醒会自动合并，已出现的信号会常驻保存。</div>}
       </section>
 
       <footer className="realtime-footer"><span>行情更新：{lastUpdate ? new Date(lastUpdate).toLocaleTimeString("zh-CN", { hour12: false }) : "等待中"}</span><span>源时间：{sourceTimestamp ? clockLabel(sourceTimestamp) : "—"}</span><span>研究更新：{researchSummary.updatedAt ? clockLabel(researchSummary.updatedAt) : "等待中"}</span><span>{isReplay ? `${REPLAY_DATE} 回放数据；只读，不是实时信号` : isMinute ? "1分钟日内图；当前分钟持续更新；只读，不自动下单" : "1分钟历史 + 约1秒实时观察；只读，不自动下单"}</span></footer>

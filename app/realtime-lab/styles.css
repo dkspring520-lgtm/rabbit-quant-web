@@ -754,6 +754,37 @@
 .flow-verdict small { display: block; }
 .flow-verdict strong { margin-top: 3px; font-size: 14px; }
 
+.turning-point-panel {
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid #1f2833;
+  background: #090e14;
+}
+.turning-point-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.turning-point-head span,
+.turning-point-head small { display: block; }
+.turning-point-head span { color: var(--lab-text); font-size: 11px; font-weight: 700; }
+.turning-point-head small { margin-top: 3px; color: var(--lab-muted); font-size: 8px; }
+.turning-point-head em { color: var(--lab-yellow); font-size: 9px; font-style: normal; }
+.turning-point-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.turning-point-card { min-width: 0; padding: 7px; border: 1px solid #202a35; background: #0d131a; }
+.turning-point-card.top { border-color: rgba(198, 154, 75, .36); }
+.turning-point-card.bottom { border-color: rgba(47, 182, 126, .32); }
+.turning-point-card-head { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+.turning-point-card-head span { color: var(--lab-muted); font-size: 9px; }
+.turning-point-card-head b { color: #b8c2cf; font-size: 9px; font-weight: 600; }
+.turning-point-card.top .turning-point-card-head b { color: #e2bd75; }
+.turning-point-card.bottom .turning-point-card-head b { color: #72cda0; }
+.turning-point-probability { display: block; margin-top: 4px; font-size: 20px; line-height: 1; }
+.turning-point-card.top .turning-point-probability { color: #e2bd75; }
+.turning-point-card.bottom .turning-point-probability { color: #72cda0; }
+.turning-point-meter { display: flex; gap: 3px; margin-top: 7px; }
+.turning-point-meter i { display: block; height: 3px; flex: 1; background: #27313d; }
+.turning-point-card.top .turning-point-meter i.active { background: var(--lab-yellow); }
+.turning-point-card.bottom .turning-point-meter i.active { background: #47c68a; }
+.turning-point-reason { display: -webkit-box; min-height: 24px; margin-top: 6px; overflow: hidden; color: #78869a; font-size: 8px; line-height: 1.45; text-overflow: ellipsis; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.turning-point-note { display: block; margin-top: 7px; color: #697587; font-size: 8px; line-height: 1.35; }
+
 .auxiliary-block {
   margin-top: auto;
   padding-top: 10px;
@@ -774,10 +805,11 @@
 .signal-list { position: relative; grid-template-columns: 1fr; gap: 0; border: 1px solid rgba(140, 152, 168, .12); }
 .signal-row {
   display: grid;
-  grid-template-columns: 9px 44px 38px minmax(0, 1fr) auto;
-  gap: 7px;
-  min-height: 32px;
-  padding: 6px 8px;
+  grid-template-columns: 9px 52px 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 7px 9px;
   border-width: 0 0 1px 2px;
   border-radius: 0;
   background: #0a0f15;
@@ -802,7 +834,15 @@
 .signal-row.v29.sell .signal-dot, .signal-row.v1.sell .signal-dot { border-color: var(--lab-down); }
 .signal-row time,
 .signal-row strong { width: auto; }
-.signal-row b { min-width: 0; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.signal-row time { font-variant-numeric: tabular-nums; }
+.signal-copy { min-width: 0; display: grid; gap: 2px; }
+.signal-title { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.signal-title b { min-width: 0; overflow: hidden; font-size: 11px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.signal-title span { flex: 0 0 auto; padding: 2px 4px; border: 1px solid rgba(140, 152, 168, .3); border-radius: 2px; color: var(--lab-muted); font-size: 9px; line-height: 1; }
+.signal-row.buy .signal-title span { border-color: rgba(70, 167, 88, .45); color: var(--lab-up); }
+.signal-row.sell .signal-title span { border-color: rgba(229, 77, 46, .45); color: var(--lab-down); }
+.signal-copy small { display: block; min-width: 0; overflow: hidden; color: #78869a; font-size: 9px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.signal-row em { min-width: 46px; font-variant-numeric: tabular-nums; text-align: right; }
 
 @media (max-width: 1180px) {
   .decision-layout { grid-template-columns: minmax(230px, .9fr) minmax(250px, 1.25fr) minmax(105px, .45fr); }
@@ -851,7 +891,15 @@
   .price-stats { grid-template-columns: repeat(3, 1fr); }
   .price-stats div:nth-child(n+4) { display: none; }
   .signal-list { grid-template-columns: 1fr; }
-  .signal-row { grid-template-columns: 8px 42px 36px minmax(0, 1fr) auto; }
+  .signal-row { grid-template-columns: 8px 40px 34px minmax(0, 1fr) auto; gap: 5px; min-height: 44px; padding: 7px 6px; }
+  .signal-title { gap: 4px; }
+  .signal-title b { font-size: 10px; }
+  .signal-title span { padding: 2px 3px; font-size: 8px; }
+  .signal-copy small { font-size: 8px; }
+  .signal-row em { min-width: 38px; font-size: 9px; }
+  .turning-point-panel { padding: 8px; }
+  .turning-point-card { padding: 6px; }
+  .turning-point-probability { font-size: 18px; }
   .news-ticker { grid-template-columns: auto minmax(0, 1fr); }
   .ticker-label { padding: 0 9px; }
   .ticker-label span { font-size: 0; }
