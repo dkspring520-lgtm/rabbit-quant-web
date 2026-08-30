@@ -778,11 +778,28 @@
   opacity:1
 }
 
-/* Secondary research and explanations remain in “全部证据”, not in the one-second scan view. */
-:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .stock-agent-card,
-:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .signal-funnel-note,
-:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .risk-box,
-:root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .opening-causal{display:none}
+/* Secondary research and explanations remain in “研究详情”, not in the one-second scan view. */
+.minimal-ui .decision-zone.focus-mode .zijin-strategy-control,
+.minimal-ui .decision-zone.focus-mode .signal-funnel,
+.minimal-ui .decision-zone.focus-mode .signal-funnel-note,
+.minimal-ui .decision-zone.focus-mode .research-fold,
+.minimal-ui .decision-zone.focus-mode .stock-agent-card,
+.minimal-ui .decision-zone.focus-mode .stock-state,
+.minimal-ui .decision-zone.focus-mode .web4-monitor,
+.minimal-ui .decision-zone.focus-mode .context-radar,
+.minimal-ui .decision-zone.focus-mode .opening-causal,
+.minimal-ui .decision-zone.focus-mode .closure-guard,
+.minimal-ui .decision-zone.focus-mode .risk-box,
+.minimal-ui .decision-zone.focus-mode .decision-label,
+.minimal-ui .decision-zone.focus-mode>.t-calculator,
+.minimal-ui .decision-zone.focus-mode .rabbit-decision-header{display:none!important}
+.minimal-ui .decision-zone.focus-mode .decision-audit-details,
+.minimal-ui .decision-zone.focus-mode .zijin-risk-plan,
+.minimal-ui .decision-zone.focus-mode .zijin-price-plan-note,
+.minimal-ui .decision-zone.focus-mode .zijin-price-plan>p{display:none}
+.minimal-ui .decision-zone.focus-mode .decision-primary-card header em,
+.minimal-ui .decision-zone.focus-mode .decision-engine-badge,
+.minimal-ui .decision-zone.focus-mode .global-decision-live-signal small{display:none}
 
 /* Decision-first layout: signal -> price zones -> position -> tools. */
 .decision-primary-card,.decision-position-card{
@@ -791,6 +808,30 @@
   background:var(--surface);
   padding:12px
 }
+.decision-execution-card{
+  border:1px solid rgba(240,189,79,.28);
+  border-radius:9px;
+  background:linear-gradient(135deg,rgba(240,189,79,.065),rgba(255,255,255,.018));
+  padding:11px 12px
+}
+.decision-execution-card header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.decision-execution-card header span{color:var(--text);font-size:10px;font-weight:750}
+.decision-execution-card header em{color:var(--amber);font-size:9px;font-style:normal}
+.decision-execution-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.decision-execution-grid p{min-width:0;margin:0;padding:8px;border:1px solid var(--line-soft);border-radius:6px;background:rgba(0,0,0,.12);display:grid;gap:5px}
+.decision-execution-grid span{color:var(--dim);font-size:8px}
+.decision-execution-grid b{overflow:hidden;color:var(--text);font:750 14px/1 var(--font-geist-mono),monospace;text-overflow:ellipsis;white-space:nowrap}
+.decision-execution-grid b small{color:var(--amber);font-size:8px}
+.decision-execution-card.positive .decision-execution-grid p:first-child b{color:var(--coral)}
+.decision-execution-card.reverse .decision-execution-grid p:first-child b{color:var(--teal)}
+.decision-execution-grid p.risk b{color:var(--coral)}
+.decision-market-pulse{display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:7px;border-top:1px solid var(--line-soft);overflow-x:auto;scrollbar-width:none}
+.decision-market-pulse::-webkit-scrollbar{display:none}
+.decision-market-pulse>span{flex:0 0 auto;color:var(--dim);font-size:8px}
+.decision-market-pulse i{flex:0 0 auto;padding:3px 5px;border:1px solid var(--line-soft);border-radius:999px;color:var(--muted);font-size:7px;font-style:normal;white-space:nowrap}
+.decision-market-pulse i b{font:700 7px var(--font-geist-mono),monospace}
+.decision-market-pulse i.up b{color:var(--coral)}
+.decision-market-pulse i.down b{color:var(--teal)}
 .decision-primary-card header,.decision-position-card header{
   display:flex;
   align-items:center;
@@ -924,6 +965,11 @@
   cursor:pointer
 }
 .quick-sim-order-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.quick-sim-order-presets{display:flex;align-items:center;gap:5px}
+.quick-sim-order-presets>span{margin-right:auto;color:var(--dim);font-size:8px}
+.quick-sim-order-presets button{min-height:24px;padding:0 7px;border:1px solid var(--line-soft);border-radius:5px;background:transparent;color:var(--muted);font-size:8px;cursor:pointer}
+.quick-sim-order-presets button:hover{border-color:rgba(240,189,79,.42);color:var(--amber)}
+.quick-sim-order-presets button:disabled{opacity:.35;cursor:not-allowed}
 .quick-sim-order-actions button{
   height:31px;
   border:1px solid;
@@ -961,14 +1007,17 @@
   background:linear-gradient(135deg,rgba(242,184,75,.045),var(--desk-panel-raised));
   border-color:rgba(242,184,75,.24)
 }
-:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan{order:2}
+:root:not([data-theme="light"]) .minimal-ui .decision-execution-card{order:2}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan{order:3}
 :root:not([data-theme="light"]) .minimal-ui .decision-position-card{
-  order:3;
+  order:4;
   background:var(--desk-panel-raised);
   border-color:rgba(154,164,161,.18)
 }
-:root:not([data-theme="light"]) .minimal-ui .alert-channel{order:4}
-:root:not([data-theme="light"]) .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.zijin-price-plan):not(.zijin-strategy-control):not(.decision-position-card):not(.alert-channel){order:10}
+:root:not([data-theme="light"]) .minimal-ui .trade-alert-stack{order:5}
+:root:not([data-theme="light"]) .minimal-ui .primary-action{order:6}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel{order:7}
+:root:not([data-theme="light"]) .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.decision-execution-card):not(.zijin-price-plan):not(.zijin-strategy-control):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel){order:10}
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .auto-direction,
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode>.t-calculator,
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode>.decision-label{display:none}
@@ -1126,10 +1175,13 @@
     padding:7px 10px 6px
   }
   .minimal-ui .decision-primary-card{order:1}
-  .minimal-ui .zijin-price-plan{order:2}
-  .minimal-ui .decision-position-card{order:3}
-  .minimal-ui .alert-channel{order:4}
-  .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.zijin-price-plan):not(.decision-position-card):not(.alert-channel){order:10}
+  .minimal-ui .decision-execution-card{order:2}
+  .minimal-ui .zijin-price-plan{order:3}
+  .minimal-ui .decision-position-card{order:4}
+  .minimal-ui .trade-alert-stack{order:5}
+  .minimal-ui .primary-action{order:6}
+  .minimal-ui .alert-channel{order:7}
+  .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.decision-execution-card):not(.zijin-price-plan):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel){order:10}
   .minimal-ui .rabbit-decision-header{display:none}
   .minimal-ui .decision-zone.focus-mode .decision-position-card{
     padding:5px 0 7px;
@@ -1450,16 +1502,14 @@
   }
 }
 
-/* Decision rail: keep alert controls inside the focus panel and make Zijin experiment modes discoverable. */
+/* Decision rail: keep alert controls inside the focus panel. */
 @media(min-width:761px){
   .minimal-ui .decision-zone.focus-mode .zijin-strategy-control{
-    order:3;
-    margin:0;
-    width:100%
+    display:none!important
   }
   .minimal-ui .decision-zone.focus-mode .decision-position-card{order:4}
   .minimal-ui .decision-zone.focus-mode .alert-channel{
-    order:5;
+    order:7;
     display:grid;
     grid-template-columns:auto minmax(0,1fr);
     align-items:center;
