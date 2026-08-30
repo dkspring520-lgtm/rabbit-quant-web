@@ -797,7 +797,6 @@
 .minimal-ui .decision-zone.focus-mode .zijin-risk-plan,
 .minimal-ui .decision-zone.focus-mode .zijin-price-plan-note,
 .minimal-ui .decision-zone.focus-mode .zijin-price-plan>p{display:none}
-.minimal-ui .decision-zone.focus-mode .decision-primary-card header em,
 .minimal-ui .decision-zone.focus-mode .decision-engine-badge,
 .minimal-ui .decision-zone.focus-mode .global-decision-live-signal small{display:none}
 
@@ -808,22 +807,13 @@
   background:var(--surface);
   padding:12px
 }
-.decision-execution-card{
-  border:1px solid rgba(240,189,79,.28);
-  border-radius:9px;
-  background:linear-gradient(135deg,rgba(240,189,79,.065),rgba(255,255,255,.018));
-  padding:11px 12px
-}
-.decision-execution-card header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
-.decision-execution-card header span{color:var(--text);font-size:10px;font-weight:750}
-.decision-execution-card header em{color:var(--amber);font-size:9px;font-style:normal}
-.decision-execution-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.decision-execution-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0 0 9px}
 .decision-execution-grid p{min-width:0;margin:0;padding:8px;border:1px solid var(--line-soft);border-radius:6px;background:rgba(0,0,0,.12);display:grid;gap:5px}
 .decision-execution-grid span{color:var(--dim);font-size:8px}
 .decision-execution-grid b{overflow:hidden;color:var(--text);font:750 14px/1 var(--font-geist-mono),monospace;text-overflow:ellipsis;white-space:nowrap}
 .decision-execution-grid b small{color:var(--amber);font-size:8px}
-.decision-execution-card.positive .decision-execution-grid p:first-child b{color:var(--coral)}
-.decision-execution-card.reverse .decision-execution-grid p:first-child b{color:var(--teal)}
+.decision-primary-card.positive .decision-execution-grid p:first-child b{color:#ff4d4f}
+.decision-primary-card.reverse .decision-execution-grid p:first-child b{color:#00b578}
 .decision-execution-grid p.risk b{color:var(--coral)}
 .decision-market-pulse{display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:7px;border-top:1px solid var(--line-soft);overflow-x:auto;scrollbar-width:none}
 .decision-market-pulse::-webkit-scrollbar{display:none}
@@ -968,7 +958,8 @@
 .quick-sim-order-presets{display:flex;align-items:center;gap:5px}
 .quick-sim-order-presets>span{margin-right:auto;color:var(--dim);font-size:8px}
 .quick-sim-order-presets button{min-height:24px;padding:0 7px;border:1px solid var(--line-soft);border-radius:5px;background:transparent;color:var(--muted);font-size:8px;cursor:pointer}
-.quick-sim-order-presets button:hover{border-color:rgba(240,189,79,.42);color:var(--amber)}
+.quick-sim-order-presets button:hover{border-color:rgba(59,130,246,.58);color:#8ab4ff}
+.quick-sim-order-presets button.active{border-color:#3b82f6;background:rgba(59,130,246,.16);color:#fff;box-shadow:inset 0 0 0 1px rgba(59,130,246,.16)}
 .quick-sim-order-presets button:disabled{opacity:.35;cursor:not-allowed}
 .quick-sim-order-actions button{
   height:31px;
@@ -979,8 +970,8 @@
   cursor:pointer
 }
 .quick-sim-order-actions button b{margin-right:5px;font-family:var(--font-geist-mono),monospace}
-.quick-sim-order-actions .buy{border-color:rgba(239,92,92,.48);background:rgba(239,92,92,.11);color:#ef6b6b}
-.quick-sim-order-actions .sell{border-color:rgba(53,183,121,.48);background:rgba(53,183,121,.1);color:#46c887}
+.quick-sim-order-actions .buy{border-color:#ff4d4f;background:#e63946;color:#fff}
+.quick-sim-order-actions .sell{border-color:#00b578;background:#10b981;color:#fff}
 .quick-sim-order-actions button:hover{filter:brightness(1.12)}
 .quick-sim-order-actions button:disabled{opacity:.38;cursor:not-allowed;filter:none}
 .quick-sim-order-status{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;font-size:8px}
@@ -1007,17 +998,16 @@
   background:linear-gradient(135deg,rgba(242,184,75,.045),var(--desk-panel-raised));
   border-color:rgba(242,184,75,.24)
 }
-:root:not([data-theme="light"]) .minimal-ui .decision-execution-card{order:2}
-:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan{order:3}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan{order:2}
 :root:not([data-theme="light"]) .minimal-ui .decision-position-card{
-  order:4;
+  order:3;
   background:var(--desk-panel-raised);
   border-color:rgba(154,164,161,.18)
 }
-:root:not([data-theme="light"]) .minimal-ui .trade-alert-stack{order:5}
-:root:not([data-theme="light"]) .minimal-ui .primary-action{order:6}
-:root:not([data-theme="light"]) .minimal-ui .alert-channel{order:7}
-:root:not([data-theme="light"]) .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.decision-execution-card):not(.zijin-price-plan):not(.zijin-strategy-control):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel){order:10}
+:root:not([data-theme="light"]) .minimal-ui .trade-alert-stack{order:4}
+:root:not([data-theme="light"]) .minimal-ui .primary-action{order:5}
+:root:not([data-theme="light"]) .minimal-ui .alert-channel{order:6}
+:root:not([data-theme="light"]) .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.zijin-price-plan):not(.zijin-strategy-control):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel){order:10}
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode .auto-direction,
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode>.t-calculator,
 :root:not([data-theme="light"]) .minimal-ui .decision-zone.focus-mode>.decision-label{display:none}
@@ -1175,13 +1165,12 @@
     padding:7px 10px 6px
   }
   .minimal-ui .decision-primary-card{order:1}
-  .minimal-ui .decision-execution-card{order:2}
-  .minimal-ui .zijin-price-plan{order:3}
-  .minimal-ui .decision-position-card{order:4}
-  .minimal-ui .trade-alert-stack{order:5}
-  .minimal-ui .primary-action{order:6}
-  .minimal-ui .alert-channel{order:7}
-  .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.decision-execution-card):not(.zijin-price-plan):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel){order:10}
+  .minimal-ui .zijin-price-plan{order:2}
+  .minimal-ui .decision-position-card{order:3}
+  .minimal-ui .trade-alert-stack{order:4}
+  .minimal-ui .primary-action{order:5}
+  .minimal-ui .alert-channel{order:6}
+  .minimal-ui .decision-zone>*:not(.decision-zone-tabs):not(.decision-primary-card):not(.zijin-price-plan):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel){order:10}
   .minimal-ui .rabbit-decision-header{display:none}
   .minimal-ui .decision-zone.focus-mode .decision-position-card{
     padding:5px 0 7px;
@@ -2589,19 +2578,21 @@
   fill:var(--text);
 }
 
-/* Black-gold cockpit refinement: hierarchy and contrast only. */
+/* Low-fatigue cockpit palette: neutral dark surfaces and color-as-signal accents. */
 :root:not([data-theme="light"]) .app-shell.minimal-ui{
-  --bg:#090a09;
-  --surface:#101110;
-  --surface-2:#151614;
-  --line:#2a2a24;
-  --line-soft:#1d1e1a;
-  --amber:#e5b85b;
-  --muted:#92958d;
-  --dim:#686b63;
+  --bg:#121214;
+  --surface:#1e1e24;
+  --surface-2:#25252b;
+  --line:#35353d;
+  --line-soft:#2b2b32;
+  --amber:#f5a623;
+  --muted:#8c8c9a;
+  --dim:#686875;
+  --desk-panel:#18181c;
+  --desk-panel-raised:#1e1e24;
 }
 :root:not([data-theme="light"]) .app-shell.minimal-ui .decision-zone{
-  background:linear-gradient(180deg,#0c0d0c,#090a09);
+  background:linear-gradient(180deg,#18181c,#121214);
 }
 :root:not([data-theme="light"]) .app-shell.minimal-ui .decision-primary-card.global-decision-card{
   padding:12px;
@@ -2632,10 +2623,48 @@
   background:rgba(14,15,14,.94);
 }
 :root:not([data-theme="light"]) .app-shell.minimal-ui .decision-zone-tabs button.active{
-  border-color:rgba(229,184,91,.48);
-  background:rgba(229,184,91,.08);
-  color:var(--amber);
+  border-color:rgba(59,130,246,.58);
+  background:rgba(59,130,246,.12);
+  color:#8ab4ff;
 }
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-card.ready.positive{
+  border-color:rgba(255,77,79,.5);
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-card.ready.reverse{
+  border-color:rgba(0,181,120,.5);
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-card.ready.positive .global-decision-status,
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-card.ready.positive>.decision-primary-meta strong{
+  color:#ff4d4f;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-card.ready.reverse .global-decision-status,
+:root:not([data-theme="light"]) .app-shell.minimal-ui .global-decision-card.ready.reverse>.decision-primary-meta strong{
+  color:#00b578;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .interactive-intraday-chart .price-path{
+  stroke:#fff;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .interactive-intraday-chart .vwap-path{
+  stroke:#ffc53d;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .bias-alert-band.up{fill:rgba(0,181,120,.055)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .bias-alert-band.down{fill:rgba(255,77,79,.055)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .main-force-buy{fill:#ff4d4f;opacity:.72}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .main-force-sell{fill:#00b578;opacity:.7}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .main-force-track-summary.buy b,
+:root:not([data-theme="light"]) .app-shell.minimal-ui .main-force-track-foot span:first-child{color:#ff6b6d}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .main-force-track-summary.sell b,
+:root:not([data-theme="light"]) .app-shell.minimal-ui .main-force-track-foot span:nth-child(2){color:#20c98b}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .decision-market-pulse i.up b{color:#ff4d4f}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .decision-market-pulse i.down b{color:#00b578}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .live-signal-marker.buy circle{fill:#ff4d4f}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .live-signal-marker.buy rect{fill:rgba(255,77,79,.14);stroke:#ff4d4f}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .live-signal-marker.buy text{fill:#ff6b6d}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .live-signal-marker.buy .marker-label-leader{stroke:rgba(255,77,79,.72)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .live-signal-marker.sell circle{fill:#00b578}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .live-signal-marker.sell rect{fill:rgba(0,181,120,.14);stroke:#00b578}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .live-signal-marker.sell text{fill:#20c98b}
+:root:not([data-theme="light"]) .app-shell.minimal-ui .live-signal-marker.sell .marker-label-leader{stroke:rgba(0,181,120,.72)}
 /* Scoped off the shadow tiers so they can keep their own 7.5px step. */
 :root:not([data-theme="light"]) .app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label:not(.v29-shadow-marker):not(.v1-context-marker)>text{
   font-size:7px;

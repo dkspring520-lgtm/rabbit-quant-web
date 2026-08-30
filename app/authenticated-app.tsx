@@ -3212,6 +3212,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const cycleLimitReached=completedCycleCount>=maxDailyTrades;
   const configuredCycleQuantity=activePosition.tradeShares??Math.floor(Math.min(Math.max(0,effectiveLivePosition.openingShares),effectiveLivePosition.sellable)/3/100)*100;
   const cycleQuantity=cycleLimitReached?0:Math.floor(Math.min(configuredCycleQuantity,Math.max(0,effectiveLivePosition.openingShares),effectiveLivePosition.sellable)/100)*100;
+  const quickOrderCapacity=decisionActionDirection==="反T"
+    ?Math.floor(Math.max(0,effectiveLivePosition.sellable)/100)*100
+    :cycleQuantity;
+  const quickOrderPreset20=Math.floor(quickOrderCapacity*.2/100)*100;
+  const quickOrderPreset50=Math.floor(quickOrderCapacity*.5/100)*100;
+  const normalizedQuickOrderQuantity=Math.floor(Math.max(0,Number(quickOrderQuantity)||0)/100)*100;
   const displayedShares=cycleStage==='opened'
     ? effectiveLivePosition.openingShares+(openedCycleSide==="buy"?cycleQuantity:openedCycleSide==="sell"?-cycleQuantity:0)
     : effectiveLivePosition.openingShares;
@@ -4757,8 +4763,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>
           </div>
-          <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="全局决策状态">
-            <header><span>全局决策 <small className="decision-engine-badge">闭环策略</small></span><em>{decisionConditionsConfirmed}/4 条件</em></header>
+          <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="操盘决策与执行摘要">
+            <header><span>操盘决策 <small className="decision-engine-badge">闭环策略</small></span><em>{executionSnapshot?`${executionSnapshot.direction} · 把握度 ${executionSnapshot.confidence}%`:`${decisionConditionsConfirmed}/4 条件`}</em></header>
             <b className="global-decision-status">{decisionModel.status==="locked"
               ?"🔴 风控已锁定"
               :cycleStage==="opened"
@@ -4772,6 +4778,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                   :freshReverseTObservation
                     ?`🟠 反T${freshReverseTObservation.stage==="candidate"?"候补":"观察"}`
                     :"🟡 等待信号"}</b>
+            {isZijinStock&&executionSnapshot&&<div className="decision-execution-grid" aria-label={`${executionSnapshot.direction}关键执行价位`}>
+              <p><span>触发参考价</span><b>¥{executionSnapshot.reference.toFixed(2)}</b></p>
+              <p><span>预期空间</span><b>¥{executionSnapshot.expectedGrossSpread.toFixed(2)} <small>+{executionSnapshot.expectedGrossSpreadPct.toFixed(2)}%</small></b></p>
+              <p className="risk"><span>硬止损</span><b>¥{executionSnapshot.hardStop.toFixed(2)}</b></p>
+            </div>}
             <div className={`global-decision-live-signal ${freshReverseTAction||freshReverseTObservation?"active":"idle"}`} aria-label="实时反T信号">
               <span>实时反T</span>
               <b>{reverseTSignalLabel}</b>
@@ -4786,19 +4797,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
              </div>
             </details>
             <div className="decision-primary-meta"><span>{positiveTBlockedByFlow?"正T已锁定":decisionModel.status==="ready"?(decisionModel.mode??signalMode):decisionModel.status==="locked"?"禁止开T":"等待条件补齐"}</span><strong>{stockAgent.canExecute?(positiveTBlockedByFlow?"等待卖压解除":decisionModel.status==="ready"?"可进入执行":decisionModel.status==="locked"?"风险优先":"实时监控"):"研究观察"}</strong></div>
-          </section>
-          {isZijinStock&&executionSnapshot&&<section className={`decision-execution-card ${executionSnapshot.direction==="正T"?"positive":"reverse"}`} aria-label="做T执行摘要">
-            <header><span>{executionSnapshot.direction}执行摘要</span><em>把握度 {executionSnapshot.confidence}%</em></header>
-            <div className="decision-execution-grid">
-              <p><span>触发参考价</span><b>¥{executionSnapshot.reference.toFixed(2)}</b></p>
-              <p><span>预期空间</span><b>¥{executionSnapshot.expectedGrossSpread.toFixed(2)} <small>+{executionSnapshot.expectedGrossSpreadPct.toFixed(2)}%</small></b></p>
-              <p className="risk"><span>硬止损</span><b>¥{executionSnapshot.hardStop.toFixed(2)}</b></p>
-            </div>
             {Boolean(currentContext?.items.length)&&<div className="decision-market-pulse" aria-label="外部市场联动">
               <span>外部联动</span>
               {currentContext!.items.slice(0,4).map(item=><i key={item.id} className={(item.changePercent??0)>0?"up":(item.changePercent??0)<0?"down":"flat"}>{item.label} <b>{item.changePercent==null?"--":`${item.changePercent>0?"+":""}${item.changePercent.toFixed(2)}%`}</b></i>)}
             </div>}
-          </section>}
+          </section>
           <section className="decision-position-card" aria-label="持仓与本次做T">
             <header><span>持仓与试算</span><em>{marketSession.live?"实时":"复盘"}</em></header>
             <div className="decision-position-grid">
@@ -4813,10 +4816,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <label><span>数量</span><input aria-label="模拟成交数量" inputMode="numeric" value={quickOrderQuantity} onChange={event=>{setQuickOrderQuantity(event.target.value.replace(/\D/g,""));setQuickOrderFeedback("")}} placeholder="1000"/></label>
               </div>
               <div className="quick-sim-order-presets" role="group" aria-label="快捷仓位比例">
-                <span>快捷仓位</span>
-                <button type="button" disabled={effectiveLivePosition.sellable<100} onClick={()=>setQuickOrderQuantity(String(Math.floor(Math.max(0,effectiveLivePosition.sellable*.2)/100)*100))}>20%</button>
-                <button type="button" disabled={effectiveLivePosition.sellable<100} onClick={()=>setQuickOrderQuantity(String(Math.floor(Math.max(0,effectiveLivePosition.sellable*.5)/100)*100))}>50%</button>
-                <button type="button" disabled={effectiveLivePosition.sellable<100} onClick={()=>setQuickOrderQuantity(String(Math.floor(Math.max(0,effectiveLivePosition.sellable)/100)*100))}>全部可卖</button>
+                <span>{decisionActionDirection==="反T"?"反T可卖":"正T预算"}</span>
+                <button type="button" className={quickOrderPreset20>0&&normalizedQuickOrderQuantity===quickOrderPreset20?"active":""} disabled={quickOrderCapacity<100} onClick={()=>setQuickOrderQuantity(String(quickOrderPreset20))}>20%</button>
+                <button type="button" className={quickOrderPreset50>0&&normalizedQuickOrderQuantity===quickOrderPreset50?"active":""} disabled={quickOrderCapacity<100} onClick={()=>setQuickOrderQuantity(String(quickOrderPreset50))}>50%</button>
+                <button type="button" className={quickOrderCapacity>0&&normalizedQuickOrderQuantity===quickOrderCapacity?"active":""} disabled={quickOrderCapacity<100} onClick={()=>setQuickOrderQuantity(String(quickOrderCapacity))}>{decisionActionDirection==="反T"?"全部可卖":"全部预算"}</button>
               </div>
               <div className="quick-sim-order-actions"><button type="button" className="buy" onClick={()=>recordQuickSimulatedTrade("买入")}><b>B</b>买入</button><button type="button" className="sell" onClick={()=>recordQuickSimulatedTrade("卖出")} disabled={effectiveLivePosition.sellable<=0}><b>S</b>卖出</button></div>
               <div className="quick-sim-order-status"><span>{quickOrderFeedback||"只记入本机模拟账本，不会真实下单"}</span><b className={(manualTradeCostImpact.perShare??0)>=0?"positive":"negative"}>摊薄成本 {manualTradeCostImpact.perShare===null?"待闭环":`${manualTradeCostImpact.perShare>=0?"-":"+"}¥${Math.abs(manualTradeCostImpact.perShare).toFixed(3)}/股`}</b></div>
