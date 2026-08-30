@@ -400,6 +400,132 @@
   border-bottom: 1px solid rgba(140, 152, 168, .16);
 }
 
+.opening-focus-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.05fr) minmax(260px, 1.35fr) minmax(145px, .62fr);
+  gap: 0;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(140, 152, 168, .22);
+  border-radius: 8px;
+  background: linear-gradient(108deg, rgba(24, 31, 41, .96), rgba(11, 16, 23, .98));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .16);
+}
+
+.opening-focus-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: var(--lab-yellow);
+}
+
+.opening-focus-card.extreme::before,
+.opening-focus-card.high::before { background: #e2b866; }
+.opening-focus-card.caution::before { background: #8aa6c7; }
+.opening-focus-card.sell::before { background: var(--lab-down); }
+.opening-focus-card.buy::before { background: var(--lab-up); }
+
+.opening-focus-lead,
+.opening-focus-action,
+.opening-focus-probability {
+  min-width: 0;
+  padding: 11px 14px 10px 16px;
+}
+
+.opening-focus-action,
+.opening-focus-probability {
+  border-left: 1px solid rgba(140, 152, 168, .16);
+}
+
+.opening-focus-lead span,
+.opening-focus-action span,
+.opening-focus-probability span {
+  display: block;
+  color: #8591a1;
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.opening-focus-lead strong {
+  display: inline-block;
+  margin-top: 5px;
+  color: #f3f6fa;
+  font-family: "Roboto Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 22px;
+  letter-spacing: -.04em;
+}
+
+.opening-focus-lead b {
+  display: inline-block;
+  margin-left: 9px;
+  padding: 3px 6px;
+  color: #e2bd75;
+  border: 1px solid rgba(226, 189, 117, .38);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  vertical-align: 3px;
+}
+
+.opening-focus-action strong {
+  display: block;
+  margin-top: 5px;
+  color: #f2f5f8;
+  font-size: 18px;
+  letter-spacing: -.02em;
+}
+
+.opening-focus-card.sell .opening-focus-action strong { color: var(--lab-down); }
+.opening-focus-card.buy .opening-focus-action strong { color: var(--lab-up); }
+
+.opening-focus-action small,
+.opening-focus-probability small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #778497;
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opening-focus-probability strong {
+  display: block;
+  margin-top: 4px;
+  color: #f3d28b;
+  font-family: "Roboto Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 24px;
+  letter-spacing: -.05em;
+}
+
+.opening-focus-probability small { color: #a88d58; }
+
+.decision-details {
+  margin-top: 7px;
+  border-top: 1px solid rgba(140, 152, 168, .14);
+}
+
+.decision-details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 2px 2px;
+  color: #8793a3;
+  font-size: 9px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.decision-details summary::-webkit-details-marker { display: none; }
+.decision-details summary::before { color: var(--lab-yellow); content: "+"; font-size: 13px; line-height: 1; }
+.decision-details[open] summary::before { content: "−"; }
+.decision-details[open] .decision-layout { padding-top: 6px; }
+
 .instrument .eyebrow {
   display: none;
 }
@@ -856,6 +982,8 @@
   .decision-layout > * { padding-left: 0; border-left: 0; }
   .decision-quote { justify-items: start; padding-top: 12px; border-top: 1px solid rgba(140, 152, 168, .14); }
   .horizon-panel { grid-column: auto; }
+  .opening-focus-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .opening-focus-probability { grid-column: 1 / -1; border-top: 1px solid rgba(140, 152, 168, .16); border-left: 0; }
   .lab-grid { grid-template-columns: 1fr; }
   .chart-panel,
   .flow-panel { min-height: 0; }
@@ -871,6 +999,12 @@
   .symbol-picker.compact > div { display: grid; grid-template-columns: 1fr auto; }
   .decision-layout { grid-template-columns: 1fr; gap: 13px; }
   .decision-layout > * + * { padding: 12px 0 0; border-top: 1px solid rgba(140, 152, 168, .14); border-left: 0; }
+  .opening-focus-card { grid-template-columns: 1fr; }
+  .opening-focus-action,
+  .opening-focus-probability { border-top: 1px solid rgba(140, 152, 168, .16); border-left: 0; }
+  .opening-focus-lead,
+  .opening-focus-action,
+  .opening-focus-probability { padding: 10px 12px 9px 14px; }
   .direction-value strong { font-size: 29px; }
   .decision-facts div { grid-template-columns: 58px 1fr; }
   .horizon-panel { grid-column: auto; }
