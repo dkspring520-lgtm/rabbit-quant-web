@@ -2445,10 +2445,22 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       price:recentObservation.price,
     };
   },[currentObservations,isZijinStock,liveEngine.actions,minutePoints,positiveTBlockedByFlow]);
+  const peakVolumeLabel=chartModel
+    ? `${chartModel.peakVolume.abnormal&&chartModel.peakVolume.ratio?`成交爆量 ${chartModel.peakVolume.ratio.toFixed(1)}×`:"峰值放量"} ${chartModel.peakVolume.time.slice(0,2)}:${chartModel.peakVolume.time.slice(2)}`
+    : "";
   const intradayMarkerLayout=useMemo(()=>{
     if(!chartModel)return {observations:[],tooltipObservations:[],actions:[],shadowActions:[],rabbitCandidates:[],manualTrades:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
     const occupied:LabelBox[]=[];
+    const peakVolumeLabelX=Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4);
+    const peakVolumeLabelWidth=Math.max(70,peakVolumeLabel.length*7.5);
+    const peakVolumeLabelRightAligned=chartModel.peakVolume.x>LIVE_CHART.plotRight-72;
+    occupied.push({
+      left:peakVolumeLabelRightAligned?peakVolumeLabelX-peakVolumeLabelWidth:peakVolumeLabelX,
+      right:peakVolumeLabelRightAligned?peakVolumeLabelX:Math.min(LIVE_CHART.plotRight,peakVolumeLabelX+peakVolumeLabelWidth),
+      top:LIVE_CHART.volumeTop-16,
+      bottom:LIVE_CHART.volumeTop-2,
+    });
     const pointPosition=(time:string,price?:number,allowRecentFallback=false)=>{
       const exactPoint=minutePoints.find(point=>point.time===time);
       // Quote streams can briefly skip the confirmation minute while the
@@ -2620,7 +2632,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
       manualTrades,
     };
-  },[activeChartDate,alertHistory,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,alertHistory,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -2730,6 +2742,36 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(gap>=.001) return {session:"高开",gapText,auction:belowReference?"高开转弱 · 反T观察":"高开偏强 · 等待回落",confirmation:belowReference?"3/4 条件确认":"2/4 条件确认",suggested:"反T",positiveTitle:"高开回踩观察",positiveCopy:"高开股票需等待回踩企稳，不能把高开直接当成正 T 买点。",negativeTitle:belowReference?"高开转弱":"高开滞涨观察",negativeCopy:belowReference?"价格跌回开盘价与 VWAP 下方，仍需回抽失败确认。":"价格尚未同时跌破开盘价与 VWAP，不急于卖出。"};
     return {session:"平开",gapText:`平开 ${(gap*100).toFixed(2)}%`,auction:"平开震荡 · 区间观察",confirmation:"2/4 条件确认",suggested:"正T",positiveTitle:"平开正T观察",positiveCopy:"等待价格回踩后重新站上 VWAP，再判断正 T。",negativeTitle:"平开反T观察",negativeCopy:"等待价格冲高后跌回 VWAP，再判断反 T。"};
   },[activeQuote,chartModel?.lastVwap,marketSession.phase]);
+  const openingStageCard=(()=>{
+    const opened=marketSession.live||["lunch","closing"].includes(marketSession.phase);
+    const postclose=!opened&&(["afterhours","closed"].includes(marketSession.phase)||marketSession.tone==="closed"||marketSession.tone==="postclose");
+    if(!opened){
+      const title=postclose?"明日预判":"今日开盘预判";
+      return {
+        title,
+        value:nextSessionOutlook.ready?nextSessionOutlook.direction:"待定",
+        suffix:nextSessionOutlook.ready?` · ${nextSessionOutlook.confidenceText}`:"",
+        detail:nextSessionOutlook.ready?`¥${nextSessionOutlook.lower.toFixed(2)}–${nextSessionOutlook.upper.toFixed(2)}`:postclose?"收盘后生成":"等待盘前数据",
+        tone:!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat",
+        ariaLabel:postclose?"下一交易日预判":"今日开盘预判",
+        tooltip:nextSessionOutlook.ready?`${nextSessionOutlook.stage}：${nextSessionOutlook.failure}`:nextSessionOutlook.detail,
+      };
+    }
+    const gateAvailable=isZijinStock&&zijinPreopenGate.phase!=="unavailable";
+    const gateDirection=gateAvailable
+      ? zijinPreopenGate.allowedDirections.join("/")||zijinPreopenGate.predictedDirection
+      : null;
+    const direction=gateDirection??(openingAssessment.session==="高开"?"反T":openingAssessment.session==="低开"?"正T":"双向观察");
+    return {
+      title:"开盘结论",
+      value:direction==="正T"||direction==="反T"?`${direction}优先`:direction||"待确认",
+      suffix:gateAvailable?` · ${zijinPreopenGate.confirmationCount}/${zijinPreopenGate.requiredConfirmations}`:"",
+      detail:`${openingAssessment.gapText} · 全天方向锚`,
+      tone:direction==="正T"?"up":direction==="反T"?"down":"flat",
+      ariaLabel:"开盘结论与全天方向锚",
+      tooltip:gateAvailable?zijinPreopenGate.reason:`${openingAssessment.auction}；开盘结论全天常驻`,
+    };
+  })();
   const autoDecision = useMemo(() => {
     const price=activeQuote?.price ?? 0; const open=activeQuote?.open ?? 0; const vwap=chartModel?.lastVwap ?? 0;
     const lastTime=(minutePoints.at(-1)?.time ?? "").replace(/\D/g,"").slice(0,4);
@@ -4562,10 +4604,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className="quote-metrics">
           <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{isZijinStock&&liveL2PriceUsable ? "L2 主源" : currentTrial ? "1 秒试用" : currentMarket ? "公开兜底" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? isZijinStock ? `${minutePoints.length} 点 · 盘口 ${l2CalculationCoverage} · 资金 ${zijinMainForceTrack.bars.length}` : `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
         </div>
-        <div className={`next-session-header ${!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat"}`} role="status" aria-label="下一交易日预判" title={nextSessionOutlook.ready?`${nextSessionOutlook.stage}：${nextSessionOutlook.failure}`:nextSessionOutlook.detail}>
-          <span>明日预判</span>
-          <b>{nextSessionOutlook.ready?nextSessionOutlook.direction:"待定"}<small>{nextSessionOutlook.ready?` · ${nextSessionOutlook.confidenceText}`:""}</small></b>
-          <em>{nextSessionOutlook.ready?`¥${nextSessionOutlook.lower.toFixed(2)}–${nextSessionOutlook.upper.toFixed(2)}`:"收盘后生成"}</em>
+        <div className={`next-session-header ${openingStageCard.tone}`} role="status" aria-label={openingStageCard.ariaLabel} title={openingStageCard.tooltip}>
+          <span>{openingStageCard.title}</span>
+          <b>{openingStageCard.value}<small>{openingStageCard.suffix}</small></b>
+          <em>{openingStageCard.detail}</em>
         </div>
         <div className={`l2-console-status data-health-status ${web4Monitor.status} ${l2ConsoleStatus.tone}`} role="status" title={`${l2ConsoleStatus.detail} · ${web4Monitor.summary}`}>
           <i/><div><span>{web4Monitor.status==="degraded"?"数据降级":web4Monitor.status==="conflict"||web4Monitor.status==="risk"?"数据风险":"数据健康"}</span><b>{web4Monitor.confidence}<small>/100</small></b></div><em>{l2ConsoleStatus.label}</em>
@@ -4665,7 +4707,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {chartModel?.biasAlert&&<rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.volumeTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.volumeTop} className={`bias-alert-band ${chartModel.latestBias>=0?"up":"down"}`}/>}
               {chartModel?.volumes.map((bar,index)=><rect key={index} x={bar.x-1.35} y={LIVE_CHART.volumeBottom-bar.height} width="2.7" height={bar.height} rx=".45" className={`${bar.up?'volume':'volume red'}${bar.abnormal?' abnormal':''}`}/>) }
               {indicatorsVisible&&chartModel&&<path d={chartModel.biasPath} className="bias-path"/>}
-              {chartModel&&<g className={`peak-volume-marker ${chartModel.peakVolume.abnormal?"abnormal":""}`}><line x1={chartModel.peakVolume.x} y1={LIVE_CHART.volumeTop-3} x2={chartModel.peakVolume.x} y2={LIVE_CHART.volumeBottom}/><text x={Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4)} y={LIVE_CHART.volumeTop-6} textAnchor={chartModel.peakVolume.x>LIVE_CHART.plotRight-72?"end":"start"}>{chartModel.peakVolume.abnormal&&chartModel.peakVolume.ratio?`成交爆量 ${chartModel.peakVolume.ratio.toFixed(1)}×`:"峰值放量"} {chartModel.peakVolume.time.slice(0,2)}:{chartModel.peakVolume.time.slice(2)}</text></g>}
+              {chartModel&&<g className={`peak-volume-marker ${chartModel.peakVolume.abnormal?"abnormal":""}`}><line x1={chartModel.peakVolume.x} y1={LIVE_CHART.volumeTop-3} x2={chartModel.peakVolume.x} y2={LIVE_CHART.volumeBottom}/><text x={Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4)} y={LIVE_CHART.volumeTop-6} textAnchor={chartModel.peakVolume.x>LIVE_CHART.plotRight-72?"end":"start"}>{peakVolumeLabel}</text></g>}
               {intradayCursor&&(()=>{
                 const tooltipWidth=176;
                 const tooltipHeight=isZijinStock?156:139;
