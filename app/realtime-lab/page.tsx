@@ -65,6 +65,7 @@ type OpeningFocusSummary = {
   actionTone: "sell" | "buy" | "wait";
   probability: number | null;
   probabilityLabel: string;
+  sampleCount: number | null;
   reason: string;
 };
 type MediumStructureSummary = {
@@ -227,6 +228,28 @@ function percentValue(value: unknown): number | null {
   if (parsed === null) return null;
   const normalized = Math.abs(parsed) <= 1 ? parsed * 100 : parsed;
   return Math.max(0, Math.min(100, normalized));
+}
+
+function sampleCountValue(...values: unknown[]): number | null {
+  const arrayCandidates: number[] = [];
+  let explicitZero = false;
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      if (value.length > 0) arrayCandidates.push(value.length);
+      continue;
+    }
+    const parsed = number(value);
+    if (parsed !== null && parsed >= 0) {
+      if (parsed === 0) explicitZero = true;
+      else return Math.round(parsed);
+      continue;
+    }
+    if (typeof value === "string") {
+      const match = value.replace(/,/g, "").match(/^\s*(?:样本\s*)?(\d+)/i);
+      if (match) return Number(match[1]);
+    }
+  }
+  return arrayCandidates[0] ?? (explicitZero ? 0 : null);
 }
 
 function researchRoots(payload: AnyRecord): AnyRecord[] {
@@ -554,6 +577,7 @@ function readOpeningFocusSummary(
   turningPoints: { ready: boolean; topProbability: number | null; bottomProbability: number | null; topStage: number; bottomStage: number },
 ): OpeningFocusSummary {
   const roots = researchRoots(researchPayload);
+  const sampleRoots = [...roots, ...researchRoots(desk), ...researchRoots(market)];
   const directGap = firstNumber(
     quote.openingGapPercent,
     quote.openGapPercent,
@@ -641,6 +665,44 @@ function readOpeningFocusSummary(
   const probabilityLabel = probability !== null
     ? `${probabilityDirection}${explicitProbability !== null ? "概率" : "影子概率"}`
     : `${probabilityDirection}概率待校准`;
+  const sampleCount = sampleCountValue(
+    ...sampleRoots.flatMap(root => [
+      root.sampleCount,
+      root.sampleSize,
+      root.samplesCount,
+      root.sample_count,
+      root.nSamples,
+      root.sampleN,
+      root.historySampleCount,
+      root.historicalSampleCount,
+      root.calibratedSampleCount,
+      root.observationCount,
+      root.observationsCount,
+      root.samples,
+      root.observations,
+      path(root, "sample", "count"),
+      path(root, "sample", "size"),
+      path(root, "samples", "count"),
+      path(root, "opening", "sampleCount"),
+      path(root, "opening", "sampleSize"),
+      path(root, "opening", "samples", "count"),
+      path(root, "preopen", "sampleCount"),
+      path(root, "preopen", "sampleSize"),
+      path(root, "preopen", "samples", "count"),
+      path(root, "decision", "sampleCount"),
+      path(root, "decision", "sampleSize"),
+      path(root, "decision", "samples", "count"),
+      path(root, "probability", "sampleCount"),
+      path(root, "validation", "sampleCount"),
+      path(root, "validation", "sampleSize"),
+      path(root, "calibration", "sampleCount"),
+      path(root, "calibration", "sampleSize"),
+      path(root, "backtest", "sampleCount"),
+      path(root, "backtest", "sampleSize"),
+      path(root, "metrics", "sampleCount"),
+      path(root, "metrics", "sampleSize"),
+    ]),
+  );
   const gapReason = gapPercent === null
     ? "等待开盘价与昨收"
     : extremeHighOpen
@@ -649,7 +711,7 @@ function readOpeningFocusSummary(
   const flowReason = sellFlow ? "卖盘/OFI偏空" : buyFlow ? "买盘/OFI偏多" : "盘口尚未确认";
   const contextReason = openingOutlook.tone === "down" ? "外部环境偏弱" : openingOutlook.tone === "up" ? "外部环境偏强" : "外部环境分化";
   const reason = [gapReason, extremeHighOpen ? flowReason : contextReason].join(" · ");
-  return { gapPercent, gapLabel, riskLabel, riskTone, action, actionTone, probability, probabilityLabel, reason };
+  return { gapPercent, gapLabel, riskLabel, riskTone, action, actionTone, probability, probabilityLabel, sampleCount, reason };
 }
 
 function readMediumStructure(payload: AnyRecord, desk: AnyRecord): MediumStructureSummary {
@@ -1461,7 +1523,10 @@ export default function RealtimeLabPage() {
             <small>{openingFocus.reason}</small>
           </div>
           <div className="opening-focus-probability">
-            <span>{openingFocus.probabilityLabel}</span>
+            <div className="opening-focus-probability-head">
+              <span>{openingFocus.probabilityLabel}</span>
+              {openingFocus.sampleCount !== null && <em className="opening-focus-samples">样本 {openingFocus.sampleCount} 笔</em>}
+            </div>
             <strong>{openingFocus.probability === null ? "待校准" : `${openingFocus.probability}%`}</strong>
             <small>{openingFocus.probability === null ? "暂无经过校准的历史样本" : openingFocus.probabilityLabel.includes("影子") ? "影子估计，仅作观察" : "来自已校准研究结果"}</small>
           </div>

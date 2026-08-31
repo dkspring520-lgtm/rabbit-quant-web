@@ -449,6 +449,35 @@
   text-transform: uppercase;
 }
 
+.opening-focus-probability-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.opening-focus-probability-head > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opening-focus-samples {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  color: #c9a965;
+  border: 1px solid rgba(198, 154, 75, .3);
+  border-radius: 999px;
+  background: rgba(198, 154, 75, .08);
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
 .opening-focus-lead strong {
   display: inline-block;
   margin-top: 5px;
