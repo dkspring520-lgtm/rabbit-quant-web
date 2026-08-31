@@ -1430,9 +1430,14 @@ export default function RealtimeLabPage() {
     const support = { low: supportCenter - bandHalf, high: supportCenter + bandHalf };
     const resistance = { low: resistanceCenter - bandHalf, high: resistanceCenter + bandHalf };
     const vwapValue = chartVwap ?? null;
+    const biasBaselines = chartPoints.map(item => {
+      const candidate = isReplay ? number(item.vwap) : vwapValue;
+      return candidate !== null && candidate > 0 ? candidate : null;
+    });
+    const biasValues = biasBaselines.flatMap(value => value === null ? [] : [value * 0.975, value * 0.985, value * 1.015, value * 1.025]);
     const markerAlerts = chartAlerts.filter(alert => alertClass(alert) !== "other");
     const markerPrices = markerAlerts.map(alert => number(alert.price)).filter((value): value is number => value !== null);
-    const allValues = [...values, support.low, support.high, resistance.low, resistance.high, ...markerPrices, ...(vwapValue === null ? [] : [vwapValue])];
+    const allValues = [...values, support.low, support.high, resistance.low, resistance.high, ...markerPrices, ...(vwapValue === null ? [] : [vwapValue]), ...biasValues];
     const dataLow = Math.min(...allValues);
     const dataHigh = Math.max(...allValues);
     const dataRange = Math.max(dataHigh - dataLow, Math.max(dataHigh * 0.001, 0.01));
@@ -1444,6 +1449,16 @@ export default function RealtimeLabPage() {
       return padX + (position ?? index / Math.max(chartPoints.length - 1, 1)) * (width - padX * 2);
     };
     const y = (value: number) => height - padY - ((value - low) / range) * (height - padY * 2);
+    const biasPolygon = (outerFactor: number, innerFactor: number, reverse = false) => {
+      const outer = biasBaselines.flatMap((base, index) => base === null ? [] : [`${x(index).toFixed(1)},${y(base * outerFactor).toFixed(1)}`]);
+      const inner = biasBaselines.flatMap((base, index) => base === null ? [] : [`${x(index).toFixed(1)},${y(base * innerFactor).toFixed(1)}`]);
+      const points = reverse ? [...inner, ...outer.reverse()] : [...outer, ...inner.reverse()];
+      return points.join(" ");
+    };
+    const biasBands = {
+      upper: biasPolygon(1.025, 1.015),
+      lower: biasPolygon(0.985, 0.975, true),
+    };
     const firstLiveIndex = chartPoints.findIndex(item => item.live);
     const historicalEnd = firstLiveIndex < 0 ? chartPoints.length : firstLiveIndex;
     const historyPolyline = chartPoints.slice(0, historicalEnd).map((item, index) => `${x(index).toFixed(1)},${y(item.price).toFixed(1)}`).join(" ");
@@ -1476,7 +1491,7 @@ export default function RealtimeLabPage() {
       return { alert, index, cx, cy, kind: alertClass(alert), side, labelOffset };
     });
     const band = (item: { low: number; high: number }) => ({ y: y(item.high), height: Math.max(2, y(item.low) - y(item.high)), value: (item.low + item.high) / 2 });
-    return { width, height, padX, padY, y, low, high, dataLow, dataHigh, historyPolyline, livePolyline, vwapPolyline, vwapY, markerRows, support: band(support), resistance: band(resistance) };
+    return { width, height, padX, padY, y, low, high, dataLow, dataHigh, historyPolyline, livePolyline, vwapPolyline, vwapY, biasBands, markerRows, support: band(support), resistance: band(resistance) };
   }, [chartAlerts, chartPoints, chartVwap, currentPrice, isReplay]);
 
   const applyCode = () => {
@@ -1587,11 +1602,13 @@ export default function RealtimeLabPage() {
 
       <section className="lab-grid">
         <article className="panel chart-panel">
-          <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : isMinute ? "1分钟日内图" : "秒级实时观察"}</h2></div><div className="chart-header-tools"><div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={isMinute ? "active" : ""} aria-pressed={isMinute} onClick={() => setChartMode("minute")}>1分钟</button><button type="button" className={chartMode === "live" ? "active" : ""} aria-pressed={chartMode === "live"} onClick={() => setChartMode("live")}>秒级观察</button>{code === DEFAULT_CODE && <button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button>}</div><div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-band" />支撑/压力</span></> : isMinute ? <><span><i className="legend-price" />1分钟价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />全天分钟线</span><span><i className="legend-live" />近3分钟放大</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
+          <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : isMinute ? "1分钟日内图" : "秒级实时观察"}</h2></div><div className="chart-header-tools"><div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={isMinute ? "active" : ""} aria-pressed={isMinute} onClick={() => setChartMode("minute")}>1分钟</button><button type="button" className={chartMode === "live" ? "active" : ""} aria-pressed={chartMode === "live"} onClick={() => setChartMode("live")}>秒级观察</button>{code === DEFAULT_CODE && <button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button>}</div><div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></> : isMinute ? <><span><i className="legend-price" />1分钟价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />全天分钟线</span><span><i className="legend-live" />近3分钟放大</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
           {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><small>回放数据，不是实时信号 · 完整242点回放压缩为6个观测点</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><small>信号从本地账本恢复，刷新后仍保留</small></div>}
           {chart ? <div className="chart-wrap"><svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={`${stockName}日内价格图`} preserveAspectRatio="none">
             <rect className="support-band" x={chart.padX} y={chart.support.y} width={chart.width - chart.padX * 2} height={chart.support.height} />
             <rect className="resistance-band" x={chart.padX} y={chart.resistance.y} width={chart.width - chart.padX * 2} height={chart.resistance.height} />
+            {chart.biasBands.upper && <polygon className="bias-band upper" points={chart.biasBands.upper} />}
+            {chart.biasBands.lower && <polygon className="bias-band lower" points={chart.biasBands.lower} />}
             {[0, .25, .5, .75, 1].map(position => <line className="grid-line vertical" key={position} x1={chart.padX + position * (chart.width - chart.padX * 2)} x2={chart.padX + position * (chart.width - chart.padX * 2)} y1={chart.padY} y2={chart.height - chart.padY} />)}
             <line className="grid-line" x1={chart.padX} x2={chart.width - chart.padX} y1={chart.padY} y2={chart.padY} />
             <line className="grid-line" x1={chart.padX} x2={chart.width - chart.padX} y1={chart.height / 2} y2={chart.height / 2} />
@@ -1650,7 +1667,7 @@ export default function RealtimeLabPage() {
 
           <div className="auxiliary-block">
             <div className="auxiliary-title"><span>金属联动</span><b className={commoditySummary.tone === "up" ? "positive" : commoditySummary.tone === "down" ? "negative" : ""}>{commoditySummary.label}</b></div>
-            <div className="compact-market-list">{crossMarkets.map(item => <div key={item.key}><span>{item.label}<small>{item.state === "missing" ? "未接入" : clockLabel(item.updatedAt)}</small></span><b>{formatPrice(item.price, item.price !== null && item.price < 10 ? 3 : 2)}</b><em className={item.change !== null && item.change >= 0 ? "positive" : "negative"}>{formatPercent(item.change)}</em></div>)}</div>
+            <div className="compact-market-list">{crossMarkets.map(item => <div key={item.key}><span>{item.label}<small>{item.state === "missing" || item.state === "stale" ? "盘后" : clockLabel(item.updatedAt)}</small></span><b>{formatPrice(item.price, item.price !== null && item.price < 10 ? 3 : 2)}</b><em className={item.change !== null && item.change >= 0 ? "positive" : "negative"}>{formatPercent(item.change)}</em></div>)}</div>
             {!!sectorRows.length && <div className="sector-strip">{sectorRows.map((row, index) => { const change = firstNumber(row.changePercent, row.change_pct, row.change); return <span key={`${text(row.id)}-${index}`}>{firstText(row.label, row.name, row.symbol) || "相关市场"}<b className={change !== null && change >= 0 ? "positive" : "negative"}>{formatPercent(change)}</b></span>; })}</div>}
           </div>
         </article>

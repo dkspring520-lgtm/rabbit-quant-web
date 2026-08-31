@@ -844,6 +844,10 @@
   height: 7px !important;
   background: linear-gradient(90deg, rgba(73, 198, 138, .45), rgba(239, 123, 119, .45));
 }
+.legend-bias {
+  height: 7px !important;
+  background: linear-gradient(90deg, rgba(239, 123, 119, .42), rgba(73, 198, 138, .42));
+}
 
 .chart-wrap { border-radius: 0; background: #070b10; }
 .chart-wrap svg { height: clamp(390px, 49vh, 560px); }
@@ -857,6 +861,9 @@
 .band-label.resistance { fill: var(--lab-down); }
 .vwap-label { fill: var(--lab-yellow); }
 .price-axis-label { fill: #6f7c8d; }
+.bias-band { pointer-events: none; stroke-width: 0; }
+.bias-band.upper { fill: rgba(47, 182, 126, .12); }
+.bias-band.lower { fill: rgba(223, 95, 100, .12); }
 .price-polyline { stroke-width: 1.65; }
 .live-polyline { stroke-width: 1.9; stroke-dasharray: none; filter: none; }
 .vwap-polyline { fill: none; stroke: var(--lab-yellow); stroke-width: 1.45; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
