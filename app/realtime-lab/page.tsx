@@ -397,7 +397,9 @@ function readBreakingNotices(
       id: "realtime-data-warning",
       title: errorMessage || "实时数据链路正在重连，当前判断可能滞后",
       source: "数据链路",
-      time: clockLabel(new Date().toISOString()),
+      // Keep the server/client first render deterministic. A live clock here
+      // causes a hydration mismatch before the polling effect can update data.
+      time: "实时",
       level: "数据警告",
       tone: "warning",
       rank: 5,
