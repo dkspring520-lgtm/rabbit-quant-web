@@ -1114,3 +1114,53 @@
 .signal-row.formal { font-weight: 650; }
 .signal-row.v29 { opacity: .92; }
 .signal-row.v1 { opacity: .84; }
+
+/* 真实 OHLC 可用时显示 K 线；没有 OHLC 的历史数据继续使用分时折线。 */
+.candle-wick,
+.candle-body {
+  vector-effect: non-scaling-stroke;
+}
+.candle-wick { stroke-width: 1; }
+.candle-body { stroke-width: 1; }
+.candle.up .candle-wick,
+.candle.up .candle-body {
+  stroke: var(--lab-up);
+  fill: var(--lab-up);
+}
+.candle.down .candle-wick,
+.candle.down .candle-body {
+  stroke: var(--lab-down);
+  fill: var(--lab-down);
+}
+
+/* 顶底是低优先级观察层，颜色与三套交易信号区分开。 */
+.shape.turning-top {
+  border: 1px dashed #f0a35b;
+  border-radius: 50%;
+}
+.shape.turning-bottom {
+  border: 1px dashed #4fb3d4;
+  border-radius: 50%;
+}
+.chart-marker.turning-top { opacity: .72; }
+.chart-marker.turning-bottom { opacity: .72; }
+.chart-marker.turning-top .marker-stem {
+  stroke: #f0a35b;
+  stroke-dasharray: 3 4;
+}
+.chart-marker.turning-bottom .marker-stem {
+  stroke: #4fb3d4;
+  stroke-dasharray: 3 4;
+}
+.chart-marker.turning-top circle {
+  fill: #1b1510;
+  stroke: #f0a35b;
+  stroke-dasharray: 2 2;
+}
+.chart-marker.turning-bottom circle {
+  fill: #0d1820;
+  stroke: #4fb3d4;
+  stroke-dasharray: 2 2;
+}
+.chart-marker.turning-top text { fill: #f0b36c; }
+.chart-marker.turning-bottom text { fill: #65c7e5; }
