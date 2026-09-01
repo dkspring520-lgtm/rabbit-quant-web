@@ -1085,3 +1085,32 @@
   .ticker-track.scrolling .ticker-group[aria-hidden="true"] { display: none; }
   .ticker-item { max-width: 100%; }
 }
+
+/* 日内执行图：提高纵向比例，为常驻信号和提示线保留独立空间。 */
+.chart-wrap svg { height: clamp(460px, 54vh, 620px); }
+
+@media (max-width: 900px) {
+  .chart-wrap svg { height: clamp(400px, 92vw, 560px); }
+}
+
+@media (max-width: 560px) {
+  .chart-wrap svg { height: clamp(360px, 108vw, 500px); }
+}
+
+/* 三套信号层级：正式最醒目，影子策略退到外层，方向色仍保持红正T/绿反T。 */
+.chart-marker.formal { opacity: 1; }
+.chart-marker.v29 { opacity: .9; }
+.chart-marker.v1 { opacity: .8; }
+.chart-marker.formal .marker-stem { stroke-width: 1.8; stroke-dasharray: none; }
+.chart-marker.v29 .marker-stem { stroke-width: 1.25; stroke-dasharray: 5 4; }
+.chart-marker.v1 .marker-stem { stroke-width: 1.1; stroke-dasharray: 2 4; }
+.chart-marker.formal circle { stroke-width: 2.6; }
+.chart-marker.v29 circle { stroke-width: 1.8; }
+.chart-marker.v1 rect { stroke-width: 1.8; }
+.chart-marker.formal text { font-size: 10px; font-weight: 800; }
+.chart-marker.v29 text { font-size: 9px; font-weight: 700; }
+.chart-marker.v1 text { font-size: 9px; font-weight: 650; }
+.signal-chart-legend small { color: #8b97a8; }
+.signal-row.formal { font-weight: 650; }
+.signal-row.v29 { opacity: .92; }
+.signal-row.v1 { opacity: .84; }
