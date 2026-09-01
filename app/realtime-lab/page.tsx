@@ -18,6 +18,9 @@ type SignalAlert = {
   direction?: string;
   side?: string;
   level?: string;
+  strategy?: string;
+  version?: string;
+  strategyId?: string;
 };
 type AlertKind = "formal" | "v29" | "v1" | "replay-observation" | "replay-candidate" | "other";
 type ChartMode = "minute" | "live" | "replay";
@@ -196,6 +199,12 @@ function dateLabel(value: unknown): string {
   if (!raw) return "—";
   const match = raw.match(/(20\d{2})[-\/]?(\d{2})[-\/]?(\d{2})/);
   return match ? `${match[1]}-${match[2]}-${match[3]}` : raw.slice(0, 10);
+}
+
+function dateKey(value: unknown): string {
+  const raw = text(value);
+  const match = raw.match(/(20\d{2})[-\/]?(\d{2})[-\/]?(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : "";
 }
 
 function sourceAgeSeconds(value: unknown): number | null {
@@ -783,9 +792,12 @@ function modeFromAlerts(alerts: SignalAlert[], desk: AnyRecord, tone: "up" | "do
 function alertClass(alert: SignalAlert): AlertKind {
   if (alert.level === "replay-candidate") return "replay-candidate";
   if (alert.level === "replay-observation") return "replay-observation";
-  const value = `${alert.level || ""} ${alert.source || ""} ${alert.title || ""} ${alert.message || ""} ${alert.direction || ""} ${alert.side || ""}`.toLowerCase();
-  if (/v2[.]?9|v29|影子/.test(value)) return "v29";
+  const value = `${alert.level || ""} ${alert.source || ""} ${alert.title || ""} ${alert.message || ""} ${alert.direction || ""} ${alert.side || ""} ${alert.strategy || ""} ${alert.version || ""} ${alert.strategyId || ""}`.toLowerCase();
+  // Strategy metadata wins over generic words such as “signal” or “trade”.
+  // This keeps V1/V2.9 rows classified correctly when the payload also has
+  // the formal signal fields.
   if (/v1|重建|菱形/.test(value)) return "v1";
+  if (/v2[.]?9|v29|影子/.test(value)) return "v29";
   if (/formal|official|primary|trade|正式|闭环|专属|主策略|信号|买入|卖出|正t|反t|buy|sell/.test(value) || alert.level === "signal") return "formal";
   return "other";
 }
@@ -838,6 +850,82 @@ function alertSide(alert: SignalAlert): "buy" | "sell" | "neutral" {
   if (/卖|反T|减仓|高抛/.test(value)) return "sell";
   if (/买|正T|加仓|低吸/.test(value)) return "buy";
   return "neutral";
+}
+
+function normalizeAlert(value: unknown): SignalAlert | null {
+  const row = record(value);
+  const action = record(row.action);
+  const strategy = record(row.strategy);
+  const engine = record(row.engine);
+  const model = record(row.model);
+  const normalized: SignalAlert = {
+    id: firstText(row.id, row.alertId, row.signalId, row.eventId, action.id),
+    code: firstText(row.code, row.stockCode, row.symbol, action.code, action.stockCode),
+    marketTime: firstText(row.marketTime, row.time, row.datetime, row.occurredAt, action.marketTime, action.time),
+    createdAt: firstText(row.createdAt, row.created_at, row.generatedAt, row.timestamp, action.createdAt),
+    price: firstNumber(row.price, row.lastPrice, row.executionPrice, row.fillPrice, action.price, action.executionPrice),
+    title: firstText(row.title, row.label, row.name, action.title, action.label, action.side),
+    message: firstText(row.message, row.reason, row.description, row.note, action.message, action.reason),
+    source: firstText(row.source, row.origin, row.channel, action.source),
+    direction: firstText(row.direction, row.bias, row.signalDirection, action.direction),
+    side: firstText(row.side, row.actionSide, row.tradeSide, action.side),
+    level: firstText(row.level, row.type, row.alertLevel, action.level),
+    strategy: firstText(
+      row.strategyName,
+      row.strategyLabel,
+      row.strategyType,
+      typeof row.strategy === "string" ? row.strategy : "",
+      strategy.name,
+      strategy.label,
+      strategy.strategy,
+      action.strategyName,
+      typeof action.strategy === "string" ? action.strategy : "",
+      engine.name,
+      model.name,
+    ),
+    version: firstText(
+      row.version,
+      row.strategyVersion,
+      row.engineVersion,
+      strategy.version,
+      strategy.strategyVersion,
+      action.version,
+      engine.version,
+      model.version,
+    ),
+    strategyId: firstText(
+      row.strategyId,
+      row.strategy_id,
+      row.engineId,
+      strategy.id,
+      strategy.strategyId,
+      action.strategyId,
+      engine.id,
+      model.id,
+    ),
+  };
+  const hasIdentity = Boolean(normalized.id || normalized.createdAt || normalized.marketTime || normalized.title || normalized.message);
+  return hasIdentity ? normalized : null;
+}
+
+function alertIdentity(alert: SignalAlert): string {
+  const fields = [
+    alert.code,
+    alert.marketTime || alert.createdAt,
+    alert.strategyId || alert.strategy || alert.version,
+    alert.version,
+    alert.title,
+    alert.direction,
+    alert.side,
+    alert.price === null || alert.price === undefined ? "" : alert.price.toFixed(4),
+  ].map(value => text(value).replace(/\|/g, "/"));
+  return fields.join("|") || "untimed-signal";
+}
+
+function stableAlertId(alert: SignalAlert): string {
+  const raw = text(alert.id) || alertIdentity(alert);
+  if (/::(?:formal|v29|v1|replay-observation|replay-candidate|other)::(?:buy|sell|neutral)$/.test(raw)) return raw;
+  return `${raw}::${alertClass(alert)}::${alertSide(alert)}`;
 }
 
 type TurningPointEstimate = {
@@ -967,7 +1055,7 @@ function conciseAlertTitle(alert: SignalAlert): string {
 
 function markerLabel(alert: SignalAlert): string {
   if (alert.level === "replay-candidate" || alert.level === "replay-observation") return alert.title || "观察";
-  const source = alertClass(alert) === "formal" ? "正" : alertClass(alert) === "v29" ? "2.9" : alertClass(alert) === "v1" ? "V1" : "观";
+  const source = alertClass(alert) === "formal" ? "正式" : alertClass(alert) === "v29" ? "2.9" : alertClass(alert) === "v1" ? "V1" : "观";
   const side = alertSide(alert);
   return `${source}${side === "buy" ? "买" : side === "sell" ? "卖" : "变"}`;
 }
@@ -977,7 +1065,7 @@ function keyTimelineAlerts(alerts: SignalAlert[]): SignalAlert[] {
   const kept: SignalAlert[] = [];
   const lastByKey = new Map<string, SignalAlert>();
   for (const alert of chronological) {
-    const key = `${alertClass(alert)}:${conciseAlertTitle(alert)}`;
+    const key = `${alertClass(alert)}:${alertSide(alert)}:${conciseAlertTitle(alert)}`;
     const previous = lastByKey.get(key);
     const previousTime = previous ? timeValue(previous.marketTime || previous.createdAt) : null;
     const currentTime = timeValue(alert.marketTime || alert.createdAt);
@@ -1015,10 +1103,9 @@ function readStoredAlerts(code: string): SignalAlert[] {
     const raw = window.localStorage.getItem(alertStorageKey(code));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(item => {
-      const row = record(item);
-      return Boolean(text(row.id) || text(row.createdAt) || text(row.marketTime));
-    }) as SignalAlert[] : [];
+    if (!Array.isArray(parsed)) return [];
+    const normalized = parsed.map(normalizeAlert).filter((item): item is SignalAlert => Boolean(item));
+    return mergeAlerts([], normalized);
   } catch {
     return [];
   }
@@ -1030,9 +1117,11 @@ function persistAlerts(code: string, alerts: SignalAlert[]): void {
 
 function mergeAlerts(previous: SignalAlert[], incoming: SignalAlert[]): SignalAlert[] {
   const map = new Map<string, SignalAlert>();
-  const fields: Array<keyof SignalAlert> = ["code", "marketTime", "createdAt", "price", "title", "message", "source", "direction", "side", "level"];
-  for (const item of [...previous, ...incoming]) {
-    const id = text(item.id) || `${text(item.createdAt)}-${text(item.marketTime)}-${text(item.title)}-${text(item.side)}`;
+  const fields: Array<keyof SignalAlert> = ["code", "marketTime", "createdAt", "price", "title", "message", "source", "direction", "side", "level", "strategy", "version", "strategyId"];
+  for (const rawItem of [...previous, ...incoming]) {
+    const item = normalizeAlert(rawItem);
+    if (!item) continue;
+    const id = stableAlertId(item);
     const existing = map.get(id);
     if (!existing) {
       map.set(id, { ...item, id });
@@ -1231,24 +1320,14 @@ export default function RealtimeLabPage() {
       try {
         const payload = await getJson(`/api/control/alerts?afterId=${alertCursor.current}&limit=100`, controller.signal);
         if (cancelled) return;
-        const incoming = readAlertValues(payload).map(item => {
-          const row = record(item);
-          return {
-            id: text(row.id) || `${text(row.createdAt)}-${text(row.marketTime)}-${text(row.title)}`,
-            code: firstText(row.code, row.stockCode),
-            marketTime: firstText(row.marketTime, row.time),
-            createdAt: text(row.createdAt),
-            price: firstNumber(row.price, path(row, "action", "price")),
-            title: firstText(row.title, path(row, "action", "side")),
-            message: firstText(row.message, row.reason, path(row, "action", "reason")),
-            source: firstText(row.source, path(row, "action", "source")),
-            direction: firstText(row.direction, path(row, "action", "direction")),
-            side: firstText(row.side, path(row, "action", "side")),
-            level: firstText(row.level, row.type),
-          } satisfies SignalAlert;
-        }).filter(item => !item.code || normalizedCode(item.code) === normalizedCode(code));
+        const incoming = readAlertValues(payload)
+          .map(normalizeAlert)
+          .filter((item): item is SignalAlert => Boolean(item))
+          .filter(item => !item.code || normalizedCode(item.code) === normalizedCode(code));
         if (incoming.length) {
-          const numericIds = incoming.map(item => Number(item.id)).filter(item => Number.isSafeInteger(item) && item >= 0);
+          const numericIds = incoming
+            .map(item => Number(text(item.id).split("::", 1)[0]))
+            .filter(item => Number.isSafeInteger(item) && item >= 0);
           const responseCursor = firstNumber(payload.nextId, payload.lastId, payload.cursor, path(payload, "meta", "nextId"));
           alertCursor.current = Math.max(alertCursor.current, responseCursor ?? 0, ...numericIds);
           setAlerts(current => {
@@ -1336,7 +1415,20 @@ export default function RealtimeLabPage() {
   const isReplay = chartMode === "replay" && code === DEFAULT_CODE;
   const isMinute = chartMode === "minute" || (chartMode === "replay" && code !== DEFAULT_CODE);
   const chartPoints = isReplay ? ZIJIN_REPLAY_POINTS : isMinute ? minutePoints : points;
-  const chartAlerts = isReplay ? ZIJIN_REPLAY_ALERTS : timelineAlerts;
+  const chartDate = dateKey(firstText(market.sampleDate, market.date, sourceTimestamp));
+  const persistentChartAlerts = useMemo(() => {
+    if (!chartDate) return alerts.filter(alert => alertClass(alert) !== "other");
+    return alerts.filter(alert => {
+      if (alertClass(alert) === "other") return false;
+      const alertDate = dateKey(alert.marketTime) || dateKey(alert.createdAt);
+      // HH:mm-only events have no date to compare, so keep them visible.
+      return !alertDate || alertDate === chartDate;
+    });
+  }, [alerts, chartDate]);
+  const chartAlerts = isReplay ? ZIJIN_REPLAY_ALERTS : persistentChartAlerts;
+  // 回放模式使用固定的回放事件；实时模式使用经过压缩的当日时间轴。
+  // 这样三套实时信号的常驻图层不会覆盖“昨日回放”的观测点列表。
+  const timelineDisplayAlerts = isReplay ? keyTimelineAlerts(ZIJIN_REPLAY_ALERTS) : timelineAlerts;
   const chartVwap = isReplay ? ZIJIN_REPLAY_POINTS.at(-1)?.vwap ?? null : vwap;
   const turningPoints = useMemo(
     () => estimateTurningPoints(chartPoints, chartPoints.at(-1)?.price ?? currentPrice, chartVwap, l2Metrics),
@@ -1416,7 +1508,8 @@ export default function RealtimeLabPage() {
   const chart = useMemo(() => {
     if (!chartPoints.length) return null;
     const width = 920;
-    const height = 360;
+    // 给信号标记预留更充足的纵向通道，避免不同策略的提示点挤在同一水平带。
+    const height = 500;
     const padX = 42;
     const padY = 30;
     const values = chartPoints.map(item => item.price);
@@ -1466,8 +1559,18 @@ export default function RealtimeLabPage() {
     const livePolyline = firstLiveIndex < 0 ? "" : chartPoints.slice(liveStart).map((item, offset) => `${x(liveStart + offset).toFixed(1)},${y(item.price).toFixed(1)}`).join(" ");
     const vwapPolyline = isReplay ? chartPoints.map((item, index) => item.vwap === null || item.vwap === undefined ? "" : `${x(index).toFixed(1)},${y(item.vwap).toFixed(1)}`).filter(Boolean).join(" ") : "";
     const vwapY = isReplay || vwapValue === null ? null : y(vwapValue);
-    const markerLanes = new Map<string, number>();
-    const markerRows = markerAlerts.map(alert => {
+    type MarkerBase = {
+      alert: SignalAlert;
+      index: number;
+      cx: number;
+      cy: number;
+      kind: AlertKind;
+      side: "buy" | "sell" | "neutral";
+      priority: number;
+    };
+    type MarkerRow = MarkerBase & { labelX: number; labelOffset: number; labelY: number };
+    const priorityOf = (kind: AlertKind) => kind === "formal" ? 0 : kind === "v29" ? 1 : kind === "v1" ? 2 : 3;
+    const markerBases: MarkerBase[] = markerAlerts.map(alert => {
       const targetTime = timeValue(alert.marketTime || alert.createdAt);
       let index = chartPoints.length - 1;
       if (targetTime !== null) {
@@ -1482,14 +1585,57 @@ export default function RealtimeLabPage() {
       const markerPrice = number(alert.price) ?? chartPoints[index]?.price ?? currentPrice ?? low;
       const cx = x(index);
       const cy = y(markerPrice);
-      const side = alertSide(alert);
-      const laneKey = `${Math.round(cx / 44)}:${side}`;
-      const lane = markerLanes.get(laneKey) || 0;
-      markerLanes.set(laneKey, lane + 1);
-      const desiredOffset = (side === "sell" ? -1 : 1) * (24 + Math.min(lane, 2) * 17);
-      const labelOffset = Math.max(padY + 8 - cy, Math.min(height - padY - 8 - cy, desiredOffset));
-      return { alert, index, cx, cy, kind: alertClass(alert), side, labelOffset };
+      const kind = alertClass(alert);
+      return { alert, index, cx, cy, kind, side: alertSide(alert), priority: priorityOf(kind) };
     });
+    // Place higher-priority (formal) labels first, leaving the outer lanes to
+    // V2.9/V1. This makes collisions deterministic across refreshes.
+    const placementOrder = [...markerBases].sort((a, b) => a.priority - b.priority || a.index - b.index);
+    const placedBoxes: Array<{ left: number; right: number; top: number; bottom: number }> = [];
+    const overlaps = (a: { left: number; right: number; top: number; bottom: number }, b: { left: number; right: number; top: number; bottom: number }) =>
+      a.left < b.right + 3 && a.right > b.left - 3 && a.top < b.bottom + 3 && a.bottom > b.top - 3;
+    const markerRows: MarkerRow[] = [];
+    for (const base of placementOrder) {
+      const label = markerLabel(base.alert);
+      const labelWidth = Math.max(30, label.length * 9 + 8);
+      const horizontalUnit = Math.max(22, Math.ceil(labelWidth * 0.55));
+      const horizontalSteps = [0, -1, 1, -2, 2, -3, 3, -4, 4];
+      const preferredSign = base.side === "sell" ? -1 : 1;
+      const signs = [preferredSign, -preferredSign];
+      const baseOffset = base.kind === "formal" ? 24 : base.kind === "v29" ? 43 : base.kind === "v1" ? 62 : 34;
+      let chosen: MarkerRow | null = null;
+      for (const sign of signs) {
+        if (chosen) break;
+        for (let lane = 0; lane < 16 && !chosen; lane += 1) {
+          const magnitude = baseOffset + lane * 18;
+          const rawOffset = sign * magnitude;
+          const rawBaseline = base.cy + rawOffset + (sign > 0 ? 13 : -7);
+          const baseline = clamp(rawBaseline, padY + 10, height - padY - 3);
+          const labelOffset = baseline - base.cy - (sign > 0 ? 13 : -7);
+          for (const step of horizontalSteps) {
+            const rawLabelX = base.cx + step * horizontalUnit;
+            const labelX = clamp(rawLabelX, padX + labelWidth / 2, width - padX - labelWidth / 2);
+            const box = { left: labelX - labelWidth / 2, right: labelX + labelWidth / 2, top: baseline - 10, bottom: baseline + 3 };
+            if (placedBoxes.some(existing => overlaps(box, existing))) continue;
+            chosen = { ...base, labelX, labelOffset, labelY: baseline - base.cy };
+            placedBoxes.push(box);
+            break;
+          }
+        }
+      }
+      // A very dense cluster can exhaust the available lanes. Keep the
+      // marker visible at the edge rather than dropping the signal.
+      if (!chosen) {
+        const sign = preferredSign;
+        const baseline = clamp(base.cy + sign * baseOffset + (sign > 0 ? 13 : -7), padY + 10, height - padY - 3);
+        const labelOffset = baseline - base.cy - (sign > 0 ? 13 : -7);
+        const labelX = clamp(base.cx, padX + labelWidth / 2, width - padX - labelWidth / 2);
+        chosen = { ...base, labelX, labelOffset, labelY: baseline - base.cy };
+      }
+      markerRows.push(chosen);
+    }
+    // SVG paints later rows on top, so draw V1 first and formal last.
+    markerRows.sort((a, b) => b.priority - a.priority || a.index - b.index);
     const band = (item: { low: number; high: number }) => ({ y: y(item.high), height: Math.max(2, y(item.low) - y(item.high)), value: (item.low + item.high) / 2 });
     return { width, height, padX, padY, y, low, high, dataLow, dataHigh, historyPolyline, livePolyline, vwapPolyline, vwapY, biasBands, markerRows, support: band(support), resistance: band(resistance) };
   }, [chartAlerts, chartPoints, chartVwap, currentPrice, isReplay]);
@@ -1603,7 +1749,7 @@ export default function RealtimeLabPage() {
       <section className="lab-grid">
         <article className="panel chart-panel">
           <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : isMinute ? "1分钟日内图" : "秒级实时观察"}</h2></div><div className="chart-header-tools"><div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={isMinute ? "active" : ""} aria-pressed={isMinute} onClick={() => setChartMode("minute")}>1分钟</button><button type="button" className={chartMode === "live" ? "active" : ""} aria-pressed={chartMode === "live"} onClick={() => setChartMode("live")}>秒级观察</button>{code === DEFAULT_CODE && <button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button>}</div><div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></> : isMinute ? <><span><i className="legend-price" />1分钟价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />全天分钟线</span><span><i className="legend-live" />近3分钟放大</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
-          {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><small>回放数据，不是实时信号 · 完整242点回放压缩为6个观测点</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><small>信号从本地账本恢复，刷新后仍保留</small></div>}
+          {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><small>回放数据，不是实时信号 · 完整242点回放压缩为6个观测点</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><small>实心=正式 · 虚线圆=V2.9 · 菱形=V1 · 红正T/绿反T · 当日信号常驻</small></div>}
           {chart ? <div className="chart-wrap"><svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={`${stockName}日内价格图`} preserveAspectRatio="none">
             <rect className="support-band" x={chart.padX} y={chart.support.y} width={chart.width - chart.padX * 2} height={chart.support.height} />
             <rect className="resistance-band" x={chart.padX} y={chart.resistance.y} width={chart.width - chart.padX * 2} height={chart.resistance.height} />
@@ -1619,10 +1765,11 @@ export default function RealtimeLabPage() {
             {chart.vwapPolyline && <polyline className="vwap-polyline" points={chart.vwapPolyline} />}
             {chart.historyPolyline && <polyline className="price-polyline" points={chart.historyPolyline} />}
             {chart.livePolyline && <polyline className="live-polyline" points={chart.livePolyline} />}
-            {chart.markerRows.map(marker => <g key={marker.alert.id} className={`chart-marker ${marker.kind} ${marker.side}`} transform={`translate(${marker.cx},${marker.cy})`}>
-              <line className="marker-stem" x1="0" x2="0" y1="0" y2={marker.labelOffset} />
+            {chart.markerRows.map((marker, markerIndex) => <g key={`${marker.alert.id}-${marker.index}-${marker.kind}-${marker.side}-${markerIndex}`} className={`chart-marker ${marker.kind} ${marker.side}`} transform={`translate(${marker.cx},${marker.cy})`}>
+              <title>{`${markerLabel(marker.alert)} · ${clockLabel(marker.alert.marketTime || marker.alert.createdAt)} · ${formatPrice(number(marker.alert.price))}`}</title>
+              <line className="marker-stem" x1="0" x2={marker.labelX - marker.cx} y1="0" y2={marker.labelOffset} />
               {marker.kind === "v1" || marker.kind === "replay-candidate" ? <rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" /> : <circle r={marker.kind === "replay-observation" ? "5" : "7"} />}
-              <text y={marker.labelOffset + (marker.labelOffset > 0 ? 13 : -7)} textAnchor="middle">{markerLabel(marker.alert)}</text>
+              <text x={marker.labelX - marker.cx} y={marker.labelY} textAnchor="middle">{markerLabel(marker.alert)}</text>
             </g>)}
             <text className="price-axis-label" x={chart.width - 4} y={chart.y(chart.high) + 4} textAnchor="end">{formatPrice(chart.high)}</text>
             <text className="price-axis-label" x={chart.width - 4} y={chart.y(chart.low) - 4} textAnchor="end">{formatPrice(chart.low)}</text>
@@ -1675,7 +1822,7 @@ export default function RealtimeLabPage() {
 
       <section className="panel signal-panel">
         <header className="panel-header"><div><span className="panel-kicker">KEY CHANGES ONLY</span><h2>{isReplay ? "昨日观测点复盘" : "关键信号时间轴"}</h2></div>{isReplay ? <div className="signal-legend"><span><i className="dot replay-observation" />观察</span><span><i className="dot replay-candidate" />候选</span></div> : <div className="signal-legend"><span><i className="dot formal" />正式</span><span><i className="dot v29" />V2.9</span><span><i className="dot v1" />V1</span></div>}</header>
-        {chartAlerts.length ? <div className="signal-list">{chartAlerts.slice(-12).map(alert => {
+        {timelineDisplayAlerts.length ? <div className="signal-list">{timelineDisplayAlerts.slice(-12).map(alert => {
           const sourceTitle = isReplay ? firstText(alert.title, conciseAlertTitle(alert)) : conciseAlertTitle(alert);
           const rawMessage = firstText(alert.message, alert.title);
           return <div className={`signal-row ${alertClass(alert)} ${alertSide(alert)}`} key={alert.id}>
