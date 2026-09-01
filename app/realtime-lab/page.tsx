@@ -4,7 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 
 type AnyRecord = Record<string, unknown>;
-type PricePoint = { time: string; price: number; vwap?: number | null; volume?: number | null; live?: boolean; timestamp?: number };
+type PricePoint = {
+  time: string;
+  price: number;
+  vwap?: number | null;
+  volume?: number | null;
+  open?: number | null;
+  high?: number | null;
+  low?: number | null;
+  close?: number | null;
+  live?: boolean;
+  timestamp?: number;
+};
 type LiveTick = { time: string; price: number; timestamp: number };
 type SignalAlert = {
   id: string;
@@ -22,7 +33,7 @@ type SignalAlert = {
   version?: string;
   strategyId?: string;
 };
-type AlertKind = "formal" | "v29" | "v1" | "replay-observation" | "replay-candidate" | "other";
+type AlertKind = "formal" | "v29" | "v1" | "turning-top" | "turning-bottom" | "replay-observation" | "replay-candidate" | "other";
 type ChartMode = "minute" | "live" | "replay";
 type ConnectionState = "connecting" | "live" | "stale" | "offline" | "auth";
 type CrossMarketKey = "gold" | "silver" | "copper";
@@ -794,6 +805,8 @@ function modeFromAlerts(alerts: SignalAlert[], desk: AnyRecord, tone: "up" | "do
 function alertClass(alert: SignalAlert): AlertKind {
   if (alert.level === "replay-candidate") return "replay-candidate";
   if (alert.level === "replay-observation") return "replay-observation";
+  if (alert.level === "turning-top") return "turning-top";
+  if (alert.level === "turning-bottom") return "turning-bottom";
   const value = `${alert.level || ""} ${alert.source || ""} ${alert.title || ""} ${alert.message || ""} ${alert.direction || ""} ${alert.side || ""} ${alert.strategy || ""} ${alert.version || ""} ${alert.strategyId || ""}`.toLowerCase();
   // Strategy metadata wins over generic words such as “signal” or “trade”.
   // This keeps V1/V2.9 rows classified correctly when the payload also has
@@ -808,6 +821,8 @@ function alertLabel(alert: SignalAlert): string {
   const kind = alertClass(alert);
   if (kind === "replay-candidate") return "候选";
   if (kind === "replay-observation") return "观察";
+  if (kind === "turning-top") return "顶影子";
+  if (kind === "turning-bottom") return "底影子";
   if (kind === "formal") return "正式";
   if (kind === "v29") return "V2.9";
   if (kind === "v1") return "V1";
@@ -818,6 +833,7 @@ function readMarketPoints(market: AnyRecord): PricePoint[] {
   const source = array(market.minutes).length ? array(market.minutes) : array(market.bars);
   const points: PricePoint[] = source.flatMap(item => {
     const row = record(item);
+    const ohlc = record(row.ohlc);
     const price = firstNumber(row.price, row.close, row.last);
     if (price === null) return [];
     return [{
@@ -825,6 +841,12 @@ function readMarketPoints(market: AnyRecord): PricePoint[] {
       price,
       vwap: firstNumber(row.vwap, row.averagePrice, row.avgPrice, row.avg),
       volume: firstNumber(row.volume, row.vol),
+      // Keep only OHLC values supplied by the source. A close/price fallback
+      // would manufacture candles for feeds that only provide a last price.
+      open: firstNumber(row.open, row.o, ohlc.open, ohlc.o),
+      high: firstNumber(row.high, row.h, ohlc.high, ohlc.h),
+      low: firstNumber(row.low, row.l, ohlc.low, ohlc.l),
+      close: firstNumber(row.close, row.c, ohlc.close, ohlc.c),
       timestamp: number(row.timestamp) ?? undefined,
     }];
   });
@@ -1028,6 +1050,174 @@ function estimateTurningPoints(
   };
 }
 
+type CompletePricePoint = PricePoint & { open: number; high: number; low: number; close: number };
+
+function hasCompleteOhlc(point: PricePoint): point is CompletePricePoint {
+  return [point.open, point.high, point.low, point.close].every(value => value !== null && value !== undefined && Number.isFinite(value));
+}
+
+function pointDateKey(point: PricePoint): string {
+  const explicit = dateKey(point.time);
+  if (explicit) return explicit;
+  if (point.timestamp !== undefined && Number.isFinite(point.timestamp)) {
+    const milliseconds = point.timestamp < 1_000_000_000_000 ? point.timestamp * 1_000 : point.timestamp;
+    const parsed = new Date(milliseconds);
+    if (Number.isFinite(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  }
+  return "session";
+}
+
+/**
+ * Build non-trading turning-point observations. Each row is scored with a
+ * prefix of the series only, so a later high/low can never leak into an
+ * earlier marker. The result is deliberately kept out of the alert timeline.
+ */
+function buildTurningPointAlerts(
+  points: PricePoint[],
+  vwap: number | null,
+  currentEstimate?: TurningPointEstimate,
+): SignalAlert[] {
+  type Candidate = { alert: SignalAlert; index: number; probability: number; day: string };
+  const tops = new Map<string, Candidate[]>();
+  const bottoms = new Map<string, Candidate[]>();
+  const change = (values: number[]) => values.length < 2 ? 0 : (values.at(-1)! - values[0]) / Math.max(Math.abs(values[0]), 0.01);
+  const probabilityFor = (votes: number) => votes >= 3 ? 90 : votes === 2 ? 80 : votes === 1 ? 60 : 0;
+  const addCandidate = (store: Map<string, Candidate[]>, candidate: Candidate) => {
+    const rows = store.get(candidate.day) || [];
+    const candidateTime = timeValue(candidate.alert.marketTime);
+    const closeIndex = rows.findIndex(row => {
+      const rowTime = timeValue(row.alert.marketTime);
+      return candidateTime !== null && rowTime !== null && Math.abs(candidateTime - rowTime) < 20 * 60;
+    });
+    if (closeIndex >= 0) {
+      if (candidate.probability > rows[closeIndex].probability) rows[closeIndex] = candidate;
+      store.set(candidate.day, rows);
+      return;
+    }
+    if (rows.length < 3) {
+      rows.push(candidate);
+    } else {
+      const weakest = rows.reduce((weakIndex, row, index, all) => row.probability < all[weakIndex].probability ? index : weakIndex, 0);
+      if (candidate.probability > rows[weakest].probability) rows[weakest] = candidate;
+    }
+    rows.sort((a, b) => a.index - b.index);
+    store.set(candidate.day, rows);
+  };
+
+  for (let index = 5; index < points.length; index += 1) {
+    const point = points[index];
+    if (point.price === null || !Number.isFinite(point.price) || point.time === "—") continue;
+    const prefix = points.slice(0, index + 1).filter(item => Number.isFinite(item.price));
+    if (prefix.length < 6) continue;
+    const prices = prefix.map(item => item.price);
+    const recent = prices.slice(-6);
+    const prior = prices.slice(-12, -6);
+    const window = prices.slice(-36);
+    const recentHigh = Math.max(...window);
+    const recentLow = Math.min(...window);
+    const range = Math.max(recentHigh - recentLow, Math.abs(point.price) * 0.0005, 0.01);
+    const position = clamp((point.price - recentLow) / range, 0, 1);
+    const recentChange = change(recent);
+    const priorChange = change(prior);
+    const lastDelta = point.price - (prices.at(-2) ?? point.price);
+    const baseline = point.vwap !== null && point.vwap !== undefined
+      ? point.vwap
+      : index === points.length - 1 ? vwap : null;
+    const vwapGap = baseline === null || baseline === undefined || baseline <= 0 ? 0 : (point.price - baseline) / baseline;
+    const ohlc = hasCompleteOhlc(point) ? point : null;
+    const candleRange = ohlc ? Math.max(ohlc.high - ohlc.low, 0.0001) : 0;
+    const topReject = ohlc !== null && (ohlc.high - ohlc.close) / candleRange >= 0.35 && ohlc.close <= ohlc.open;
+    const bottomReject = ohlc !== null && (ohlc.close - ohlc.low) / candleRange >= 0.35 && ohlc.close >= ohlc.open;
+    const priorVolumes = prefix.slice(-7, -1).map(item => item.volume).filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value) && value > 0);
+    const averageVolume = priorVolumes.length ? priorVolumes.reduce((sum, value) => sum + value, 0) / priorVolumes.length : null;
+    const volumeSurge = point.volume !== null && point.volume !== undefined && averageVolume !== null && point.volume >= averageVolume * 1.25;
+    const topStructure = position >= 0.72 && (recentChange <= priorChange + 0.0002 || point.price >= recentHigh - range * 0.12);
+    const bottomStructure = position <= 0.28 && (recentChange >= priorChange - 0.0002 || point.price <= recentLow + range * 0.12);
+    const topMomentum = recentChange < -0.0008 || (priorChange > 0.001 && recentChange < priorChange - 0.001) || lastDelta < -range * 0.08;
+    const bottomMomentum = recentChange > 0.0008 || (priorChange < -0.001 && recentChange > priorChange + 0.001) || lastDelta > range * 0.08;
+    const topVwap = vwapGap >= 0.004;
+    const bottomVwap = vwapGap <= -0.004;
+    const topVolume = volumeSurge && lastDelta <= 0;
+    const bottomVolume = volumeSurge && lastDelta >= 0;
+    const topVotes = [topStructure, topMomentum, topReject, topVwap, topVolume].filter(Boolean).length;
+    const bottomVotes = [bottomStructure, bottomMomentum, bottomReject, bottomVwap, bottomVolume].filter(Boolean).length;
+    const isLast = index === points.length - 1;
+    const topReasons = [
+      topStructure ? "接近近期高位" : "",
+      topMomentum ? "上冲动能减弱" : "",
+      topReject ? "上影线拒绝" : "",
+      topVwap ? "高于VWAP偏离带" : "",
+      topVolume ? "放量但价格不再上行" : "",
+    ].filter(Boolean);
+    const bottomReasons = [
+      bottomStructure ? "接近近期低位" : "",
+      bottomMomentum ? "下探动能减弱" : "",
+      bottomReject ? "下影线承接" : "",
+      bottomVwap ? "低于VWAP偏离带" : "",
+      bottomVolume ? "放量后出现承接" : "",
+    ].filter(Boolean);
+    let topProbability = probabilityFor(topVotes);
+    let bottomProbability = probabilityFor(bottomVotes);
+    if (isLast && currentEstimate?.ready) {
+      if (currentEstimate.topStage > 0 && currentEstimate.topProbability !== null) {
+        topProbability = Math.max(topProbability, currentEstimate.topProbability);
+        if (!topReasons.length) topReasons.push(currentEstimate.topReason);
+      }
+      if (currentEstimate.bottomStage > 0 && currentEstimate.bottomProbability !== null) {
+        bottomProbability = Math.max(bottomProbability, currentEstimate.bottomProbability);
+        if (!bottomReasons.length) bottomReasons.push(currentEstimate.bottomReason);
+      }
+    }
+    const topEligible = topProbability >= 60 && (topStructure || topReject || topVwap || (isLast && currentEstimate?.topStage > 0));
+    const bottomEligible = bottomProbability >= 60 && (bottomStructure || bottomReject || bottomVwap || (isLast && currentEstimate?.bottomStage > 0));
+    const day = pointDateKey(point);
+    const stamp = point.timestamp !== undefined ? String(point.timestamp) : `${day}-${point.time.replace(/\D/g, "")}-${index}`;
+    if (topEligible && topProbability >= bottomProbability) {
+      addCandidate(tops, {
+        index,
+        day,
+        probability: topProbability,
+        alert: {
+          id: `turning-${stamp}-top`,
+          marketTime: point.time,
+          price: ohlc?.high ?? point.price,
+          title: `顶 ${topProbability}%`,
+          message: `${topReasons.join(" · ") || "顶部证据出现"}；仅使用当时及此前数据`,
+          source: "顶底影子",
+          direction: "顶部风险",
+          side: "sell",
+          level: "turning-top",
+          strategy: "turning-point-shadow",
+        },
+      });
+    }
+    if (bottomEligible && bottomProbability > topProbability) {
+      addCandidate(bottoms, {
+        index,
+        day,
+        probability: bottomProbability,
+        alert: {
+          id: `turning-${stamp}-bottom`,
+          marketTime: point.time,
+          price: ohlc?.low ?? point.price,
+          title: `底 ${bottomProbability}%`,
+          message: `${bottomReasons.join(" · ") || "底部证据出现"}；仅使用当时及此前数据`,
+          source: "顶底影子",
+          direction: "底部机会",
+          side: "buy",
+          level: "turning-bottom",
+          strategy: "turning-point-shadow",
+        },
+      });
+    }
+  }
+
+  return [...tops.values(), ...bottoms.values()]
+    .flat()
+    .sort((a, b) => a.index - b.index)
+    .map(candidate => candidate.alert);
+}
+
 function alertActionLabel(alert: SignalAlert): string {
   const side = alertSide(alert);
   return side === "buy" ? "买入" : side === "sell" ? "卖出" : "观察";
@@ -1057,6 +1247,7 @@ function conciseAlertTitle(alert: SignalAlert): string {
 
 function markerLabel(alert: SignalAlert): string {
   if (alert.level === "replay-candidate" || alert.level === "replay-observation") return alert.title || "观察";
+  if (alert.level === "turning-top" || alert.level === "turning-bottom") return alert.title || (alert.level === "turning-top" ? "顶" : "底");
   const source = alertClass(alert) === "formal" ? "正式" : alertClass(alert) === "v29" ? "2.9" : alertClass(alert) === "v1" ? "V1" : "观";
   const side = alertSide(alert);
   return `${source}${side === "buy" ? "买" : side === "sell" ? "卖" : "变"}`;
@@ -1360,12 +1551,29 @@ export default function RealtimeLabPage() {
     const minutes = new Map<string, PricePoint>();
     points.forEach(point => {
       const minute = point.time.match(/^\d{2}:\d{2}/)?.[0] || point.time;
-      const previous = minutes.get(minute);
-      minutes.set(minute, {
+      const normalizedTimestamp = point.timestamp === undefined
+        ? null
+        : (point.timestamp < 1_000_000_000_000 ? point.timestamp * 1_000 : point.timestamp);
+      const key = normalizedTimestamp === null ? minute : String(Math.floor(normalizedTimestamp / 60_000));
+      const previous = minutes.get(key);
+      const finite = (value: number | null | undefined): value is number => value !== null && value !== undefined && Number.isFinite(value);
+      const highs = [previous?.high, point.high].filter(finite);
+      const lows = [previous?.low, point.low].filter(finite);
+      const previousOpen = previous?.open;
+      const previousClose = previous?.close;
+      const open = finite(previousOpen) ? previousOpen : finite(point.open) ? point.open : undefined;
+      const close = finite(point.close) ? point.close : finite(previousClose) ? previousClose : undefined;
+      minutes.set(key, {
         ...previous,
         ...point,
         time: minute,
         live: false,
+        // A minute candle is built only from source OHLC values. Last price
+        // ticks may update `price`, but must not fabricate open/high/low/close.
+        open,
+        high: highs.length ? Math.max(...highs) : undefined,
+        low: lows.length ? Math.min(...lows) : undefined,
+        close,
         vwap: point.vwap ?? previous?.vwap,
         volume: point.volume ?? previous?.volume,
       });
@@ -1427,15 +1635,26 @@ export default function RealtimeLabPage() {
       return !alertDate || alertDate === chartDate;
     });
   }, [alerts, chartDate]);
-  const chartAlerts = isReplay ? ZIJIN_REPLAY_ALERTS : persistentChartAlerts;
-  // 回放模式使用固定的回放事件；实时模式使用经过压缩的当日时间轴。
-  // 这样三套实时信号的常驻图层不会覆盖“昨日回放”的观测点列表。
-  const timelineDisplayAlerts = isReplay ? keyTimelineAlerts(ZIJIN_REPLAY_ALERTS) : timelineAlerts;
   const chartVwap = isReplay ? ZIJIN_REPLAY_POINTS.at(-1)?.vwap ?? null : vwap;
   const turningPoints = useMemo(
     () => estimateTurningPoints(chartPoints, chartPoints.at(-1)?.price ?? currentPrice, chartVwap, l2Metrics),
     [chartPoints, chartVwap, currentPrice, l2Metrics],
   );
+  const turningPointAlerts = useMemo(
+    () => buildTurningPointAlerts(chartPoints, chartVwap, isReplay ? undefined : turningPoints),
+    [chartPoints, chartVwap, isReplay, turningPoints],
+  );
+  const turningPointCounts = useMemo(() => ({
+    top: turningPointAlerts.filter(alert => alertClass(alert) === "turning-top").length,
+    bottom: turningPointAlerts.filter(alert => alertClass(alert) === "turning-bottom").length,
+  }), [turningPointAlerts]);
+  const chartAlerts = useMemo(
+    () => [...(isReplay ? ZIJIN_REPLAY_ALERTS : persistentChartAlerts), ...turningPointAlerts],
+    [isReplay, persistentChartAlerts, turningPointAlerts],
+  );
+  // 回放模式使用固定的回放事件；实时模式使用经过压缩的当日时间轴。
+  // 顶底概率只挂在主图观察层，不进入时间轴、提醒记录或交易队列。
+  const timelineDisplayAlerts = isReplay ? keyTimelineAlerts(ZIJIN_REPLAY_ALERTS) : timelineAlerts;
   const openingFocus = useMemo(
     () => readOpeningFocusSummary(quote, market, desk, dailyAssignment, openingOutlook, direction, l2Metrics, turningPoints),
     [dailyAssignment, desk, direction, l2Metrics, market, openingOutlook, quote, turningPoints],
@@ -1532,7 +1751,13 @@ export default function RealtimeLabPage() {
     const biasValues = biasBaselines.flatMap(value => value === null ? [] : [value * 0.975, value * 0.985, value * 1.015, value * 1.025]);
     const markerAlerts = chartAlerts.filter(alert => alertClass(alert) !== "other");
     const markerPrices = markerAlerts.map(alert => number(alert.price)).filter((value): value is number => value !== null);
-    const allValues = [...values, support.low, support.high, resistance.low, resistance.high, ...markerPrices, ...(vwapValue === null ? [] : [vwapValue]), ...biasValues];
+    const candleRows: Array<{ point: CompletePricePoint; index: number }> = [];
+    chartPoints.forEach((point, index) => {
+      if (hasCompleteOhlc(point)) candleRows.push({ point, index });
+    });
+    const hasCandles = candleRows.length >= 2;
+    const candleValues = candleRows.flatMap(({ point }) => [point.open, point.high, point.low, point.close]);
+    const allValues = [...values, ...candleValues, support.low, support.high, resistance.low, resistance.high, ...markerPrices, ...(vwapValue === null ? [] : [vwapValue]), ...biasValues];
     const dataLow = Math.min(...allValues);
     const dataHigh = Math.max(...allValues);
     const dataRange = Math.max(dataHigh - dataLow, Math.max(dataHigh * 0.001, 0.01));
@@ -1544,6 +1769,22 @@ export default function RealtimeLabPage() {
       return padX + (position ?? index / Math.max(chartPoints.length - 1, 1)) * (width - padX * 2);
     };
     const y = (value: number) => height - padY - ((value - low) / range) * (height - padY * 2);
+    const candleWidth = clamp(((width - padX * 2) / Math.max(chartPoints.length - 1, 1)) * 0.68, 2, 12);
+    const candles = candleRows.map(({ point, index }) => {
+      const centerX = x(index);
+      const openY = y(point.open);
+      const closeY = y(point.close);
+      return {
+        x: centerX,
+        wickY1: y(point.high),
+        wickY2: y(point.low),
+        bodyX: centerX - candleWidth / 2,
+        bodyY: Math.min(openY, closeY),
+        bodyHeight: Math.max(2, Math.abs(openY - closeY)),
+        width: candleWidth,
+        up: point.close >= point.open,
+      };
+    });
     const biasPolygon = (outerFactor: number, innerFactor: number, reverse = false) => {
       const outer = biasBaselines.flatMap((base, index) => base === null ? [] : [`${x(index).toFixed(1)},${y(base * outerFactor).toFixed(1)}`]);
       const inner = biasBaselines.flatMap((base, index) => base === null ? [] : [`${x(index).toFixed(1)},${y(base * innerFactor).toFixed(1)}`]);
@@ -1571,7 +1812,7 @@ export default function RealtimeLabPage() {
       priority: number;
     };
     type MarkerRow = MarkerBase & { labelX: number; labelOffset: number; labelY: number };
-    const priorityOf = (kind: AlertKind) => kind === "formal" ? 0 : kind === "v29" ? 1 : kind === "v1" ? 2 : 3;
+    const priorityOf = (kind: AlertKind) => kind === "formal" ? 0 : kind === "v29" ? 1 : kind === "v1" ? 2 : kind === "turning-top" || kind === "turning-bottom" ? 4 : 3;
     const markerBases: MarkerBase[] = markerAlerts.map(alert => {
       const targetTime = timeValue(alert.marketTime || alert.createdAt);
       let index = chartPoints.length - 1;
@@ -1604,7 +1845,7 @@ export default function RealtimeLabPage() {
       const horizontalSteps = [0, -1, 1, -2, 2, -3, 3, -4, 4];
       const preferredSign = base.side === "sell" ? -1 : 1;
       const signs = [preferredSign, -preferredSign];
-      const baseOffset = base.kind === "formal" ? 24 : base.kind === "v29" ? 43 : base.kind === "v1" ? 62 : 34;
+      const baseOffset = base.kind === "formal" ? 24 : base.kind === "v29" ? 43 : base.kind === "v1" ? 62 : base.kind === "turning-top" || base.kind === "turning-bottom" ? 82 : 34;
       let chosen: MarkerRow | null = null;
       for (const sign of signs) {
         if (chosen) break;
@@ -1639,7 +1880,7 @@ export default function RealtimeLabPage() {
     // SVG paints later rows on top, so draw V1 first and formal last.
     markerRows.sort((a, b) => b.priority - a.priority || a.index - b.index);
     const band = (item: { low: number; high: number }) => ({ y: y(item.high), height: Math.max(2, y(item.low) - y(item.high)), value: (item.low + item.high) / 2 });
-    return { width, height, padX, padY, y, low, high, dataLow, dataHigh, historyPolyline, livePolyline, vwapPolyline, vwapY, biasBands, markerRows, support: band(support), resistance: band(resistance) };
+    return { width, height, padX, padY, y, low, high, dataLow, dataHigh, historyPolyline, livePolyline, vwapPolyline, vwapY, biasBands, markerRows, hasCandles, candles, support: band(support), resistance: band(resistance) };
   }, [chartAlerts, chartPoints, chartVwap, currentPrice, isReplay]);
 
   const applyCode = () => {
@@ -1751,7 +1992,7 @@ export default function RealtimeLabPage() {
       <section className="lab-grid">
         <article className="panel chart-panel">
           <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : isMinute ? "1分钟日内图" : "秒级实时观察"}</h2></div><div className="chart-header-tools"><div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={isMinute ? "active" : ""} aria-pressed={isMinute} onClick={() => setChartMode("minute")}>1分钟</button><button type="button" className={chartMode === "live" ? "active" : ""} aria-pressed={chartMode === "live"} onClick={() => setChartMode("live")}>秒级观察</button>{code === DEFAULT_CODE && <button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button>}</div><div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></> : isMinute ? <><span><i className="legend-price" />1分钟价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />全天分钟线</span><span><i className="legend-live" />近3分钟放大</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
-          {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><small>回放数据，不是实时信号 · 完整242点回放压缩为6个观测点</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><small>实心=正式 · 虚线圆=V2.9 · 菱形=V1 · 红正T/绿反T · 当日信号常驻</small></div>}
+          {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><span><i className="shape turning-top" />顶影子</span><span><i className="shape turning-bottom" />底影子</span><small>回放数据，不是实时信号 · 顶/底概率仅观察</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><span><i className="shape turning-top" />顶影子</span><span><i className="shape turning-bottom" />底影子</span><small>实心=正式 · 虚线圆=V2.9 · 菱形=V1 · 橙顶/蓝底概率影子 · 当日信号常驻</small></div>}
           {chart ? <div className="chart-wrap"><svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={`${stockName}日内价格图`} preserveAspectRatio="none">
             <rect className="support-band" x={chart.padX} y={chart.support.y} width={chart.width - chart.padX * 2} height={chart.support.height} />
             <rect className="resistance-band" x={chart.padX} y={chart.resistance.y} width={chart.width - chart.padX * 2} height={chart.resistance.height} />
@@ -1765,7 +2006,12 @@ export default function RealtimeLabPage() {
             <text className="band-label resistance" x={chart.padX + 7} y={chart.resistance.y + 12}>结构压力 {formatPrice(chart.resistance.value)}</text>
             {chart.vwapY !== null && <><line className="vwap-line" x1={chart.padX} x2={chart.width - chart.padX} y1={chart.vwapY} y2={chart.vwapY} /><text className="vwap-label" x={chart.width - chart.padX - 5} y={chart.vwapY - 5} textAnchor="end">VWAP {formatPrice(vwap)}</text></>}
             {chart.vwapPolyline && <polyline className="vwap-polyline" points={chart.vwapPolyline} />}
-            {chart.historyPolyline && <polyline className="price-polyline" points={chart.historyPolyline} />}
+            {chart.hasCandles
+              ? chart.candles.map((candle, candleIndex) => <g className={`candle ${candle.up ? "up" : "down"}`} key={`candle-${candleIndex}-${candle.x.toFixed(1)}`}>
+                <line className="candle-wick" x1={candle.x} x2={candle.x} y1={candle.wickY1} y2={candle.wickY2} />
+                <rect className="candle-body" x={candle.bodyX} y={candle.bodyY} width={candle.width} height={candle.bodyHeight} />
+              </g>)
+              : chart.historyPolyline && <polyline className="price-polyline" points={chart.historyPolyline} />}
             {chart.livePolyline && <polyline className="live-polyline" points={chart.livePolyline} />}
             {chart.markerRows.map((marker, markerIndex) => <g key={`${marker.alert.id}-${marker.index}-${marker.kind}-${marker.side}-${markerIndex}`} className={`chart-marker ${marker.kind} ${marker.side}`} transform={`translate(${marker.cx},${marker.cy})`}>
               <title>{`${markerLabel(marker.alert)} · ${clockLabel(marker.alert.marketTime || marker.alert.createdAt)} · ${formatPrice(number(marker.alert.price))}`}</title>
@@ -1796,16 +2042,16 @@ export default function RealtimeLabPage() {
           <div className={`flow-verdict ${flowConclusion.includes("增强") ? "up" : flowConclusion.includes("不足") ? "down" : "flat"}`}><i /><div><span>盘口结论</span><strong>{flowConclusion}</strong><small>盘口只负责确认或否决，不单独触发交易</small></div></div>
 
           <div className="turning-point-panel" aria-label="顶底概率影子层">
-            <div className="turning-point-head"><div><span>顶底观察</span><small>只用当前及历史数据 · 影子层</small></div><em>三次确认</em></div>
+            <div className="turning-point-head"><div><span>顶底观察</span><small>只用当前及历史数据 · 影子层</small></div><em>每日各≤3次</em></div>
             <div className="turning-point-grid">
               <div className="turning-point-card top">
-                <div className="turning-point-card-head"><span>顶部风险</span><b>{turningPoints.topStatus}</b></div>
+                <div className="turning-point-card-head"><span>顶部风险 {turningPointCounts.top}/3</span><b>{turningPoints.topStatus}</b></div>
                 <strong className="turning-point-probability">{turningPoints.topProbability === null ? "—" : `${turningPoints.topProbability}%`}</strong>
                 <div className="turning-point-meter" aria-label={`顶部确认进度 ${turningPoints.topStage}/3`}><i className={turningPoints.topStage >= 1 ? "active" : ""} /><i className={turningPoints.topStage >= 2 ? "active" : ""} /><i className={turningPoints.topStage >= 3 ? "active" : ""} /></div>
                 <small className="turning-point-reason" title={turningPoints.topReason}>{turningPoints.topReason}</small>
               </div>
               <div className="turning-point-card bottom">
-                <div className="turning-point-card-head"><span>底部机会</span><b>{turningPoints.bottomStatus}</b></div>
+                <div className="turning-point-card-head"><span>底部机会 {turningPointCounts.bottom}/3</span><b>{turningPoints.bottomStatus}</b></div>
                 <strong className="turning-point-probability">{turningPoints.bottomProbability === null ? "—" : `${turningPoints.bottomProbability}%`}</strong>
                 <div className="turning-point-meter" aria-label={`底部确认进度 ${turningPoints.bottomStage}/3`}><i className={turningPoints.bottomStage >= 1 ? "active" : ""} /><i className={turningPoints.bottomStage >= 2 ? "active" : ""} /><i className={turningPoints.bottomStage >= 3 ? "active" : ""} /></div>
                 <small className="turning-point-reason" title={turningPoints.bottomReason}>{turningPoints.bottomReason}</small>
