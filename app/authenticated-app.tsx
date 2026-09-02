@@ -455,7 +455,7 @@ const v1ContextActionLabel=(action:ReplayAction)=>action.direction==="反T"
   : action.side==="买入"?"V1 正T":"V1 止盈";
 const shadowChartActionLabel=(action:ReplayAction)=>
   action.side==="买入"||action.side==="买回"?"候买":"候卖";
-type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|75|90; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|70|75|80|90; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
 type ChartObservationStrategy = "closure"|"v29"|"v1"|"observation";
 type ChartObservation = ReplayObservation & {strategy:ChartObservationStrategy};
 type PersistedChartObservation = ReplayObservation & {strategy?:ChartObservationStrategy};
@@ -592,6 +592,11 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shado
     const side=kind==="pivot-top"?"top":"bottom";
     if(pivotAttempts[side]>=3||index-lastPivotIndex[side]<15)return;
     const probability=probabilityForStrength(result.strength);
+    const displayProbability=kind==="pivot-top"?topPivotDisplayProbability(probability):probability;
+    // A sub-70% top is not a visible top attempt and must not consume one of
+    // the three causal slots; otherwise weak early noise could suppress a
+    // later 70%/80% observation for the rest of the session.
+    if(kind==="pivot-top"&&displayProbability===null)return;
     const assessment=assessmentForStrength(result.strength);
     const price=safePrice(index);
     if(price===undefined)return;
@@ -600,7 +605,11 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shado
     const attempt=pivotAttempts[side] as 1|2|3;
     const pivotPrice=Number(result.pivot.price);
     const pivotTime=String(result.pivot.time??minutes[index]?.time??"");
-    const label=kind==="pivot-top"?`顶 ${probability}%`:`底 ${probability}%`;
+    // Keep the underlying score unchanged, but show top pivots in two
+    // conservative desk bands only: 70% or 80%.  The old 75/90 values are
+    // intentionally mapped to those display bands so persisted observations
+    // do not reintroduce a third, noisy label after a refresh.
+    const label=kind==="pivot-top"?`顶 ${displayProbability??probability}%`:`底 ${probability}%`;
     const observation:ReplayObservation={
       time:String(minutes[index].time),price,direction,score:probability,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
       pivotTime:/^\d{4}$/.test(pivotTime)?pivotTime:undefined,
@@ -694,7 +703,10 @@ function compactIntradayPrompt(value:string, fallback="等待确认") {
 }
 
 function observationConfirmationLabel(observation: ReplayObservation) {
-  if(observation.observationKind==="pivot-top"&&observation.probability)return `顶 ${observation.probability}%`;
+  if(observation.observationKind==="pivot-top"){
+    const probability=topPivotDisplayProbability(observation.probability);
+    return probability===null?"顶观察":`顶 ${probability}%`;
+  }
   if(observation.observationKind==="pivot-bottom"&&observation.probability)return `底 ${observation.probability}%`;
   if(observation.observationKind==="macd"){
     if(observation.macdState==="death-cross")return "MACD↓";
@@ -713,6 +725,30 @@ function observationConfirmationLabel(observation: ReplayObservation) {
   const label=clearerLabels[rawLabel]??rawLabel;
   const resolvedLabel=observation.direction==="正T"&&label==="反弹观察"&&observation.time<="1000"?"修复观察":label;
   return compactIntradayPrompt(resolvedLabel);
+}
+
+type TopPivotDisplayProbability=70|80;
+function topPivotDisplayProbability(value:unknown):TopPivotDisplayProbability|null {
+  const probability=Number(value);
+  if(!Number.isFinite(probability)||probability<70)return null;
+  return probability>=80?80:70;
+}
+
+function selectTopPivotObservationKeys(observations:ReplayObservation[],limit=2,minProbability=70,minGapMinutes=30){
+  const key=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
+  const selected:ReplayObservation[]=[];
+  const candidates=observations
+    .map(observation=>({observation,displayProbability:topPivotDisplayProbability(observation.probability)}))
+    .filter(item=>item.observation.observationKind==="pivot-top"&&item.displayProbability!==null&&item.displayProbability>=minProbability)
+    .sort((left,right)=>(Number(right.displayProbability??0)-Number(left.displayProbability??0))||(Number(right.observation.probability??0)-Number(left.observation.probability??0))||left.observation.time.localeCompare(right.observation.time));
+  // One 80% and one 70% marker is the complete top layer.  Do not fill the
+  // second slot with another marker from the same band; this keeps the chart
+  // readable and makes the confidence meaning unambiguous.
+  for(const target of ([80,70] as TopPivotDisplayProbability[]).slice(0,Math.max(0,limit))){
+    const candidate=candidates.find(item=>item.displayProbability===target&&!selected.some(selectedItem=>isRecentCausalEvent(item.observation.time,selectedItem.time,minGapMinutes)||isRecentCausalEvent(selectedItem.time,item.observation.time,minGapMinutes)));
+    if(candidate)selected.push(candidate.observation);
+  }
+  return new Set(selected.map(key));
 }
 
 function observationDirectionNote(observation: ReplayObservation) {
@@ -2533,7 +2569,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         if(!/^\d{4}$/.test(String(observation.time??""))||!["正T","反T"].includes(String(observation.direction??"")))return [];
         if(!Number.isFinite(observation.score)||!Number.isFinite(observation.threshold))return [];
         const strategy=observation.strategy==="observation"?"observation":"closure";
-        const probability=observation.probability===90||observation.probability===75||observation.probability===60?observation.probability:undefined;
+        const probability=observation.probability===90||observation.probability===80||observation.probability===75||observation.probability===70||observation.probability===60?observation.probability:undefined;
         const attempt=observation.attempt===1||observation.attempt===2||observation.attempt===3?observation.attempt:undefined;
         return [{...observation,time:String(observation.time),direction:observation.direction as ReplayObservation["direction"],score:Number(observation.score),threshold:Number(observation.threshold),edge:Number(observation.edge)||0,executable:Boolean(observation.executable),blockers:Array.isArray(observation.blockers)?observation.blockers.map(String).slice(0,12):[],reason:String(observation.reason??"历史候选信号"),strategy,probability,attempt} as PersistedChartObservation];
       }).slice(0,120);
@@ -2791,7 +2827,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,17,isSell);
       return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action,strategy}];
     });
+    const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
+    const topPivotLabelKeys=selectTopPivotObservationKeys(
+      durableVisibleChartObservations.filter(observation=>observation.strategy==="observation"),
+    );
     const observations=durableVisibleChartObservations.flatMap((observation,index)=>{
+      // Keep at most two well-spaced top observations at or above 70%; lower
+      // probability tops remain available through the crosshair/audit only.
+      if(observation.strategy==="observation"&&observation.observationKind==="pivot-top"&&!topPivotLabelKeys.has(observationKey(observation)))return [];
       const markerPrice=observation.strategy==="observation"
         ?observation.price
         :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
@@ -2819,8 +2862,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const labelWidth=Math.max(38,currentLabel.length*8+14);
       const labelVisible=true;
       // Candidate and confirmed evidence stays reviewable for the whole session;
-      // low-priority watch observations remain compact dots.
-      const labelRendered=qualified;
+      // low-confidence pivot observations remain compact dots. Their title and
+      // crosshair details are still available, but they no longer add another
+      // badge/leader to an already busy price area.
+      const lowConfidencePivot=observation.strategy==="observation"
+        &&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
+        &&Number(observation.probability??0)<70;
+      const labelRendered=qualified&&!lowConfidencePivot;
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
         : {labelX:point.x,labelY:point.y};
@@ -7445,7 +7493,12 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? [],l2Replay.observations),30) as ReplayObservation[],
       ]
     : [];
-  const visibleReplayChartObservations=[...visibleBacktestObservations,...replayCausalObservations];
+  const replayTopPivotKeys=selectTopPivotObservationKeys(replayCausalObservations);
+  const replayObservationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
+  const visibleReplayChartObservations=[
+    ...visibleBacktestObservations,
+    ...replayCausalObservations.filter(observation=>observation.observationKind!=="pivot-top"||replayTopPivotKeys.has(replayObservationKey(observation))),
+  ];
   const trainingObservations=visibleBacktestObservations.filter(observation=>!observation.coverageOnly);
   const trainingCurrent=trainingObservations[trainingIndex] ?? null;
   const trainingCorrect=trainingChoices.filter(item=>item.choice===item.expected).length;
