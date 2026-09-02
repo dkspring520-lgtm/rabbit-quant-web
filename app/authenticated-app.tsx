@@ -727,6 +727,25 @@ function observationConfirmationLabel(observation: ReplayObservation) {
   return compactIntradayPrompt(resolvedLabel);
 }
 
+// Pivot observations become available at `observation.time`, but their
+// location reference is the already-seen extreme stored in `pivotPrice`.
+// Keeping this distinction explicit prevents a confirmed rebound and a
+// confirmed pullback from being drawn at the same confirmation price.
+function observationReferencePrice(observation:ReplayObservation,fallback?:number) {
+  const confirmationPrice=Number(observation.price);
+  const pivotPrice=Number(observation.pivotPrice);
+  if((observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
+    &&Number.isFinite(pivotPrice)&&pivotPrice>0){
+    if(Number.isFinite(confirmationPrice)&&confirmationPrice>0){
+      return observation.observationKind==="pivot-top"
+        ?Math.max(pivotPrice,confirmationPrice)
+        :Math.min(pivotPrice,confirmationPrice);
+    }
+    return pivotPrice;
+  }
+  return Number.isFinite(confirmationPrice)&&confirmationPrice>0?confirmationPrice:fallback;
+}
+
 type TopPivotDisplayProbability=70|80;
 function topPivotDisplayProbability(value:unknown):TopPivotDisplayProbability|null {
   const probability=Number(value);
@@ -2877,7 +2896,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // probability tops remain available through the crosshair/audit only.
       if(observation.strategy==="observation"&&observation.observationKind==="pivot-top"&&!topPivotLabelKeys.has(observationKey(observation)))return [];
       const markerPrice=observation.strategy==="observation"
-        ?observation.price
+        ?observationReferencePrice(observation,observation.price)
         :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
           ?observation.pivotPrice
           :observation.price;
@@ -4536,9 +4555,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return [
       ...intradayMarkerLayout.observations.map(marker=>({
         time:marker.observation.time,
-        price:marker.observation.coverageOnly&&Number.isFinite(marker.observation.pivotPrice)
-          ? Number(marker.observation.pivotPrice)
-          : Number(marker.observation.price),
+        price:observationReferencePrice(marker.observation,Number(marker.observation.price)),
         label:compactIntradayPrompt(marker.currentLabel,"候选观察"),
         isSell:marker.isSell,
         qualified:marker.qualified,
@@ -7758,7 +7775,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
                 const minuteIndex=fullDayMinutes.findIndex(point=>point.time===observation.time);
                 if(minuteIndex<0)return null;
                 const price=observation.observationKind
-                  ?observation.price ?? fullDayMinutes[minuteIndex].price
+                  ?observationReferencePrice(observation,fullDayMinutes[minuteIndex].price) ?? fullDayMinutes[minuteIndex].price
                   :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
                   ? observation.pivotPrice
                   : observation.price ?? fullDayMinutes[minuteIndex].price;
