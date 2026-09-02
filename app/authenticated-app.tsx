@@ -573,10 +573,11 @@ type IntradayDivergenceResult={
  * markers are emitted only at the causal confirmation minute and are capped
  * so that the chart remains readable during a full trading day.
  */
-function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string):ReplayObservation[]{
+function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shadowObservations:ReplayObservation[]=[],requireShadowConfirmation=false):ReplayObservation[]{
   if(minutes.length===0)return [];
   const observations:ReplayObservation[]=[];
   const pivotEvents:{index:number;observation:ReplayObservation}[]=[];
+  const macdEvents:{index:number;observation:ReplayObservation}[]=[];
   const pivotAttempts={top:0,bottom:0};
   const lastPivotIndex={top:-Infinity,bottom:-Infinity};
   const probabilityForStrength=(strength:number|undefined):60|75|90=>strength===2?90:strength===1?75:60;
@@ -625,12 +626,12 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string):Repl
   }
   observations.push(...pivotEvents.sort((left,right)=>left.index-right.index).map(item=>item.observation));
 
-  // Causal MACD events are an independent observation family.  A crossover
-  // wins over a same-minute histogram flip so one minute produces one badge.
+  // Causal MACD events are an independent observation family.  Only DIF/signal
+  // crossovers are surfaced: histogram flips are too noisy for a desk marker.
+  // For 紫金, a matching V1/V2.9 shadow event is required as a second vote.
   let ema12:number|undefined;
   let ema26:number|undefined;
   let signal:number|undefined;
-  let previousDiff:number|undefined;
   let previousHistogram:number|undefined;
   let lastMacdIndex=-Infinity;
   const alpha12=2/13;
@@ -644,30 +645,33 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string):Repl
     const diff=ema12-ema26;
     signal=signal===undefined?diff:signal+(diff-signal)*alpha9;
     const histogram=diff-signal;
-    const enough=index>=25&&previousDiff!==undefined&&previousHistogram!==undefined;
-    if(enough&&index-lastMacdIndex>=10){
-      const golden=previousDiff<=0&&diff>0;
-      const death=previousDiff>=0&&diff<0;
-      const histogramUp=previousHistogram<=0&&histogram>0;
-      const histogramDown=previousHistogram>=0&&histogram<0;
-      const macdState=golden?"golden-cross":death?"death-cross":histogramUp||histogramDown?"histogram-reversal":undefined;
+    const enough=index>=25&&previousHistogram!==undefined;
+    if(enough&&index-lastMacdIndex>=20){
+      const golden=previousHistogram<=0&&histogram>0;
+      const death=previousHistogram>=0&&histogram<0;
+      const macdState=golden?"golden-cross":death?"death-cross":undefined;
       if(macdState){
-        const direction=macdState==="death-cross"||histogramDown?"反T":"正T";
+        const direction=macdState==="death-cross"?"反T":"正T";
         const label=direction==="反T"?"MACD↓":"MACD↑";
         const score=macdState.includes("cross")?75:60;
-        observations.push({
+        macdEvents.push({index,observation:{
           time:String(minutes[index].time),price,direction,score,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
           confirmationLabel:label,macdState,
           blockers:["观察层，不触发正式买卖","不计入正式胜率与收益"],
-          reason:`${label} · ${macdState==="golden-cross"?"DIF 上穿信号线":macdState==="death-cross"?"DIF 下穿信号线":"MACD 柱体方向反转"}，仅作辅助观察。`,
+          reason:`${label} · ${macdState==="golden-cross"?"DIF 上穿信号线":"DIF 下穿信号线"}${shadowObservations.length?"，影子层同向确认":""}，仅作辅助观察。`,
           watchKey:`${date??"live"}:macd:${minutes[index].time}:${macdState}`,observationKind:"macd",
-        });
+        }});
         lastMacdIndex=index;
       }
     }
-    previousDiff=diff;
     previousHistogram=histogram;
   }
+  const shadowCandidates=shadowObservations.filter(observation=>observation.observationKind!=="macd");
+  const confirmedMacd=macdEvents.filter(({observation})=>!requireShadowConfirmation||shadowCandidates.some(shadow=>shadow.direction===observation.direction&&(isRecentCausalEvent(shadow.time,observation.time,5)||isRecentCausalEvent(observation.time,shadow.time,5))));
+  const visibleMacd=confirmedMacd.length<=4
+    ?confirmedMacd
+    :Array.from({length:4},(_,slot)=>confirmedMacd[Math.round(slot*(confirmedMacd.length-1)/3)]).filter((item,index,array)=>item&&array.findIndex(candidate=>candidate?.index===item.index)===index);
+  observations.push(...visibleMacd.map(item=>item.observation));
   return observations.sort((left,right)=>left.time.localeCompare(right.time)||left.direction.localeCompare(right.direction));
 }
 
@@ -2456,8 +2460,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       }));
   },[zijinV1ContextReplay]);
   const causalObservationLayer=useMemo(
-    ()=>buildPivotAndMacdObservations(minutePoints,activeChartDate??undefined),
-    [activeChartDate,minutePoints],
+    ()=>buildPivotAndMacdObservations(
+      minutePoints,
+      activeChartDate??undefined,
+      isZijinStock?[...zijinV29ChartObservations,...zijinV1ChartObservations]:[],
+      isZijinStock,
+    ),
+    [activeChartDate,isZijinStock,minutePoints,zijinV1ChartObservations,zijinV29ChartObservations],
   );
   const latestReverseTObservation=useMemo(
     ()=>[...currentObservations].reverse().find(observation=>observation.direction==="反T")??null,
@@ -2536,16 +2545,21 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const live=visibleChartObservations.filter(observation=>observation.strategy==="closure"||observation.strategy==="observation");
     if(live.length===0)return;
     setPersistedChartObservations(current=>{
-      const previous=current.key===chartObservationStorageKey?current.observations:[];
       const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
       const liveKeys=new Set(live.map(observationKey));
+      const activeMacdKeys=new Set(causalObservationLayer
+        .filter(observation=>observation.observationKind==="macd")
+        .map(observationKey));
+      const previous=current.key===chartObservationStorageKey
+        ?current.observations.filter(observation=>observation.observationKind!=="macd"||activeMacdKeys.has(observationKey(observation)))
+        :[];
       const observations=[...live,...previous.filter(observation=>!liveKeys.has(observationKey(observation)))].slice(0,120);
       const unchanged=current.key===chartObservationStorageKey&&current.observations.length===observations.length&&current.observations.every((observation,index)=>`${observationKey(observation)}:${observation.score}:${observation.price??""}`===`${observationKey(observations[index])}:${observations[index]?.score}:${observations[index]?.price??""}`);
       if(unchanged)return current;
       try{localStorage.setItem(chartObservationStorageKey,JSON.stringify(observations))}catch{}
       return {key:chartObservationStorageKey,observations};
     });
-  },[chartObservationStorageKey,visibleChartObservations]);
+  },[causalObservationLayer,chartObservationStorageKey,visibleChartObservations]);
   const durableVisibleChartObservations=useMemo<ChartObservation[]>(()=>{
     if(persistedChartObservations.key!==chartObservationStorageKey||persistedChartObservations.observations.length===0)return visibleChartObservations;
     const shadow=visibleChartObservations.filter(observation=>observation.strategy!=="closure"&&observation.strategy!=="observation");
@@ -2554,9 +2568,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
     const keys=new Set(closure.map(observationKey));
     observations.forEach(observation=>keys.add(observationKey(observation)));
-    const persistedEligible=positiveTBlockedByFlow
+    const activeMacdKeys=new Set(causalObservationLayer
+      .filter(observation=>observation.observationKind==="macd")
+      .map(observationKey));
+    const persistedEligible=(positiveTBlockedByFlow
       ?persistedChartObservations.observations.filter(observation=>observation.strategy==="observation"||observation.direction!=="正T")
-      :persistedChartObservations.observations;
+      :persistedChartObservations.observations)
+      .filter(observation=>observation.observationKind!=="macd"||activeMacdKeys.has(observationKey(observation)));
     persistedEligible.forEach(observation=>{
       const key=observationKey(observation);
       if(!keys.has(key)){
@@ -2567,7 +2585,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     });
     const compactClosure=(compactChartObservations(closure,isZijinStock?45:30,{mergeRepairPhases:isZijinStock}) as ReplayObservation[]).map(observation=>({...observation,strategy:"closure" as const}));
     return [...compactClosure,...observations,...shadow];
-  },[chartObservationStorageKey,isZijinStock,persistedChartObservations,positiveTBlockedByFlow,visibleChartObservations]);
+  },[causalObservationLayer,chartObservationStorageKey,isZijinStock,persistedChartObservations,positiveTBlockedByFlow,visibleChartObservations]);
   const chartFormalStorageKey=activeChartDate
     ?`rabbit-formal-chart-actions:${accountName.toLowerCase()}:${stock.code}:${activeChartDate}`
     :null;
@@ -3437,12 +3455,32 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     },
   }),[stock?.code,clockNow,decisionModel.status,decisionModel.mode,decisionModel.confirmed,signalMode,isZijinStock,liveL2Status,liveL2Stale,liveL2HasTicks,web4L2Evidence.state,web4L2Evidence.score,web4L2Evidence.label,zijinAhLinkage.available,zijinAhLinkage.bias,zijinAhLinkage.weight,zijinAhLinkage.label,currentContext?.gate.level,currentContext?.gate.hardLock,currentContext?.gate.label,currentEvents?.gate.level,currentEvents?.gate.hardLock,currentEvents?.gate.label]);
   const auctionDataPending=auctionPhase&&isZijinStock;
-  const displayedWeb4Status=auctionDataPending?"pending":web4Monitor.status;
-  const displayedWeb4Label=auctionDataPending?"竞价数据准备":web4Monitor.label;
-  const displayedWeb4Confidence=auctionDataPending?null:web4Monitor.confidence;
+  const postcloseDataPending=!marketSession.live&&(
+    ["afterhours","closed"].includes(marketSession.phase)
+    ||marketSession.tone==="closed"
+    ||marketSession.tone==="postclose"
+  );
+  const displayedWeb4Status=auctionDataPending||postcloseDataPending?"pending":web4Monitor.status;
+  const displayedWeb4Label=auctionDataPending
+    ?"竞价数据准备"
+    :postcloseDataPending
+      ?"盘后待更新"
+      :web4Monitor.label;
+  const displayedWeb4Confidence=auctionDataPending||postcloseDataPending?null:web4Monitor.confidence;
   const displayedWeb4Summary=auctionDataPending
     ? "集合竞价阶段不计入连续竞价 L2 健康度，09:30 后再开始评分。"
-    : web4Monitor.summary;
+    :postcloseDataPending
+      ? "盘后不继续计算实时置信度；下一交易日开盘后恢复评分。"
+      : web4Monitor.summary;
+  const displayedWeb4HealthLabel=auctionDataPending
+    ?"竞价数据准备"
+    :postcloseDataPending
+      ?"盘后待更新"
+      :web4Monitor.status==="degraded"
+        ?"数据降级"
+        :web4Monitor.status==="conflict"||web4Monitor.status==="risk"
+          ?"数据风险"
+          :"数据健康";
   const decisionConditions=useMemo(()=>{
     const reverse=signalMode==="反T";
     const l2Confirmed=decisionModel.status==="ready"
@@ -4896,7 +4934,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <em>{openingStageCard.detail}</em>
         </div>
         <div className={`l2-console-status data-health-status ${displayedWeb4Status} ${l2ConsoleStatus.tone}`} role="status" title={`${l2ConsoleStatus.detail} · ${displayedWeb4Summary}`}>
-          <i/><div><span>{auctionDataPending?"竞价数据准备":web4Monitor.status==="degraded"?"数据降级":web4Monitor.status==="conflict"||web4Monitor.status==="risk"?"数据风险":"数据健康"}</span><b>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></b></div><em>{l2ConsoleStatus.label}</em>
+          <i/><div><span>{displayedWeb4HealthLabel}</span><b>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></b></div><em>{l2ConsoleStatus.label}</em>
         </div>
       </section>
 
@@ -5302,24 +5340,24 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <p>{stockState.summary}</p><ul>{stockState.details.map(detail=><li key={detail}>{detail}</li>)}</ul><em>{stockState.action}</em>
             </div>
           </details>
-          <section className={`web4-monitor ${displayedWeb4Status} ${displayedWeb4Status==="degraded"||auctionDataPending?"compact":""} ${marketSession.live?"market-live":""}`} aria-label="WEB 4.0 多源实时监控">
+          <section className={`web4-monitor ${displayedWeb4Status} ${displayedWeb4Status==="degraded"||auctionDataPending||postcloseDataPending?"compact":""} ${marketSession.live?"market-live":""}`} aria-label="WEB 4.0 多源实时监控">
             {marketSession.live&&<span className="market-live-status-dot" title={displayedWeb4Summary} aria-label={`数据状态：${displayedWeb4Label}`}/>}
             <header>
               <div><span>WEB 4.0 · 多源监控</span><b>{displayedWeb4Label}</b></div>
               <strong>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></strong>
             </header>
-            <div className="web4-monitor-meter" role="meter" aria-label={auctionDataPending?"集合竞价数据准备中":`WEB 4.0 多源置信度 ${web4Monitor.confidence} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayedWeb4Confidence??0}><i style={{width:`${displayedWeb4Confidence??0}%`}}/></div>
-            {!auctionDataPending&&web4Monitor.status!=="degraded"&&secondLevelSignal&&<div className={`second-level-state ${secondLevelSignal.state}`}>
+            <div className="web4-monitor-meter" role="meter" aria-label={auctionDataPending?"集合竞价数据准备中":postcloseDataPending?"盘后数据待更新":`WEB 4.0 多源置信度 ${web4Monitor.confidence} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayedWeb4Confidence??0}><i style={{width:`${displayedWeb4Confidence??0}%`}}/></div>
+            {!auctionDataPending&&!postcloseDataPending&&web4Monitor.status!=="degraded"&&secondLevelSignal&&<div className={`second-level-state ${secondLevelSignal.state}`}>
               <span>秒级预警</span>
               <b>{secondLevelSignal.label}</b>
               <strong>{secondLevelSignal.direction==="buy"?"正T":secondLevelSignal.direction==="sell"?"反T":"扫描"} · {secondLevelSignal.score}/100</strong>
               <small>{secondLevelSignal.plan?.action??"仅作候选"}{secondLevelSignal.plan?.triggerPrice?` · 触发 ¥${secondLevelSignal.plan.triggerPrice.toFixed(2)}`:""}{secondLevelSignal.plan?.invalidPrice?` · 失效 ¥${secondLevelSignal.plan.invalidPrice.toFixed(2)}`:""} · 正式信号仍需闭环确认</small>
               {secondLevelSignal.timeline?.lastReason&&<small>{secondLevelSignal.timeline.lastReason}{secondLevelSignal.timeline.confirmationDelaySeconds!=null?` · 确认延迟 ${secondLevelSignal.timeline.confirmationDelaySeconds.toFixed(1)} 秒`:""} · {secondLevelSignal.timeline.confirmationPolicy}</small>}
             </div>}
-            {!auctionDataPending&&web4Monitor.status!=="degraded"&&<div className="web4-monitor-votes">
+            {!auctionDataPending&&!postcloseDataPending&&web4Monitor.status!=="degraded"&&<div className="web4-monitor-votes">
               {web4Monitor.votes.map(vote=><span key={vote.id} className={vote.state} title={vote.detail}><i/>{vote.label}<small>{vote.detail}</small></span>)}
             </div>}
-            {auctionDataPending
+            {auctionDataPending||postcloseDataPending
               ?<p className="web4-monitor-compact-note" title={displayedWeb4Summary}>{displayedWeb4Summary}</p>
               :web4Monitor.status==="degraded"
               ?<p className="web4-monitor-compact-note" title={web4Monitor.summary}>{web4Monitor.summary}</p>
@@ -7376,7 +7414,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   };
   const fullDayMinutes=source?.minutes ?? [];
   const replayCausalObservations=result
-    ? buildPivotAndMacdObservations(fullDayMinutes,source?.sampleDate)
+    ? buildPivotAndMacdObservations(fullDayMinutes,source?.sampleDate,result.observations??[],source?.quote.code==="601899")
     : [];
   const fullDayPrices=fullDayMinutes.map(point=>point.price);
   const fullDayRangePrices=fullDayMinutes.flatMap(point=>[
