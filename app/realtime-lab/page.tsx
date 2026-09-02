@@ -33,7 +33,7 @@ type SignalAlert = {
   version?: string;
   strategyId?: string;
 };
-type AlertKind = "formal" | "v29" | "v1" | "turning-top" | "turning-bottom" | "replay-observation" | "replay-candidate" | "other";
+type AlertKind = "formal" | "v29" | "v1" | "turning-top" | "turning-bottom" | "macd-shadow" | "replay-observation" | "replay-candidate" | "other";
 type ChartMode = "minute" | "live" | "replay";
 type ConnectionState = "connecting" | "live" | "stale" | "offline" | "auth";
 type CrossMarketKey = "gold" | "silver" | "copper";
@@ -807,6 +807,7 @@ function alertClass(alert: SignalAlert): AlertKind {
   if (alert.level === "replay-observation") return "replay-observation";
   if (alert.level === "turning-top") return "turning-top";
   if (alert.level === "turning-bottom") return "turning-bottom";
+  if (alert.level === "macd-shadow") return "macd-shadow";
   const value = `${alert.level || ""} ${alert.source || ""} ${alert.title || ""} ${alert.message || ""} ${alert.direction || ""} ${alert.side || ""} ${alert.strategy || ""} ${alert.version || ""} ${alert.strategyId || ""}`.toLowerCase();
   // Strategy metadata wins over generic words such as “signal” or “trade”.
   // This keeps V1/V2.9 rows classified correctly when the payload also has
@@ -823,6 +824,7 @@ function alertLabel(alert: SignalAlert): string {
   if (kind === "replay-observation") return "观察";
   if (kind === "turning-top") return "顶影子";
   if (kind === "turning-bottom") return "底影子";
+  if (kind === "macd-shadow") return "MACD观察";
   if (kind === "formal") return "正式";
   if (kind === "v29") return "V2.9";
   if (kind === "v1") return "V1";
@@ -847,6 +849,7 @@ function readMarketPoints(market: AnyRecord): PricePoint[] {
       high: firstNumber(row.high, row.h, ohlc.high, ohlc.h),
       low: firstNumber(row.low, row.l, ohlc.low, ohlc.l),
       close: firstNumber(row.close, row.c, ohlc.close, ohlc.c),
+      live: row.live === true ? true : undefined,
       timestamp: number(row.timestamp) ?? undefined,
     }];
   });
@@ -854,14 +857,30 @@ function readMarketPoints(market: AnyRecord): PricePoint[] {
 }
 
 function extractL2(source: AnyRecord, fallback: AnyRecord): { pressure: number | null; ofi: number | null; activeBuy: number | null; activeSell: number | null; spread: number | null; absorption: string; status: string } {
-  const roots = [source, path(source, "orderflow"), path(source, "l2"), path(source, "orderBook"), fallback, path(fallback, "orderflow")];
+  // L2 服务的响应有时会包在 data/result/payload 内。逐层展开，避免
+  // 页面只拿到外层元数据而误显示“暂无L2”。
+  const roots: AnyRecord[] = [];
+  const queue: unknown[] = [source, fallback];
+  const seen = new Set<AnyRecord>();
+  while (queue.length && roots.length < 32) {
+    const candidate = queue.shift();
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const root = candidate as AnyRecord;
+    if (seen.has(root)) continue;
+    seen.add(root);
+    roots.push(root);
+    ["data", "result", "payload", "snapshot", "orderflow", "l2", "orderBook"].forEach(key => {
+      const nested = root[key];
+      if (nested && typeof nested === "object" && !Array.isArray(nested)) queue.push(nested);
+    });
+  }
   const find = (...keys: string[]) => firstNumber(...roots.flatMap(root => keys.map(key => record(root)[key])));
-  const rawPressure = find("buyPressure", "buy_pressure", "imbalance", "obi", "pressure");
+  const rawPressure = find("buyPressure", "buy_pressure", "imbalance", "obi", "pressure", "bidRatio", "buyRatio", "买方压力", "买盘占比");
   const pressure = rawPressure === null ? null : rawPressure >= -1 && rawPressure <= 1 ? (rawPressure + 1) * 50 : Math.max(0, Math.min(100, rawPressure));
-  const ofi = find("ofi", "orderFlowImbalance", "order_flow_imbalance");
-  const activeBuy = find("activeBuy", "active_buy", "主动买入", "buyAmount");
-  const activeSell = find("activeSell", "active_sell", "主动卖出", "sellAmount");
-  const spread = find("spread", "价差");
+  const ofi = find("ofi", "orderFlowImbalance", "order_flow_imbalance", "订单流不平衡");
+  const activeBuy = find("activeBuy", "active_buy", "主动买入", "主动买入额", "buyAmount");
+  const activeSell = find("activeSell", "active_sell", "主动卖出", "主动卖出额", "sellAmount");
+  const spread = find("spread", "价差", "bidAskSpread");
   const absorptionValue = roots.map(root => record(root)).find(root => ["buyAbsorption", "bidAbsorption", "absorption"].some(key => root[key] !== undefined));
   const rawAbsorption = absorptionValue ? absorptionValue.buyAbsorption ?? absorptionValue.bidAbsorption ?? absorptionValue.absorption : undefined;
   const absorption = typeof rawAbsorption === "boolean" ? (rawAbsorption ? "有" : "无") : text(rawAbsorption);
@@ -874,6 +893,14 @@ function alertSide(alert: SignalAlert): "buy" | "sell" | "neutral" {
   if (/卖|反T|减仓|高抛/.test(value)) return "sell";
   if (/买|正T|加仓|低吸/.test(value)) return "buy";
   return "neutral";
+}
+
+function isL2OperationalAlert(alert: SignalAlert): boolean {
+  const value = `${alert.source || ""} ${alert.title || ""} ${alert.message || ""} ${alert.direction || ""} ${alert.side || ""} ${alert.strategy || ""}`;
+  const mentionsL2 = /l2|盘口|订单流|order\s*flow|order\s*book/i.test(value);
+  const operational = /修复|恢复|缺失|待|断开|离线|权限|授权|连接|过期|stale|offline|missing|auth/i.test(value);
+  const tradeIntent = /买|卖|正t|反t|候买|候卖|交易|buy|sell/i.test(`${alert.direction || ""} ${alert.side || ""} ${alert.strategy || ""}`);
+  return mentionsL2 && operational && !tradeIntent;
 }
 
 function normalizeAlert(value: unknown): SignalAlert | null {
@@ -948,7 +975,7 @@ function alertIdentity(alert: SignalAlert): string {
 
 function stableAlertId(alert: SignalAlert): string {
   const raw = text(alert.id) || alertIdentity(alert);
-  if (/::(?:formal|v29|v1|replay-observation|replay-candidate|other)::(?:buy|sell|neutral)$/.test(raw)) return raw;
+  if (/::(?:formal|v29|v1|macd-shadow|replay-observation|replay-candidate|other)::(?:buy|sell|neutral)$/.test(raw)) return raw;
   return `${raw}::${alertClass(alert)}::${alertSide(alert)}`;
 }
 
@@ -1218,6 +1245,122 @@ function buildTurningPointAlerts(
     .map(candidate => candidate.alert);
 }
 
+/**
+ * Build MACD reversal observations from closed minute bars only. This is a
+ * chart overlay, not a trading alert: it never enters the timeline, storage,
+ * or execution queue and it cannot use a later bar to score an earlier one.
+ */
+function buildMacdShadowAlerts(
+  points: PricePoint[],
+  fallbackVwap: number | null,
+  l2: ReturnType<typeof extractL2> | null,
+): SignalAlert[] {
+  type MacdRow = { point: PricePoint; index: number; histogram: number };
+  const closedPoints = points.filter(point => point.time !== "—" && Number.isFinite(point.price) && point.live !== true);
+  // The 12/26/9 pair is not meaningful until the slow EMA has warmed up.
+  if (closedPoints.length < 26) return [];
+
+  const alpha12 = 2 / 13;
+  const alpha26 = 2 / 27;
+  const alpha9 = 2 / 10;
+  let ema12: number | null = null;
+  let ema26: number | null = null;
+  let signal: number | null = null;
+  const rows: MacdRow[] = [];
+  closedPoints.forEach((point, index) => {
+    const price = point.price;
+    ema12 = ema12 === null ? price : ema12 + alpha12 * (price - ema12);
+    ema26 = ema26 === null ? price : ema26 + alpha26 * (price - ema26);
+    const macd = ema12 - ema26;
+    signal = signal === null ? macd : signal + alpha9 * (macd - signal);
+    rows.push({ point, index, histogram: macd - signal });
+  });
+
+  const alerts: SignalAlert[] = [];
+  let lastSignalIndex = Number.NEGATIVE_INFINITY;
+  for (let index = 1; index < rows.length; index += 1) {
+    // Keep the warm-up and the first histogram sample out of the signal set.
+    if (index < 25) continue;
+    const previous = rows[index - 1];
+    const current = rows[index];
+    const side = previous.histogram < 0 && current.histogram >= 0
+      ? "buy"
+      : previous.histogram > 0 && current.histogram <= 0 ? "sell" : null;
+    if (!side || index - lastSignalIndex < 3) continue;
+
+    const price = current.point.price;
+    const priorPrice = previous.point.price;
+    const recentPrices = closedPoints.slice(Math.max(0, index - 11), index + 1).map(item => item.price);
+    if (recentPrices.length < 4) continue;
+    const recentHigh = Math.max(...recentPrices);
+    const recentLow = Math.min(...recentPrices);
+    const range = Math.max(recentHigh - recentLow, Math.abs(price) * 0.001, 0.01);
+    const position = clamp((price - recentLow) / range, 0, 1);
+    const structureConfirm = side === "buy"
+      ? (position <= 0.55 && price >= priorPrice) || (position <= 0.32 && current.histogram > previous.histogram)
+      : (position >= 0.45 && price <= priorPrice) || (position >= 0.68 && current.histogram < previous.histogram);
+
+    const vwapValue = firstNumber(current.point.vwap, index === rows.length - 1 ? fallbackVwap : null);
+    const previousVwap = firstNumber(previous.point.vwap);
+    const gap = vwapValue !== null && vwapValue > 0 ? (price - vwapValue) / vwapValue : null;
+    const previousGap = previousVwap !== null && previousVwap > 0 ? (priorPrice - previousVwap) / previousVwap : null;
+    const vwapConfirm = side === "buy"
+      ? gap !== null && (gap <= 0.003 || (previousGap !== null && previousGap < 0 && gap >= 0))
+      : gap !== null && (gap >= -0.003 || (previousGap !== null && previousGap > 0 && gap <= 0));
+
+    const priorVolumes = closedPoints.slice(Math.max(0, index - 6), index)
+      .map(item => item.volume)
+      .filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value) && value > 0);
+    const averageVolume = priorVolumes.length
+      ? priorVolumes.reduce((sum, value) => sum + value, 0) / priorVolumes.length
+      : null;
+    const volumeConfirm = current.point.volume !== null
+      && current.point.volume !== undefined
+      && Number.isFinite(current.point.volume)
+      && averageVolume !== null
+      && current.point.volume >= averageVolume * 1.15;
+
+    // A live L2 snapshot is allowed only for the newest closed bar. Applying
+    // the current snapshot to historical crosses would be a time leak.
+    const latestL2 = index === rows.length - 1 && l2 !== null && l2.status !== "暂无L2";
+    const flowConfirm = latestL2 && (side === "buy"
+      ? (l2.pressure !== null && l2.pressure >= 55)
+        || (l2.ofi !== null && l2.ofi > 0.05)
+        || (l2.activeBuy !== null && l2.activeSell !== null && l2.activeBuy > l2.activeSell * 1.08)
+      : (l2.pressure !== null && l2.pressure <= 45)
+        || (l2.ofi !== null && l2.ofi < -0.05)
+        || (l2.activeBuy !== null && l2.activeSell !== null && l2.activeSell > l2.activeBuy * 1.08));
+
+    const confirmations = [structureConfirm, vwapConfirm, volumeConfirm, flowConfirm].filter(Boolean).length;
+    if (confirmations < 2) continue;
+    const probability = confirmations >= 4 ? 90 : confirmations === 3 ? 80 : 60;
+    const reasons = [
+      structureConfirm ? (side === "buy" ? "低位止跌结构" : "高位转弱结构") : "",
+      vwapConfirm ? (side === "buy" ? "VWAP下方/收复" : "VWAP上方/跌破") : "",
+      volumeConfirm ? "量能放大" : "",
+      flowConfirm ? "盘口/OFI确认" : "",
+    ].filter(Boolean);
+    const day = pointDateKey(current.point);
+    const stamp = current.point.timestamp !== undefined
+      ? String(current.point.timestamp)
+      : `${day}-${current.point.time.replace(/\D/g, "")}-${index}`;
+    alerts.push({
+      id: `macd-${stamp}-${side}`,
+      marketTime: current.point.time,
+      price,
+      title: `MACD候${side === "buy" ? "买" : "卖"} ${probability}%`,
+      message: `${reasons.join(" · ")}；仅使用已形成分钟数据，属于观察层`,
+      source: "MACD观察层",
+      direction: side === "buy" ? "正T观察" : "反T观察",
+      side,
+      level: "macd-shadow",
+      strategy: "macd-shadow",
+    });
+    lastSignalIndex = index;
+  }
+  return alerts;
+}
+
 function alertActionLabel(alert: SignalAlert): string {
   const side = alertSide(alert);
   return side === "buy" ? "买入" : side === "sell" ? "卖出" : "观察";
@@ -1248,6 +1391,11 @@ function conciseAlertTitle(alert: SignalAlert): string {
 function markerLabel(alert: SignalAlert): string {
   if (alert.level === "replay-candidate" || alert.level === "replay-observation") return alert.title || "观察";
   if (alert.level === "turning-top" || alert.level === "turning-bottom") return alert.title || (alert.level === "turning-top" ? "顶" : "底");
+  if (alertClass(alert) === "macd-shadow") {
+    const side = alertSide(alert);
+    const probability = (alert.title || "").match(/\d+%/)?.[0] || "";
+    return `MACD${side === "buy" ? "买" : side === "sell" ? "卖" : "观"}${probability ? ` ${probability}` : ""}`;
+  }
   const source = alertClass(alert) === "formal" ? "正式" : alertClass(alert) === "v29" ? "2.9" : alertClass(alert) === "v1" ? "V1" : "观";
   const side = alertSide(alert);
   return `${source}${side === "buy" ? "买" : side === "sell" ? "卖" : "变"}`;
@@ -1416,14 +1564,18 @@ export default function RealtimeLabPage() {
   const pullMarket = useCallback(async () => {
     if (marketInFlight.current) return;
     marketInFlight.current = true;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 2_200);
+    const requestWithTimeout = (url: string, timeoutMs: number) => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort("request-timeout"), timeoutMs);
+      return getJson(url, controller.signal).finally(() => window.clearTimeout(timeout));
+    };
     try {
       const query = encodeURIComponent(code);
       const [marketResult, deskResult, l2Result] = await Promise.allSettled([
-        getJson(`/api/market-data?code=${query}`, controller.signal),
-        getJson(`/api/trading-desk-snapshot?code=${query}`, controller.signal),
-        getJson(`/api/research/zijin-l2-orderflow?code=${query}`, controller.signal),
+        requestWithTimeout(`/api/market-data?code=${query}`, 2_200),
+        requestWithTimeout(`/api/trading-desk-snapshot?code=${query}`, 2_800),
+        // L2 采集链路通常比行情接口慢，不能被行情超时连带取消。
+        requestWithTimeout(`/api/research/zijin-l2-orderflow?code=${query}`, 5_000),
       ]);
       const primaryUnavailable = marketResult.status === "rejected" && deskResult.status === "rejected";
       if (primaryUnavailable) {
@@ -1456,7 +1608,6 @@ export default function RealtimeLabPage() {
       setConnection(message === "请先登录主站" ? "auth" : "stale");
       setErrorMessage(message);
     } finally {
-      window.clearTimeout(timeout);
       marketInFlight.current = false;
     }
   }, [code]);
@@ -1549,6 +1700,7 @@ export default function RealtimeLabPage() {
   }, [market, liveTicks]);
   const minutePoints = useMemo(() => {
     const minutes = new Map<string, PricePoint>();
+    let latestLiveKey: string | null = null;
     points.forEach(point => {
       const minute = point.time.match(/^\d{2}:\d{2}/)?.[0] || point.time;
       const normalizedTimestamp = point.timestamp === undefined
@@ -1563,11 +1715,14 @@ export default function RealtimeLabPage() {
       const previousClose = previous?.close;
       const open = finite(previousOpen) ? previousOpen : finite(point.open) ? point.open : undefined;
       const close = finite(point.close) ? point.close : finite(previousClose) ? previousClose : undefined;
+      if (point.live === true) latestLiveKey = key;
       minutes.set(key, {
         ...previous,
         ...point,
         time: minute,
-        live: false,
+        // 只把最新的实时分钟标成 live；分钟切换后，上一分钟自然进入
+        // 已形成序列，MACD 才能在不使用未收盘数据的前提下继续更新。
+        live: point.live === true || previous?.live === true,
         // A minute candle is built only from source OHLC values. Last price
         // ticks may update `price`, but must not fabricate open/high/low/close.
         open,
@@ -1578,7 +1733,10 @@ export default function RealtimeLabPage() {
         volume: point.volume ?? previous?.volume,
       });
     });
-    return [...minutes.values()].slice(-242);
+    return [...minutes.entries()].map(([key, point]) => ({
+      ...point,
+      live: latestLiveKey !== null && key === latestLiveKey,
+    })).slice(-242);
   }, [points]);
   const secondChart = useMemo(() => {
     const samples = liveTicks.slice(-180);
@@ -1644,13 +1802,30 @@ export default function RealtimeLabPage() {
     () => buildTurningPointAlerts(chartPoints, chartVwap, isReplay ? undefined : turningPoints),
     [chartPoints, chartVwap, isReplay, turningPoints],
   );
+  const macdPoints = isReplay || isMinute ? chartPoints : minutePoints;
+  const macdShadowAlerts = useMemo(
+    () => buildMacdShadowAlerts(macdPoints, chartVwap, isReplay ? null : l2Metrics),
+    [chartVwap, isReplay, l2Metrics, macdPoints],
+  );
   const turningPointCounts = useMemo(() => ({
     top: turningPointAlerts.filter(alert => alertClass(alert) === "turning-top").length,
     bottom: turningPointAlerts.filter(alert => alertClass(alert) === "turning-bottom").length,
   }), [turningPointAlerts]);
   const chartAlerts = useMemo(
-    () => [...(isReplay ? ZIJIN_REPLAY_ALERTS : persistentChartAlerts), ...turningPointAlerts],
-    [isReplay, persistentChartAlerts, turningPointAlerts],
+    () => [...(isReplay ? ZIJIN_REPLAY_ALERTS : persistentChartAlerts), ...turningPointAlerts, ...macdShadowAlerts],
+    [isReplay, macdShadowAlerts, persistentChartAlerts, turningPointAlerts],
+  );
+  const chartTradeAlerts = useMemo(
+    () => chartAlerts.filter(alert => !isL2OperationalAlert(alert)),
+    [chartAlerts],
+  );
+  const latestL2StatusAlert = useMemo(
+    () => [...persistentChartAlerts].filter(isL2OperationalAlert).sort((a, b) => {
+      const at = timeValue(a.marketTime || a.createdAt) ?? 0;
+      const bt = timeValue(b.marketTime || b.createdAt) ?? 0;
+      return bt - at;
+    })[0] ?? null,
+    [persistentChartAlerts],
   );
   // 回放模式使用固定的回放事件；实时模式使用经过压缩的当日时间轴。
   // 顶底概率只挂在主图观察层，不进入时间轴、提醒记录或交易队列。
@@ -1749,15 +1924,16 @@ export default function RealtimeLabPage() {
       return candidate !== null && candidate > 0 ? candidate : null;
     });
     const biasValues = biasBaselines.flatMap(value => value === null ? [] : [value * 0.975, value * 0.985, value * 1.015, value * 1.025]);
-    const markerAlerts = chartAlerts.filter(alert => alertClass(alert) !== "other");
-    const markerPrices = markerAlerts.map(alert => number(alert.price)).filter((value): value is number => value !== null);
+    const markerAlerts = chartTradeAlerts.filter(alert => alertClass(alert) !== "other");
     const candleRows: Array<{ point: CompletePricePoint; index: number }> = [];
     chartPoints.forEach((point, index) => {
       if (hasCompleteOhlc(point)) candleRows.push({ point, index });
     });
     const hasCandles = candleRows.length >= 2;
     const candleValues = candleRows.flatMap(({ point }) => [point.open, point.high, point.low, point.close]);
-    const allValues = [...values, ...candleValues, support.low, support.high, resistance.low, resistance.high, ...markerPrices, ...(vwapValue === null ? [] : [vwapValue]), ...biasValues];
+    // Overlay markers must not redefine the price scale. Otherwise an L2
+    // status/stale price arriving or disappearing makes every signal jump.
+    const allValues = [...values, ...candleValues, support.low, support.high, resistance.low, resistance.high, ...(vwapValue === null ? [] : [vwapValue]), ...biasValues];
     const dataLow = Math.min(...allValues);
     const dataHigh = Math.max(...allValues);
     const dataRange = Math.max(dataHigh - dataLow, Math.max(dataHigh * 0.001, 0.01));
@@ -1812,7 +1988,7 @@ export default function RealtimeLabPage() {
       priority: number;
     };
     type MarkerRow = MarkerBase & { labelX: number; labelOffset: number; labelY: number };
-    const priorityOf = (kind: AlertKind) => kind === "formal" ? 0 : kind === "v29" ? 1 : kind === "v1" ? 2 : kind === "turning-top" || kind === "turning-bottom" ? 4 : 3;
+    const priorityOf = (kind: AlertKind) => kind === "formal" ? 0 : kind === "v29" ? 1 : kind === "v1" ? 2 : kind === "turning-top" || kind === "turning-bottom" ? 4 : kind === "macd-shadow" ? 5 : 3;
     const markerBases: MarkerBase[] = markerAlerts.map(alert => {
       const targetTime = timeValue(alert.marketTime || alert.createdAt);
       let index = chartPoints.length - 1;
@@ -1827,7 +2003,7 @@ export default function RealtimeLabPage() {
       }
       const markerPrice = number(alert.price) ?? chartPoints[index]?.price ?? currentPrice ?? low;
       const cx = x(index);
-      const cy = y(markerPrice);
+      const cy = clamp(y(markerPrice), padY, height - padY);
       const kind = alertClass(alert);
       return { alert, index, cx, cy, kind, side: alertSide(alert), priority: priorityOf(kind) };
     });
@@ -1845,7 +2021,7 @@ export default function RealtimeLabPage() {
       const horizontalSteps = [0, -1, 1, -2, 2, -3, 3, -4, 4];
       const preferredSign = base.side === "sell" ? -1 : 1;
       const signs = [preferredSign, -preferredSign];
-      const baseOffset = base.kind === "formal" ? 24 : base.kind === "v29" ? 43 : base.kind === "v1" ? 62 : base.kind === "turning-top" || base.kind === "turning-bottom" ? 82 : 34;
+      const baseOffset = base.kind === "formal" ? 24 : base.kind === "v29" ? 43 : base.kind === "v1" ? 62 : base.kind === "turning-top" || base.kind === "turning-bottom" ? 82 : base.kind === "macd-shadow" ? 100 : 34;
       let chosen: MarkerRow | null = null;
       for (const sign of signs) {
         if (chosen) break;
@@ -1881,7 +2057,7 @@ export default function RealtimeLabPage() {
     markerRows.sort((a, b) => b.priority - a.priority || a.index - b.index);
     const band = (item: { low: number; high: number }) => ({ y: y(item.high), height: Math.max(2, y(item.low) - y(item.high)), value: (item.low + item.high) / 2 });
     return { width, height, padX, padY, y, low, high, dataLow, dataHigh, historyPolyline, livePolyline, vwapPolyline, vwapY, biasBands, markerRows, hasCandles, candles, support: band(support), resistance: band(resistance) };
-  }, [chartAlerts, chartPoints, chartVwap, currentPrice, isReplay]);
+  }, [chartPoints, chartTradeAlerts, chartVwap, currentPrice, isReplay]);
 
   const applyCode = () => {
     const next = codeInput.trim();
@@ -1992,7 +2168,7 @@ export default function RealtimeLabPage() {
       <section className="lab-grid">
         <article className="panel chart-panel">
           <header className="panel-header chart-header"><div><span className="panel-kicker">INTRADAY / EXECUTION MAP</span><h2>{isReplay ? `${REPLAY_DATE} 昨日回放` : isMinute ? "1分钟日内图" : "秒级实时观察"}</h2></div><div className="chart-header-tools"><div className="chart-mode-switch" aria-label="图表模式"><button type="button" className={isMinute ? "active" : ""} aria-pressed={isMinute} onClick={() => setChartMode("minute")}>1分钟</button><button type="button" className={chartMode === "live" ? "active" : ""} aria-pressed={chartMode === "live"} onClick={() => setChartMode("live")}>秒级观察</button>{code === DEFAULT_CODE && <button type="button" className={isReplay ? "active" : ""} aria-pressed={isReplay} onClick={() => setChartMode("replay")}>昨日回放</button>}</div><div className="legend">{isReplay ? <><span><i className="legend-price" />5分钟抽样</span><span><i className="legend-vwap" />动态VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></> : isMinute ? <><span><i className="legend-price" />1分钟价格</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></> : <><span><i className="legend-price" />全天分钟线</span><span><i className="legend-live" />近3分钟放大</span><span><i className="legend-vwap" />VWAP</span><span><i className="legend-bias" />VWAP偏离带</span><span><i className="legend-band" />支撑/压力</span></>}</div></div></header>
-          {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><span><i className="shape turning-top" />顶影子</span><span><i className="shape turning-bottom" />底影子</span><small>回放数据，不是实时信号 · 顶/底概率仅观察</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><span><i className="shape turning-top" />顶影子</span><span><i className="shape turning-bottom" />底影子</span><small>实心=正式 · 虚线圆=V2.9 · 菱形=V1 · 橙顶/蓝底概率影子 · 当日信号常驻</small></div>}
+          {isReplay ? <div className="signal-chart-legend replay"><span><i className="shape replay-observation" />观察</span><span><i className="shape replay-candidate" />候选</span><span><i className="shape turning-top" />顶影子</span><span><i className="shape turning-bottom" />底影子</span><span><i className="shape macd-shadow" />MACD观察</span><small>回放数据，不是实时信号 · 顶/底/MACD概率仅观察</small></div> : <div className="signal-chart-legend"><span><i className="shape formal" />正式</span><span><i className="shape v29" />V2.9</span><span><i className="shape v1" />V1</span><span><i className="shape turning-top" />顶影子</span><span><i className="shape turning-bottom" />底影子</span><span><i className="shape macd-shadow" />MACD观察</span><small>实心=正式 · 虚线圆=V2.9 · 菱形=V1 · 顶/底/MACD为概率观察层 · 当日信号常驻</small></div>}
           {chart ? <div className="chart-wrap"><svg viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label={`${stockName}日内价格图`} preserveAspectRatio="none">
             <rect className="support-band" x={chart.padX} y={chart.support.y} width={chart.width - chart.padX * 2} height={chart.support.height} />
             <rect className="resistance-band" x={chart.padX} y={chart.resistance.y} width={chart.width - chart.padX * 2} height={chart.resistance.height} />
@@ -2022,6 +2198,13 @@ export default function RealtimeLabPage() {
             <text className="price-axis-label" x={chart.width - 4} y={chart.y(chart.high) + 4} textAnchor="end">{formatPrice(chart.high)}</text>
             <text className="price-axis-label" x={chart.width - 4} y={chart.y(chart.low) - 4} textAnchor="end">{formatPrice(chart.low)}</text>
           </svg><div className="chart-axis"><span>09:30</span><span>10:30</span><span>11:30 / 13:00</span><span>14:00</span><span>15:00</span></div></div> : <div className="empty-state">等待行情数据…</div>}
+          <div className={`chart-l2-strip ${l2Metrics.status === "在线" ? "live" : "muted"}`} aria-label="主图L2状态" aria-live="polite">
+            <span className="chart-l2-badge"><i />L2</span>
+            <b>{l2Metrics.status === "暂无L2" ? "等待数据" : l2Metrics.status}</b>
+            <em>{sellPressure === null ? "卖压待补" : `卖压 ${Math.round(sellPressure)}%`}</em>
+            <em>{ofiLabel === "待L2" ? "OFI待补" : `OFI ${ofiLabel}`}</em>
+            {latestL2StatusAlert && <small title={latestL2StatusAlert.message || latestL2StatusAlert.title}>{conciseAlertReason(latestL2StatusAlert)}</small>}
+          </div>
           {chartMode === "live" && <div className="second-chart"><div className="second-chart-head"><span><i />近3分钟秒级观察窗</span>{secondChart && <><b>{secondChart.count} 个采样 · {clockLabel(secondChart.start)}—{clockLabel(secondChart.end)}</b><em>{formatPrice(secondChart.last)}</em></>}</div>{secondChart ? <><svg viewBox={`0 0 ${secondChart.width} ${secondChart.height}`} role="img" aria-label="近3分钟秒级价格"><line x1="18" x2={secondChart.width - 18} y1={secondChart.height / 2} y2={secondChart.height / 2} /><polyline points={secondChart.polyline} /></svg><small className={secondChart.moved ? "moving" : "flat"}>{secondChart.moved ? "秒级报价已有变化" : "报价暂未变化；休市或上游尚未产生新报价"}</small></> : <div className="second-chart-empty">正在收集秒级报价…</div>}</div>}
           <div className="price-stats"><div><span>VWAP</span><b>{formatPrice(chartVwap)}</b></div><div><span>结构支撑</span><b>{chart ? formatPrice(chart.support.value) : "—"}</b></div><div><span>结构压力</span><b>{chart ? formatPrice(chart.resistance.value) : "—"}</b></div><div><span>日高</span><b>{formatPrice(isReplay && chart ? chart.dataHigh : firstNumber(quote.high))}</b></div><div><span>日低</span><b>{formatPrice(isReplay && chart ? chart.dataLow : firstNumber(quote.low))}</b></div></div>
         </article>
