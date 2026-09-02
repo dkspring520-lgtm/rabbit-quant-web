@@ -31,6 +31,7 @@ import { evaluateZijinOpeningPlaybook } from "@/lib/zijin-opening-playbook.mjs";
 import { evaluateStockAgent, STOCK_AGENTS } from "@/lib/stock-agent-router.mjs";
 import { randomizedUniqueQueue, sampleWithSeed } from "@/lib/batch-sampler.mjs";
 import { buildCausalReferencePoints } from "@/lib/causal-reference-points.mjs";
+import { evaluateIntradayDivergence } from "@/lib/intraday-divergence.mjs";
 import { mergeZijinReplayObservations } from "@/lib/zijin-replay-candidates.mjs";
 import { buildZijinL2CausalReplayObservations, mergeZijinL2ReplayMinutes } from "@/lib/zijin-l2-causal-replay.mjs";
 import { aShareSession } from "@/lib/a-share-session.mjs";
@@ -454,7 +455,10 @@ const v1ContextActionLabel=(action:ReplayAction)=>action.direction==="反T"
   : action.side==="买入"?"V1 正T":"V1 止盈";
 const shadowChartActionLabel=(action:ReplayAction)=>
   action.side==="买入"||action.side==="买回"?"候买":"候卖";
-type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|75|90; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
+type ChartObservationStrategy = "closure"|"v29"|"v1"|"observation";
+type ChartObservation = ReplayObservation & {strategy:ChartObservationStrategy};
+type PersistedChartObservation = ReplayObservation & {strategy?:ChartObservationStrategy};
 type L2ReplayState = { available:boolean; source:string; minuteCount:number; observations:ReplayObservation[]; reason:string };
 type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; holdingMinutes:number; mfePct:number; maePct:number; bestTime:string; worstTime:string; outcomeMode:"post-replay-causal"; favorable:boolean; status:string };
 type CandidateOutcome = { direction:"正T"|"反T"; time:string; price:number; outcomeMode:"post-replay-fixed-horizon"; horizons:{minutes:number;complete:boolean;endTime?:string;returnPct?:number;mfePct?:number;maePct?:number;bestTime?:string;worstTime?:string}[] };
@@ -557,6 +561,116 @@ function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinut
     : buildCausalReferencePoints(minutes, observations) as ReplayObservation[];
 }
 
+type IntradayDivergenceResult={
+  available?:boolean;
+  strength?:number;
+  pivot?:{confirmationIndex?:number;time?:string;price?:number;label?:string;assessment?:"strong"|"confirmed"|"unconfirmed"};
+};
+
+/**
+ * A small, deterministic observation layer for the desk and replay chart.
+ * It deliberately lives outside the executable replay path: all divergence
+ * markers are emitted only at the causal confirmation minute and are capped
+ * so that the chart remains readable during a full trading day.
+ */
+function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string):ReplayObservation[]{
+  if(minutes.length===0)return [];
+  const observations:ReplayObservation[]=[];
+  const pivotEvents:{index:number;observation:ReplayObservation}[]=[];
+  const pivotAttempts={top:0,bottom:0};
+  const lastPivotIndex={top:-Infinity,bottom:-Infinity};
+  const probabilityForStrength=(strength:number|undefined):60|75|90=>strength===2?90:strength===1?75:60;
+  const assessmentForStrength=(strength:number|undefined):"strong"|"confirmed"|"unconfirmed"=>strength===2?"strong":strength===1?"confirmed":"unconfirmed";
+  const safePrice=(index:number,fallback?:number)=>{
+    const value=Number(minutes[index]?.price??fallback);
+    return Number.isFinite(value)&&value>0?value:undefined;
+  };
+  const addPivot=(index:number,result:IntradayDivergenceResult,direction:"正T"|"反T",kind:"pivot-top"|"pivot-bottom")=>{
+    if(!result.available||!result.pivot)return;
+    if(Number(result.pivot.confirmationIndex)!==index)return;
+    const side=kind==="pivot-top"?"top":"bottom";
+    if(pivotAttempts[side]>=3||index-lastPivotIndex[side]<15)return;
+    const probability=probabilityForStrength(result.strength);
+    const assessment=assessmentForStrength(result.strength);
+    const price=safePrice(index);
+    if(price===undefined)return;
+    pivotAttempts[side]+=1;
+    lastPivotIndex[side]=index;
+    const attempt=pivotAttempts[side] as 1|2|3;
+    const pivotPrice=Number(result.pivot.price);
+    const pivotTime=String(result.pivot.time??minutes[index]?.time??"");
+    const label=kind==="pivot-top"?`顶 ${probability}%`:`底 ${probability}%`;
+    const observation:ReplayObservation={
+      time:String(minutes[index].time),price,direction,score:probability,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
+      pivotTime:/^\d{4}$/.test(pivotTime)?pivotTime:undefined,
+      pivotPrice:Number.isFinite(pivotPrice)&&pivotPrice>0?pivotPrice:undefined,
+      pivotLabel:result.pivot.label??(assessment==="strong"?"强确认":assessment==="confirmed"?"已确认":"未确认"),
+      pivotAssessment:assessment,confirmationLabel:label,
+      blockers:["观察层，不触发正式买卖","不计入正式胜率与收益"],
+      reason:`${label} · 因果拐点已在本分钟确认，仅作位置观察。`,
+      watchKey:`${date??"live"}:${kind}:${minutes[index].time}:${attempt}`,
+      observationKind:kind,probability,attempt,
+    };
+    pivotEvents.push({index,observation});
+  };
+  for(let index=0;index<minutes.length;index+=1){
+    const point=minutes[index];
+    if(!point||!Number.isFinite(Number(point.price)))continue;
+    try{
+      addPivot(index,evaluateIntradayDivergence(minutes,index,"BUY_FIRST") as IntradayDivergenceResult,"正T","pivot-bottom");
+      addPivot(index,evaluateIntradayDivergence(minutes,index,"SELL_FIRST") as IntradayDivergenceResult,"反T","pivot-top");
+    }catch{
+      // A malformed/partial feed must not disable the rest of the chart.
+    }
+  }
+  observations.push(...pivotEvents.sort((left,right)=>left.index-right.index).map(item=>item.observation));
+
+  // Causal MACD events are an independent observation family.  A crossover
+  // wins over a same-minute histogram flip so one minute produces one badge.
+  let ema12:number|undefined;
+  let ema26:number|undefined;
+  let signal:number|undefined;
+  let previousDiff:number|undefined;
+  let previousHistogram:number|undefined;
+  let lastMacdIndex=-Infinity;
+  const alpha12=2/13;
+  const alpha26=2/27;
+  const alpha9=2/10;
+  for(let index=0;index<minutes.length;index+=1){
+    const price=Number(minutes[index]?.price);
+    if(!Number.isFinite(price)||price<=0)continue;
+    ema12=ema12===undefined?price:ema12+(price-ema12)*alpha12;
+    ema26=ema26===undefined?price:ema26+(price-ema26)*alpha26;
+    const diff=ema12-ema26;
+    signal=signal===undefined?diff:signal+(diff-signal)*alpha9;
+    const histogram=diff-signal;
+    const enough=index>=25&&previousDiff!==undefined&&previousHistogram!==undefined;
+    if(enough&&index-lastMacdIndex>=10){
+      const golden=previousDiff<=0&&diff>0;
+      const death=previousDiff>=0&&diff<0;
+      const histogramUp=previousHistogram<=0&&histogram>0;
+      const histogramDown=previousHistogram>=0&&histogram<0;
+      const macdState=golden?"golden-cross":death?"death-cross":histogramUp||histogramDown?"histogram-reversal":undefined;
+      if(macdState){
+        const direction=macdState==="death-cross"||histogramDown?"反T":"正T";
+        const label=direction==="反T"?"MACD↓":"MACD↑";
+        const score=macdState.includes("cross")?75:60;
+        observations.push({
+          time:String(minutes[index].time),price,direction,score,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
+          confirmationLabel:label,macdState,
+          blockers:["观察层，不触发正式买卖","不计入正式胜率与收益"],
+          reason:`${label} · ${macdState==="golden-cross"?"DIF 上穿信号线":macdState==="death-cross"?"DIF 下穿信号线":"MACD 柱体方向反转"}，仅作辅助观察。`,
+          watchKey:`${date??"live"}:macd:${minutes[index].time}:${macdState}`,observationKind:"macd",
+        });
+        lastMacdIndex=index;
+      }
+    }
+    previousDiff=diff;
+    previousHistogram=histogram;
+  }
+  return observations.sort((left,right)=>left.time.localeCompare(right.time)||left.direction.localeCompare(right.direction));
+}
+
 function compactIntradayPrompt(value:string, fallback="等待确认") {
   const normalized=value.replace(/[·•\s]/g,"");
   if(/正T.*(?:候选|观察)/.test(normalized))return "正T候选";
@@ -576,6 +690,13 @@ function compactIntradayPrompt(value:string, fallback="等待确认") {
 }
 
 function observationConfirmationLabel(observation: ReplayObservation) {
+  if(observation.observationKind==="pivot-top"&&observation.probability)return `顶 ${observation.probability}%`;
+  if(observation.observationKind==="pivot-bottom"&&observation.probability)return `底 ${observation.probability}%`;
+  if(observation.observationKind==="macd"){
+    if(observation.macdState==="death-cross")return "MACD↓";
+    if(observation.macdState==="golden-cross")return "MACD↑";
+    return observation.direction==="反T"?"MACD↓":"MACD↑";
+  }
   const rawLabel=observation.confirmationLabel ?? (observation.direction==="正T"?"反弹观察":"回落观察");
   const clearerLabels:Record<string,string>={
     "低位参考":"支撑观察",
@@ -591,7 +712,9 @@ function observationConfirmationLabel(observation: ReplayObservation) {
 }
 
 function observationDirectionNote(observation: ReplayObservation) {
-  return `候补${observation.direction}方向 · 不可执行`;
+  return observation.observationKind
+    ? `概率/MACD观察 · ${observation.direction}方向 · 不可执行`
+    : `候补${observation.direction}方向 · 不可执行`;
 }
 
 function money(value:number) { return `${value >= 0 ? "+" : "-"}¥ ${Math.abs(value).toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`; }
@@ -1453,8 +1576,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // indicator, not a connection diagnostic.
   const l2ConsoleNode="上海节点";
   const l2ConnectionLimited=Boolean(liveL2Status?.error&&/maximum|active connections|连接.*上限|额度/i.test(liveL2Status.error));
+  const auctionPhase=marketSession.phase==="preauction"||marketSession.phase==="auction"||marketSession.phase==="auction-result";
   const l2ConsoleStatus=stock.code!=="601899"
     ? {tone:"inactive",label:"L2：未启用",detail:"仅紫金矿业接入"}
+    : auctionPhase
+      ? marketSession.phase==="preauction"
+        ? {tone:"loading",label:"L2：竞价待接入",detail:`${l2ConsoleNode} · 盘前准备，09:15 后观察竞价数据`}
+        : marketSession.phase==="auction"
+          ? {tone:"loading",label:"L2：集合竞价中",detail:`${l2ConsoleNode} · 仅观察虚拟成交价，连续竞价后启用逐笔校验`}
+          : {tone:"loading",label:"L2：竞价结果待确认",detail:`${l2ConsoleNode} · 09:25 结果已出，09:30 后恢复实时校验`}
     : !marketSession.live
       ? {tone:"paused",label:"L2：休市待命",detail:`${l2ConsoleNode} · ${marketSession.label}，开市后恢复实时校验`}
     : !liveL2Status
@@ -2296,6 +2426,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>(isZijinStock?buildZijinL2CausalReplayObservations(minutePoints):[]) as ReplayObservation[],
     [isZijinStock,minutePoints],
   );
+  const activeChartDate=normalizeMarketDate(currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??null);
   const currentObservations=useMemo(
     ()=>buildReplayChartObservations(stock?.code,minutePoints,(liveEngine.observations ?? []) as ReplayObservation[],zijinRepairHistory),
     [stock?.code,minutePoints,liveEngine.observations,zijinRepairHistory],
@@ -2324,6 +2455,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         reason:`${observation.reason} V1 情境只读参考，不可执行。`,
       }));
   },[zijinV1ContextReplay]);
+  const causalObservationLayer=useMemo(
+    ()=>buildPivotAndMacdObservations(minutePoints,activeChartDate??undefined),
+    [activeChartDate,minutePoints],
+  );
   const latestReverseTObservation=useMemo(
     ()=>[...currentObservations].reverse().find(observation=>observation.direction==="反T")??null,
     [currentObservations],
@@ -2360,7 +2495,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       : "等待均价上方观察与回落确认";
   // Observations are causal confirmation events. The live chart keeps every
   // event at observation.time; historical pivotTime is audit-only metadata.
-  type ChartObservation=ReplayObservation&{strategy:"closure"|"v29"|"v1"};
   const visibleChartObservations=useMemo<ChartObservation[]>(()=>{
     const closureEligible=positiveTBlockedByFlow
       ?currentObservations.filter(observation=>observation.direction!=="正T")
@@ -2372,35 +2506,38 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...compactTagged(closureEligible,"closure",isZijinStock),
       ...compactTagged(zijinV29ChartObservations,"v29"),
       ...compactTagged(zijinV1ChartObservations,"v1"),
+      ...causalObservationLayer.map(observation=>({...observation,strategy:"observation" as const})),
     ];
-  },[currentObservations,isZijinStock,positiveTBlockedByFlow,zijinV1ChartObservations,zijinV29ChartObservations]);
-  const activeChartDate=normalizeMarketDate(currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??null);
+  },[causalObservationLayer,currentObservations,isZijinStock,positiveTBlockedByFlow,zijinV1ChartObservations,zijinV29ChartObservations]);
   const chartObservationStorageKey=activeChartDate
     ?`rabbit-chart-observations:${accountName.toLowerCase()}:${stock.code}:${activeChartDate}`
     :null;
-  const [persistedChartObservations,setPersistedChartObservations]=useState<{key:string|null;observations:ReplayObservation[]}>({key:null,observations:[]});
+  const [persistedChartObservations,setPersistedChartObservations]=useState<{key:string|null;observations:PersistedChartObservation[]}>({key:null,observations:[]});
   useEffect(()=>{
     if(!chartObservationStorageKey){setPersistedChartObservations({key:null,observations:[]});return}
     try{
       const saved=localStorage.getItem(chartObservationStorageKey);
       const parsed=saved?JSON.parse(saved):[];
-      const observations=(Array.isArray(parsed)?parsed:[]).flatMap((item):ReplayObservation[]=>{
+      const observations=(Array.isArray(parsed)?parsed:[]).flatMap((item):PersistedChartObservation[]=>{
         if(!item||typeof item!=="object")return [];
-        const observation=item as Partial<ReplayObservation>;
+        const observation=item as Partial<PersistedChartObservation>;
         if(!/^\d{4}$/.test(String(observation.time??""))||!["正T","反T"].includes(String(observation.direction??"")))return [];
         if(!Number.isFinite(observation.score)||!Number.isFinite(observation.threshold))return [];
-        return [{...observation,time:String(observation.time),direction:observation.direction as ReplayObservation["direction"],score:Number(observation.score),threshold:Number(observation.threshold),edge:Number(observation.edge)||0,executable:Boolean(observation.executable),blockers:Array.isArray(observation.blockers)?observation.blockers.map(String).slice(0,12):[],reason:String(observation.reason??"历史候选信号")} as ReplayObservation];
+        const strategy=observation.strategy==="observation"?"observation":"closure";
+        const probability=observation.probability===90||observation.probability===75||observation.probability===60?observation.probability:undefined;
+        const attempt=observation.attempt===1||observation.attempt===2||observation.attempt===3?observation.attempt:undefined;
+        return [{...observation,time:String(observation.time),direction:observation.direction as ReplayObservation["direction"],score:Number(observation.score),threshold:Number(observation.threshold),edge:Number(observation.edge)||0,executable:Boolean(observation.executable),blockers:Array.isArray(observation.blockers)?observation.blockers.map(String).slice(0,12):[],reason:String(observation.reason??"历史候选信号"),strategy,probability,attempt} as PersistedChartObservation];
       }).slice(0,120);
       setPersistedChartObservations({key:chartObservationStorageKey,observations});
     }catch{setPersistedChartObservations({key:chartObservationStorageKey,observations:[]})}
   },[chartObservationStorageKey]);
   useLayoutEffect(()=>{
     if(!chartObservationStorageKey)return;
-    const live=visibleChartObservations.filter(observation=>observation.strategy==="closure");
+    const live=visibleChartObservations.filter(observation=>observation.strategy==="closure"||observation.strategy==="observation");
     if(live.length===0)return;
     setPersistedChartObservations(current=>{
       const previous=current.key===chartObservationStorageKey?current.observations:[];
-      const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.stage??"watch"}`;
+      const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
       const liveKeys=new Set(live.map(observationKey));
       const observations=[...live,...previous.filter(observation=>!liveKeys.has(observationKey(observation)))].slice(0,120);
       const unchanged=current.key===chartObservationStorageKey&&current.observations.length===observations.length&&current.observations.every((observation,index)=>`${observationKey(observation)}:${observation.score}:${observation.price??""}`===`${observationKey(observations[index])}:${observations[index]?.score}:${observations[index]?.price??""}`);
@@ -2411,19 +2548,25 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[chartObservationStorageKey,visibleChartObservations]);
   const durableVisibleChartObservations=useMemo<ChartObservation[]>(()=>{
     if(persistedChartObservations.key!==chartObservationStorageKey||persistedChartObservations.observations.length===0)return visibleChartObservations;
-    const shadow=visibleChartObservations.filter(observation=>observation.strategy!=="closure");
+    const shadow=visibleChartObservations.filter(observation=>observation.strategy!=="closure"&&observation.strategy!=="observation");
+    const observations=visibleChartObservations.filter(observation=>observation.strategy==="observation");
     const closure=visibleChartObservations.filter(observation=>observation.strategy==="closure");
-    const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.stage??"watch"}`;
+    const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
     const keys=new Set(closure.map(observationKey));
+    observations.forEach(observation=>keys.add(observationKey(observation)));
     const persistedEligible=positiveTBlockedByFlow
-      ?persistedChartObservations.observations.filter(observation=>observation.direction!=="正T")
+      ?persistedChartObservations.observations.filter(observation=>observation.strategy==="observation"||observation.direction!=="正T")
       :persistedChartObservations.observations;
     persistedEligible.forEach(observation=>{
       const key=observationKey(observation);
-      if(!keys.has(key)){keys.add(key);closure.push({...observation,strategy:"closure"})}
+      if(!keys.has(key)){
+        keys.add(key);
+        if(observation.strategy==="observation")observations.push({...observation,strategy:"observation"});
+        else closure.push({...observation,strategy:"closure"});
+      }
     });
     const compactClosure=(compactChartObservations(closure,isZijinStock?45:30,{mergeRepairPhases:isZijinStock}) as ReplayObservation[]).map(observation=>({...observation,strategy:"closure" as const}));
-    return [...compactClosure,...shadow];
+    return [...compactClosure,...observations,...shadow];
   },[chartObservationStorageKey,isZijinStock,persistedChartObservations,positiveTBlockedByFlow,visibleChartObservations]);
   const chartFormalStorageKey=activeChartDate
     ?`rabbit-formal-chart-actions:${accountName.toLowerCase()}:${stock.code}:${activeChartDate}`
@@ -2631,20 +2774,28 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action,strategy}];
     });
     const observations=durableVisibleChartObservations.flatMap((observation,index)=>{
-      const markerPrice=observation.coverageOnly&&Number.isFinite(observation.pivotPrice) ? observation.pivotPrice : observation.price;
+      const markerPrice=observation.strategy==="observation"
+        ?observation.price
+        :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
+          ?observation.pivotPrice
+          :observation.price;
       const point=pointPosition(observation.time,markerPrice);
       if(!point)return [];
       const isSell=observation.direction==="反T";
-      const qualified=observation.stage!=="watch";
+      const qualified=observation.strategy==="observation"||observation.stage!=="watch";
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
       const rawLabel=observationConfirmationLabel(observation)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
-      const fullLabel=observation.strategy==="v1"
+      const fullLabel=observation.strategy==="observation"
+        ?`${rawLabel} · 仅观察`
+        :observation.strategy==="v1"
         ?`V1 ${rawLabel}`
         :observation.strategy==="v29"
           ?`V2.9 ${rawLabel}`
           :rawLabel;
-      const currentLabel=observation.strategy==="v1"||observation.strategy==="v29"
+      const currentLabel=observation.strategy==="observation"
+        ?rawLabel
+        :observation.strategy==="v1"||observation.strategy==="v29"
         ?isSell?"候卖":"候买"
         :rawLabel;
       const labelWidth=Math.max(38,currentLabel.length*8+14);
@@ -2717,6 +2868,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...(positiveTBlockedByFlow?currentObservations.filter(observation=>observation.direction!=="正T"):currentObservations),
       ...zijinV29ChartObservations,
       ...zijinV1ChartObservations,
+      ...causalObservationLayer,
     ];
     return {
       observations,
@@ -2728,7 +2880,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
       manualTrades,
     };
-  },[activeChartDate,alertHistory,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,alertHistory,causalObservationLayer,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -3284,6 +3436,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       label:currentEvents?.gate.label??"事件正常",
     },
   }),[stock?.code,clockNow,decisionModel.status,decisionModel.mode,decisionModel.confirmed,signalMode,isZijinStock,liveL2Status,liveL2Stale,liveL2HasTicks,web4L2Evidence.state,web4L2Evidence.score,web4L2Evidence.label,zijinAhLinkage.available,zijinAhLinkage.bias,zijinAhLinkage.weight,zijinAhLinkage.label,currentContext?.gate.level,currentContext?.gate.hardLock,currentContext?.gate.label,currentEvents?.gate.level,currentEvents?.gate.hardLock,currentEvents?.gate.label]);
+  const auctionDataPending=auctionPhase&&isZijinStock;
+  const displayedWeb4Status=auctionDataPending?"pending":web4Monitor.status;
+  const displayedWeb4Label=auctionDataPending?"竞价数据准备":web4Monitor.label;
+  const displayedWeb4Confidence=auctionDataPending?null:web4Monitor.confidence;
+  const displayedWeb4Summary=auctionDataPending
+    ? "集合竞价阶段不计入连续竞价 L2 健康度，09:30 后再开始评分。"
+    : web4Monitor.summary;
   const decisionConditions=useMemo(()=>{
     const reverse=signalMode==="反T";
     const l2Confirmed=decisionModel.status==="ready"
@@ -4736,8 +4895,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <b>{openingStageCard.value}<small>{openingStageCard.suffix}</small></b>
           <em>{openingStageCard.detail}</em>
         </div>
-        <div className={`l2-console-status data-health-status ${web4Monitor.status} ${l2ConsoleStatus.tone}`} role="status" title={`${l2ConsoleStatus.detail} · ${web4Monitor.summary}`}>
-          <i/><div><span>{web4Monitor.status==="degraded"?"数据降级":web4Monitor.status==="conflict"||web4Monitor.status==="risk"?"数据风险":"数据健康"}</span><b>{web4Monitor.confidence}<small>/100</small></b></div><em>{l2ConsoleStatus.label}</em>
+        <div className={`l2-console-status data-health-status ${displayedWeb4Status} ${l2ConsoleStatus.tone}`} role="status" title={`${l2ConsoleStatus.detail} · ${displayedWeb4Summary}`}>
+          <i/><div><span>{auctionDataPending?"竞价数据准备":web4Monitor.status==="degraded"?"数据降级":web4Monitor.status==="conflict"||web4Monitor.status==="risk"?"数据风险":"数据健康"}</span><b>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></b></div><em>{l2ConsoleStatus.label}</em>
         </div>
       </section>
 
@@ -4756,6 +4915,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
               {indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}
               {isZijinStock&&<span className="strategy-signal-legend" aria-label="信号分类图例"><span title="紫金专属闭环正式信号"><i className="formal"/>正式</span><span title="V2.9 影子参考，不可执行"><i className="v29"/>V2.9</span><span title="V1 影子参考，不可执行"><i className="v1"/>V1</span></span>}
+              {causalObservationLayer.length>0&&<span className="strategy-signal-legend observation-signal-legend" aria-label="观察层图例"><span title="拐点概率与 MACD 观察，仅供参考"><i className="observation"/>观察</span></span>}
               {intradayMarkerLayout.manualTrades.length>0&&<span className="manual-trade-legend" title="本机快捷打点，不会发送到券商"><i className="buy">B</i><i className="sell">S</i>模拟成交</span>}
               <details className="auxiliary-indicators">
                 <summary>辅助指标</summary>
@@ -4795,7 +4955,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {intradayMarkerLayout.observations.map(marker=><g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":""} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${marker.strategy!=="closure"?" · 影子参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.isSell?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.isSell?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>)}
+              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.isSell?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.isSell?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-3.5} y={marker.y-3.5} width="7" height="7" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y-2} ${marker.x+4.5},${marker.y-2} ${marker.x},${marker.y+4.5}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y+2} ${marker.x+4.5},${marker.y+2} ${marker.x},${marker.y-4.5}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>})}
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title><line x1={marker.x} y1={marker.isSell?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.isSell?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/>{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}<rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.isSell?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.isSell?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
@@ -5142,24 +5302,26 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <p>{stockState.summary}</p><ul>{stockState.details.map(detail=><li key={detail}>{detail}</li>)}</ul><em>{stockState.action}</em>
             </div>
           </details>
-          <section className={`web4-monitor ${web4Monitor.status} ${web4Monitor.status==="degraded"?"compact":""} ${marketSession.live?"market-live":""}`} aria-label="WEB 4.0 多源实时监控">
-            {marketSession.live&&<span className="market-live-status-dot" title={web4Monitor.summary} aria-label={`数据状态：${web4Monitor.label}`}/>}
+          <section className={`web4-monitor ${displayedWeb4Status} ${displayedWeb4Status==="degraded"||auctionDataPending?"compact":""} ${marketSession.live?"market-live":""}`} aria-label="WEB 4.0 多源实时监控">
+            {marketSession.live&&<span className="market-live-status-dot" title={displayedWeb4Summary} aria-label={`数据状态：${displayedWeb4Label}`}/>}
             <header>
-              <div><span>WEB 4.0 · 多源监控</span><b>{web4Monitor.label}</b></div>
-              <strong>{web4Monitor.confidence}<small>/100</small></strong>
+              <div><span>WEB 4.0 · 多源监控</span><b>{displayedWeb4Label}</b></div>
+              <strong>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></strong>
             </header>
-            <div className="web4-monitor-meter" role="meter" aria-label={`WEB 4.0 多源置信度 ${web4Monitor.confidence} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={web4Monitor.confidence}><i style={{width:`${web4Monitor.confidence}%`}}/></div>
-            {web4Monitor.status!=="degraded"&&secondLevelSignal&&<div className={`second-level-state ${secondLevelSignal.state}`}>
+            <div className="web4-monitor-meter" role="meter" aria-label={auctionDataPending?"集合竞价数据准备中":`WEB 4.0 多源置信度 ${web4Monitor.confidence} 分`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={displayedWeb4Confidence??0}><i style={{width:`${displayedWeb4Confidence??0}%`}}/></div>
+            {!auctionDataPending&&web4Monitor.status!=="degraded"&&secondLevelSignal&&<div className={`second-level-state ${secondLevelSignal.state}`}>
               <span>秒级预警</span>
               <b>{secondLevelSignal.label}</b>
               <strong>{secondLevelSignal.direction==="buy"?"正T":secondLevelSignal.direction==="sell"?"反T":"扫描"} · {secondLevelSignal.score}/100</strong>
               <small>{secondLevelSignal.plan?.action??"仅作候选"}{secondLevelSignal.plan?.triggerPrice?` · 触发 ¥${secondLevelSignal.plan.triggerPrice.toFixed(2)}`:""}{secondLevelSignal.plan?.invalidPrice?` · 失效 ¥${secondLevelSignal.plan.invalidPrice.toFixed(2)}`:""} · 正式信号仍需闭环确认</small>
               {secondLevelSignal.timeline?.lastReason&&<small>{secondLevelSignal.timeline.lastReason}{secondLevelSignal.timeline.confirmationDelaySeconds!=null?` · 确认延迟 ${secondLevelSignal.timeline.confirmationDelaySeconds.toFixed(1)} 秒`:""} · {secondLevelSignal.timeline.confirmationPolicy}</small>}
             </div>}
-            {web4Monitor.status!=="degraded"&&<div className="web4-monitor-votes">
+            {!auctionDataPending&&web4Monitor.status!=="degraded"&&<div className="web4-monitor-votes">
               {web4Monitor.votes.map(vote=><span key={vote.id} className={vote.state} title={vote.detail}><i/>{vote.label}<small>{vote.detail}</small></span>)}
             </div>}
-            {web4Monitor.status==="degraded"
+            {auctionDataPending
+              ?<p className="web4-monitor-compact-note" title={displayedWeb4Summary}>{displayedWeb4Summary}</p>
+              :web4Monitor.status==="degraded"
               ?<p className="web4-monitor-compact-note" title={web4Monitor.summary}>{web4Monitor.summary}</p>
               :<footer><b>{web4Monitor.formalEligible?"多源已确认":"技术面不能单独升级正式信号"}</b><span>{web4Monitor.summary}</span></footer>}
           </section>
@@ -7213,6 +7375,9 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
     } finally { setRunning(false); setRunMode(null); }
   };
   const fullDayMinutes=source?.minutes ?? [];
+  const replayCausalObservations=result
+    ? buildPivotAndMacdObservations(fullDayMinutes,source?.sampleDate)
+    : [];
   const fullDayPrices=fullDayMinutes.map(point=>point.price);
   const fullDayRangePrices=fullDayMinutes.flatMap(point=>[
     point.price,
@@ -7242,6 +7407,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? [],l2Replay.observations),30) as ReplayObservation[],
       ]
     : [];
+  const visibleReplayChartObservations=[...visibleBacktestObservations,...replayCausalObservations];
   const trainingObservations=visibleBacktestObservations.filter(observation=>!observation.coverageOnly);
   const trainingCurrent=trainingObservations[trainingIndex] ?? null;
   const trainingCorrect=trainingChoices.filter(item=>item.choice===item.expected).length;
@@ -7449,7 +7615,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         <div className="equity-panel">
           <div className="panel-heading">
             <div><h2>{source?`完整交易日真实分时 · ${source.quote.code} ${source.quote.name}`:"完整交易日真实分时"}</h2><span>{result ? `${formatDate(source?.sampleDate)} · ${formatTime(fullDayMinutes[0]?.time)} 至 ${formatTime(fullDayMinutes.at(-1)?.time)} · 策略从 ${formatTime(result.startTime)} 起逐分钟判断` : "运行后显示"}</span></div>
-            <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 候补观察</span>}{l2Replay.observations.length>0&&<span className="l2-marker">◎ 资金承接修复</span>}</div>
+            <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 候补观察</span>}{replayCausalObservations.length>0&&<span className="observation-marker">△ 概率 / MACD 观察</span>}{l2Replay.observations.length>0&&<span className="l2-marker">◎ 资金承接修复</span>}</div>
           </div>
           {result&&source?.quote.code==="601899"&&<div className={`l2-replay-audit ${l2Replay.available?"available":"unavailable"}`}><span><i/>L2严格因果回放</span><b>{l2Replay.reason}</b><em>{l2Replay.available?`${l2Replay.minuteCount} 个L2分钟点 · 图上合并为 ${visibleL2ReplayMarkers.length} 个关键波段 · ${l2Replay.source==="archive"?"交易日归档":"当日实时快照"}`:"未使用L2补值"}</em></div>}
           <svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点">
@@ -7460,10 +7626,12 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
             {points&&<>
               <polyline points={`${points} 820,202 65,202`} fill="url(#equityFill)"/>
               <polyline points={points} className="equity-line" fill="none"/>
-              {visibleBacktestObservations.map((observation,index)=>{
+              {visibleReplayChartObservations.map((observation,index)=>{
                 const minuteIndex=fullDayMinutes.findIndex(point=>point.time===observation.time);
                 if(minuteIndex<0)return null;
-                const price=observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
+                const price=observation.observationKind
+                  ?observation.price ?? fullDayMinutes[minuteIndex].price
+                  :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
                   ? observation.pivotPrice
                   : observation.price ?? fullDayMinutes[minuteIndex].price;
                 const point=chartPoint(price,minuteIndex);
@@ -7474,12 +7642,12 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
                 const labelY=placeAbove?Math.max(17,point.y-19-(index%2)*8):Math.min(191,point.y+25+(index%2)*8);
                 const labelX=Math.max(65+labelWidth/2,Math.min(820-labelWidth/2,point.x+((index%3)-1)*4));
                 const labelTop=labelY-13;
-                return <g className={`backtest-candidate-marker ${isSell?"is-high":"is-low"} ${observation.l2Strict?"is-l2-strict":""}`} key={`${observation.direction}-${observation.time}-${index}`}>
+                const observationClass=observation.observationKind?` observation-layer ${observation.observationKind} ${observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:"";
+                return <g className={`backtest-candidate-marker ${isSell?"is-high":"is-low"}${observationClass} ${observation.l2Strict?"is-l2-strict":""}`} key={`${observation.direction}-${observation.time}-${index}`}>
                   <title>{`${label}；${observationDirectionNote(observation)}；${observation.reason}${observation.blockers.length?`；未通过：${observation.blockers.join("；")}`:""}`}</title>
                   <line className="candidate-leader" x1={point.x} y1={point.y} x2={labelX} y2={placeAbove?labelTop+22:labelTop}/>
                   <rect className="candidate-label-bg" x={labelX-labelWidth/2} y={labelTop} width={labelWidth} height="22" rx="11"/>
-                  <circle className="candidate-anchor" cx={point.x} cy={point.y} r="5.5"/>
-                  <circle className="candidate-anchor-core" cx={point.x} cy={point.y} r="2"/>
+                  {observation.observationKind==="macd"?<rect className="candidate-anchor observation-anchor" x={point.x-4} y={point.y-4} width="8" height="8" rx="1"/>:observation.observationKind==="pivot-top"?<polygon className="candidate-anchor observation-anchor" points={`${point.x-5},${point.y-2} ${point.x+5},${point.y-2} ${point.x},${point.y+5}`}/>:observation.observationKind==="pivot-bottom"?<polygon className="candidate-anchor observation-anchor" points={`${point.x-5},${point.y+2} ${point.x+5},${point.y+2} ${point.x},${point.y-5}`}/>:<><circle className="candidate-anchor" cx={point.x} cy={point.y} r="5.5"/><circle className="candidate-anchor-core" cx={point.x} cy={point.y} r="2"/></>}
                   <text x={labelX} y={labelY+1.75} textAnchor="middle">{label}</text>
                 </g>;
               })}
