@@ -455,7 +455,7 @@ const v1ContextActionLabel=(action:ReplayAction)=>action.direction==="反T"
   : action.side==="买入"?"V1 正T":"V1 止盈";
 const shadowChartActionLabel=(action:ReplayAction)=>
   action.side==="买入"||action.side==="买回"?"候买":"候卖";
-type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|70|75|80|90; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; localPivotPrice?:number; absolutePivotPrice?:number; openingPrice?:number; pivotScope?:"absolute"|"local"; openingAnchor?:boolean; probabilityEligible?:boolean; volumeConfirmed?:boolean; vwapConfirmed?:boolean; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|70|75|80|90; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
 type ChartObservationStrategy = "closure"|"v29"|"v1"|"observation";
 type ChartObservation = ReplayObservation & {strategy:ChartObservationStrategy};
 type PersistedChartObservation = ReplayObservation & {strategy?:ChartObservationStrategy};
@@ -473,7 +473,7 @@ const BACKTEST_REPLAY_ENGINE_META:Record<BacktestReplayEngine,{label:string;logi
   "zuot-v1-reconstructed-shadow":{label:"zuoT-v1 重建影子",logic:"VWAP + 量能 + MACD + OFI + 技术位置",note:"仅模拟研究，不影响操盘台正式信号或交易链路"},
   "zijin-v29-shadow":{label:"V2.9 紫金影子",logic:"VWAP + 量能 + MACD + 5分钟方向 + L2/OFI确认",note:"仅限601899历史L2因果回放，不影响正式策略"},
 };
-type ReplayMinute = { time:string; price:number; volume:number };
+type ReplayMinute = { time:string; price:number; volume:number; high?:number|null; low?:number|null; averagePrice?:number|null };
 type PersonalTrainingAction = { id:string; time:string; minuteIndex:number; side:"buy"|"sell"; quantity:number; marketPrice:number; executionPrice:number; gross:number; fee:number };
 type PersonalTrainingRecord = { id:string; completedAt:string; code:string; name:string; date:string; actions:PersonalTrainingAction[]; net:number; totalNet?:number; closedQuantity?:number; fees:number; accuracy:number|null };
 type PersonalTrainingExecution = { ok:true; cash:number; shares:number; action:Omit<PersonalTrainingAction,"id"|"time"|"minuteIndex"> } | { ok:false; error:string };
@@ -564,8 +564,129 @@ function buildReplayChartObservations(code:string|undefined, minutes:ReplayMinut
 type IntradayDivergenceResult={
   available?:boolean;
   strength?:number;
-  pivot?:{confirmationIndex?:number;time?:string;price?:number;label?:string;assessment?:"strong"|"confirmed"|"unconfirmed"};
+  pivot?:{previousIndex?:number;previousTime?:string;previousPrice?:number;confirmationIndex?:number;latestIndex?:number;latestTime?:string;latestPrice?:number;time?:string;price?:number;label?:string;assessment?:"strong"|"confirmed"|"unconfirmed"};
+  volumePrice?:{confirmed?:boolean;priceExtensionPct?:number;volumeRatio?:number};
 };
+
+type PivotScope = "absolute"|"local";
+type PivotRole = "absolute-top"|"absolute-bottom"|"local-resistance"|"local-support";
+type PivotPresentation = {
+  scope:PivotScope;
+  role:PivotRole;
+  openingPrice:number|null;
+  localPivotPrice:number|null;
+  absolutePivotPrice:number|null;
+  openingAnchor:boolean;
+  pivotConfirmed:boolean;
+  probabilityEligible:boolean;
+  volumeConfirmed:boolean;
+  vwapConfirmed:boolean;
+};
+
+const finitePositive=(value:unknown)=>{
+  const number=Number(value);
+  return Number.isFinite(number)&&number>0?number:null;
+};
+
+function resolveOpeningPrice(minutes:ReplayMinute[],override?:number|null){
+  const explicit=finitePositive(override);
+  if(explicit!==null)return explicit;
+  return finitePositive(minutes.find(point=>isAShareRegularTradingMinute(point.time)&&finitePositive(point.price)!==null)?.price);
+}
+
+function causalPriceExtremes(minutes:ReplayMinute[],index:number){
+  const causal=minutes.slice(0,Math.max(0,index)+1);
+  let high=0;
+  let low=Number.POSITIVE_INFINITY;
+  for(const point of causal){
+    const price=finitePositive(point.price);
+    if(price===null)continue;
+    const pointHigh=finitePositive(point.high)??price;
+    const pointLow=finitePositive(point.low)??price;
+    high=Math.max(high,pointHigh);
+    low=Math.min(low,pointLow);
+  }
+  return {high:high>0?high:null,low:Number.isFinite(low)?low:null};
+}
+
+function openingExtremeWarning(minutes:ReplayMinute[],index:number,openingPrice:number|null,kind:"top"|"bottom"){
+  if(openingPrice===null||index<1)return false;
+  const currentPrice=finitePositive(minutes[index]?.price);
+  if(currentPrice===null)return false;
+  // Only inspect the first twenty points that have already arrived.  When the
+  // candidate is still in the opening window, slicing the complete day here
+  // would leak later prices into the opening-risk classification.
+  const early=minutes.slice(0,Math.min(index+1,20)).map(point=>finitePositive(point.price)).filter((price):price is number=>price!==null);
+  const movedAway=kind==="top"
+    ?early.some(price=>price<openingPrice*.999)
+    :early.some(price=>price>openingPrice*1.001);
+  if(!movedAway)return false;
+  const extremes=causalPriceExtremes(minutes,index);
+  return kind==="top"
+    ?currentPrice<openingPrice*.999&&extremes.high!==null&&extremes.high<=openingPrice*1.0005
+    :currentPrice>openingPrice*1.001&&extremes.low!==null&&extremes.low>=openingPrice*.9995;
+}
+
+function pivotVwapGate(minutes:ReplayMinute[],confirmationIndex:number,pivotIndex:number,price:number,kind:"top"|"bottom"){
+  if(!Number.isFinite(price)||price<=0)return false;
+  const vwapSeries=cumulativeIntradayAverage(minutes.slice(0,Math.max(confirmationIndex,pivotIndex)+1));
+  const vwap=finitePositive(vwapSeries[pivotIndex]??vwapSeries[confirmationIndex]);
+  if(vwap===null)return false;
+  const deviation=(price-vwap)/vwap;
+  return kind==="top"?deviation>=.0015:deviation<=-.0015;
+}
+
+function pivotPresentation(observation:ReplayObservation,minutes:ReplayMinute[],openingPriceOverride?:number|null):PivotPresentation{
+  const kind=observation.observationKind==="pivot-top"?"top":"bottom";
+  // A live/replay quote supplied by the current session is authoritative.  A
+  // cached observation may carry an openingPrice from an older render, so it
+  // must never override the current opening anchor.
+  const openingPrice=finitePositive(openingPriceOverride)??resolveOpeningPrice(minutes)??finitePositive(observation.openingPrice);
+  const localPivotPrice=finitePositive(observation.localPivotPrice)??finitePositive(observation.pivotPrice)??finitePositive(observation.price);
+  const relation=openingPrice!==null&&localPivotPrice!==null
+    ?kind==="top"?localPivotPrice>=openingPrice:localPivotPrice<=openingPrice
+    :false;
+  const observationIndex=minutes.findIndex(point=>point.time===observation.time);
+  const openingPattern=observationIndex>=0&&openingExtremeWarning(minutes,observationIndex,openingPrice,kind);
+  const inferredOpeningAnchor=openingPattern&&openingPrice!==null&&localPivotPrice!==null
+    &&(kind==="top"?localPivotPrice<=openingPrice*1.0005:localPivotPrice>=openingPrice*.9995);
+  // Re-verify the opening-anchor pattern from the causal points.  A persisted
+  // flag alone must not revive an old "开盘即高风险" label after the session
+  // data or opening quote has been corrected.
+  const openingAnchor=openingPrice!==null&&inferredOpeningAnchor;
+  // An absolute label is never trusted from persisted data by itself. The
+  // current session opening relation is the hard gate; otherwise this is a
+  // local support/resistance observation.
+  const scope:PivotScope=openingAnchor||relation?"absolute":"local";
+  const role:PivotRole=scope==="absolute"
+    ?kind==="top"?"absolute-top":"absolute-bottom"
+    :kind==="top"?"local-resistance":"local-support";
+  // Recompute the absolute anchor from the validated relation instead of
+  // trusting a persisted absolutePivotPrice.  This prevents an old/stale
+  // value below the open from being rendered as an absolute top (or the
+  // symmetric bottom case).
+  const absolutePivotPrice=scope==="absolute"
+    ?openingAnchor?openingPrice:relation?localPivotPrice:null
+    :null;
+  const confirmationIndex=minutes.findIndex(point=>point.time===observation.time);
+  const pivotIndex=observation.pivotTime
+    ?minutes.findIndex(point=>point.time===observation.pivotTime)
+    :confirmationIndex;
+  const currentVolumeConfirmed=Boolean(observation.volumeConfirmed)
+    &&pivotIndex>=0&&confirmationIndex>=0
+    &&finitePositive(minutes[pivotIndex]?.volume)!==null
+    &&finitePositive(minutes[confirmationIndex]?.volume)!==null;
+  const pivotConfirmed=observation.pivotAssessment==="confirmed"||observation.pivotAssessment==="strong";
+  const currentVwapConfirmed=scope==="absolute"&&absolutePivotPrice!==null&&pivotIndex>=0&&confirmationIndex>=0
+    ?pivotVwapGate(minutes,confirmationIndex,pivotIndex,absolutePivotPrice,kind)
+    :false;
+  return {
+    scope,role,openingPrice,localPivotPrice,absolutePivotPrice,openingAnchor,pivotConfirmed,
+    probabilityEligible:Boolean(observation.probabilityEligible)&&scope==="absolute"&&!openingAnchor&&pivotConfirmed&&currentVolumeConfirmed&&currentVwapConfirmed,
+    volumeConfirmed:currentVolumeConfirmed,
+    vwapConfirmed:currentVwapConfirmed,
+  };
+}
 
 /**
  * A small, deterministic observation layer for the desk and replay chart.
@@ -573,15 +694,19 @@ type IntradayDivergenceResult={
  * markers are emitted only at the causal confirmation minute and are capped
  * so that the chart remains readable during a full trading day.
  */
-function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shadowObservations:ReplayObservation[]=[],requireShadowConfirmation=false):ReplayObservation[]{
+function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shadowObservations:ReplayObservation[]=[],requireShadowConfirmation=false,openingPriceOverride?:number|null):ReplayObservation[]{
   if(minutes.length===0)return [];
   const observations:ReplayObservation[]=[];
   const pivotEvents:{index:number;observation:ReplayObservation}[]=[];
   const macdEvents:{index:number;observation:ReplayObservation}[]=[];
   const pivotAttempts={top:0,bottom:0};
-  const lastPivotIndex={top:-Infinity,bottom:-Infinity};
-  const probabilityForStrength=(strength:number|undefined):60|75|90=>strength===2?90:strength===1?75:60;
+  const localPivotAttempts={top:0,bottom:0};
+  const lastPivotIndex={top:{absolute:-Infinity,local:-Infinity},bottom:{absolute:-Infinity,local:-Infinity}};
+  const openingPrice=resolveOpeningPrice(minutes,openingPriceOverride);
+  const probabilityForStrength=(strength:number|undefined,eligible:boolean):70|80|undefined=>eligible&&(strength===1||strength===2)?(strength===2?80:70):undefined;
   const assessmentForStrength=(strength:number|undefined):"strong"|"confirmed"|"unconfirmed"=>strength===2?"strong":strength===1?"confirmed":"unconfirmed";
+  let openingTopAnchorUsed=false;
+  let openingBottomAnchorUsed=false;
   const safePrice=(index:number,fallback?:number)=>{
     const value=Number(minutes[index]?.price??fallback);
     return Number.isFinite(value)&&value>0?value:undefined;
@@ -590,34 +715,71 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shado
     if(!result.available||!result.pivot)return;
     if(Number(result.pivot.confirmationIndex)!==index)return;
     const side=kind==="pivot-top"?"top":"bottom";
-    if(pivotAttempts[side]>=3||index-lastPivotIndex[side]<15)return;
-    const probability=probabilityForStrength(result.strength);
-    const displayProbability=kind==="pivot-top"?topPivotDisplayProbability(probability):probability;
-    // A sub-70% top is not a visible top attempt and must not consume one of
-    // the three causal slots; otherwise weak early noise could suppress a
-    // later 70%/80% observation for the rest of the session.
-    if(kind==="pivot-top"&&displayProbability===null)return;
     const assessment=assessmentForStrength(result.strength);
     const price=safePrice(index);
     if(price===undefined)return;
-    pivotAttempts[side]+=1;
-    lastPivotIndex[side]=index;
-    const attempt=pivotAttempts[side] as 1|2|3;
-    const pivotPrice=Number(result.pivot.price);
-    const pivotTime=String(result.pivot.time??minutes[index]?.time??"");
-    // Keep the underlying score unchanged, but show top pivots in two
-    // conservative desk bands only: 70% or 80%.  The old 75/90 values are
-    // intentionally mapped to those display bands so persisted observations
-    // do not reintroduce a third, noisy label after a refresh.
-    const label=kind==="pivot-top"?`顶 ${displayProbability??probability}%`:`底 ${probability}%`;
+    const localPivotPrice=finitePositive(result.pivot.latestPrice)??finitePositive(result.pivot.price)??price;
+    const rawPivotIndex=Number.isInteger(Number(result.pivot.latestIndex))
+      ?Number(result.pivot.latestIndex)
+      :Math.max(0,index-3);
+    const pivotIndex=Math.min(index,Math.max(0,rawPivotIndex));
+    const relation=openingPrice!==null
+      ?kind==="pivot-top"?localPivotPrice>=openingPrice:localPivotPrice<=openingPrice
+      :false;
+    const openingPattern=openingExtremeWarning(minutes,index,openingPrice,side);
+    const openingAnchor=openingPattern
+      &&openingPrice!==null
+      &&(kind==="pivot-top"?localPivotPrice<=openingPrice*1.0005:localPivotPrice>=openingPrice*.9995)
+      &&(kind==="pivot-top"?!openingTopAnchorUsed:!openingBottomAnchorUsed);
+    const scope:PivotScope=relation||openingAnchor?"absolute":"local";
+    const attemptsForScope=scope==="absolute"?pivotAttempts:localPivotAttempts;
+    if(attemptsForScope[side]>=3)return;
+    if(index-lastPivotIndex[side][scope]<15)return;
+    if(openingAnchor){
+      if(kind==="pivot-top")openingTopAnchorUsed=true;
+      else openingBottomAnchorUsed=true;
+    }
+    const absolutePivotPrice=scope==="absolute"?(openingAnchor?openingPrice:localPivotPrice):null;
+    const volumeConfirmed=Boolean(result.volumePrice?.confirmed)
+      &&finitePositive(minutes[pivotIndex]?.volume)!==null
+      &&finitePositive(minutes[index]?.volume)!==null;
+    const vwapConfirmed=absolutePivotPrice!==null
+      &&pivotVwapGate(minutes,index,pivotIndex,absolutePivotPrice,side);
+    const pivotConfirmed=assessment!=="unconfirmed";
+    const probabilityEligible=scope==="absolute"&&!openingAnchor&&pivotConfirmed&&volumeConfirmed&&vwapConfirmed;
+    const probability=probabilityForStrength(result.strength,probabilityEligible);
+    attemptsForScope[side]+=1;
+    lastPivotIndex[side][scope]=index;
+    const attempt=attemptsForScope[side] as 1|2|3;
+    const pivotTime=String(result.pivot.latestTime??result.pivot.time??minutes[index]?.time??"");
+    const label=openingAnchor
+      ?kind==="pivot-top"?"开盘即高风险":"开盘即低点"
+      :scope==="local"
+        ?kind==="pivot-top"?"局部反弹阻力":"局部回踩支撑"
+        :probability
+          ?`${kind==="pivot-top"?"顶":"底"} ${probability}%`
+          :kind==="pivot-top"?"绝对顶观察":"绝对底观察";
+    const blockers=["观察层，不触发正式买卖","不计入正式胜率与收益"];
+    if(scope==="local")blockers.push(kind==="pivot-top"?"局部阻力，不代表全天绝对顶":"局部支撑，不代表全天绝对底");
+    if(!volumeConfirmed)blockers.push("成交量条件未满足");
+    if(!vwapConfirmed)blockers.push("VWAP条件未满足");
+    if(!pivotConfirmed)blockers.push("因果拐点未确认");
     const observation:ReplayObservation={
-      time:String(minutes[index].time),price,direction,score:probability,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
+      time:String(minutes[index].time),price,direction,score:probability??60,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
       pivotTime:/^\d{4}$/.test(pivotTime)?pivotTime:undefined,
-      pivotPrice:Number.isFinite(pivotPrice)&&pivotPrice>0?pivotPrice:undefined,
+      pivotPrice:localPivotPrice,
+      localPivotPrice,
+      absolutePivotPrice:absolutePivotPrice??undefined,
+      openingPrice:openingPrice??undefined,
+      pivotScope:scope,
+      openingAnchor,
+      probabilityEligible,
+      volumeConfirmed,
+      vwapConfirmed,
       pivotLabel:result.pivot.label??(assessment==="strong"?"强确认":assessment==="confirmed"?"已确认":"未确认"),
       pivotAssessment:assessment,confirmationLabel:label,
-      blockers:["观察层，不触发正式买卖","不计入正式胜率与收益"],
-      reason:`${label} · 因果拐点已在本分钟确认，仅作位置观察。`,
+      blockers,
+      reason:`${label} · 因果拐点已在本分钟确认；价格关系${scope==="absolute"?"通过":"为局部结构"}，成交量${volumeConfirmed?"通过":"未满足"}，VWAP${vwapConfirmed?"通过":"未满足"}。`,
       watchKey:`${date??"live"}:${kind}:${minutes[index].time}:${attempt}`,
       observationKind:kind,probability,attempt,
     };
@@ -702,12 +864,24 @@ function compactIntradayPrompt(value:string, fallback="等待确认") {
   return normalized.length>4?normalized.slice(0,4):fallback;
 }
 
-function observationConfirmationLabel(observation: ReplayObservation) {
+function observationConfirmationLabel(observation: ReplayObservation,minutes?:ReplayMinute[],openingPriceOverride?:number|null) {
+  const presentation=minutes&&observation.observationKind&&observation.observationKind!=="macd"
+    ?pivotPresentation(observation,minutes,openingPriceOverride)
+    :null;
   if(observation.observationKind==="pivot-top"){
-    const probability=topPivotDisplayProbability(observation.probability);
-    return probability===null?"顶观察":`顶 ${probability}%`;
+    if(presentation?.openingAnchor??observation.openingAnchor)return "开盘即高风险";
+    if((presentation?.scope??observation.pivotScope)==="local")return "局部反弹阻力";
+    const probability=topPivotDisplayProbability(observation.probability,Boolean(presentation?.probabilityEligible??(observation.probabilityEligible===true&&observation.pivotScope==="absolute")));
+    return probability===null?"绝对顶观察":`顶 ${probability}%`;
   }
-  if(observation.observationKind==="pivot-bottom"&&observation.probability)return `底 ${observation.probability}%`;
+  if(observation.observationKind==="pivot-bottom"){
+    if(presentation?.openingAnchor??observation.openingAnchor)return "开盘即低点";
+    if((presentation?.scope??observation.pivotScope)==="local")return "局部回踩支撑";
+    const probability=Boolean(presentation?.probabilityEligible??(observation.probabilityEligible===true&&observation.pivotScope==="absolute"))
+      ?topPivotDisplayProbability(observation.probability,true)
+      :null;
+    return probability===null?"绝对底观察":`底 ${probability}%`;
+  }
   if(observation.observationKind==="macd"){
     if(observation.macdState==="death-cross")return "MACD↓";
     if(observation.macdState==="golden-cross")return "MACD↑";
@@ -731,34 +905,44 @@ function observationConfirmationLabel(observation: ReplayObservation) {
 // location reference is the already-seen extreme stored in `pivotPrice`.
 // Keeping this distinction explicit prevents a confirmed rebound and a
 // confirmed pullback from being drawn at the same confirmation price.
-function observationReferencePrice(observation:ReplayObservation,fallback?:number) {
+function observationReferencePrice(observation:ReplayObservation,fallback?:number,minutes?:ReplayMinute[],openingPriceOverride?:number|null) {
   const confirmationPrice=Number(observation.price);
-  const pivotPrice=Number(observation.pivotPrice);
+  const presentation=minutes&&observation.observationKind&&observation.observationKind!=="macd"
+    ?pivotPresentation(observation,minutes,openingPriceOverride)
+    :null;
+  const pivotPrice=Number(presentation?.localPivotPrice??observation.localPivotPrice??observation.pivotPrice);
+  const absolutePivotPrice=Number(presentation?.absolutePivotPrice??observation.absolutePivotPrice);
+  const pivotScope=presentation?.scope??observation.pivotScope;
   if((observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
     &&Number.isFinite(pivotPrice)&&pivotPrice>0){
-    if(Number.isFinite(confirmationPrice)&&confirmationPrice>0){
-      return observation.observationKind==="pivot-top"
-        ?Math.max(pivotPrice,confirmationPrice)
-        :Math.min(pivotPrice,confirmationPrice);
-    }
+    if(pivotScope==="absolute"&&Number.isFinite(absolutePivotPrice)&&absolutePivotPrice>0)return absolutePivotPrice;
+    // Local structures keep their own pivot price.  Do not replace a local
+    // resistance/support with the later confirmation price, or it can cross
+    // the opening anchor and look like an absolute top/bottom on the chart.
     return pivotPrice;
   }
   return Number.isFinite(confirmationPrice)&&confirmationPrice>0?confirmationPrice:fallback;
 }
 
 type TopPivotDisplayProbability=70|80;
-function topPivotDisplayProbability(value:unknown):TopPivotDisplayProbability|null {
+function topPivotDisplayProbability(value:unknown,eligible=true):TopPivotDisplayProbability|null {
+  if(!eligible)return null;
   const probability=Number(value);
   if(!Number.isFinite(probability)||probability<70)return null;
   return probability>=80?80:70;
 }
 
-function selectTopPivotObservationKeys(observations:ReplayObservation[],limit=2,minProbability=70,minGapMinutes=30){
+function selectTopPivotObservationKeys(observations:ReplayObservation[],limit=2,minProbability=70,minGapMinutes=30,minutes?:ReplayMinute[],openingPriceOverride?:number|null){
   const key=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
   const selected:ReplayObservation[]=[];
   const candidates=observations
-    .map(observation=>({observation,displayProbability:topPivotDisplayProbability(observation.probability)}))
-    .filter(item=>item.observation.observationKind==="pivot-top"&&item.displayProbability!==null&&item.displayProbability>=minProbability)
+    .map(observation=>{
+      const presentation=minutes?pivotPresentation(observation,minutes,openingPriceOverride):null;
+      const eligible=presentation?.probabilityEligible??(observation.pivotScope==="absolute"&&observation.probabilityEligible===true);
+      const absolute=presentation?.scope??observation.pivotScope;
+      return {observation,displayProbability:topPivotDisplayProbability(observation.probability,absolute==="absolute"&&eligible)};
+    })
+    .filter(item=>item.observation.observationKind==="pivot-top"&&(minutes?item.displayProbability!==null:item.observation.pivotScope==="absolute"&&item.observation.probabilityEligible===true)&&item.displayProbability!==null&&item.displayProbability>=minProbability)
     .sort((left,right)=>(Number(right.displayProbability??0)-Number(left.displayProbability??0))||(Number(right.observation.probability??0)-Number(left.observation.probability??0))||left.observation.time.localeCompare(right.observation.time));
   // One 80% and one 70% marker is the complete top layer.  Do not fill the
   // second slot with another marker from the same band; this keeps the chart
@@ -867,7 +1051,7 @@ function BatchMiniChart({minutes,actions,observations}:{minutes:ReplayMinute[];a
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="完整日内分时及买卖点">
       {[.25,.5,.75].map(ratio=><line key={ratio} x1={left} x2={width-right} y1={top+(height-top-bottom)*ratio} y2={top+(height-top-bottom)*ratio} className="mini-grid"/>)}
       <polyline points={points} className="mini-price-line"/>
-      {observations.slice(0,4).map((observation,index)=>{const point=pointAt(observation.time);const label=observationConfirmationLabel(observation);return <g key={`ob-${observation.time}-${index}`} className="mini-observation"><title>{`${label}；${observationDirectionNote(observation)}；${observation.reason}`}</title><circle cx={point.x} cy={point.y} r="4"/><text x={point.x} y={Math.max(10,point.y-8)}>{label}</text></g>})}
+      {observations.slice(0,4).map((observation,index)=>{const point=pointAt(observation.time);const label=observationConfirmationLabel(observation,minutes);return <g key={`ob-${observation.time}-${index}`} className="mini-observation"><title>{`${label}；${observationDirectionNote(observation)}；${observation.reason}`}</title><circle cx={point.x} cy={point.y} r="4"/><text x={point.x} y={Math.max(10,point.y-8)}>{label}</text></g>})}
       {actions.map((action,index)=>{const point=pointAt(action.time);const selling=action.side==="卖出";return <g key={`action-${action.time}-${index}`} className={selling?"mini-action sell":"mini-action buy"}><circle cx={point.x} cy={point.y} r="5"/><text x={point.x} y={Math.max(10,point.y-9)}>{action.side==="买回"?"回":selling?"卖":"买"}</text></g>})}
       <text x={left} y={height-8} className="mini-axis">09:30</text><text x={width/2} y={height-8} textAnchor="middle" className="mini-axis">13:00</text><text x={width-right} y={height-8} textAnchor="end" className="mini-axis">15:00</text>
     </svg>
@@ -882,7 +1066,7 @@ function BatchStockDrawer({item,onClose}:{item:BatchBacktestResult["stockFeedbac
       <header className="batch-drawer-head"><div><span>单股因果复盘</span><b>{item.code} {item.name}</b><small>{item.date.slice(0,4)}-{item.date.slice(4,6)}-{item.date.slice(6,8)} · {item.completed ? `${item.completed} 个正式闭环` : "无正式闭环"}</small></div><button type="button" onClick={onClose} aria-label="关闭复盘详情">×</button></header>
       <div className="batch-drawer-summary"><span><small>观察 / 候补</small><b>{item.keyObservations} / {item.candidates}</b></span><span><small>正T / 反T</small><b>{item.positiveT} / {item.reverseT}</b></span><span><small>净收益</small><b className={pnlClass(item.net)}>{money(item.net)}</b></span></div>
       <BatchMiniChart minutes={item.minutes} actions={item.actions} observations={item.observations}/>
-      <div className="batch-drawer-cycles">{item.cycles.length ? item.cycles.map(cycle=><article key={cycle.id} className={cycle.net<0?"cycle-loss":"cycle-profit"}><header><b>第 {cycle.id} 轮 · {cycle.direction} · {cycle.outcome}</b><strong>{money(cycle.net)}</strong></header><div className="cycle-route"><span>{replayTime(cycle.entry.time)} {cycle.entry.side} ¥{cycle.entry.price.toFixed(3)}</span><i>→</i><span>{replayTime(cycle.exit.time)} {cycle.exit.side} ¥{cycle.exit.price.toFixed(3)}</span><em>{cycle.entry.quantity.toLocaleString()} 股</em></div><p className="cycle-explanation"><b>{cycle.net<0?"亏损原因":"结果说明"}：</b>{cycle.explanation}</p><p><b>入场：</b>{cycle.entry.reason??"由当分钟量价与趋势条件共同触发。"}</p><p><b>退出：</b>{cycle.exit.reason??"由止盈、止损或时间纪律触发。"}</p></article>) : <article className="cycle-no-trade"><header><b>为什么没有交易？</b></header><p>{item.feedback}。观察参考不可执行，未通过正式门槛不会生成买卖点。</p>{item.observations.map((observation,index)=><div key={`${observation.time}-${index}`}><b>{replayTime(observation.time)} {observationConfirmationLabel(observation)}</b><span>{observationDirectionNote(observation)}；{observation.blockers.length?observation.blockers.join("；"):"量价确认不足"}</span></div>)}</article>}</div>
+      <div className="batch-drawer-cycles">{item.cycles.length ? item.cycles.map(cycle=><article key={cycle.id} className={cycle.net<0?"cycle-loss":"cycle-profit"}><header><b>第 {cycle.id} 轮 · {cycle.direction} · {cycle.outcome}</b><strong>{money(cycle.net)}</strong></header><div className="cycle-route"><span>{replayTime(cycle.entry.time)} {cycle.entry.side} ¥{cycle.entry.price.toFixed(3)}</span><i>→</i><span>{replayTime(cycle.exit.time)} {cycle.exit.side} ¥{cycle.exit.price.toFixed(3)}</span><em>{cycle.entry.quantity.toLocaleString()} 股</em></div><p className="cycle-explanation"><b>{cycle.net<0?"亏损原因":"结果说明"}：</b>{cycle.explanation}</p><p><b>入场：</b>{cycle.entry.reason??"由当分钟量价与趋势条件共同触发。"}</p><p><b>退出：</b>{cycle.exit.reason??"由止盈、止损或时间纪律触发。"}</p></article>) : <article className="cycle-no-trade"><header><b>为什么没有交易？</b></header><p>{item.feedback}。观察参考不可执行，未通过正式门槛不会生成买卖点。</p>{item.observations.map((observation,index)=><div key={`${observation.time}-${index}`}><b>{replayTime(observation.time)} {observationConfirmationLabel(observation,item.minutes)}</b><span>{observationDirectionNote(observation)}；{observation.blockers.length?observation.blockers.join("；"):"量价确认不足"}</span></div>)}</article>}</div>
     </aside>
   </>;
 }
@@ -898,7 +1082,7 @@ function BatchReport({batch,representativeCode}:{batch:BatchBacktestResult;repre
     <div className="batch-coverage"><b>观察覆盖 {batch.referenceStocks}/{batch.stocks} 股</b><span>条件候补 {batch.candidateStocks}/{batch.stocks} 股</span><span>正式触发 {batch.tradingRounds}/{batch.stocks} 股</span><span>正式闭环 {batch.completed} 个 · {batch.wins} 盈 / {Math.max(0,batch.completed-batch.wins)} 亏</span><small>每股最多展示 2 个低位/反弹参考和 2 个高位/回落参考，全部标记在当时能够确认的分钟，不回填全天高低点；自动参考不可执行。只有引擎真实产生且继续通过趋势、量价、成本和风控的点才标为候补买卖点或正式交易。</small></div>
     <div className="batch-metrics"><div><span>扣费后循环胜率</span><strong>{batch.completed?`${(batch.wins/batch.completed*100).toFixed(2)}%`:'—'}</strong><small>{batch.wins}/{batch.completed} 个闭环盈利</small></div><div><span>毛收益</span><b className={pnlClass(batch.gross)}>{money(batch.gross)}</b><small>{batch.samples.toLocaleString()} 个随机股票日</small></div><div><span>交易费用 + 滑点</span><b className="pnl-loss">{money(-(batch.fees+batch.executionCost))}</b><small>费用 {money(-batch.fees)} · 滑点 {money(-batch.executionCost)}</small></div><div><span>总净收益</span><b className={pnlClass(batch.net)}>{money(batch.net)}</b><small>平均每股日 {money(batch.averageNet)}</small></div><div><span>有交易 / 盈利 / 亏损日</span><b>{batch.tradingRounds} / {batch.profitableRounds} / {batch.losingRounds}</b><small>共 {batch.rounds} 个随机股票日</small></div><div><span>盈利因子 / 最差回撤</span><b>{batch.profitFactor===null?'—':batch.profitFactor.toFixed(2)} / -{(batch.maxDrawdown*100).toFixed(2)}%</b><small>{batch.providers.join(' / ')}</small></div></div>
     <div className="ab-compare"><b>主测 {batch.engineLabel}</b><span>对照 {batch.comparisonLabel}</span><span>闭环 {batch.legacy.completed}</span><span>胜率 {batch.legacy.completed?(batch.legacy.wins/batch.legacy.completed*100).toFixed(2):'—'}%</span><span className={pnlClass(batch.legacy.net)}>对照净收益 {money(batch.legacy.net)}</span><strong className={pnlClass(batch.net-batch.legacy.net)}>相对差额 {money(batch.net-batch.legacy.net)}</strong></div>
-    <div className="stock-feedback"><div className="stock-feedback-head"><div><b>随机股票逐股反馈</b><span>股票和近5个可用完整交易日都会重新抽取；点“复盘”查看观察参考、正式点位、费用及失败原因</span></div><div className="stock-feedback-tools"><label>筛选<select value={feedbackFilter} onChange={event=>setFeedbackFilter(event.target.value as typeof feedbackFilter)}><option value="all">全部股票</option><option value="loss">净收益为负</option><option value="trade">有正式闭环</option><option value="empty">无正式闭环</option></select></label><label>排序<select value={feedbackSort} onChange={event=>setFeedbackSort(event.target.value as typeof feedbackSort)}><option value="net">净收益</option><option value="completed">闭环次数</option><option value="candidates">候补次数</option><option value="reverseT">反T次数</option></select></label><em>正T / 反T 为完整日内的闭环数</em></div></div><div className="stock-feedback-scroll"><table><thead><tr><th>股票</th><th>交易日</th><th>观察参考 / 条件候补</th><th>闭环</th><th>扣费胜率</th><th>正T / 反T</th><th>净收益</th><th>无正式闭环日</th><th>反馈</th><th>详情</th></tr></thead><tbody>{visibleFeedback.map(item=><Fragment key={item.code}><tr className={item.code===representativeCode?'representative':''}><td><b>{item.code}</b><span>{item.name}</span></td><td>{item.date.slice(4,6)}-{item.date.slice(6,8)}</td><td>{item.keyObservations} / {item.candidates}</td><td>{item.completed}</td><td>{item.winRate===null?'—':`${(item.winRate*100).toFixed(2)}%`}</td><td>{item.positiveT} / {item.reverseT}</td><td className={pnlClass(item.net)}>{money(item.net)}</td><td>{item.noTrade} / {item.samples}</td><td>{item.feedback}</td><td><button type="button" className="batch-detail-toggle" aria-expanded={expanded===item.code} onClick={()=>setExpanded(current=>current===item.code?null:item.code)}>{expanded===item.code?'收起':'复盘'}</button></td></tr>{expanded===item.code&&<tr className="batch-detail-row"><td colSpan={10}><div className="batch-stock-detail"><div><div className="batch-detail-title"><b>{item.code} {item.name} · {item.date.slice(0,4)}-{item.date.slice(4,6)}-{item.date.slice(6,8)}</b><span>{item.completed?`${item.completed} 个正式闭环`:`${item.keyObservations} 个因果观察参考，0 个正式闭环`}</span></div><BatchMiniChart minutes={item.minutes} actions={item.actions} observations={item.observations}/></div><div className="batch-cycle-details">{item.cycles.length?item.cycles.map(cycle=><article key={cycle.id} className={cycle.net<0?'cycle-loss':'cycle-profit'}><header><b>第 {cycle.id} 轮 · {cycle.direction} · {cycle.outcome}</b><strong>{money(cycle.net)}</strong></header><div className="cycle-route"><span>{replayTime(cycle.entry.time)} {cycle.entry.side} ¥{cycle.entry.price.toFixed(3)}</span><i>→</i><span>{replayTime(cycle.exit.time)} {cycle.exit.side} ¥{cycle.exit.price.toFixed(3)}</span><em>{cycle.entry.quantity.toLocaleString()} 股</em></div><dl><div><dt>理论毛收益</dt><dd>{money(cycle.gross)}</dd></div><div><dt>手续费</dt><dd>{money(-cycle.fees)}</dd></div><div><dt>双向滑点</dt><dd>{money(-cycle.executionCost)}</dd></div></dl><p className="cycle-explanation"><b>{cycle.net<0?'亏损原因':'结果说明'}：</b>{cycle.explanation}</p><p><b>入场依据：</b>{cycle.entry.reason??'由当分钟量价与趋势条件共同触发。'}</p><p><b>退出依据：</b>{cycle.exit.reason??'由止盈、止损或时间纪律触发。'}</p></article>):<article className="cycle-no-trade"><header><b>为什么没有交易？</b></header><p>{item.feedback}。观察参考不可执行，未通过正式门槛不会生成买卖点。</p>{item.strongSellTrendBlocked>0&&<div className="hard-risk-block"><b>风控硬拦截</b><span>强势交易日仍在 VWAP 上方，拦截 {item.strongSellTrendBlocked} 次逆势反T判定，避免低位卖出后追高买回。</span></div>}{item.strongBuyTrendBlocked>0&&<div className="hard-risk-block"><b>风控硬拦截</b><span>弱势交易日仍在 VWAP 下方，拦截 {item.strongBuyTrendBlocked} 次逆势正T判定，避免下跌中补仓后继续承压。</span></div>}{item.observations.map((observation,index)=><div key={`${observation.time}-${index}`}><b>{replayTime(observation.time)} {observationConfirmationLabel(observation)}</b><span>{observationDirectionNote(observation)}；{observation.blockers.length?observation.blockers.join('；'):'量价确认不足'}</span></div>)}</article>}</div></div></td></tr>}</Fragment>)}</tbody></table></div></div>{selectedDetail&&<BatchStockDrawer item={selectedDetail} onClose={()=>setExpanded(null)}/>}
+      <div className="stock-feedback"><div className="stock-feedback-head"><div><b>随机股票逐股反馈</b><span>股票和近5个可用完整交易日都会重新抽取；点“复盘”查看观察参考、正式点位、费用及失败原因</span></div><div className="stock-feedback-tools"><label>筛选<select value={feedbackFilter} onChange={event=>setFeedbackFilter(event.target.value as typeof feedbackFilter)}><option value="all">全部股票</option><option value="loss">净收益为负</option><option value="trade">有正式闭环</option><option value="empty">无正式闭环</option></select></label><label>排序<select value={feedbackSort} onChange={event=>setFeedbackSort(event.target.value as typeof feedbackSort)}><option value="net">净收益</option><option value="completed">闭环次数</option><option value="candidates">候补次数</option><option value="reverseT">反T次数</option></select></label><em>正T / 反T 为完整日内的闭环数</em></div></div><div className="stock-feedback-scroll"><table><thead><tr><th>股票</th><th>交易日</th><th>观察参考 / 条件候补</th><th>闭环</th><th>扣费胜率</th><th>正T / 反T</th><th>净收益</th><th>无正式闭环日</th><th>反馈</th><th>详情</th></tr></thead><tbody>{visibleFeedback.map(item=><Fragment key={item.code}><tr className={item.code===representativeCode?'representative':''}><td><b>{item.code}</b><span>{item.name}</span></td><td>{item.date.slice(4,6)}-{item.date.slice(6,8)}</td><td>{item.keyObservations} / {item.candidates}</td><td>{item.completed}</td><td>{item.winRate===null?'—':`${(item.winRate*100).toFixed(2)}%`}</td><td>{item.positiveT} / {item.reverseT}</td><td className={pnlClass(item.net)}>{money(item.net)}</td><td>{item.noTrade} / {item.samples}</td><td>{item.feedback}</td><td><button type="button" className="batch-detail-toggle" aria-expanded={expanded===item.code} onClick={()=>setExpanded(current=>current===item.code?null:item.code)}>{expanded===item.code?'收起':'复盘'}</button></td></tr>{expanded===item.code&&<tr className="batch-detail-row"><td colSpan={10}><div className="batch-stock-detail"><div><div className="batch-detail-title"><b>{item.code} {item.name} · {item.date.slice(0,4)}-{item.date.slice(4,6)}-{item.date.slice(6,8)}</b><span>{item.completed?`${item.completed} 个正式闭环`:`${item.keyObservations} 个因果观察参考，0 个正式闭环`}</span></div><BatchMiniChart minutes={item.minutes} actions={item.actions} observations={item.observations}/></div><div className="batch-cycle-details">{item.cycles.length?item.cycles.map(cycle=><article key={cycle.id} className={cycle.net<0?'cycle-loss':'cycle-profit'}><header><b>第 {cycle.id} 轮 · {cycle.direction} · {cycle.outcome}</b><strong>{money(cycle.net)}</strong></header><div className="cycle-route"><span>{replayTime(cycle.entry.time)} {cycle.entry.side} ¥{cycle.entry.price.toFixed(3)}</span><i>→</i><span>{replayTime(cycle.exit.time)} {cycle.exit.side} ¥{cycle.exit.price.toFixed(3)}</span><em>{cycle.entry.quantity.toLocaleString()} 股</em></div><dl><div><dt>理论毛收益</dt><dd>{money(cycle.gross)}</dd></div><div><dt>手续费</dt><dd>{money(-cycle.fees)}</dd></div><div><dt>双向滑点</dt><dd>{money(-cycle.executionCost)}</dd></div></dl><p className="cycle-explanation"><b>{cycle.net<0?'亏损原因':'结果说明'}：</b>{cycle.explanation}</p><p><b>入场依据：</b>{cycle.entry.reason??'由当分钟量价与趋势条件共同触发。'}</p><p><b>退出依据：</b>{cycle.exit.reason??'由止盈、止损或时间纪律触发。'}</p></article>):<article className="cycle-no-trade"><header><b>为什么没有交易？</b></header><p>{item.feedback}。观察参考不可执行，未通过正式门槛不会生成买卖点。</p>{item.strongSellTrendBlocked>0&&<div className="hard-risk-block"><b>风控硬拦截</b><span>强势交易日仍在 VWAP 上方，拦截 {item.strongSellTrendBlocked} 次逆势反T判定，避免低位卖出后追高买回。</span></div>}{item.strongBuyTrendBlocked>0&&<div className="hard-risk-block"><b>风控硬拦截</b><span>弱势交易日仍在 VWAP 下方，拦截 {item.strongBuyTrendBlocked} 次逆势正T判定，避免下跌中补仓后继续承压。</span></div>}{item.observations.map((observation,index)=><div key={`${observation.time}-${index}`}><b>{replayTime(observation.time)} {observationConfirmationLabel(observation,item.minutes)}</b><span>{observationDirectionNote(observation)}；{observation.blockers.length?observation.blockers.join('；'):'量价确认不足'}</span></div>)}</article>}</div></div></td></tr>}</Fragment>)}</tbody></table></div></div>{selectedDetail&&<BatchStockDrawer item={selectedDetail} onClose={()=>setExpanded(null)}/>}
     <p>每次点击都先对当前全 A 股普通股票池重新洗牌并无放回抽取 10 只；最近 6 批已经出现的股票会排到队尾，行情缺失再从全市场继续补抽。只有全市场列表暂时不可用时才明确回退代表池。每股图上最多保留 2 个低位/反弹参考和 2 个高位/回落参考，条件候补与正式闭环另行标注。</p>
   </section>;
 }
@@ -2520,8 +2704,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       activeChartDate??undefined,
       isZijinStock?[...zijinV29ChartObservations,...zijinV1ChartObservations]:[],
       isZijinStock,
+      activeQuote?.open,
     ),
-    [activeChartDate,isZijinStock,minutePoints,zijinV1ChartObservations,zijinV29ChartObservations],
+    [activeChartDate,activeQuote?.open,isZijinStock,minutePoints,zijinV1ChartObservations,zijinV29ChartObservations],
   );
   const latestReverseTObservation=useMemo(
     ()=>[...currentObservations].reverse().find(observation=>observation.direction==="反T")??null,
@@ -2550,7 +2735,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const reverseTSignalLabel=freshReverseTAction
     ? formalExecutionLabel("反T",formalActionSide(freshReverseTAction.side))
     : reverseTDisplayObservation
-      ? observationConfirmationLabel(reverseTDisplayObservation)
+      ? observationConfirmationLabel(reverseTDisplayObservation,minutePoints,activeQuote?.open)
       : "暂无候补";
   const reverseTSignalDetail=freshReverseTAction
     ? `${formatTime(freshReverseTAction.time)} · ¥${freshReverseTAction.price.toFixed(2)} · 正式信号`
@@ -2888,15 +3073,24 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
     const topPivotLabelKeys=selectTopPivotObservationKeys(
       durableVisibleChartObservations.filter(observation=>observation.strategy==="observation"),
+      2,
+      70,
+      30,
+      minutePoints,
+      activeQuote?.open,
     );
     const observationPriority=(observation:ChartObservation)=>observation.strategy==="closure"?0:observation.strategy==="v29"?1:observation.strategy==="v1"?2:3;
     const orderedDurableObservations=[...durableVisibleChartObservations].sort((left,right)=>observationPriority(left)-observationPriority(right)||left.time.localeCompare(right.time));
     const observations=orderedDurableObservations.flatMap((observation,index)=>{
-      // Keep at most two well-spaced top observations at or above 70%; lower
-      // probability tops remain available through the crosshair/audit only.
-      if(observation.strategy==="observation"&&observation.observationKind==="pivot-top"&&!topPivotLabelKeys.has(observationKey(observation)))return [];
+      const pivotInfo=observation.strategy==="observation"&&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
+        ?pivotPresentation(observation,minutePoints,activeQuote?.open)
+        :null;
+      // Keep at most two well-spaced absolute-top observations. Local
+      // resistance remains a separate, non-probability observation instead
+      // of being mislabeled as an absolute top.
+      if(observation.strategy==="observation"&&observation.observationKind==="pivot-top"&&pivotInfo?.scope==="absolute"&&pivotInfo.probabilityEligible&&!topPivotLabelKeys.has(observationKey(observation)))return [];
       const markerPrice=observation.strategy==="observation"
-        ?observationReferencePrice(observation,observation.price)
+        ?observationReferencePrice(observation,observation.price,minutePoints,activeQuote?.open)
         :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
           ?observation.pivotPrice
           :observation.price;
@@ -2906,7 +3100,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const qualified=observation.strategy==="observation"||observation.stage!=="watch";
       const assessment=observation.pivotAssessment??"unconfirmed";
       const sideClass=isSell?"sell":"buy";
-      const rawLabel=observationConfirmationLabel(observation)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
+      const rawLabel=observationConfirmationLabel(observation,minutePoints,activeQuote?.open)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const fullLabel=observation.strategy==="observation"
         ?`${rawLabel} · 仅观察`
         :observation.strategy==="v1"
@@ -2927,7 +3121,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // badge/leader to an already busy price area.
       const lowConfidencePivot=observation.strategy==="observation"
         &&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
-        &&Number(observation.probability??0)<70;
+        &&pivotInfo?.probabilityEligible!==true
+        &&pivotInfo?.openingAnchor!==true;
       const labelRendered=qualified&&!lowConfidencePivot;
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
@@ -3002,7 +3197,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
       manualTrades,
     };
-  },[activeChartDate,alertHistory,causalObservationLayer,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,activeQuote?.open,alertHistory,causalObservationLayer,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -3013,10 +3208,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(manualTrade)return `${manualTrade.row.side}模拟成交 ${manualTrade.row.quantity.toLocaleString("zh-CN")} 股`;
     const observation=intradayMarkerLayout.observations.find(marker=>marker.observation.time===intradayCursor.time)?.observation
       ?? intradayMarkerLayout.tooltipObservations.find(observation=>observation.time===intradayCursor.time);
-    if(observation)return observationConfirmationLabel(observation);
+    if(observation)return observationConfirmationLabel(observation,minutePoints,activeQuote?.open);
     const recordedCandidate=intradayMarkerLayout.rabbitCandidates.find(marker=>marker.time===intradayCursor.time);
     return recordedCandidate?.label??"暂无提醒";
-  },[intradayCursor,intradayMarkerLayout]);
+  },[activeQuote?.open,intradayCursor,intradayMarkerLayout,minutePoints]);
   const signalFunnel = (() => {
     const rows=stockList.flatMap(item=>{
       const snapshot=item.code===stock?.code ? (currentTrial ?? currentMarket ?? marketSnapshots[item.code]) : marketSnapshots[item.code];
@@ -3774,7 +3969,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const point=minutePoints.find(item=>item.time===observation.time);
         const time=`${observation.time.slice(0,2)}:${observation.time.slice(2)}`;
         const qualified=observation.stage!=="watch";
-        return {time,direction:observationConfirmationLabel(observation),price:point?point.price.toFixed(2):"—",quantity:"未下单",spread:`预估 ${observation.edge.toFixed(2)}%`,status:`${observationDirectionNote(observation)}；${qualified?"候选门槛通过":observation.blockers[0]??"尚未达到候选门槛"}`,tone:"candidate" as const};
+        return {time,direction:observationConfirmationLabel(observation,minutePoints,activeQuote?.open),price:point?point.price.toFixed(2):"—",quantity:"未下单",spread:`预估 ${observation.edge.toFixed(2)}%`,status:`${observationDirectionNote(observation)}；${qualified?"候选门槛通过":observation.blockers[0]??"尚未达到候选门槛"}`,tone:"candidate" as const};
       });
       if(!visibleStockAgentEvaluation||visibleStockAgentEvaluation.status!=="candidate"||!visibleStockAgentEvaluation.asOfTime)return observationRows;
       const point=minutePoints.find(item=>item.time===visibleStockAgentEvaluation.asOfTime);
@@ -3791,7 +3986,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     if(panel==="每日复盘")return [];
     return [...liveEngine.actions].reverse().map(action=>({time:`${action.time.slice(0,2)}:${action.time.slice(2)}`,direction:`${action.direction??"T"}${action.side}`,price:action.price.toFixed(2),quantity:`${action.quantity.toLocaleString("zh-CN")}股`,spread:"引擎模拟",status:action.reason??"正式过滤通过",tone:action.side==="卖出"?"sell":"buy"}));
-  },[panel,confirmedCycleRows,visibleStockAgentEvaluation,currentObservations,minutePoints,liveEngine.actions]);
+  },[activeQuote?.open,panel,confirmedCycleRows,visibleStockAgentEvaluation,currentObservations,minutePoints,liveEngine.actions]);
   useEffect(() => {
     const update=()=>setClockNow(new Date());
     update();
@@ -4555,7 +4750,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return [
       ...intradayMarkerLayout.observations.map(marker=>({
         time:marker.observation.time,
-        price:observationReferencePrice(marker.observation,Number(marker.observation.price)),
+        price:observationReferencePrice(marker.observation,Number(marker.observation.price),minutePoints,activeQuote?.open),
         label:compactIntradayPrompt(marker.currentLabel,"候选观察"),
         isSell:marker.isSell,
         qualified:marker.qualified,
@@ -7516,7 +7711,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   };
   const fullDayMinutes=source?.minutes ?? [];
   const replayCausalObservations=result
-    ? buildPivotAndMacdObservations(fullDayMinutes,source?.sampleDate,result.observations??[],source?.quote.code==="601899")
+    ? buildPivotAndMacdObservations(fullDayMinutes,source?.sampleDate,result.observations??[],source?.quote.code==="601899",source?.quote.open)
     : [];
   const fullDayPrices=fullDayMinutes.map(point=>point.price);
   const fullDayRangePrices=fullDayMinutes.flatMap(point=>[
@@ -7547,11 +7742,15 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? [],l2Replay.observations),30) as ReplayObservation[],
       ]
     : [];
-  const replayTopPivotKeys=selectTopPivotObservationKeys(replayCausalObservations);
+  const replayTopPivotKeys=selectTopPivotObservationKeys(replayCausalObservations,2,70,30,fullDayMinutes,source?.quote.open);
   const replayObservationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
   const visibleReplayChartObservations=[
     ...visibleBacktestObservations,
-    ...replayCausalObservations.filter(observation=>observation.observationKind!=="pivot-top"||replayTopPivotKeys.has(replayObservationKey(observation))),
+    ...replayCausalObservations.filter(observation=>{
+      if(observation.observationKind!=="pivot-top")return true;
+      const presentation=pivotPresentation(observation,fullDayMinutes,source?.quote.open);
+      return presentation.scope!=="absolute"||!presentation.probabilityEligible||replayTopPivotKeys.has(replayObservationKey(observation));
+    }),
   ];
   const trainingObservations=visibleBacktestObservations.filter(observation=>!observation.coverageOnly);
   const trainingCurrent=trainingObservations[trainingIndex] ?? null;
@@ -7775,13 +7974,13 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
                 const minuteIndex=fullDayMinutes.findIndex(point=>point.time===observation.time);
                 if(minuteIndex<0)return null;
                 const price=observation.observationKind
-                  ?observationReferencePrice(observation,fullDayMinutes[minuteIndex].price) ?? fullDayMinutes[minuteIndex].price
+                  ?observationReferencePrice(observation,fullDayMinutes[minuteIndex].price,fullDayMinutes,source?.quote.open) ?? fullDayMinutes[minuteIndex].price
                   :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
                   ? observation.pivotPrice
                   : observation.price ?? fullDayMinutes[minuteIndex].price;
                 const point=chartPoint(price,minuteIndex);
                 const isSell=observation.direction==="反T";
-                const label=observationConfirmationLabel(observation);
+                const label=observationConfirmationLabel(observation,fullDayMinutes,source?.quote.open);
                 const labelWidth=Math.max(52,label.length*10+18);
                 const placeAbove=isSell||point.y>166;
                 const labelY=placeAbove?Math.max(17,point.y-19-(index%2)*8):Math.min(191,point.y+25+(index%2)*8);
@@ -7851,7 +8050,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
             const fixedOutcome=result.candidateOutcomes?.find(item=>item.time===observation.time&&item.direction===observation.direction);
             const closedHorizons=fixedOutcome?.horizons.filter(item=>item.complete)??[];
             return <article key={`${observation.direction}-${observation.time}-${index}`} className={observation.executable?"passed":observation.stage==="candidate"?"candidate":"watch"}>
-              <header><span><i>{observation.l2Strict?"L2严格":observation.coverageOnly&&source?.quote.code==="601899"?"紫金候选":observation.coverageOnly?"覆盖":observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation)}</b></span><em>{observation.l2Strict?`${observation.score}/${observation.threshold} 分 · 历史L2因果确认`:observation.coverageOnly?"研究候选 · 不计胜率":`${observation.score}/${observation.threshold} 分 · 预估价差 ${observation.edge.toFixed(2)}%`}</em></header>
+              <header><span><i>{observation.l2Strict?"L2严格":observation.coverageOnly&&source?.quote.code==="601899"?"紫金候选":observation.coverageOnly?"覆盖":observation.stage==="candidate"?"候选":"观察"}</i><b>{formatTime(observation.time)} · {observationConfirmationLabel(observation,fullDayMinutes,source?.quote.open)}</b></span><em>{observation.l2Strict?`${observation.score}/${observation.threshold} 分 · 历史L2因果确认`:observation.coverageOnly?"研究候选 · 不计胜率":`${observation.score}/${observation.threshold} 分 · 预估价差 ${observation.edge.toFixed(2)}%`}</em></header>
               <p>{observationDirectionNote(observation)}；{observation.reason}</p>
               {observation.scoreBreakdown&&<small>三分离证据：方向 {observation.scoreBreakdown.direction}/{observation.scoreBreakdown.thresholds.direction} · 位置 {observation.scoreBreakdown.location}/{observation.scoreBreakdown.thresholds.location} · 触发 {observation.scoreBreakdown.trigger}/{observation.scoreBreakdown.thresholds.trigger}</small>}
               {observation.similarity&&<small>历史相似：{observation.similarity.ready?`${observation.similarity.samples} 个已完成样本 · 10分钟达标 ${(observation.similarity.hitRate??0).toFixed(0)}% · 平均有利 ${(observation.similarity.averageFavorablePct??0).toFixed(2)}%`:`样本 ${observation.similarity.samples} 个，未达最小样本量，仅作观察`}</small>}
