@@ -807,6 +807,25 @@
   background:var(--surface);
   padding:12px
 }
+
+/* Causal probability/MACD observation layer: visible, distinct from orders,
+   and intentionally quiet enough to sit beside the three strategy tiers. */
+.interactive-intraday-chart .candidate-signal-marker.observation-layer{opacity:1!important}
+.interactive-intraday-chart .candidate-signal-marker.observation-layer .marker-label-leader{stroke:#d6a84d;stroke-dasharray:3 3;opacity:.9}
+.interactive-intraday-chart .candidate-signal-marker.observation-layer rect:not(.observation-anchor){fill:rgba(45,31,8,.96);stroke:#d6a84d;stroke-width:1}
+.interactive-intraday-chart .candidate-signal-marker.observation-layer text{fill:#f3cd76;font-size:8px;font-weight:750}
+.interactive-intraday-chart .candidate-signal-marker.observation-layer.pivot-top .observation-anchor{fill:#ff9c72;stroke:#ffcf87;stroke-width:1.3}
+.interactive-intraday-chart .candidate-signal-marker.observation-layer.pivot-bottom .observation-anchor{fill:#70d8c0;stroke:#b0f4df;stroke-width:1.3}
+.interactive-intraday-chart .candidate-signal-marker.observation-layer.macd .observation-anchor{fill:#b996ed;stroke:#e1d1ff;stroke-width:1.3}
+.strategy-signal-legend i.observation{width:8px!important;height:8px!important;border:1.5px solid #d6a84d!important;border-radius:2px!important;background:transparent!important;box-shadow:none!important}
+.observation-marker{color:#d6a84d!important}
+.backtest-candidate-marker.observation-layer .candidate-label-bg{fill:rgba(45,31,8,.96);stroke:#d6a84d}
+.backtest-candidate-marker.observation-layer .candidate-anchor{fill:#d6a84d;stroke:#f3cd76;stroke-width:1.2}
+.backtest-candidate-marker.observation-layer.pivot-top .candidate-anchor{fill:#ff9c72}
+.backtest-candidate-marker.observation-layer.pivot-bottom .candidate-anchor{fill:#70d8c0}
+.backtest-candidate-marker.observation-layer.macd .candidate-anchor{fill:#b996ed}
+:root[data-theme="light"] .interactive-intraday-chart .candidate-signal-marker.observation-layer rect:not(.observation-anchor){fill:rgba(255,250,235,.97);stroke:#9b6808}
+:root[data-theme="light"] .interactive-intraday-chart .candidate-signal-marker.observation-layer text{fill:#815609}
 .decision-execution-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 0 9px}
 .decision-execution-grid p{min-width:0;margin:0;padding:8px;border:1px solid var(--line-soft);border-radius:6px;background:rgba(0,0,0,.12);display:grid;gap:5px}
 .decision-execution-grid span{color:var(--dim);font-size:8px}
