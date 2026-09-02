@@ -822,6 +822,27 @@
 .second-chart small.moving { color: #72cda0; }
 .second-chart small.flat { color: #b99a62; }
 .second-chart-empty { min-height: 66px; display: grid; place-items: center; color: var(--lab-muted); font-size: 10px; }
+.chart-l2-strip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 28px;
+  margin-top: 7px;
+  padding: 5px 8px;
+  overflow: hidden;
+  border: 1px solid #243447;
+  background: #080e14;
+  color: var(--lab-muted);
+  font-size: 9px;
+}
+.chart-l2-strip.live { border-color: rgba(53, 171, 196, .42); }
+.chart-l2-strip.muted { border-color: rgba(198, 154, 75, .32); }
+.chart-l2-badge { display: inline-flex; align-items: center; gap: 5px; color: #8dc8ff; font-weight: 800; letter-spacing: .04em; }
+.chart-l2-badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--lab-yellow); }
+.chart-l2-strip.live .chart-l2-badge i { background: var(--lab-live); box-shadow: 0 0 7px rgba(53, 171, 196, .55); }
+.chart-l2-strip b { color: var(--lab-text); font-size: 10px; white-space: nowrap; }
+.chart-l2-strip em { color: #8b97a8; font-style: normal; white-space: nowrap; }
+.chart-l2-strip small { min-width: 0; overflow: hidden; margin-left: auto; color: #697587; text-overflow: ellipsis; white-space: nowrap; }
 .signal-chart-legend {
   flex-wrap: wrap;
   gap: 11px;
@@ -1142,8 +1163,27 @@
   border: 1px dashed #4fb3d4;
   border-radius: 50%;
 }
+.shape.macd-shadow {
+  border: 1px dotted #a88cff;
+  border-radius: 50%;
+}
 .chart-marker.turning-top { opacity: .72; }
 .chart-marker.turning-bottom { opacity: .72; }
+.chart-marker.macd-shadow { opacity: .68; }
+.chart-marker.macd-shadow .marker-stem {
+  stroke: #a88cff;
+  stroke-dasharray: 2 5;
+}
+.chart-marker.macd-shadow circle {
+  fill: #171329;
+  stroke: #a88cff;
+  stroke-width: 1.2px;
+  stroke-dasharray: 1 2;
+}
+.chart-marker.macd-shadow.buy .marker-stem,
+.chart-marker.macd-shadow.buy circle { stroke: var(--lab-up); }
+.chart-marker.macd-shadow.sell .marker-stem,
+.chart-marker.macd-shadow.sell circle { stroke: var(--lab-down); }
 .chart-marker.turning-top .marker-stem {
   stroke: #f0a35b;
   stroke-dasharray: 3 4;
