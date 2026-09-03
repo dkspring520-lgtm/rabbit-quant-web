@@ -1811,6 +1811,24 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const sourceTime=sourceTimestamp?Date.parse(sourceTimestamp):NaN;
     return Number.isFinite(sourceTime)&&Date.now()-sourceTime<=8_000;
   },[currentMarket?.fetchedAt,currentMarket?.sourceTimestamp,currentTrial?.fetchedAt,currentTrial?.sourceTimestamp,liveL2PriceUsable]);
+  const liveDataGate=useMemo(()=>{
+    if(!marketSession.live)return {ready:true as const,state:"closed" as const,label:"非实时",detail:"当前为收盘或复盘数据"};
+    const nowMs=clockNow?.getTime()??Date.now();
+    const authoritativeTimestamp=liveL2PriceUsable
+      ?liveL2Status?.lastExchangeTime??currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp
+      :currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp??currentTrial?.fetchedAt??currentMarket?.fetchedAt;
+    const sourceMs=authoritativeTimestamp?Date.parse(authoritativeTimestamp):NaN;
+    const sourceDate=normalizeMarketDate(authoritativeTimestamp??currentTrial?.sampleDate??currentMarket?.sampleDate);
+    const nowDate=normalizeMarketDate(clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??null);
+    if(sourceDate&&nowDate&&sourceDate!==nowDate){
+      return {ready:false as const,state:"date-mismatch" as const,label:"交易日不一致",detail:`行情日期 ${sourceDate}，当前交易日 ${nowDate}`};
+    }
+    if(liveL2PriceUsable)return {ready:true as const,state:"fresh" as const,label:"L2实时",detail:"L2时间戳有效"};
+    if(!Number.isFinite(sourceMs))return {ready:false as const,state:"unknown" as const,label:"时间戳缺失",detail:"没有可靠行情时间戳"};
+    const ageSeconds=Math.max(0,(nowMs-sourceMs)/1_000);
+    if(ageSeconds>8)return {ready:false as const,state:"stale" as const,label:"行情过期",detail:`最新行情约 ${Math.round(ageSeconds)} 秒前`};
+    return {ready:true as const,state:"fresh" as const,label:"行情实时",detail:`最新行情约 ${ageSeconds.toFixed(1)} 秒前`};
+  },[clockNow,currentMarket?.fetchedAt,currentMarket?.sampleDate,currentMarket?.sourceTimestamp,currentTrial?.fetchedAt,currentTrial?.sampleDate,currentTrial?.sourceTimestamp,liveL2PriceUsable,liveL2Status?.lastExchangeTime,marketSession.live]);
   useEffect(()=>{
     const price=Number(activeQuote?.price);
     liveSecondQuoteRef.current={price:Number.isFinite(price)&&price>0?price:null,fresh:liveQuoteFresh};
@@ -3466,6 +3484,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         : `${marketSession.label}：${marketSession.detail}`;
       return {status:"waiting" as const,mode:null,confirmed:marketSession.phase==="auction-result"?1:confirmed,reason:auctionReason,lastTime,inDecisionWindow:false,referenceConfirmed:false,trendConfirmed:false};
     }
+    if(!liveDataGate.ready)return {
+      status:"waiting" as const,
+      mode:null,
+      confirmed:0,
+      reason:`数据状态：${liveDataGate.detail}，暂停新信号；数据恢复后自动继续。`,
+      lastTime,
+      inDecisionWindow,
+      referenceConfirmed:false,
+      trendConfirmed:false,
+    };
     if(stockState.level==="risk") return {status:"locked" as const,mode:null,confirmed,reason:`股票状态风控：${stockState.details.join("；")}`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentEvents?.gate.hardLock) return {status:"locked" as const,mode:null,confirmed,reason:`事件雷达：${currentEvents.gate.label}，${currentEvents.gate.reason}。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(currentEvents?.gate.level==="restricted") return {status:"waiting" as const,mode:null,confirmed,reason:`事件雷达：${currentEvents.gate.label}，请先核实原文。`,lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
@@ -3480,7 +3508,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(!lowOpen&&!highOpen) return {status:"waiting" as const,mode:null,confirmed,reason:"平开或开盘数据不完整，等待形成明确方向。",lastTime,inDecisionWindow,referenceConfirmed:false,trendConfirmed:false};
     if(!inDecisionWindow) return {status:"waiting" as const,mode:null,confirmed,reason:lastTime&&lastTime>"1430"?"14:30 后不再自动开启新的 T。":"09:30 已开始扫描；积累 4 个真实分钟点后，最早 09:33 可在连续走势与 VWAP 确认后小仓试单。",lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
     return {status:"waiting" as const,mode:null,confirmed,reason:directionConfirmed?`基础方向已确认，但融合引擎仍在检查成本、量价和盈亏比。`:liveEngine.status,lastTime,inDecisionWindow,referenceConfirmed:lowOpen?aboveReference:belowReference,trendConfirmed:lowOpen?rising:falling};
-  },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,clockNow,minutePoints,openingAssessment.session,openingAssessment.gapText,stockState,currentEvents,currentContext,liveEngine,marketSession]);
+  },[activeQuote?.price,activeQuote?.open,chartModel?.lastVwap,clockNow,minutePoints,openingAssessment.session,openingAssessment.gapText,stockState,currentEvents,currentContext,liveEngine,liveDataGate,marketSession]);
   const decisionModel=useMemo(()=>{
     if(stockAgent.canExecute)return autoDecision;
     if(autoDecision.status==="locked")return {
@@ -5323,8 +5351,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <b>{openingStageCard.value}<small>{openingStageCard.suffix}</small></b>
           <em>{openingStageCard.detail}</em>
         </div>
-        <div className={`l2-console-status data-health-status ${displayedWeb4Status} ${l2ConsoleStatus.tone}`} role="status" title={`${l2ConsoleStatus.detail} · ${displayedWeb4Summary}`}>
-          <i/><div><span>{displayedWeb4HealthLabel}</span><b>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></b></div><em>{l2ConsoleStatus.label}</em>
+        <div className={`l2-console-status data-health-status ${displayedWeb4Status} ${liveDataGate.ready?l2ConsoleStatus.tone:"stale"}`} role="status" title={`${l2ConsoleStatus.detail} · ${displayedWeb4Summary} · ${liveDataGate.detail}`}>
+          <i/><div><span>{displayedWeb4HealthLabel}</span><b>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></b></div><em>{l2ConsoleStatus.label} · {liveDataGate.label}</em>
         </div>
       </section>
 
