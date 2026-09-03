@@ -932,24 +932,59 @@ function topPivotDisplayProbability(value:unknown,eligible=true):TopPivotDisplay
   return probability>=80?80:70;
 }
 
-function selectTopPivotObservationKeys(observations:ReplayObservation[],limit=2,minProbability=70,minGapMinutes=30,minutes?:ReplayMinute[],openingPriceOverride?:number|null){
+function selectPivotObservationKeys(
+  observations:ReplayObservation[],
+  observationKind:"pivot-top"|"pivot-bottom",
+  scope:"absolute"|"local",
+  limit=2,
+  minProbability=70,
+  minGapMinutes=30,
+  minutes?:ReplayMinute[],
+  openingPriceOverride?:number|null,
+){
   const key=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
   const selected:ReplayObservation[]=[];
   const candidates=observations
     .map(observation=>{
       const presentation=minutes?pivotPresentation(observation,minutes,openingPriceOverride):null;
       const eligible=presentation?.probabilityEligible??(observation.pivotScope==="absolute"&&observation.probabilityEligible===true);
-      const absolute=presentation?.scope??observation.pivotScope;
-      return {observation,displayProbability:topPivotDisplayProbability(observation.probability,absolute==="absolute"&&eligible)};
+      const resolvedScope=presentation?.scope??observation.pivotScope;
+      return {
+        observation,
+        resolvedScope,
+        displayProbability:topPivotDisplayProbability(observation.probability,resolvedScope==="absolute"&&eligible),
+      };
     })
-    .filter(item=>item.observation.observationKind==="pivot-top"&&(minutes?item.displayProbability!==null:item.observation.pivotScope==="absolute"&&item.observation.probabilityEligible===true)&&item.displayProbability!==null&&item.displayProbability>=minProbability)
-    .sort((left,right)=>(Number(right.displayProbability??0)-Number(left.displayProbability??0))||(Number(right.observation.probability??0)-Number(left.observation.probability??0))||left.observation.time.localeCompare(right.observation.time));
-  // One 80% and one 70% marker is the complete top layer.  Do not fill the
-  // second slot with another marker from the same band; this keeps the chart
-  // readable and makes the confidence meaning unambiguous.
-  for(const target of ([80,70] as TopPivotDisplayProbability[]).slice(0,Math.max(0,limit))){
-    const candidate=candidates.find(item=>item.displayProbability===target&&!selected.some(selectedItem=>isRecentCausalEvent(item.observation.time,selectedItem.time,minGapMinutes)||isRecentCausalEvent(selectedItem.time,item.observation.time,minGapMinutes)));
-    if(candidate)selected.push(candidate.observation);
+    .filter(item=>item.observation.observationKind===observationKind&&item.resolvedScope===scope
+      &&(scope==="local"
+        ?true
+        :item.displayProbability!==null&&item.displayProbability>=minProbability))
+    .sort((left,right)=>{
+      if(scope==="absolute"){
+        return (Number(right.displayProbability??0)-Number(left.displayProbability??0))
+          ||(Number(right.observation.probability??0)-Number(left.observation.probability??0))
+          ||right.observation.time.localeCompare(left.observation.time);
+      }
+      const strength=(observation:ReplayObservation)=>observation.pivotAssessment==="strong"?2:observation.pivotAssessment==="confirmed"?1:0;
+      return strength(right.observation)-strength(left.observation)
+        ||(Number(right.observation.probability??0)-Number(left.observation.probability??0))
+        ||right.observation.time.localeCompare(left.observation.time);
+    });
+  if(scope==="absolute"){
+    // Keep at most one 80% and one 70% marker per direction. This makes the
+    // confidence bands readable instead of stacking several equivalent labels.
+    for(const target of ([80,70] as TopPivotDisplayProbability[]).slice(0,Math.max(0,limit))){
+      const candidate=candidates.find(item=>item.displayProbability===target&&!selected.some(selectedItem=>isRecentCausalEvent(item.observation.time,selectedItem.time,minGapMinutes)||isRecentCausalEvent(selectedItem.time,item.observation.time,minGapMinutes)));
+      if(candidate)selected.push(candidate.observation);
+    }
+  }else{
+    // Local support/resistance is context, not a second signal family. Keep
+    // only the strongest, well-spaced observations for each direction.
+    for(const candidate of candidates){
+      if(selected.some(selectedItem=>isRecentCausalEvent(candidate.observation.time,selectedItem.time,minGapMinutes)||isRecentCausalEvent(selectedItem.time,candidate.observation.time,minGapMinutes)))continue;
+      selected.push(candidate.observation);
+      if(selected.length>=Math.max(0,limit))break;
+    }
   }
   return new Set(selected.map(key));
 }
@@ -3040,7 +3075,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     });
     // Formal orders get the next choice of label space. Every other marker is
     // stamped at its real confirmation minute; no historical pivot is backfilled.
-    const actions=chartFormalActions.flatMap((action,index)=>{
+    // Repeated same-direction executions can be legitimate (and stay in the
+    // ledger), but showing the same text every few minutes makes the chart
+    // unreadable. Keep the anchors/titles and show one label per 10-minute
+    // episode for each direction/action pair.
+    const formalLabelLastTime=new Map<string,string>();
+    const actions=[...chartFormalActions].sort((left,right)=>left.time.localeCompare(right.time)).flatMap((action,index)=>{
       // A live minute can be updated more than once by the public quote feed.
       // Anchor the marker to the price captured by the causal decision instead
       // of the first point sharing the same HHmm timestamp.
@@ -3049,7 +3089,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const isSell=action.side==="卖出";
       const label=formalExecutionLabel(action.direction,isSell?"sell":"buy");
       const labelWidth=label.length*9+16;
-      const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,18,isSell,true);
+      const labelKey=`${action.direction??"正T"}:${action.side}`;
+      const previousLabelTime=formalLabelLastTime.get(labelKey);
+      const showLabel=!previousLabelTime||!isRecentCausalEvent(action.time,previousLabelTime,10);
+      if(showLabel)formalLabelLastTime.set(labelKey,action.time);
+      const placed=showLabel
+        ?reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,18,isSell,true)
+        :{labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false};
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
     const selectedShadowActions=compactShadowChartActions([
@@ -3071,24 +3117,33 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action,strategy}];
     });
     const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
-    const topPivotLabelKeys=selectTopPivotObservationKeys(
-      durableVisibleChartObservations.filter(observation=>observation.strategy==="observation"),
-      2,
-      70,
-      30,
-      minutePoints,
-      activeQuote?.open,
-    );
+    const observationLayer=durableVisibleChartObservations.filter(observation=>observation.strategy==="observation");
+    const topAbsolutePivotKeys=selectPivotObservationKeys(observationLayer,"pivot-top","absolute",2,70,30,minutePoints,activeQuote?.open);
+    const bottomAbsolutePivotKeys=selectPivotObservationKeys(observationLayer,"pivot-bottom","absolute",2,70,30,minutePoints,activeQuote?.open);
+    const topLocalPivotKeys=selectPivotObservationKeys(observationLayer,"pivot-top","local",1,70,30,minutePoints,activeQuote?.open);
+    const bottomLocalPivotKeys=selectPivotObservationKeys(observationLayer,"pivot-bottom","local",1,70,30,minutePoints,activeQuote?.open);
     const observationPriority=(observation:ChartObservation)=>observation.strategy==="closure"?0:observation.strategy==="v29"?1:observation.strategy==="v1"?2:3;
     const orderedDurableObservations=[...durableVisibleChartObservations].sort((left,right)=>observationPriority(left)-observationPriority(right)||left.time.localeCompare(right.time));
     const observations=orderedDurableObservations.flatMap((observation,index)=>{
       const pivotInfo=observation.strategy==="observation"&&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
         ?pivotPresentation(observation,minutePoints,activeQuote?.open)
         :null;
-      // Keep at most two well-spaced absolute-top observations. Local
-      // resistance remains a separate, non-probability observation instead
-      // of being mislabeled as an absolute top.
-      if(observation.strategy==="observation"&&observation.observationKind==="pivot-top"&&pivotInfo?.scope==="absolute"&&pivotInfo.probabilityEligible&&!topPivotLabelKeys.has(observationKey(observation)))return [];
+      const pivotKind=observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom"
+        ?observation.observationKind
+        :null;
+      const pivotScope=pivotInfo?.scope??observation.pivotScope;
+      if(observation.strategy==="observation"&&pivotKind){
+        const selectedPivotKeys=pivotKind==="pivot-top"
+          ?pivotScope==="local"?topLocalPivotKeys:topAbsolutePivotKeys
+          :pivotScope==="local"?bottomLocalPivotKeys:bottomAbsolutePivotKeys;
+        // Keep opening-anchor warnings visible, but hide unqualified absolute
+        // probabilities and all but the strongest local support/resistance.
+        // The complete observation remains available to the tooltip/audit
+        // layer below; this branch only reduces chart clutter.
+        if(pivotScope==="absolute"&&pivotInfo?.openingAnchor!==true
+          &&(pivotInfo?.probabilityEligible!==true||!selectedPivotKeys.has(observationKey(observation))))return [];
+        if(pivotScope==="local"&&!selectedPivotKeys.has(observationKey(observation)))return [];
+      }
       const markerPrice=observation.strategy==="observation"
         ?observationReferencePrice(observation,observation.price,minutePoints,activeQuote?.open)
         :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
@@ -3116,11 +3171,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const labelWidth=Math.max(38,currentLabel.length*8+14);
       const labelVisible=true;
       // Candidate and confirmed evidence stays reviewable for the whole session;
-      // low-confidence pivot observations remain compact dots. Their title and
-      // crosshair details are still available, but they no longer add another
-      // badge/leader to an already busy price area.
+      // only an unqualified absolute pivot is compacted to a dot. Local
+      // support/resistance that survived the one-per-direction cap still gets
+      // a short label, so the chart remains understandable without noise.
       const lowConfidencePivot=observation.strategy==="observation"
         &&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
+        &&pivotInfo?.scope==="absolute"
         &&pivotInfo?.probabilityEligible!==true
         &&pivotInfo?.openingAnchor!==true;
       const labelRendered=qualified&&!lowConfidencePivot;
@@ -5293,7 +5349,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-3.5} y={marker.y-3.5} width="7" height="7" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y-2} ${marker.x+4.5},${marker.y-2} ${marker.x},${marker.y+4.5}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y+2} ${marker.x+4.5},${marker.y+2} ${marker.x},${marker.y-4.5}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>})}
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} ${marker.labelRendered?"with-label":"dot-only"}`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
-              {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></g>)}
+              {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{marker.action.reason??marker.label}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></>}<circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/></g>)}
               {intradayMarkerLayout.manualTrades.map(marker=><g className={`manual-trade-marker ${marker.isSell?"sell":"buy"}`} key={`manual-${marker.row.id}`}><title>{`${marker.row.time??marker.time} · ${marker.row.side}模拟成交 · ¥${marker.row.price.toFixed(2)} · ${marker.row.quantity.toLocaleString("zh-CN")}股`}</title><circle className="manual-trade-anchor" cx={marker.x} cy={marker.y} r="3"/><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+4:marker.labelY-12} className="marker-label-leader"/><circle className="manual-trade-badge" cx={marker.labelX} cy={marker.labelY-4} r="8"/><text x={marker.labelX} y={marker.labelY-1} textAnchor="middle">{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
                 <image className="rabbit-brand-reference" href="/rabbit-daylight-pair.webp" width="0" height="0" opacity="0" aria-hidden="true"/>
@@ -7742,14 +7798,23 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         ...compactChartObservations(buildReplayChartObservations(source?.quote.code,fullDayMinutes,result.observations ?? [],l2Replay.observations),30) as ReplayObservation[],
       ]
     : [];
-  const replayTopPivotKeys=selectTopPivotObservationKeys(replayCausalObservations,2,70,30,fullDayMinutes,source?.quote.open);
+  const replayTopAbsolutePivotKeys=selectPivotObservationKeys(replayCausalObservations,"pivot-top","absolute",2,70,30,fullDayMinutes,source?.quote.open);
+  const replayBottomAbsolutePivotKeys=selectPivotObservationKeys(replayCausalObservations,"pivot-bottom","absolute",2,70,30,fullDayMinutes,source?.quote.open);
+  const replayTopLocalPivotKeys=selectPivotObservationKeys(replayCausalObservations,"pivot-top","local",1,70,30,fullDayMinutes,source?.quote.open);
+  const replayBottomLocalPivotKeys=selectPivotObservationKeys(replayCausalObservations,"pivot-bottom","local",1,70,30,fullDayMinutes,source?.quote.open);
   const replayObservationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
   const visibleReplayChartObservations=[
     ...visibleBacktestObservations,
     ...replayCausalObservations.filter(observation=>{
-      if(observation.observationKind!=="pivot-top")return true;
+      if(observation.observationKind!=="pivot-top"&&observation.observationKind!=="pivot-bottom")return true;
       const presentation=pivotPresentation(observation,fullDayMinutes,source?.quote.open);
-      return presentation.scope!=="absolute"||!presentation.probabilityEligible||replayTopPivotKeys.has(replayObservationKey(observation));
+      if(presentation.openingAnchor)return true;
+      const selectedPivotKeys=observation.observationKind==="pivot-top"
+        ?presentation.scope==="local"?replayTopLocalPivotKeys:replayTopAbsolutePivotKeys
+        :presentation.scope==="local"?replayBottomLocalPivotKeys:replayBottomAbsolutePivotKeys;
+      return presentation.scope==="local"
+        ?selectedPivotKeys.has(replayObservationKey(observation))
+        :presentation.probabilityEligible&&selectedPivotKeys.has(replayObservationKey(observation));
     }),
   ];
   const trainingObservations=visibleBacktestObservations.filter(observation=>!observation.coverageOnly);
