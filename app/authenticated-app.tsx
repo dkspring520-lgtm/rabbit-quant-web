@@ -852,8 +852,8 @@ function compactIntradayPrompt(value:string, fallback="等待确认") {
   if(/反T.*(?:候选|观察)/.test(normalized))return "反T候选";
   if(/候选卖点|卖点候选/.test(normalized))return "候选卖点";
   if(/候选买点|买点候选/.test(normalized))return "候选买点";
-  if(/买压.*确认|低位.*买压/.test(normalized))return "买压确认";
-  if(/卖压.*确认|高位.*卖压/.test(normalized))return "卖压确认";
+  if(/买压.*确认|低位.*买压/.test(normalized))return "买单接住";
+  if(/卖压.*确认|高位.*卖压/.test(normalized))return "卖单变多";
   if(/低位.*修复加速|修复加速/.test(normalized))return "修复加速";
   if(/冲高回落.*加速|回落加速/.test(normalized))return "回落加速";
   if(/前高.*确认/.test(normalized))return "前高确认";
@@ -3482,7 +3482,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(zijinRepair?.status==="candidate")return {
       state:"repair",
       score:Math.max(72,web4Microstructure.score),
-      label:web4Microstructure.absorption.side==="buy"?"卖压被承接 · 修复候选":"资金承接修复",
+      label:web4Microstructure.absorption.side==="buy"?"卖单被接住 · 修复候选":"买单接住 · 修复候选",
     };
     if(web4Microstructure.state!=="waiting")return {
       state:web4Microstructure.state,
@@ -3543,7 +3543,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       tone:"warning",
       label:"资金方向否决",
       advice:"暂缓买入",
-      detail:"主动卖压尚未解除，V2.9 正T信号已被风控拦截",
+      detail:"卖单还在增加，V2.9 正T信号已被风控拦截",
     };
 
     if(l2Confirmed&&l2CandidateDirection)return {
@@ -3790,7 +3790,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       {label:"时段有效",met:decisionModel.inDecisionWindow},
       {label:reverse?"跌回均价":"站回均价",met:decisionModel.referenceConfirmed},
       {label:reverse?"动量转弱":"动量转强",met:decisionModel.trendConfirmed},
-      {label:isZijinStock?(reverse?"L2卖压确认":positiveTBlockedByFlow?"主动净卖解除":"L2承接确认"):"量价确认",met:l2Confirmed},
+      {label:isZijinStock?(reverse?"卖单变多":positiveTBlockedByFlow?"主动净卖解除":"买单接住"):"量价确认",met:l2Confirmed},
     ];
   },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,isZijinStock,positiveTBlockedByFlow,signalMode,zijinFundResponse.score,zijinRepair?.checks?.l2BuyRecovery]);
   const decisionConditionsConfirmed=decisionConditions.reduce((count,item)=>count+(item.met?1:0),0);
@@ -5462,13 +5462,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             <details className="decision-audit-details" open={decisionAuditOpen} onToggle={event=>setDecisionAuditOpen(event.currentTarget.open)}>
               <summary>条件与依据 <b>{decisionConditionsConfirmed}/4</b></summary>
-              <small className="global-decision-summary">{positiveTBlockedByFlow?"主动净卖与价格走弱同向，卖压解除前不提示正T买入。":signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
+              <small className="global-decision-summary">{positiveTBlockedByFlow?"卖单还在增加，减少前不提示正T买入。":signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
              <div className="decision-condition-grid" aria-label="全局决策条件进度" aria-valuemin={0} aria-valuemax={4} aria-valuenow={decisionConditionsConfirmed} role="progressbar">
                <div className="decision-condition-progress" aria-hidden="true"><i style={{width:`${decisionConditionsConfirmed/4*100}%`}}/></div>
                {decisionConditions.map(item=><span key={item.label} className={item.met?"met":""}><i>{item.met?"✓":"×"}</i>{item.label}</span>)}
              </div>
             </details>
-            <div className="decision-primary-meta"><span>{positiveTBlockedByFlow?"正T已锁定":decisionModel.status==="ready"?(decisionModel.mode??signalMode):decisionModel.status==="locked"?"禁止开T":"等待条件补齐"}</span><strong>{stockAgent.canExecute?(positiveTBlockedByFlow?"等待卖压解除":decisionModel.status==="ready"?"可进入执行":decisionModel.status==="locked"?"风险优先":"实时监控"):"研究观察"}</strong></div>
+            <div className="decision-primary-meta"><span>{positiveTBlockedByFlow?"正T已锁定":decisionModel.status==="ready"?(decisionModel.mode??signalMode):decisionModel.status==="locked"?"禁止开T":"等待条件补齐"}</span><strong>{stockAgent.canExecute?(positiveTBlockedByFlow?"等待卖单减少":decisionModel.status==="ready"?"可进入执行":decisionModel.status==="locked"?"风险优先":"实时监控"):"研究观察"}</strong></div>
             {Boolean(currentContext?.items.length)&&<div className="decision-market-pulse" aria-label="外部市场联动">
               <span>外部联动</span>
               {currentContext!.items.slice(0,4).map(item=>{const fresh=marketContextItemFresh(item,clockNow?.getTime()??null);return <i key={item.id} className={fresh?(item.changePercent??0)>0?"up":(item.changePercent??0)<0?"down":"flat":"flat stale"} title={fresh?(item.sourceTimestamp?`数据时间 ${new Date(item.sourceTimestamp).toLocaleString("zh-CN")}`:item.provider):"时间戳过期，不参与评分"}>{item.label} <b>{!fresh?"外盘待更新":item.changePercent==null?"--":`${item.changePercent>0?"+":""}${item.changePercent.toFixed(2)}%`}</b></i>})}
@@ -5582,7 +5582,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":marketSession.live?"紫金会员 · 实时因果":"紫金会员 · 收盘复盘"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":marketSession.live?"实时参考价区":"复盘参考价区"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":marketSession.live?"等待分时":"已收盘"):"会员功能"}</em></div>
             {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
               <div className="zijin-price-plan-grid">
-                <div className={`buy ${positiveTBlockedByFlow?"locked":""}`}><small title="正T：先买入、后卖出等量旧仓，目标是降低持仓成本">{isPreopenPlanPhase?"开盘正T观察区":"正T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.buyRange[0].toFixed(2)}–{displayedZijinPricePlan.buyRange[1].toFixed(2)}</b><span>{positiveTBlockedByFlow?"主动净卖中，暂不执行正T":"到区后等承接确认"}</span></div>
+                <div className={`buy ${positiveTBlockedByFlow?"locked":""}`}><small title="正T：先买入、后卖出等量旧仓，目标是降低持仓成本">{isPreopenPlanPhase?"开盘正T观察区":"正T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.buyRange[0].toFixed(2)}–{displayedZijinPricePlan.buyRange[1].toFixed(2)}</b><span>{positiveTBlockedByFlow?"卖单变多，暂不执行正T":"到区后等买单接住"}</span></div>
                 <div className="sell"><small title="反T：先卖出旧仓、后低价买回等量股份">{isPreopenPlanPhase?"开盘反T观察区":"反T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.sellRange[0].toFixed(2)}–{displayedZijinPricePlan.sellRange[1].toFixed(2)}</b><span>到区后等衰竭确认</span></div>
               </div>
               <div className="zijin-price-plan-quick-fill" role="group" aria-label="T calculator quick fill">
