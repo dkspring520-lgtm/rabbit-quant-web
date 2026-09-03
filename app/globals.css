@@ -2977,3 +2977,310 @@
     grid-template-columns:minmax(0,3.6fr) minmax(330px,1fr);
   }
 }
+
+/* 2026 cockpit polish: visual hierarchy only; strategy and signal math stay
+   untouched.  The controls below make the desk easier to scan at a glance. */
+.app-shell.minimal-ui .topbar{
+  min-height:58px;
+  height:58px;
+  padding-inline:24px;
+  gap:22px;
+  background:color-mix(in srgb,var(--surface) 92%,var(--bg));
+}
+.app-shell.minimal-ui .brand{
+  padding-right:18px;
+  border-right:0;
+}
+.app-shell.minimal-ui .main-nav{
+  height:38px;
+  gap:3px;
+  padding:3px;
+  border:1px solid var(--line-soft);
+  border-radius:11px;
+  background:color-mix(in srgb,var(--bg) 72%,var(--surface));
+}
+.app-shell.minimal-ui .main-nav button{
+  height:32px;
+  padding-inline:12px;
+  border-radius:8px;
+  font-size:12px;
+  transition:background .16s ease,color .16s ease,box-shadow .16s ease;
+}
+.app-shell.minimal-ui .main-nav button:hover{
+  background:color-mix(in srgb,var(--surface-2) 72%,transparent);
+}
+.app-shell.minimal-ui .main-nav button.active{
+  color:var(--text);
+  background:color-mix(in srgb,var(--teal) 14%,var(--surface));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--teal) 36%,transparent);
+}
+.app-shell.minimal-ui .main-nav button.active:after{
+  content:none;
+  display:none;
+}
+.app-shell.minimal-ui .top-actions{gap:8px}
+
+.app-shell.minimal-ui .ticker{
+  min-height:50px;
+  height:50px;
+  gap:8px;
+  padding:7px 18px;
+  background:color-mix(in srgb,var(--bg) 86%,var(--surface));
+}
+.app-shell.minimal-ui .ticker-item{
+  min-height:36px;
+  flex:0 0 auto;
+  overflow:hidden;
+  border:1px solid var(--line-soft) !important;
+  border-radius:10px;
+  background:color-mix(in srgb,var(--surface) 78%,var(--bg));
+  transition:border-color .16s ease,background .16s ease,box-shadow .16s ease;
+}
+.app-shell.minimal-ui .ticker-item:hover{
+  border-color:color-mix(in srgb,var(--teal) 35%,var(--line-soft)) !important;
+}
+.app-shell.minimal-ui .ticker-item.selected{
+  border-color:color-mix(in srgb,var(--teal) 72%,var(--line)) !important;
+  background:color-mix(in srgb,var(--teal) 10%,var(--surface)) !important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--teal) 22%,transparent) !important;
+}
+.app-shell.minimal-ui .ticker .ticker-stock-button{
+  border-right:0 !important;
+  border-radius:inherit;
+  padding-inline:12px;
+}
+.app-shell.minimal-ui .ticker .ticker-order-controls{gap:2px}
+.app-shell.minimal-ui .ticker .ticker-order-button,
+.app-shell.minimal-ui .ticker .ticker-remove{
+  border:0;
+  border-radius:6px;
+}
+.app-shell.minimal-ui .ticker .ticker-add{
+  min-height:34px;
+  height:34px;
+  padding-inline:12px;
+  border:1px solid var(--line-soft);
+  border-radius:9px;
+  background:color-mix(in srgb,var(--surface) 80%,transparent);
+}
+
+.app-shell.minimal-ui .chart-tools{
+  min-height:56px;
+  height:56px;
+  flex-basis:56px;
+  padding:8px 18px;
+  gap:10px;
+  background:color-mix(in srgb,var(--surface) 92%,var(--bg));
+}
+.app-shell.minimal-ui .primary-chart-legend{
+  min-width:0;
+  flex:1 1 auto;
+  gap:10px;
+  overflow:hidden;
+}
+.app-shell.minimal-ui .primary-chart-legend>span{
+  flex:0 0 auto;
+}
+.app-shell.minimal-ui .layer-switches{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  margin-left:0;
+  padding:3px;
+  border:1px solid var(--line-soft);
+  border-radius:8px;
+  background:color-mix(in srgb,var(--bg) 55%,transparent);
+}
+.app-shell.minimal-ui .layer-switches button{
+  min-height:26px;
+  padding:0 8px;
+  border:1px solid transparent;
+  border-radius:6px;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  font-size:9px;
+  line-height:1;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.app-shell.minimal-ui .layer-switches button:hover,
+.app-shell.minimal-ui .layer-switches button:focus-visible{
+  border-color:color-mix(in srgb,var(--teal) 42%,var(--line));
+  color:var(--text);
+  outline:0;
+}
+.app-shell.minimal-ui .layer-switches button.active{
+  border-color:color-mix(in srgb,var(--teal) 48%,var(--line));
+  background:color-mix(in srgb,var(--teal) 14%,var(--surface));
+  color:var(--teal);
+}
+
+/* "标注" mode keeps points and native SVG titles, but removes the text
+   badges that compete with the price line. */
+.app-shell.minimal-ui .compact-chart-labels .candidate-signal-marker.with-label>rect:not(.observation-anchor),
+.app-shell.minimal-ui .compact-chart-labels .candidate-signal-marker.with-label>text,
+.app-shell.minimal-ui .compact-chart-labels .candidate-signal-marker.with-label>.marker-label-leader,
+.app-shell.minimal-ui .compact-chart-labels .live-signal-marker>rect,
+.app-shell.minimal-ui .compact-chart-labels .live-signal-marker>text,
+.app-shell.minimal-ui .compact-chart-labels .live-signal-marker>.marker-label-leader,
+.app-shell.minimal-ui .compact-chart-labels .peak-volume-marker>text,
+.app-shell.minimal-ui .compact-chart-labels .vwap-cross-marker>text,
+.app-shell.minimal-ui .compact-chart-labels .closing-auction-marker>text,
+.app-shell.minimal-ui .compact-chart-labels .rabbit-tracker-bubble{
+  display:none;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-axis-label,
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-percent-label{
+  font-weight:650;
+  paint-order:stroke;
+  stroke:color-mix(in srgb,var(--bg) 88%,transparent);
+  stroke-width:3px;
+  stroke-opacity:.72;
+}
+
+/* Put execution controls before research evidence in focus mode. */
+.app-shell.minimal-ui .decision-zone.focus-mode .decision-position-card{order:2}
+.app-shell.minimal-ui .decision-zone.focus-mode .zijin-price-plan{order:3}
+.app-shell.minimal-ui .decision-execution-grid.pending{
+  display:block;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+.app-shell.minimal-ui .decision-execution-pending{
+  min-height:38px;
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:center;
+  gap:3px 10px;
+  padding:8px 10px;
+  border:1px dashed var(--line);
+  border-radius:7px;
+  background:color-mix(in srgb,var(--surface-2) 52%,transparent);
+}
+.app-shell.minimal-ui .decision-execution-pending span{
+  color:var(--dim);
+  font-size:8px;
+}
+.app-shell.minimal-ui .decision-execution-pending b{
+  color:var(--muted);
+  font-size:10px;
+  font-weight:650;
+}
+.app-shell.minimal-ui .decision-execution-pending small{
+  grid-column:1/-1;
+  color:var(--dim);
+  font-size:8px;
+}
+.app-shell.minimal-ui .quick-sim-order input{
+  min-height:34px;
+  padding:7px 9px;
+  border:1px solid var(--line-soft);
+  border-radius:7px;
+  background:color-mix(in srgb,var(--field) 86%,var(--surface));
+  color:var(--text);
+  outline:0;
+}
+.app-shell.minimal-ui .quick-sim-order input:focus{
+  border-color:color-mix(in srgb,var(--teal) 62%,var(--line));
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--teal) 12%,transparent);
+}
+.app-shell.minimal-ui .quick-sim-order-actions button{
+  min-height:44px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:780;
+  letter-spacing:.01em;
+}
+
+/* Configuration help belongs to the account drawer, not the live alert row. */
+.app-shell.minimal-ui .account-notification-help{
+  margin-top:12px;
+  border:1px solid var(--line-soft);
+  border-radius:8px;
+  background:color-mix(in srgb,var(--surface) 86%,transparent);
+}
+.app-shell.minimal-ui .account-notification-help>summary{
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:38px;
+  padding:9px 11px;
+  color:var(--muted);
+  cursor:pointer;
+  font-size:10px;
+}
+.app-shell.minimal-ui .account-notification-help>summary::-webkit-details-marker{display:none}
+.app-shell.minimal-ui .account-notification-help>summary::after{content:"＋";color:var(--dim);font-size:13px}
+.app-shell.minimal-ui .account-notification-help[open]>summary::after{content:"－"}
+.app-shell.minimal-ui .account-notification-help>div{
+  display:grid;
+  gap:7px;
+  padding:0 11px 10px;
+  border-top:1px solid var(--line-soft);
+}
+.app-shell.minimal-ui .account-notification-help p{
+  display:grid;
+  gap:2px;
+  margin:8px 0 0;
+}
+.app-shell.minimal-ui .account-notification-help p b{font-size:9px;color:var(--text)}
+.app-shell.minimal-ui .account-notification-help p span,
+.app-shell.minimal-ui .account-notification-help small{font-size:8px;line-height:1.45;color:var(--dim)}
+
+@media(max-width:760px){
+  .app-shell.minimal-ui{padding-bottom:calc(58px + env(safe-area-inset-bottom))}
+  .app-shell.minimal-ui .topbar{min-height:56px;height:56px;padding-inline:10px;gap:8px}
+  .app-shell.minimal-ui .main-nav{
+    display:flex;
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    z-index:90;
+    height:calc(58px + env(safe-area-inset-bottom));
+    padding:0 4px env(safe-area-inset-bottom);
+    gap:0;
+    overflow-x:auto;
+    border:0;
+    border-top:1px solid var(--line);
+    border-radius:0;
+    background:color-mix(in srgb,var(--surface) 96%,var(--bg));
+    box-shadow:0 -10px 30px rgba(0,0,0,.38);
+  }
+  .app-shell.minimal-ui .main-nav button{
+    flex:0 0 72px;
+    height:58px;
+    padding-inline:5px;
+    border-radius:0;
+    background:transparent;
+    font-size:10px;
+    white-space:normal;
+  }
+  .app-shell.minimal-ui .main-nav button.active{
+    background:transparent;
+    box-shadow:none;
+  }
+  .app-shell.minimal-ui .main-nav button.active:after{
+    content:"";
+    display:block;
+    top:0;
+    bottom:auto;
+    left:8px;
+    right:8px;
+    height:2px;
+    border-radius:0;
+    background:var(--teal);
+  }
+  .app-shell.minimal-ui .ticker{min-height:46px;height:46px;padding:5px 10px;gap:6px}
+  .app-shell.minimal-ui .ticker-item{min-height:34px}
+  .app-shell.minimal-ui .chart-tools{min-height:62px;height:auto;flex-basis:auto;padding:7px 8px;gap:6px}
+  .app-shell.minimal-ui .primary-chart-legend{gap:7px;overflow-x:auto;scrollbar-width:none}
+  .app-shell.minimal-ui .primary-chart-legend::-webkit-scrollbar{display:none}
+  .app-shell.minimal-ui .layer-switches{order:3;width:100%;overflow-x:auto;scrollbar-width:none}
+  .app-shell.minimal-ui .layer-switches::-webkit-scrollbar{display:none}
+  .app-shell.minimal-ui .layer-switches button{flex:0 0 auto}
+  .app-shell.minimal-ui .quick-sim-order-actions button{min-height:42px}
+}
