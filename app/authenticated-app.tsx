@@ -19,7 +19,7 @@ import "./bunny-light.css";
 import "./brand-cute.css";
 import "./position-setup.css";
 import "./referral.css";
-import { buildHistoricalSimilarityArchive, runSmartTReplay } from "@/lib/smart-t-engine.mjs";
+import { buildHistoricalSimilarityArchive, runSmartTReplay, summarizeHistoricalSimilarity } from "@/lib/smart-t-engine.mjs";
 import { A_SHARE_INTRADAY_AXIS, aShareMinuteSlot, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareClosingAuctionMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
 import { confirmStockPosition, loadStockPosition, migrateLegacyPosition, normalizeStockPosition, saveStockPosition } from "@/lib/stock-position.mjs";
 import type { StockPosition } from "@/lib/stock-position.mjs";
@@ -455,7 +455,264 @@ const v1ContextActionLabel=(action:ReplayAction)=>action.direction==="反T"
   : action.side==="买入"?"V1 正T":"V1 止盈";
 const shadowChartActionLabel=(action:ReplayAction)=>
   action.side==="买入"||action.side==="买回"?"候买":"候卖";
-type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; localPivotPrice?:number; absolutePivotPrice?:number; openingPrice?:number; pivotScope?:"absolute"|"local"; openingAnchor?:boolean; probabilityEligible?:boolean; volumeConfirmed?:boolean; vwapConfirmed?:boolean; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|70|75|80|90; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; localPivotPrice?:number; absolutePivotPrice?:number; openingPrice?:number; pivotScope?:"absolute"|"local"; openingAnchor?:boolean; probabilityEligible?:boolean; volumeConfirmed?:boolean; vwapConfirmed?:boolean; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|70|75|80|90; calibrationSamples?:number; calibratedHitRate?:number; probabilitySource?:"historical"|"unavailable"; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
+type LiveLifecyclePhase="paused"|"observing"|"candidate"|"rebound-confirmed"|"rebound-failed"|"shadow-upgraded"|"confirmed"|"waiting-close"|"invalidated";
+type LiveLifecycleStep={phase:LiveLifecyclePhase;label:string;time:string;direction?:"正T"|"反T";source:"系统"|"候选"|"正式"|"影子";detail:string};
+type LiveSignalLifecycle={phase:LiveLifecyclePhase;label:string;detail:string;trail:string;asOf:string;direction?:"正T"|"反T";source:LiveLifecycleStep["source"];steps:LiveLifecycleStep[]};
+
+const lifecycleTime=(value:string|undefined)=>{
+  const digits=String(value??"").replace(/\D/g,"");
+  return digits.length>=4?digits.slice(-4):"";
+};
+
+/**
+ * Build the live desk lifecycle from the currently observed prefix only.
+ * No post-replay outcome, future pivot, or end-of-day field is consulted.
+ */
+function buildLiveSignalLifecycle({
+  minutes,
+  observations,
+  actions,
+  shadowObservations=[],
+  shadowActions=[],
+  marketLive,
+  dataReady,
+  cycleStage,
+  openedCycleSide,
+  expectedClosingSide,
+}:{
+  minutes:ReplayMinute[];
+  observations:ReplayObservation[];
+  actions:ReplayAction[];
+  shadowObservations?:ReplayObservation[];
+  shadowActions?:ReplayAction[];
+  marketLive:boolean;
+  dataReady:boolean;
+  cycleStage:"ready"|"opened"|"closed";
+  openedCycleSide:"buy"|"sell"|null;
+  expectedClosingSide:"buy"|"sell"|null;
+}):LiveSignalLifecycle{
+  const asOf=lifecycleTime(minutes.at(-1)?.time);
+  const base=(phase:LiveLifecyclePhase,label:string,detail:string,source:LiveLifecycleStep["source"]):LiveSignalLifecycle=>({
+    phase,label,detail,trail:label,asOf,source,steps:[],
+  });
+  if(!marketLive)return base("paused","等待交易时段","盘前或盘后不推进实时生命周期，只保留当前交易日记录。","系统");
+  if(!dataReady)return base("paused","数据暂停","行情时间戳未更新，生命周期保持暂停；数据恢复后从新的因果分钟继续。","系统");
+  if(!asOf)return base("observing","等待分钟","尚未收到可用于判断的真实分钟行情。","系统");
+  const causal=(time:string)=>{
+    const normalized=lifecycleTime(time);
+    return /^\d{4}$/.test(normalized)&&normalized<=asOf;
+  };
+  const normalizedTime=(time:string)=>lifecycleTime(time);
+  const events:LiveLifecycleStep[]=[];
+  const eventKeys=new Set<string>();
+  const addEvent=(event:LiveLifecycleStep)=>{
+    const key=`${event.phase}:${event.time}:${event.direction??""}:${event.source}`;
+    if(eventKeys.has(key))return;
+    eventKeys.add(key);
+    events.push(event);
+  };
+  observations
+    .filter(observation=>!observation.coverageOnly&&causal(String(observation.time)))
+    .forEach(observation=>{
+      const candidate=observation.stage==="candidate";
+      addEvent({
+        phase:candidate?"candidate":"observing",
+        label:candidate?"候选":"观察",
+        time:normalizedTime(String(observation.time)),
+        direction:observation.direction,
+        source:candidate?"候选":"系统",
+        detail:candidate
+          ?`${formatTime(observation.time)} ${observation.direction}候选，等待正式门槛或盘口确认`
+          :`${formatTime(observation.time)} ${observation.direction}观察，等待止跌/转弱确认`,
+      });
+    });
+  shadowObservations
+    .filter(observation=>!observation.coverageOnly&&causal(String(observation.time)))
+    .forEach(observation=>{
+      const confirmed=observation.stage==="candidate"||observation.repairPhase==="repair-confirmed"||observation.repairPhase==="repair-extended";
+      if(!confirmed)return;
+      addEvent({
+        phase:"shadow-upgraded",
+        label:"影子升级",
+        time:normalizedTime(String(observation.time)),
+        direction:observation.direction,
+        source:"影子",
+        detail:`${formatTime(normalizedTime(String(observation.time)))} ${observation.direction}获得影子层确认，仅作影子升级`,
+      });
+    });
+  shadowActions
+    .filter(action=>causal(String(action.time)))
+    .forEach(action=>{
+      const direction=action.direction??(action.side==="卖出"?"反T":"正T");
+      addEvent({
+        phase:"shadow-upgraded",
+        label:"影子升级",
+        time:normalizedTime(String(action.time)),
+        direction,
+        source:"影子",
+        detail:`${formatTime(normalizedTime(String(action.time)))} ${direction}影子层确认，未进入正式下单`,
+      });
+    });
+  actions
+    .filter(action=>causal(String(action.time)))
+    .forEach(action=>{
+      const direction=action.direction??(action.side==="卖出"?"反T":"正T");
+      addEvent({
+        phase:"confirmed",
+        label:"已确认",
+        time:normalizedTime(String(action.time)),
+        direction,
+        source:"正式",
+        detail:`${formatTime(normalizedTime(String(action.time)))} ${formalExecutionLabel(direction,formalActionSide(action.side))}已写入正式信号`,
+      });
+    });
+  const phaseRank=(phase:LiveLifecyclePhase)=>phase==="confirmed"?6:phase==="shadow-upgraded"?5:phase==="rebound-failed"?4:phase==="rebound-confirmed"?3:phase==="candidate"?2:1;
+  events.sort((left,right)=>left.time.localeCompare(right.time)||phaseRank(left.phase)-phaseRank(right.phase));
+  const latestCandidate=[...observations]
+    .filter(observation=>observation.stage==="candidate"&&!observation.coverageOnly&&causal(String(observation.time)))
+    .sort((left,right)=>normalizedTime(String(left.time)).localeCompare(normalizedTime(String(right.time))))
+    .at(-1)??null;
+  const latestAction=actions
+    .filter(action=>causal(String(action.time)))
+    .sort((left,right)=>normalizedTime(String(left.time)).localeCompare(normalizedTime(String(right.time))))
+    .at(-1)??null;
+  const latestShadow=events
+    .filter(event=>event.phase==="shadow-upgraded")
+    .sort((left,right)=>left.time.localeCompare(right.time))
+    .at(-1)??null;
+  const latestObservation=events
+    .filter(event=>event.phase==="observing")
+    .sort((left,right)=>left.time.localeCompare(right.time))
+    .at(-1)??null;
+  const candidateTime=latestCandidate?normalizedTime(String(latestCandidate.time)):"";
+  const actionTime=latestAction?normalizedTime(String(latestAction.time)):"";
+  const shadowTime=latestShadow?.time??"";
+  const candidateIndex=latestCandidate
+    ?minutes.findIndex(point=>normalizedTime(point.time)===candidateTime)
+    :-1;
+  const candidateRequiredEdge=Math.max(.08,Number((latestCandidate as (ReplayObservation&{requiredEdge?:number})|null)?.requiredEdge)||.08);
+  const reboundThreshold=Math.max(.12,candidateRequiredEdge*.35);
+  const retraceThreshold=Math.max(.10,candidateRequiredEdge*.25);
+  let reboundIndex=-1;
+  let failedIndex=-1;
+  let reboundPrice=latestCandidate?.price??0;
+  if(latestCandidate&&candidateIndex>=0){
+    let previousPrice=latestCandidate.price??0;
+    for(let pointIndex=candidateIndex+1;pointIndex<minutes.length;pointIndex+=1){
+      const point=minutes[pointIndex];
+      const basePrice=Math.max(.01,latestCandidate.price??point.price);
+      const adversePct=latestCandidate.direction==="反T"
+        ?(point.price-basePrice)/basePrice*100
+        :(basePrice-point.price)/basePrice*100;
+      const adverseMove=latestCandidate.direction==="反T"?point.price>=previousPrice:point.price<=previousPrice;
+      previousPrice=point.price;
+      if(reboundIndex<0&&adversePct>=reboundThreshold){
+        reboundIndex=pointIndex;
+        reboundPrice=point.price;
+        continue;
+      }
+      if(reboundIndex<0)continue;
+      if(latestCandidate.direction==="反T"&&point.price>reboundPrice)reboundPrice=point.price;
+      if(latestCandidate.direction==="正T"&&point.price<reboundPrice)reboundPrice=point.price;
+      const retracePct=latestCandidate.direction==="反T"
+        ?(reboundPrice-point.price)/Math.max(.01,reboundPrice)*100
+        :(point.price-reboundPrice)/Math.max(.01,reboundPrice)*100;
+      if(failedIndex<0&&adverseMove&&retracePct>=retraceThreshold)failedIndex=pointIndex;
+    }
+  }
+  if(latestCandidate&&reboundIndex>=0){
+    const reboundTime=normalizedTime(minutes[reboundIndex]?.time);
+    addEvent({
+      phase:"rebound-confirmed",
+      label:latestCandidate.direction==="反T"?"反弹确认":"回踩确认",
+      time:reboundTime,
+      direction:latestCandidate.direction,
+      source:"系统",
+      detail:`${formatTime(reboundTime)} ${latestCandidate.direction}候选出现反向波动，等待再次确认`,
+    });
+    if(failedIndex>=0){
+      const failedTime=normalizedTime(minutes[failedIndex]?.time);
+      addEvent({
+        phase:"rebound-failed",
+        label:latestCandidate.direction==="反T"?"反弹失败":"回踩失败",
+        time:failedTime,
+        direction:latestCandidate.direction,
+        source:"系统",
+        detail:`${formatTime(failedTime)} ${latestCandidate.direction}候选的反向波动已回落，继续等待正式或影子确认`,
+      });
+    }
+  }
+  events.sort((left,right)=>left.time.localeCompare(right.time)||phaseRank(left.phase)-phaseRank(right.phase));
+  const steps:LiveLifecycleStep[]=[];
+  let pendingCandidate:LiveLifecycleStep|null=null;
+  for(const event of events){
+    if(event.phase==="candidate"){
+      if(pendingCandidate&&pendingCandidate.direction!==event.direction){
+        const invalidated:LiveLifecycleStep={phase:"invalidated",label:"已失效",time:event.time,direction:pendingCandidate.direction,source:"系统",detail:`${formatTime(pendingCandidate.time)} ${pendingCandidate.direction}候选被相反方向的新候选替代`};
+        const invalidationKey=`${invalidated.phase}:${invalidated.time}:${invalidated.direction}`;
+        if(!steps.some(step=>`${step.phase}:${step.time}:${step.direction??""}`===invalidationKey))steps.push(invalidated);
+      }
+      pendingCandidate=event;
+    }else if((event.phase==="confirmed"||event.phase==="shadow-upgraded")&&pendingCandidate&&pendingCandidate.direction===event.direction){
+      pendingCandidate=null;
+    }
+    const previous=steps.at(-1);
+    if(previous&&previous.phase===event.phase&&previous.direction===event.direction)steps[steps.length-1]=event;
+    else steps.push(event);
+  }
+  if(cycleStage==="opened"){
+    const closing=expectedClosingSide==="sell"?"卖出":expectedClosingSide==="buy"?"买回":"反向成交";
+    const waiting:LiveLifecycleStep={phase:"waiting-close",label:"等待闭环",time:latestAction?normalizedTime(String(latestAction.time)):asOf,direction:latestAction?.direction,source:"正式",detail:`已记录${openedCycleSide==="buy"?"买入":"卖出"}，等待${closing}完成当日闭环`};
+    steps.push(waiting);
+  }
+  const compactSteps:LiveLifecycleStep[]=[];
+  for(const step of steps){
+    const previous=compactSteps.at(-1);
+    if(previous&&previous.phase===step.phase&&previous.direction===step.direction)compactSteps[compactSteps.length-1]=step;
+    else compactSteps.push(step);
+  }
+  const candidateEvent=latestCandidate
+    ?events.filter(event=>event.phase==="candidate"&&event.direction===latestCandidate.direction&&event.time===candidateTime).at(-1)??null
+    :null;
+  const candidateProgressEvent=latestCandidate
+    ?events.filter(event=>(event.phase==="rebound-confirmed"||event.phase==="rebound-failed")&&event.direction===latestCandidate.direction&&event.time>=candidateTime).at(-1)??null
+    :null;
+  const confirmedEvent=latestAction
+    ?events.filter(event=>event.phase==="confirmed"&&event.time===actionTime).at(-1)??null
+    :null;
+  const currentShadowEvent=latestShadow;
+  const waitingEvent=cycleStage==="opened"?compactSteps.filter(step=>step.phase==="waiting-close").at(-1)??null:null;
+  let current=compactSteps.at(-1)??null;
+  // A later generic observation must not erase a still-active candidate or a
+  // formal confirmation. Prefer the newest lifecycle-bearing event by causal
+  // minute, with formal > shadow > candidate precedence on a tie.
+  if(waitingEvent){
+    current=waitingEvent;
+  }else if(latestCandidate&&candidateTime&&(candidateTime>=actionTime)&&(candidateTime>=shadowTime)){
+    current=candidateProgressEvent??candidateEvent??current;
+  }else if(confirmedEvent){
+    current=confirmedEvent;
+  }else if(currentShadowEvent){
+    current=currentShadowEvent;
+  }else if(latestObservation){
+    current=latestObservation;
+  }
+  if(!current)return base("observing","观察","暂未形成候选，继续等待价格、VWAP 与量能变化。","系统");
+  const trailSteps=compactSteps.at(-1)?.phase===current.phase&&compactSteps.at(-1)?.time===current.time
+    ?compactSteps
+    :[...compactSteps,current];
+  return {
+    phase:current.phase,
+    label:current.label,
+    detail:current.detail,
+    trail:trailSteps.slice(-4).map(step=>`${step.label}${step.time?` ${formatTime(step.time)}`:""}`).join(" → "),
+    asOf,
+    direction:current.direction,
+    source:current.source,
+    steps:trailSteps.slice(-4),
+  };
+}
 type ChartObservationStrategy = "closure"|"v29"|"v1"|"observation";
 type ChartObservation = ReplayObservation & {strategy:ChartObservationStrategy};
 type PersistedChartObservation = ReplayObservation & {strategy?:ChartObservationStrategy};
@@ -688,13 +945,124 @@ function pivotPresentation(observation:ReplayObservation,minutes:ReplayMinute[],
   };
 }
 
+type HistoricalSimilarityRow={
+  date?:string;
+  direction?:string;
+  timeBucket?:string;
+  deviation?:number;
+  momentum3?:number;
+  volumeRatio?:number;
+  sessionMove?:number;
+};
+type PivotProbabilityCalibration={
+  samples:number;
+  tradingDays:number;
+  hitRate:number|null;
+  probability:70|80|null;
+  ready:boolean;
+  reason:string;
+};
+
+function pivotSimilarityBucket(time:string){
+  const offset=tradingMinuteOffset(String(time));
+  if(!Number.isFinite(offset))return null;
+  if(offset<60)return "opening";
+  if(offset<150)return "midday";
+  return "afternoon";
+}
+
+function pivotSimilarityFeature(minutes:ReplayMinute[],index:number,direction:"正T"|"反T"){
+  const point=minutes[index];
+  const price=finitePositive(point?.price);
+  const firstPrice=finitePositive(minutes[0]?.price);
+  const previousPrice=finitePositive(minutes[Math.max(0,index-3)]?.price);
+  if(price===null||firstPrice===null||previousPrice===null)return null;
+  const vwap=finitePositive(cumulativeIntradayAverage(minutes.slice(0,index+1)).at(-1));
+  if(vwap===null)return null;
+  const volumeWindow=minutes.slice(Math.max(0,index-14),index)
+    .map(item=>Number(item.volume))
+    .filter(value=>Number.isFinite(value)&&value>0);
+  const averageVolume=volumeWindow.length
+    ?volumeWindow.reduce((sum,value)=>sum+value,0)/volumeWindow.length
+    :0;
+  const timeBucket=pivotSimilarityBucket(String(point.time));
+  if(!timeBucket)return null;
+  const pct=(current:number,reference:number)=>((current-reference)/reference)*100;
+  return {
+    direction:direction==="正T"?"BUY_FIRST":"SELL_FIRST",
+    timeBucket,
+    deviation:pct(price,vwap),
+    momentum3:pct(price,previousPrice),
+    volumeRatio:averageVolume>0?Math.max(0,Number(point.volume)||0)/averageVolume:1,
+    sessionMove:pct(price,firstPrice),
+  };
+}
+
+/**
+ * Convert the raw pivot strength into a conservative, empirical display
+ * probability. The archive is filtered to dates strictly before the current
+ * session, so a live session can never label itself with its own outcome.
+ */
+function calibratePivotProbability(
+  minutes:ReplayMinute[],
+  index:number,
+  direction:"正T"|"反T",
+  archive:HistoricalSimilarityRow[],
+  asOfDate?:string,
+):PivotProbabilityCalibration{
+  const empty=(reason:string):PivotProbabilityCalibration=>({samples:0,tradingDays:0,hitRate:null,probability:null,ready:false,reason});
+  const feature=pivotSimilarityFeature(minutes,index,direction);
+  if(!feature)return empty("缺少可校准的因果特征");
+  const cutoff=normalizeMarketDate(asOfDate)?.replace(/-/g,"")??"";
+  if(!cutoff)return empty("当前交易日未知，暂不校准概率");
+  const prior=archive.filter(row=>{
+    const rowDate=normalizeMarketDate(row.date)?.replace(/-/g,"")??"";
+    // A missing date is not safe for a probability label. It may be retained
+    // for ordinary similarity matching, but not for calibration.
+    return Boolean(rowDate)&&(!cutoff||rowDate<cutoff);
+  });
+  if(!prior.length)return empty("没有更早的已完成交易日样本");
+  const summary=summarizeHistoricalSimilarity(feature,prior,{minimumSamples:12,maximumSamples:40});
+  const matchingDays=new Set(prior
+    .filter(row=>row.direction===feature.direction&&row.timeBucket===feature.timeBucket)
+    .map(row=>normalizeMarketDate(row.date)?.replace(/-/g,"")??"")
+    .filter(Boolean));
+  const samples=Number(summary.samples)||0;
+  const tradingDays=matchingDays.size;
+  if(!summary.ready||samples<12||tradingDays<3){
+    return {samples,tradingDays,hitRate:Number.isFinite(Number(summary.hitRate))?Number(summary.hitRate):null,probability:null,ready:false,reason:`校准样本不足（${samples}/12，${tradingDays}/3 个交易日）`};
+  }
+  const rawRate=Number(summary.hitRate);
+  if(!Number.isFinite(rawRate))return empty("历史样本没有可用结果");
+  // A small Beta(4,4) prior keeps a short run from claiming 80% certainty.
+  const hitRate=(rawRate*samples+4)/(samples+8);
+  const probability=hitRate>=.80?80:hitRate>=.70?70:null;
+  return {
+    samples,
+    tradingDays,
+    hitRate,
+    probability,
+    ready:true,
+    reason:probability===null
+      ?`历史校准 ${(hitRate*100).toFixed(0)}%，低于 70% 显示门槛`
+      :`历史校准 ${(hitRate*100).toFixed(0)}%，${samples} 个样本 / ${tradingDays} 个交易日`,
+  };
+}
+
 /**
  * A small, deterministic observation layer for the desk and replay chart.
  * It deliberately lives outside the executable replay path: all divergence
  * markers are emitted only at the causal confirmation minute and are capped
  * so that the chart remains readable during a full trading day.
  */
-function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shadowObservations:ReplayObservation[]=[],requireShadowConfirmation=false,openingPriceOverride?:number|null):ReplayObservation[]{
+function buildPivotAndMacdObservations(
+  minutes:ReplayMinute[],
+  date?:string,
+  shadowObservations:ReplayObservation[]=[],
+  requireShadowConfirmation=false,
+  openingPriceOverride?:number|null,
+  historicalSimilarityArchive:HistoricalSimilarityRow[]=[]
+):ReplayObservation[]{
   if(minutes.length===0)return [];
   const observations:ReplayObservation[]=[];
   const pivotEvents:{index:number;observation:ReplayObservation}[]=[];
@@ -703,7 +1071,6 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shado
   const localPivotAttempts={top:0,bottom:0};
   const lastPivotIndex={top:{absolute:-Infinity,local:-Infinity},bottom:{absolute:-Infinity,local:-Infinity}};
   const openingPrice=resolveOpeningPrice(minutes,openingPriceOverride);
-  const probabilityForStrength=(strength:number|undefined,eligible:boolean):70|80|undefined=>eligible&&(strength===1||strength===2)?(strength===2?80:70):undefined;
   const assessmentForStrength=(strength:number|undefined):"strong"|"confirmed"|"unconfirmed"=>strength===2?"strong":strength===1?"confirmed":"unconfirmed";
   let openingTopAnchorUsed=false;
   let openingBottomAnchorUsed=false;
@@ -747,7 +1114,10 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shado
       &&pivotVwapGate(minutes,index,pivotIndex,absolutePivotPrice,side);
     const pivotConfirmed=assessment!=="unconfirmed";
     const probabilityEligible=scope==="absolute"&&!openingAnchor&&pivotConfirmed&&volumeConfirmed&&vwapConfirmed;
-    const probability=probabilityForStrength(result.strength,probabilityEligible);
+    const probabilityCalibration=probabilityEligible
+      ?calibratePivotProbability(minutes,index,direction,historicalSimilarityArchive,date)
+      :{samples:0,tradingDays:0,hitRate:null,probability:null,ready:false,reason:"价格关系或量价条件未满足"} satisfies PivotProbabilityCalibration;
+    const probability=probabilityCalibration.probability??undefined;
     attemptsForScope[side]+=1;
     lastPivotIndex[side][scope]=index;
     const attempt=attemptsForScope[side] as 1|2|3;
@@ -764,6 +1134,7 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shado
     if(!volumeConfirmed)blockers.push("成交量条件未满足");
     if(!vwapConfirmed)blockers.push("VWAP条件未满足");
     if(!pivotConfirmed)blockers.push("因果拐点未确认");
+    if(probabilityEligible&&!probabilityCalibration.ready)blockers.push(probabilityCalibration.reason);
     const observation:ReplayObservation={
       time:String(minutes[index].time),price,direction,score:probability??60,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
       pivotTime:/^\d{4}$/.test(pivotTime)?pivotTime:undefined,
@@ -779,9 +1150,14 @@ function buildPivotAndMacdObservations(minutes:ReplayMinute[],date?:string,shado
       pivotLabel:result.pivot.label??(assessment==="strong"?"强确认":assessment==="confirmed"?"已确认":"未确认"),
       pivotAssessment:assessment,confirmationLabel:label,
       blockers,
-      reason:`${label} · 因果拐点已在本分钟确认；价格关系${scope==="absolute"?"通过":"为局部结构"}，成交量${volumeConfirmed?"通过":"未满足"}，VWAP${vwapConfirmed?"通过":"未满足"}。`,
+      reason:`${label} · 因果拐点已在本分钟确认；价格关系${scope==="absolute"?"通过":"为局部结构"}，成交量${volumeConfirmed?"通过":"未满足"}，VWAP${vwapConfirmed?"通过":"未满足"}；${probabilityEligible?probabilityCalibration.reason:"暂不进入概率校准"}。`,
       watchKey:`${date??"live"}:${kind}:${minutes[index].time}:${attempt}`,
-      observationKind:kind,probability,attempt,
+      observationKind:kind,
+      probability,
+      calibrationSamples:probabilityCalibration.samples,
+      calibratedHitRate:probabilityCalibration.hitRate??undefined,
+      probabilitySource:probability!==undefined?"historical":"unavailable",
+      attempt,
     };
     pivotEvents.push({index,observation});
   };
@@ -871,13 +1247,13 @@ function observationConfirmationLabel(observation: ReplayObservation,minutes?:Re
   if(observation.observationKind==="pivot-top"){
     if(presentation?.openingAnchor??observation.openingAnchor)return "开盘即高风险";
     if((presentation?.scope??observation.pivotScope)==="local")return "局部反弹阻力";
-    const probability=topPivotDisplayProbability(observation.probability,Boolean(presentation?.probabilityEligible??(observation.probabilityEligible===true&&observation.pivotScope==="absolute")));
+    const probability=topPivotDisplayProbability(observation.probability,Boolean(presentation?.probabilityEligible??(observation.probabilityEligible===true&&observation.pivotScope==="absolute"))&&observation.probabilitySource==="historical");
     return probability===null?"绝对顶观察":`顶 ${probability}%`;
   }
   if(observation.observationKind==="pivot-bottom"){
     if(presentation?.openingAnchor??observation.openingAnchor)return "开盘即低点";
     if((presentation?.scope??observation.pivotScope)==="local")return "局部回踩支撑";
-    const probability=Boolean(presentation?.probabilityEligible??(observation.probabilityEligible===true&&observation.pivotScope==="absolute"))
+    const probability=Boolean(presentation?.probabilityEligible??(observation.probabilityEligible===true&&observation.pivotScope==="absolute"))&&observation.probabilitySource==="historical"
       ?topPivotDisplayProbability(observation.probability,true)
       :null;
     return probability===null?"绝对底观察":`底 ${probability}%`;
@@ -947,7 +1323,8 @@ function selectPivotObservationKeys(
   const candidates=observations
     .map(observation=>{
       const presentation=minutes?pivotPresentation(observation,minutes,openingPriceOverride):null;
-      const eligible=presentation?.probabilityEligible??(observation.pivotScope==="absolute"&&observation.probabilityEligible===true);
+      const eligible=(presentation?.probabilityEligible??(observation.pivotScope==="absolute"&&observation.probabilityEligible===true))
+        &&observation.probabilitySource==="historical";
       const resolvedScope=presentation?.scope??observation.pivotScope;
       return {
         observation,
@@ -2661,8 +3038,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const zijinStructure=stockAgentEvaluation?.metrics?.structure??null;
   const visibleStockAgentEvaluation=zijinResearchEnabled&&isZijinStock?stockAgentEvaluation:null;
   const similarityArchive=useMemo(
-    ()=>buildHistoricalSimilarityArchive(currentMarket?.intradaySessions ?? [],{asOfDate:currentMarket?.sampleDate ?? null}),
-    [currentMarket?.intradaySessions,currentMarket?.sampleDate],
+    ()=>{
+      const sessionsByDate=new Map<string,IntradaySession>();
+      for(const session of [...(currentMarket?.intradaySessions??[]),...(currentTrial?.intradaySessions??[])]){
+        if(session?.date&&!sessionsByDate.has(session.date))sessionsByDate.set(session.date,session);
+      }
+      // Use the same authoritative date as the minute chart. If it is not
+      // known, return no calibration rather than risking same-day leakage.
+      const asOfDate=currentTrial?.sampleDate??currentMarket?.sampleDate??null;
+      return buildHistoricalSimilarityArchive([...sessionsByDate.values()],{asOfDate});
+    },
+    [currentMarket?.intradaySessions,currentMarket?.sampleDate,currentTrial?.intradaySessions,currentTrial?.sampleDate],
   );
   const liveStrategyExperiment=resolveBacktestStrategyExperiment(stock?.code,"closure-first");
   const liveEngine = useMemo(() => {
@@ -2787,8 +3173,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       isZijinStock?[...zijinV29ChartObservations,...zijinV1ChartObservations]:[],
       isZijinStock,
       activeQuote?.open,
+      similarityArchive,
     ),
-    [activeChartDate,activeQuote?.open,isZijinStock,minutePoints,zijinV1ChartObservations,zijinV29ChartObservations],
+    [activeChartDate,activeQuote?.open,isZijinStock,minutePoints,similarityArchive,zijinV1ChartObservations,zijinV29ChartObservations],
   );
   const latestReverseTObservation=useMemo(
     ()=>[...currentObservations].reverse().find(observation=>observation.direction==="反T")??null,
@@ -2855,9 +3242,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         if(!/^\d{4}$/.test(String(observation.time??""))||!["正T","反T"].includes(String(observation.direction??"")))return [];
         if(!Number.isFinite(observation.score)||!Number.isFinite(observation.threshold))return [];
         const strategy=observation.strategy==="observation"?"observation":"closure";
-        const probability=observation.probability===90||observation.probability===80||observation.probability===75||observation.probability===70||observation.probability===60?observation.probability:undefined;
+        const calibrationSamples=Number.isFinite(Number(observation.calibrationSamples))?Number(observation.calibrationSamples):undefined;
+        const calibratedHitRate=Number.isFinite(Number(observation.calibratedHitRate))?Number(observation.calibratedHitRate):undefined;
+        const probabilitySource=observation.probabilitySource==="historical"&&calibrationSamples!==undefined&&calibratedHitRate!==undefined?"historical":undefined;
+        const probability=probabilitySource&&(observation.probability===80||observation.probability===70)?observation.probability:undefined;
         const attempt=observation.attempt===1||observation.attempt===2||observation.attempt===3?observation.attempt:undefined;
-        return [{...observation,time:String(observation.time),direction:observation.direction as ReplayObservation["direction"],score:Number(observation.score),threshold:Number(observation.threshold),edge:Number(observation.edge)||0,executable:Boolean(observation.executable),blockers:Array.isArray(observation.blockers)?observation.blockers.map(String).slice(0,12):[],reason:String(observation.reason??"历史候选信号"),strategy,probability,attempt} as PersistedChartObservation];
+        return [{...observation,time:String(observation.time),direction:observation.direction as ReplayObservation["direction"],score:Number(observation.score),threshold:Number(observation.threshold),edge:Number(observation.edge)||0,executable:Boolean(observation.executable),blockers:Array.isArray(observation.blockers)?observation.blockers.map(String).slice(0,12):[],reason:String(observation.reason??"历史候选信号"),strategy,probability,calibrationSamples,calibratedHitRate,probabilitySource,attempt} as PersistedChartObservation];
       }).slice(0,120);
       setPersistedChartObservations({key:chartObservationStorageKey,observations});
     }catch{setPersistedChartObservations({key:chartObservationStorageKey,observations:[]})}
@@ -3907,6 +4297,51 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
   },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,isZijinStock,positiveTBlockedByFlow,signalMode,zijinFundResponse.score,zijinRepair?.checks?.l2BuyRecovery]);
   const decisionConditionsConfirmed=decisionConditions.reduce((count,item)=>count+(item.met?1:0),0);
+  const liveSignalLifecycle=useMemo(()=>buildLiveSignalLifecycle({
+    minutes:minutePoints,
+    // Only markers whose timestamp is in the current observed prefix are
+    // eligible. Same-day persisted markers keep a confirmed point visible
+    // across quote refreshes; the helper still rejects any later timestamp.
+    observations:[
+      ...(liveEngine.observations??[]),
+      ...durableVisibleChartObservations.filter(observation=>observation.strategy==="closure"),
+    ] as ReplayObservation[],
+    actions:chartFormalActions,
+    shadowObservations:isZijinStock
+      ?[
+        ...zijinRepairHistory,
+        ...zijinV29ChartObservations,
+        ...zijinV1ChartObservations,
+      ]
+      :[],
+    shadowActions:isZijinStock
+      ?[
+        ...(zijinV29Replay?.actions??[]),
+        ...(zijinV1ContextReplay?.actions??[]),
+      ]
+      :[],
+    marketLive:marketSession.live,
+    dataReady:liveDataGate.ready,
+    cycleStage,
+    openedCycleSide,
+    expectedClosingSide,
+  }),[
+    cycleStage,
+    expectedClosingSide,
+    isZijinStock,
+    liveDataGate.ready,
+    chartFormalActions,
+    liveEngine.observations,
+    marketSession.live,
+    minutePoints,
+    openedCycleSide,
+    durableVisibleChartObservations,
+    zijinRepairHistory,
+    zijinV1ContextReplay?.actions,
+    zijinV29Replay?.actions,
+    zijinV29ChartObservations,
+    zijinV1ChartObservations,
+  ]);
   const rabbitTrackerMode=rabbitTrackerSignal
     ?"signal"
     :marketSession.phase==="lunch"
@@ -5411,7 +5846,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-3.5} y={marker.y-3.5} width="7" height="7" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y-2} ${marker.x+4.5},${marker.y-2} ${marker.x},${marker.y+4.5}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y+2} ${marker.x+4.5},${marker.y+2} ${marker.x},${marker.y-4.5}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>})}
+              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-3.5} y={marker.y-3.5} width="7" height="7" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y-2} ${marker.x+4.5},${marker.y-2} ${marker.x},${marker.y+4.5}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y+2} ${marker.x+4.5},${marker.y+2} ${marker.x},${marker.y-4.5}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>})}
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} ${marker.labelRendered?"with-label":"dot-only"}`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{marker.action.reason??marker.label}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></>}<circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/></g>)}
@@ -5580,6 +6015,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span>实时反T</span>
               <b>{reverseTSignalLabel}</b>
               <small>{reverseTSignalDetail}</small>
+            </div>
+            <div
+              className={`global-decision-live-signal lifecycle-signal ${["candidate","shadow-upgraded","confirmed","waiting-close"].includes(liveSignalLifecycle.phase)?"active":"idle"}`}
+              aria-label="实时信号生命周期"
+              aria-live="polite"
+              title={`因果截至 ${formatTime(liveSignalLifecycle.asOf)} · ${liveSignalLifecycle.detail}`}
+            >
+              <span>生命周期</span>
+              <b>{liveSignalLifecycle.label}</b>
+              <small>{liveSignalLifecycle.trail}</small>
             </div>
             <details className="decision-audit-details" open={decisionAuditOpen} onToggle={event=>setDecisionAuditOpen(event.currentTarget.open)}>
               <summary>条件与依据 <b>{decisionConditionsConfirmed}/4</b></summary>
@@ -7831,8 +8276,12 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
     } finally { setRunning(false); setRunMode(null); }
   };
   const fullDayMinutes=source?.minutes ?? [];
+  const replaySimilarityArchive=useMemo(
+    ()=>buildHistoricalSimilarityArchive(source?.intradaySessions??[],{asOfDate:source?.sampleDate??null}),
+    [source?.intradaySessions,source?.sampleDate],
+  );
   const replayCausalObservations=result
-    ? buildPivotAndMacdObservations(fullDayMinutes,source?.sampleDate,result.observations??[],source?.quote.code==="601899",source?.quote.open)
+    ? buildPivotAndMacdObservations(fullDayMinutes,source?.sampleDate,result.observations??[],source?.quote.code==="601899",source?.quote.open,replaySimilarityArchive)
     : [];
   const fullDayPrices=fullDayMinutes.map(point=>point.price);
   const fullDayRangePrices=fullDayMinutes.flatMap(point=>[
@@ -8184,6 +8633,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
               <p>{observationDirectionNote(observation)}；{observation.reason}</p>
               {observation.scoreBreakdown&&<small>三分离证据：方向 {observation.scoreBreakdown.direction}/{observation.scoreBreakdown.thresholds.direction} · 位置 {observation.scoreBreakdown.location}/{observation.scoreBreakdown.thresholds.location} · 触发 {observation.scoreBreakdown.trigger}/{observation.scoreBreakdown.thresholds.trigger}</small>}
               {observation.similarity&&<small>历史相似：{observation.similarity.ready?`${observation.similarity.samples} 个已完成样本 · 10分钟达标 ${(observation.similarity.hitRate??0).toFixed(0)}% · 平均有利 ${(observation.similarity.averageFavorablePct??0).toFixed(2)}%`:`样本 ${observation.similarity.samples} 个，未达最小样本量，仅作观察`}</small>}
+              {observation.observationKind?.startsWith("pivot-")&&<small>概率校准：{observation.probability!==undefined&&observation.calibratedHitRate!==undefined?`${observation.probability}% · ${(observation.calibratedHitRate*100).toFixed(0)}% 历史命中 · ${observation.calibrationSamples??0} 个样本`:`暂不显示（${observation.blockers.find(item=>item.includes("校准"))??"历史样本不足"}）`}</small>}
               {observation.pivotTime&&<small>此前参考：{formatTime(observation.pivotTime)} ¥{observation.pivotPrice?.toFixed(2) ?? "—"} · {observation.pivotLabel ?? pivotState}；提示只在 {formatTime(observation.time)} 确认</small>}
               {closedHorizons.length>0&&<small>研究闭环（未扣费）：{closedHorizons.map(item=>`${item.minutes}分 ${Number(item.returnPct??0)>=0?"+":""}${Number(item.returnPct??0).toFixed(2)}%（MFE +${Number(item.mfePct??0).toFixed(2)}% / MAE ${Number(item.maePct??0).toFixed(2)}%）`).join(" · ")}</small>}
               {fixedOutcome&&closedHorizons.length<fixedOutcome.horizons.length&&<small>尾盘未满时窗保留为“未闭环”，不使用收盘价补结果。</small>}
