@@ -1325,6 +1325,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const queuedAlertEventKeys = useRef<Set<string>>(new Set());
   const lastFormalAlertAtBySide = useRef<Record<string,number>>({});
   const lastCandidateAlertBySide = useRef<Record<string,{at:number;rank:number;time:string}>>({});
+  const lastRiskAlertAtByFingerprint = useRef<Record<string,number>>({});
   const [frozenZijinPreopenPlan,setFrozenZijinPreopenPlan] = useState<{date:string;plan:ReturnType<typeof buildZijinPreopenPricePlan>}|null>(null);
   const cycleStageRef=useRef(cycleStage);
   const openedCycleSideRef=useRef(openedCycleSide);
@@ -1878,10 +1879,36 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : marketSession.live
       ? {tone:"stale",label:"L2：行情中断",detail:`${l2ConsoleNode} · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
-  const incomingMinutePoints = useMemo(
-    () => currentTrial?.minutes?.length ? currentTrial.minutes : currentMarket?.minutes ?? [],
-    [currentTrial,currentMarket?.minutes],
-  );
+  const incomingMinutePoints = useMemo(() => {
+    // The trial quote endpoint intentionally returns only the latest quote.
+    // Full minute history is carried by intradaySessions, so do not let a
+    // quote-only refresh blank the chart after the reference request already
+    // supplied a complete session.
+    const directMinutes=[
+      currentTrial?.minutes,
+      currentMarket?.minutes,
+      marketSnapshots[stock.code]?.minutes,
+    ].find(points=>Boolean(points?.length));
+    if(directMinutes?.length)return directMinutes;
+    const referenceDate=normalizeMarketDate(
+      currentTrial?.sampleDate
+        ??currentMarket?.sampleDate
+        ??currentTrial?.sourceTimestamp
+        ??currentMarket?.sourceTimestamp,
+    );
+    const sessions=[
+      ...(currentTrial?.intradaySessions??[]),
+      ...(currentMarket?.intradaySessions??[]),
+      ...(marketSnapshots[stock.code]?.intradaySessions??[]),
+    ]
+      .filter(session=>session.minutes?.length>0)
+      .filter(session=>{
+        const sessionDate=normalizeMarketDate(session.date);
+        return !referenceDate||!sessionDate||sessionDate<=referenceDate;
+      })
+      .sort((left,right)=>right.date.localeCompare(left.date));
+    return sessions[0]?.minutes??[];
+  },[currentMarket,currentTrial,marketSnapshots,stock.code]);
   const minutePointCacheKey=`${stock.code}:${currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??""}`;
   const minutePointCacheRef=useRef<{key:string;points:typeof incomingMinutePoints}>({key:"",points:[]});
   const rawMinutePoints=useMemo(()=>{
@@ -1973,11 +2000,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       Number.isFinite(point.low)&&Number(point.low)>0?Number(point.low):point.price,
     ]);
     const averageSeries=cumulativeIntradayAverage(minutePoints);
-    const vwapChannelScale=averageSeries.flatMap(price=>[price*.975,price*1.025]);
+    // Match the common A-share intraday scale used by Xueqiu: previous close is
+    // the centre and the largest observed move determines both sides.  VWAP
+    // guide bands are overlays and must not flatten the actual price curve.
     const scale=symmetricIntradayScale(
-      [...prices,...averageSeries,...vwapChannelScale],
+      [...prices,...averageSeries],
       activeQuote?.previousClose,
-      {tickCount:9,minimumPercent:.005,paddingFactor:1.08},
+      {tickCount:9,minimumPercent:.005,paddingFactor:1},
     );
     if(!scale)return null;
     const {min,max}=scale;
@@ -4107,6 +4136,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const now=Date.now();
     let alert:TradeAlertToast={...incoming,id:incoming.id??`alert-${now}-${++alertSequence.current}`,createdAt:incoming.createdAt??new Date(now).toISOString()};
     if(alert.eventKey&&queuedAlertEventKeys.current.has(alert.eventKey))return false;
+    let riskFingerprint:string|null=null;
+    if(alert.level==="risk"){
+      const normalizeFingerprint=(value:string)=>value.replace(/[+-]?\d+(?:\.\d+)?%?/g,"#").replace(/\s+/g," ").trim();
+      riskFingerprint=`${alert.code??"global"}:${normalizeFingerprint(alert.title)}:${normalizeFingerprint(alert.message)}`;
+      const lastQueuedAt=lastRiskAlertAtByFingerprint.current[riskFingerprint]??0;
+      if(now-lastQueuedAt<20*60_000)return false;
+    }
     if(alert.code&&alert.rabbit!=="both"){
       const alertCode=alert.code;
       const delivery=resolveAlertDelivery({previous:deliveredAlertByCode.current[alertCode]??null,next:alert,nowMs:now});
@@ -4114,6 +4150,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       alert={...delivery.alert,id:alert.id,createdAt:alert.createdAt} as TradeAlertToast;
       deliveredAlertByCode.current[alertCode]=alert;
     }
+    if(riskFingerprint)lastRiskAlertAtByFingerprint.current[riskFingerprint]=now;
     if(alert.eventKey){
       if(queuedAlertEventKeys.current.size>1000)queuedAlertEventKeys.current.clear();
       queuedAlertEventKeys.current.add(alert.eventKey);
