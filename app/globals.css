@@ -2745,8 +2745,27 @@
   }
 }
 
-/* Fullscreen chart and marker readability: keep the SVG's native 920:320
-   composition instead of stretching it to the available panel height. */
+/* Keep the chart's native 920:320 composition on desktop instead of
+   stretching it independently in each direction. */
+@media(min-width:761px){
+  .chart-wrap{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .chart-wrap>svg.interactive-intraday-chart{
+    display:block;
+    flex:0 1 auto;
+    width:100%;
+    height:auto;
+    max-height:100%;
+    aspect-ratio:920 / 320;
+    object-fit:contain;
+  }
+}
+
+/* Fullscreen chart and marker readability: keep the same native composition. */
 @media(min-width:761px){
   .workspace.workspace-fullscreen .chart-zone{
     min-height:0;
