@@ -2946,3 +2946,15 @@
     max-height:560px;
   }
 }
+
+/* Trading-desk proportion: keep the price/volume chart dominant while the
+   decision and order-flow panel stays readable at the right. Mobile keeps
+   the existing single-column layout below the desktop breakpoint. */
+@media(min-width:1101px){
+  .workspace,
+  .minimal-ui .workspace,
+  :root[data-theme="light"] .minimal-ui .workspace,
+  :root:not([data-theme="light"]) .minimal-ui .workspace{
+    grid-template-columns:minmax(0,3.6fr) minmax(330px,1fr);
+  }
+}
