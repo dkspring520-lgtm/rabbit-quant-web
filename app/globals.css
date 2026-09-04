@@ -3411,9 +3411,26 @@
   scrollbar-width:thin;
 }
 .app-shell.minimal-ui .chart-tools>*{flex-shrink:0}
+.app-shell.minimal-ui .chart-tools .layer-switches{
+  min-width:max-content;
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+.app-shell.minimal-ui .chart-tools .layer-switches button,
+.app-shell.minimal-ui .chart-tools>.tool-button,
+.app-shell.minimal-ui .chart-tools .live-scan,
+.app-shell.minimal-ui .chart-tools .intraday-only{
+  flex:0 0 auto;
+  white-space:nowrap;
+  word-break:keep-all;
+  writing-mode:horizontal-tb;
+}
 .app-shell.minimal-ui .chart-tools .primary-chart-legend{
   flex:1 1 180px;
   flex-shrink:1;
+}
+@media(min-width:1101px){
+  .app-shell.minimal-ui .chart-tools .intraday-only{display:none}
 }
 .app-shell.minimal-ui .chart-wrap{
   display:flex;
