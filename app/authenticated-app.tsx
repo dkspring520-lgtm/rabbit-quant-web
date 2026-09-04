@@ -60,6 +60,7 @@ import { resolveBacktestStrategyExperiment } from "@/lib/zijin-strategy-experime
 import { resolveHistoricalPreviousClose } from "@/lib/historical-session-anchor.mjs";
 import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePersonalTraining, summarizeTrainingCycles } from "@/lib/personal-replay-training.mjs";
 import { runZijinV29ShadowReplay, runZuoTV1ContextShadowReplay, runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
+import { evaluateZijinShadowExperiments } from "@/lib/zijin-shadow-experiments.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 const PublicLanding = dynamic(() => import("./public-landing"), {
@@ -4524,6 +4525,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const zijinFactorSummary=missingZijinFactors.length
     ? `缺 ${missingZijinFactors.slice(0,2).join("、")}${missingZijinFactors.length>2?` +${missingZijinFactors.length-2}`:""}`
     : "全部确认";
+  const zijinShadowExperiments=useMemo(
+    ()=>isZijinStock
+      ?evaluateZijinShadowExperiments({minutes:minutePoints,index:minutePoints.length-1})
+      :null,
+    [isZijinStock,minutePoints],
+  );
   const zijinShadowV2Progress=useMemo(()=>{
     const shadow=liveL2Status?.forward?.multiFactorTShadow??liveL2Status?.forward?.reverseTShadow;
     const review=shadow?.manualReview;
@@ -6440,6 +6447,33 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <div><span><small>前瞻样本</small><b>{zijinShadowV2Progress.tradingDays}<em>/60日</em></b></span><span><small>有效闭环</small><b>{zijinShadowV2Progress.resolvedCycles}<em>/100笔</em></b></span><span><small>门槛</small><b>{zijinShadowV2Progress.passed}<em>/6项</em></b></span></div>
             </details>
           </section>}
+          {isZijinStock&&zijinShadowExperiments&&<details className="zijin-shadow-experiments research-fold" aria-label="紫金矿业三套影子实验">
+            <summary>
+              <div><span>三套影子实验</span><b>只观察 · 不下单</b><small>{zijinShadowExperiments.asOfTime?`${formatTime(zijinShadowExperiments.asOfTime)} 已更新`:'等待分钟数据'}</small></div>
+              <strong>{zijinShadowExperiments.counts.fiveMinuteExhaustion+zijinShadowExperiments.counts.l2OrderLifecycle+zijinShadowExperiments.counts.firstProbeResponse}<small>次确认</small></strong>
+            </summary>
+            <div className="zijin-shadow-experiment-grid">
+              <article className={zijinShadowExperiments.experiments.fiveMinuteExhaustion.status}>
+                <header><span>5分钟顶背离</span><b>{zijinShadowExperiments.experiments.fiveMinuteExhaustion.score}/{zijinShadowExperiments.experiments.fiveMinuteExhaustion.maxScore}</b></header>
+                <strong>{zijinShadowExperiments.experiments.fiveMinuteExhaustion.confirmed?'反T候选':'继续观察'}</strong>
+                <small>上影线 + 缩量 + MACD背离</small>
+                <em>{zijinShadowExperiments.experiments.fiveMinuteExhaustion.reason}</em>
+              </article>
+              <article className={zijinShadowExperiments.experiments.l2OrderLifecycle.buy.confirmed||zijinShadowExperiments.experiments.l2OrderLifecycle.sell.confirmed?'candidate':zijinShadowExperiments.experiments.l2OrderLifecycle.buy.status}>
+                <header><span>L2挂单确认</span><b>{Math.max(zijinShadowExperiments.experiments.l2OrderLifecycle.buy.score,zijinShadowExperiments.experiments.l2OrderLifecycle.sell.score)}/3</b></header>
+                <strong>{zijinShadowExperiments.experiments.l2OrderLifecycle.buy.confirmed?'正T承接':zijinShadowExperiments.experiments.l2OrderLifecycle.sell.confirmed?'反T压盘':'等待成交确认'}</strong>
+                <small>挂单存活 + 撤单方向 + 真实成交</small>
+                <em>{zijinShadowExperiments.experiments.l2OrderLifecycle.buy.confirmed?zijinShadowExperiments.experiments.l2OrderLifecycle.buy.reason:zijinShadowExperiments.experiments.l2OrderLifecycle.sell.reason}</em>
+              </article>
+              <article className={zijinShadowExperiments.experiments.firstProbeResponse.status}>
+                <header><span>首次探底承接</span><b>{zijinShadowExperiments.experiments.firstProbeResponse.score}/{zijinShadowExperiments.experiments.firstProbeResponse.maxScore}</b></header>
+                <strong>{zijinShadowExperiments.experiments.firstProbeResponse.decision??'等待首次探底'}</strong>
+                <small>承接强弱决定半仓或二探</small>
+                <em>{zijinShadowExperiments.experiments.firstProbeResponse.reason}</em>
+              </article>
+            </div>
+            <footer>实验版本 {zijinShadowExperiments.version} · 只用已出现的分钟/L2数据 · 通过样本外验证后再讨论是否保留</footer>
+          </details>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
             <div className="signal-layer candidate"><span>本股实时观察</span><b>{visibleStockAgentEvaluation?Number(visibleStockAgentEvaluation.status==="candidate"):signalFunnel.currentObservations}<small> 个</small></b><em>{visibleStockAgentEvaluation?`${STOCK_AGENTS.zijin.name} · ${visibleStockAgentEvaluation.title}`:`条件候补 ${signalFunnel.currentCandidates} · 全自选观察 ${signalFunnel.observations}`}</em></div>
             <i>→</i>
