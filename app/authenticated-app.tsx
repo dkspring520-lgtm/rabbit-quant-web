@@ -2112,6 +2112,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     let source:EventSource|null=null;
     let streamWatchdog:number|undefined;
     let lastStreamPayloadAt=Date.now();
+    let lastSuccessfulPayloadAt=Date.now();
+    let consecutivePollFailures=0;
     const closeStream=()=>{
       source?.close();
       source=null;
@@ -2121,6 +2123,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       }
     };
     const applyPayload=(payload:ZijinL2State)=>{
+      lastSuccessfulPayloadAt=Date.now();
+      consecutivePollFailures=0;
       const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
       const stale=payload.status?.stale||payload.meta?.stale;
       if(!active)return;
@@ -2170,7 +2174,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"},{timeoutMs:1_500,key:"zijin-l2-orderflow-poll"});
         const payload=await response.json() as ZijinL2State;
         applyPayload(payload);
-      }catch{if(active)setLiveL2Status({error:"L2 status endpoint unavailable",status:{connected:false,stale:true}})}
+      }catch{
+        consecutivePollFailures+=1;
+        if(active&&consecutivePollFailures>=3&&Date.now()-lastSuccessfulPayloadAt>=5_000){
+          setLiveL2Status(current=>({
+            ...(current??{}),
+            error:"L2 status endpoint unavailable",
+            status:{...current?.status,connected:false,stale:true},
+            meta:{...current?.meta,stale:true},
+          }));
+        }
+      }
       if(active)timer=window.setTimeout(()=>void poll(),marketDataActive?300:60_000);
     };
     const startPolling=()=>{
@@ -2987,6 +3001,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return {...point,changePercent,mainForce};
   },[intradayCursorTime,chartModel,activeQuote?.previousClose,isZijinStock,zijinMainForceTrack.bars]);
   const mainForceCursorX=intradayCursor?.x??null;
+  const latestIntradayDataSlot=useMemo(()=>minutePoints.reduce((latest,point)=>Math.max(latest,aShareMinuteSlot(point.time)),0),[minutePoints]);
+  const clampIntradayViewportToData=(viewport:ChartViewport)=>{
+    const clamped=clampCockpitViewport(viewport);
+    if(!minutePoints.length)return clamped;
+    const visibleMargin=Math.min(12,clamped.span*.15);
+    const latestAllowedStart=Math.max(0,latestIntradayDataSlot-visibleMargin);
+    return clampCockpitViewport({...clamped,start:Math.min(clamped.start,latestAllowedStart)});
+  };
   const intradayLocalPosition=(clientX:number,clientY:number)=>{
     const svg=intradayChartRef.current;
     if(!svg)return null;
@@ -3018,7 +3040,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const zoomIntraday=(factor:number,anchorSlot=chartViewport.start+chartViewport.span/2,anchorRatio=.5)=>{
     setChartViewport(current=>{
       const span=Math.max(COCKPIT_VIEWPORT_MIN_SPAN,Math.min(COCKPIT_VIEWPORT_FULL_SPAN,current.span*factor));
-      return clampCockpitViewport({start:anchorSlot-anchorRatio*span,span});
+      return clampIntradayViewportToData({start:anchorSlot-anchorRatio*span,span});
     });
   };
   const resetIntradayViewport=()=>setChartViewport({start:0,span:COCKPIT_VIEWPORT_FULL_SPAN});
@@ -3037,7 +3059,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const distance=Math.max(12,Math.hypot(pointers[0].x-pointers[1].x,pointers[0].y-pointers[1].y));
         const pinch=chartPinchRef.current;
         const nextSpan=pinch.span*(pinch.distance/distance);
-        setChartViewport(clampCockpitViewport({start:pinch.anchorSlot-pinch.anchorRatio*nextSpan,span:nextSpan}));
+        setChartViewport(clampIntradayViewportToData({start:pinch.anchorSlot-pinch.anchorRatio*nextSpan,span:nextSpan}));
         setChartPanning(true);
         return;
       }
@@ -3048,7 +3070,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         if(Math.abs(delta)>2)drag.moved=true;
         if(drag.moved){
           setChartPanning(true);
-          setChartViewport(clampCockpitViewport({start:drag.startSlot-delta/(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)*drag.startSpan,span:drag.startSpan}));
+          setChartViewport(clampIntradayViewportToData({start:drag.startSlot-delta/(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)*drag.startSpan,span:drag.startSpan}));
           return;
         }
       }
