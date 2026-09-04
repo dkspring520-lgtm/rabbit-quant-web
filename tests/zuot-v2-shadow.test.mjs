@@ -6,10 +6,14 @@ import {
   buildZuoTCandidateEvents,
   buildZuoTShadowDecisions,
   evaluateZuoTShadowRow,
+  evaluateZuoTV1AttackDefenseStructure,
   evaluateZuoTV1ContextShadowDecision,
   runZijinV29ShadowReplay,
   runZuoTV1ContextShadowReplay,
   runZuoTV1ReconstructedReplay,
+  runZuoTV1ThreeWaveShadowReplay,
+  ZUOT_V1_THREE_WAVE_SHADOW_EXPERIMENT_ID,
+  ZUOT_V1_THREE_WAVE_SHADOW_CONFIG,
   selectSpacedZuoTSignals,
   simulateZuoTShadowCycle,
   ZUOT_V2_CORE_FACTOR_IDS,
@@ -363,6 +367,7 @@ test("research safety flags prohibit automatic production promotion", () => {
   assert.equal(ZUOT_V2_SHADOW_SAFETY.canPromoteAutomatically, false);
   assert.equal(ZUOT_V2_SHADOW_SAFETY.requiresHumanApproval, true);
   assert.equal(ZUOT_V1_CONTEXT_SHADOW_SAFETY.consumesFrozenAssessmentOnly, true);
+  assert.equal(ZUOT_V1_CONTEXT_SHADOW_SAFETY.usesCausalAttackDefenseGate, true);
   assert.equal(ZUOT_V1_CONTEXT_SHADOW_SAFETY.canElevateBaselineCandidate, false);
 });
 
@@ -412,6 +417,106 @@ test("V1 context shadow rejects missing, future or explicitly vetoed assessments
   assert.ok(future.rejectionReasons.includes("context-noncausal-assessment"));
   assert.equal(vetoed.formal, false);
   assert.ok(vetoed.rejectionReasons.includes("context-explicit-veto"));
+});
+
+test("V1 attack-defense shadow keeps a weak rebound observational while support holds", () => {
+  const decision = {
+    date: "20260814",
+    time: "1006",
+    index: 6,
+    direction: "reverseT",
+    formal: true,
+    rejectionReasons: [],
+  };
+  const minutes = [100, 100.05, 100.02, 100.08, 100.03, 100.04, 100.01].map((price, index) => ({
+    time: `10${String(index).padStart(2, "0")}`,
+    price,
+    high: price + 0.02,
+    low: price - 0.02,
+    volume: 1000,
+  }));
+  const attackDefense = evaluateZuoTV1AttackDefenseStructure({
+    decision,
+    minutes,
+    rows: [{ index: 6, factors: { "price.return_5m": 0.001, "technical.macd_histogram_delta": -0.001 } }],
+  });
+  const evaluated = evaluateZuoTV1ContextShadowDecision({
+    decision,
+    assessment: validContextAssessment({ direction: "reverseT", asOfIndex: 6 }),
+    attackDefense,
+  });
+  assert.equal(attackDefense.attackWeak, true);
+  assert.equal(attackDefense.supportLost, false);
+  assert.equal(attackDefense.macdBearish, true);
+  assert.equal(attackDefense.confirmed, false);
+  assert.equal(evaluated.formal, false);
+  assert.ok(evaluated.rejectionReasons.includes("context-support-intact"));
+});
+
+test("V1 attack-defense shadow confirms reverse-T only after a causal failed retest", () => {
+  const decision = {
+    date: "20260814",
+    time: "1006",
+    index: 6,
+    direction: "reverseT",
+    formal: true,
+    rejectionReasons: [],
+  };
+  const minutes = [
+    { time: "1000", price: 100, high: 100.03, low: 100, volume: 1000 },
+    { time: "1001", price: 100.05, high: 100.08, low: 100.01, volume: 1000 },
+    { time: "1002", price: 100.02, high: 100.06, low: 100, volume: 1000 },
+    { time: "1003", price: 100.08, high: 100.1, low: 100.02, volume: 1000 },
+    { time: "1004", price: 99.8, high: 100, low: 99.78, volume: 1000 },
+    { time: "1005", price: 99.94, high: 100.02, low: 99.9, volume: 1000 },
+    { time: "1006", price: 99.85, high: 99.96, low: 99.82, volume: 1000 },
+  ];
+  const rows = [{ index: 6, factors: { "price.return_5m": 0.001, "technical.macd_histogram_delta": -0.001 } }];
+  const attackDefense = evaluateZuoTV1AttackDefenseStructure({ decision, minutes, rows });
+  const evaluated = evaluateZuoTV1ContextShadowDecision({
+    decision,
+    assessment: validContextAssessment({ direction: "reverseT", asOfIndex: 6 }),
+    attackDefense,
+  });
+  const changedFuture = evaluateZuoTV1AttackDefenseStructure({
+    decision,
+    rows: [...rows, { index: 7, factors: { "price.return_5m": 99, "technical.macd_histogram_delta": 99 } }],
+    minutes: [...minutes, { time: "1007", price: 999, high: 999, low: 1, volume: 999999 }],
+  });
+  assert.equal(attackDefense.supportLost, true);
+  assert.equal(attackDefense.retestFailed, true);
+  assert.equal(attackDefense.volumeConfirmed, false);
+  assert.equal(attackDefense.confirmed, true);
+  assert.equal(evaluated.formal, true);
+  assert.deepEqual(changedFuture, attackDefense);
+});
+
+test("V1 attack-defense shadow accepts a volume-confirmed break without relying on MACD", () => {
+  const decision = {
+    date: "20260814",
+    time: "1006",
+    index: 6,
+    direction: "reverseT",
+    formal: true,
+    rejectionReasons: [],
+  };
+  const minutes = [100, 100.05, 100.02, 100.08, 100.01, 100, 99.8].map((price, index) => ({
+    time: `10${String(index).padStart(2, "0")}`,
+    price,
+    high: price + 0.02,
+    low: price - 0.02,
+    volume: index === 6 ? 3000 : 1000,
+  }));
+  const attackDefense = evaluateZuoTV1AttackDefenseStructure({
+    decision,
+    minutes,
+    rows: [{ index: 6, factors: { "price.return_5m": -0.001, "technical.macd_histogram_delta": 0.001 } }],
+  });
+  assert.equal(attackDefense.supportLost, true);
+  assert.equal(attackDefense.retestFailed, false);
+  assert.equal(attackDefense.volumeConfirmed, true);
+  assert.equal(attackDefense.macdBearish, false);
+  assert.equal(attackDefense.confirmed, true);
 });
 
 test("V1 and V2 comparisons share exactly the same cost and exit configuration", () => {
@@ -589,6 +694,62 @@ test("V1 context shadow replay needs a frozen causal assessment before trading",
   assert.ok(withoutAssessment.diagnostics.contextMissing > 0);
 });
 
+test("V1 context replay records attack-defense as the existing reverse-T reason", () => {
+  const points = [
+    { time: "1000", price: 100, high: 100.03, low: 100, volume: 1000 },
+    { time: "1001", price: 100.05, high: 100.08, low: 100.01, volume: 1000 },
+    { time: "1002", price: 100.02, high: 100.06, low: 100, volume: 1000 },
+    { time: "1003", price: 100.08, high: 100.1, low: 100.02, volume: 1000 },
+    { time: "1004", price: 99.8, high: 100, low: 99.78, volume: 1000 },
+    { time: "1005", price: 99.94, high: 100.02, low: 99.9, volume: 1000 },
+    {
+      time: "1006",
+      price: 99.85,
+      high: 99.96,
+      low: 99.82,
+      volume: 1000,
+      v1ContextAssessment: validContextAssessment({ direction: "reverseT", asOfIndex: 6 }),
+    },
+    { time: "1007", price: 99.65, high: 99.86, low: 99.62, volume: 1000 },
+  ];
+  const reverseFactors = v1ReplayFactors({
+    "vwap.bias": 0.002,
+    "price.return_5m": 0.001,
+    "price.session_return": 0.002,
+    "volume.price_alignment_5m": -0.1,
+    "technical.macd_histogram": 0.0001,
+    "technical.macd_histogram_delta": -0.0001,
+    "orderflow.active_buy_imbalance": -0.2,
+    "orderflow.ofi_change_3m": -0.1,
+    "technical.rsi14": 0.3,
+    "technical.kdj_j9": 0.3,
+    "technical.bollinger_position_20": 0.3,
+    "vwap.persistence_5m": 0.1,
+    "volume.momentum_3_15": -0.1,
+    "volume.dry_up_5_20": 0.2,
+  });
+  const rows = points.map((point, index) => ({
+    date: "20260814",
+    time: point.time,
+    index,
+    price: point.price,
+    factors: index === 6 ? reverseFactors : v1ReplayFactors({ "vwap.bias": 0 }),
+  }));
+  const result = runZuoTV1ContextShadowReplay(replaySession(points), {
+    factorEngine: replayFactorEngine(rows),
+    feeRate: 0,
+    slippage: 0,
+    minCommission: false,
+    baseShares: 1600,
+    sellable: 1600,
+  });
+  assert.equal(result.trades, 1);
+  assert.equal(result.actions[0].direction, "反T");
+  assert.match(result.actions[0].reason, /攻弱且支撑失守/);
+  assert.equal(result.diagnostics.attackDefenseConfirmed, 1);
+  assert.match(result.observations.find(item => item.time === "1006").reason, /MACD↓仅作辅助/);
+});
+
 test("V1 reverse-T confirms a stalled high only when volume decays", () => {
   const session = replaySession([
     { time: "1000", price: 35 },
@@ -764,6 +925,277 @@ function replayFactorEngine(rows) {
     },
   };
 }
+
+// Build a small, deterministic three-wave fixture.  The prices alternate
+// between directional legs; the final bar is the meaningful reversal that
+// confirms the third leg.  All factor values are attached to the row that is
+// available at that point in the replay, so the fixture remains causal.
+function threeWaveRows(prices, {
+  direction = "positiveT",
+  vwapBias,
+  macdByIndex = {},
+  times = [],
+  factorByIndex = {},
+} = {}) {
+  const positive = direction === "positiveT";
+  const defaultBias = positive ? -0.003 : 0.003;
+  const defaultMacd = positive ? -0.007 : 0.007;
+  return prices.map((price, index) => {
+    const minute = 600 + index;
+    const defaultTime = `${Math.floor(minute / 60)}${String(minute % 60).padStart(2, "0")}`;
+    const factors = {
+      "vwap.bias": vwapBias ?? defaultBias,
+      "technical.macd_histogram": Object.hasOwn(macdByIndex, index)
+        ? macdByIndex[index]
+        : defaultMacd,
+      "technical.macd_histogram_delta": 0,
+      "volatility.atr14": 0.001,
+      "volume.ratio_5_20": 1,
+      "volume.price_alignment_5m": 0,
+      "volume.dry_up_5_20": 0.2,
+      "volume.momentum_3_15": 0,
+      "price.return_5m": positive ? -0.001 : 0.001,
+      "vwap.persistence_5m": 0,
+      "price.session_return": 0,
+      ...(factorByIndex[index] ?? {}),
+    };
+    return {
+      date: "20260814",
+      time: times[index] ?? defaultTime,
+      index,
+      price,
+      high: price,
+      low: price,
+      factors,
+    };
+  });
+}
+
+function threeWaveDecisions(prices, options = {}) {
+  const rows = threeWaveRows(prices, options);
+  return buildZuoTShadowDecisions([{
+    date: "20260814",
+    session: { date: "20260814", minutes: rows },
+    rows,
+  }], {
+    experimentId: ZUOT_V1_THREE_WAVE_SHADOW_EXPERIMENT_ID,
+    config: options.config,
+  });
+}
+
+const POSITIVE_THREE_WAVE_PRICES = [100, 98, 99, 97.5, 98.3, 97, 97.3];
+const REVERSE_THREE_WAVE_PRICES = [100, 102, 101, 102.5, 101.7, 103, 102.7];
+
+test("three-wave shadow confirms a positive-T exhaustion only after all gates", () => {
+  const decisions = threeWaveDecisions(POSITIVE_THREE_WAVE_PRICES, {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  });
+  const decision = decisions.find(item => item.direction === "positiveT" && item.index === 6);
+  assert.ok(decision);
+  assert.equal(decision.candidate, true);
+  assert.equal(decision.formal, true);
+  assert.equal(decision.v1Structure.threeWave.count, 3);
+  assert.equal(decision.v1Structure.threeWave.completed, true);
+  assert.equal(decision.v1Structure.vwapDeviation, true);
+  assert.equal(decision.v1Structure.waveDivergence, true);
+});
+
+test("three-wave shadow confirms a reverse-T exhaustion symmetrically", () => {
+  const decisions = threeWaveDecisions(REVERSE_THREE_WAVE_PRICES, {
+    direction: "reverseT",
+    macdByIndex: { 1: 0.01, 5: 0.005 },
+  });
+  const decision = decisions.find(item => item.direction === "reverseT" && item.index === 6);
+  assert.ok(decision);
+  assert.equal(decision.candidate, true);
+  assert.equal(decision.formal, true);
+  assert.equal(decision.v1Structure.threeWave.count, 3);
+  assert.equal(decision.v1Structure.threeWave.completed, true);
+  assert.equal(decision.v1Structure.vwapDeviation, true);
+  assert.equal(decision.v1Structure.waveDivergence, true);
+});
+
+test("two completed waves are insufficient for a three-wave candidate", () => {
+  const decisions = threeWaveDecisions([100, 98, 99, 97.5, 98.3], {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 3: -0.005 },
+  });
+  assert.equal(decisions.some(item => item.direction === "positiveT" && item.index === 4), false);
+});
+
+test("missing MACD keeps a three-wave candidate observational, never formal", () => {
+  const decisions = threeWaveDecisions(POSITIVE_THREE_WAVE_PRICES, {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 5: null },
+  });
+  const decision = decisions.find(item => item.direction === "positiveT" && item.index === 6);
+  assert.ok(decision);
+  assert.equal(decision.candidate, true);
+  assert.equal(decision.formal, false);
+  assert.equal(decision.v1Structure.threeWave.macdDivergence, false);
+  assert.ok(decision.rejectionReasons.includes("three-wave-macd-divergence-unconfirmed"));
+});
+
+test("VWAP deviation below the shadow threshold does not create a candidate", () => {
+  const decisions = threeWaveDecisions(POSITIVE_THREE_WAVE_PRICES, {
+    direction: "positiveT",
+    vwapBias: -0.001,
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  });
+  assert.equal(decisions.some(item => item.direction === "positiveT" && item.index === 6), false);
+});
+
+test("a sub-threshold reversal bar cannot fabricate a third-wave confirmation", () => {
+  const decisions = threeWaveDecisions([100, 98, 99, 97.5, 98.3, 97, 97.01], {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  });
+  assert.equal(decisions.some(item => item.direction === "positiveT" && item.index === 6), false);
+});
+
+test("non-weakening waves are rejected even when the reversal and VWAP gates pass", () => {
+  const decisions = threeWaveDecisions([100, 98, 99, 97, 98, 94, 94.5], {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  });
+  // buildZuoTShadowDecisions intentionally returns candidate rows only.
+  // Therefore a non-weakening sequence must disappear from the candidate set.
+  assert.equal(decisions.some(item => item.direction === "positiveT"), false);
+});
+
+test("price and MACD divergence must both be strict; either missing blocks formal", () => {
+  const noPriceDivergence = threeWaveDecisions([100, 98, 99, 97.5, 98.3, 98.1, 98.4], {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  }).find(item => item.direction === "positiveT" && item.index === 6);
+  assert.ok(noPriceDivergence);
+  assert.equal(noPriceDivergence.candidate, true);
+  assert.equal(noPriceDivergence.formal, false);
+  assert.equal(noPriceDivergence.v1Structure.threeWave.priceDivergence, false);
+  assert.equal(noPriceDivergence.v1Structure.threeWave.macdDivergence, true);
+
+  const equalMacd = threeWaveDecisions(POSITIVE_THREE_WAVE_PRICES, {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 5: -0.01 },
+  }).find(item => item.direction === "positiveT" && item.index === 6);
+  assert.ok(equalMacd);
+  assert.equal(equalMacd.candidate, true);
+  assert.equal(equalMacd.formal, false);
+  assert.equal(equalMacd.v1Structure.threeWave.priceDivergence, true);
+  assert.equal(equalMacd.v1Structure.threeWave.macdDivergence, false);
+});
+
+test("missing prices and time gaps reset wave state instead of bridging data", () => {
+  const missingPrice = threeWaveDecisions([100, 98, 99, 97.5, null, 98.3, 97, 97.3], {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 6: -0.005 },
+  });
+  assert.equal(missingPrice.some(item => item.direction === "positiveT"), false);
+
+  const timeGap = threeWaveDecisions(POSITIVE_THREE_WAVE_PRICES, {
+    direction: "positiveT",
+    times: ["1000", "1001", "1002", "1003", "1005", "1006", "1007"],
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  });
+  assert.equal(timeGap.some(item => item.direction === "positiveT"), false);
+});
+
+test("the A-share lunch break resets wave state", () => {
+  const timeGap = threeWaveDecisions(POSITIVE_THREE_WAVE_PRICES, {
+    direction: "positiveT",
+    times: ["1127", "1128", "1129", "1300", "1301", "1302", "1303"],
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  });
+  assert.equal(timeGap.some(item => item.direction === "positiveT"), false);
+});
+
+test("future rows cannot change a fixed three-wave decision", () => {
+  const baseRows = threeWaveRows(POSITIVE_THREE_WAVE_PRICES, {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  });
+  const futureRows = [
+    ...baseRows,
+    {
+      ...baseRows.at(-1),
+      index: 7,
+      time: "1007",
+      price: 1,
+      factors: {
+        ...baseRows.at(-1).factors,
+        "vwap.bias": 99,
+        "technical.macd_histogram": 99,
+      },
+    },
+  ];
+  const build = rows => buildZuoTShadowDecisions([{
+    date: "20260814",
+    session: { date: "20260814", minutes: rows },
+    rows,
+  }], { experimentId: ZUOT_V1_THREE_WAVE_SHADOW_EXPERIMENT_ID });
+  const first = build(baseRows).find(item => item.direction === "positiveT" && item.index === 6);
+  const second = build(futureRows).find(item => item.direction === "positiveT" && item.index === 6);
+  assert.ok(first);
+  assert.deepEqual(second, first);
+});
+
+test("three-wave experiment remains research-only and shadow-only", () => {
+  assert.equal(ZUOT_V1_THREE_WAVE_SHADOW_EXPERIMENT_ID, "v1-three-wave-shadow");
+  assert.equal(ZUOT_V1_THREE_WAVE_SHADOW_CONFIG.minimumCompletedWaves, 3);
+  assert.equal(ZUOT_V2_SHADOW_SAFETY.researchOnly, true);
+  assert.equal(ZUOT_V2_SHADOW_SAFETY.shadowOnly, true);
+  assert.equal(ZUOT_V2_SHADOW_SAFETY.affectsSmartT, false);
+  assert.equal(ZUOT_V2_SHADOW_SAFETY.affectsTradingAdapter, false);
+  assert.equal(ZUOT_V2_SHADOW_SAFETY.canPromoteAutomatically, false);
+});
+
+test("three-wave replay runner agrees with the direct causal decision builder", () => {
+  const fixture = threeWaveRows(POSITIVE_THREE_WAVE_PRICES, {
+    direction: "positiveT",
+    macdByIndex: { 1: -0.01, 5: -0.005 },
+  });
+  const future = {
+    ...fixture.at(-1),
+    index: fixture.length,
+    time: "1450",
+    price: 98.5,
+    high: 98.5,
+    low: 98.5,
+  };
+  const rows = [...fixture, future];
+  const factorEngine = {
+    computeSession(input) {
+      return { session: input, rows };
+    },
+  };
+  const direct = buildZuoTShadowDecisions([{
+    date: "20260814",
+    session: { date: "20260814", minutes: rows },
+    rows,
+  }], { experimentId: ZUOT_V1_THREE_WAVE_SHADOW_EXPERIMENT_ID });
+  const runner = runZuoTV1ThreeWaveShadowReplay({
+    date: "20260814",
+    code: "601899",
+    previousClose: 100,
+    minutes: rows,
+  }, {
+    factorEngine,
+    feeRate: 0,
+    slippage: 0,
+    minCommission: false,
+    baseShares: 1600,
+    sellable: 1600,
+    maximumSignalsPerDayPerDirection: 1,
+  });
+  const directSignal = direct.find(item => item.direction === "positiveT" && item.index === 6);
+  const runnerObservation = runner.observations.find(item => item.direction === "正T" && item.time === "1006");
+  assert.ok(directSignal?.formal);
+  assert.ok(runnerObservation);
+  assert.equal(runnerObservation.executable, true);
+  assert.equal(runnerObservation.price, directSignal.price);
+  assert.equal(runner.diagnostics.formalSignals, 1);
+});
 
 test("V2.9 is isolated to Zijin Mining", () => {
   assert.throws(

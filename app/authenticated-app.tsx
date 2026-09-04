@@ -3765,6 +3765,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const rank=(strategy:"v29"|"v1")=>strategy==="v29"?0:1;
       return rank(left.strategy)-rank(right.strategy)||left.action.time.localeCompare(right.action.time);
     });
+    const labeledSignalEpisodes=actions
+      .filter(marker=>marker.labelRendered)
+      .map(marker=>({time:marker.action.time,isSell:marker.isSell}));
     const shadowActions=selectedShadowActions.flatMap(({action,strategy},index)=>{
       const point=pointPosition(action.time,action.price,true);
       if(!point)return [];
@@ -3772,7 +3775,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const label=strategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action);
       const chartLabel=shadowChartActionLabel(action);
       const labelWidth=Math.max(38,chartLabel.length*8+14);
-      const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,17,isSell);
+      const duplicatesHigherPriority=labeledSignalEpisodes.some(marker=>marker.isSell===isSell
+        &&(isRecentCausalEvent(action.time,marker.time,20)||isRecentCausalEvent(marker.time,action.time,20)));
+      const placed=duplicatesHigherPriority
+        ?{labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false}
+        :reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,17,isSell);
+      if(placed.labelRendered)labeledSignalEpisodes.push({time:action.time,isSell});
       return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action,strategy}];
     });
     const observationKey=(observation:ReplayObservation)=>observation.candidateKey??observation.watchKey??`${observation.time}:${observation.direction}:${observation.observationKind??observation.stage??"watch"}`;
@@ -3783,6 +3791,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const bottomLocalPivotKeys=selectPivotObservationKeys(observationLayer,"pivot-bottom","local",1,70,30,minutePoints,activeQuote?.open);
     const observationPriority=(observation:ChartObservation)=>observation.strategy==="closure"?0:observation.strategy==="v29"?1:observation.strategy==="v1"?2:3;
     const orderedDurableObservations=durableVisibleChartObservations.filter(observation=>strategyLayerVisible(observation.strategy)).sort((left,right)=>observationPriority(left)-observationPriority(right)||left.time.localeCompare(right.time));
+    const labeledObservationEpisodes=[...labeledSignalEpisodes];
     const observations=orderedDurableObservations.flatMap((observation,index)=>{
       const pivotInfo=observation.strategy==="observation"&&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
         ?pivotPresentation(observation,minutePoints,activeQuote?.open)
@@ -3838,10 +3847,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         &&pivotInfo?.scope==="absolute"
         &&pivotInfo?.probabilityEligible!==true
         &&pivotInfo?.openingAnchor!==true;
-      const labelRendered=qualified&&!lowConfidencePivot;
+      const auxiliaryDotOnly=observation.strategy==="observation"
+        &&(observation.observationKind==="macd"||pivotScope==="local");
+      const duplicatesHigherPriority=labeledObservationEpisodes.some(marker=>marker.isSell===isSell
+        &&(isRecentCausalEvent(observation.time,marker.time,20)||isRecentCausalEvent(marker.time,observation.time,20)));
+      const labelRendered=qualified&&!lowConfidencePivot&&!auxiliaryDotOnly&&!duplicatesHigherPriority;
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
         : {labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false};
+      if(placed.labelRendered)labeledObservationEpisodes.push({time:observation.time,isSell});
       return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,fullLabel,labelWidth,labelVisible,observation,strategy:observation.strategy}];
     });
     // Every delivered candidate reminder is evidence, not just the latest
@@ -4307,7 +4321,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       signal:v1ContextActionLabel(latestAction),
       tone:"confirmed",
       summary:`已回放 ${minutePoints.length} 分钟 · ${hintCount} 个提示点`,
-      detail:`${formatTime(latestAction.time)} 形成情境确认；仅作只读参考，不进入正式闭环。`,
+      detail:`${formatTime(latestAction.time)} ${latestAction.reason??"形成情境确认"}；不进入正式闭环。`,
     };
     if(latestObservation)return {
       signal:latestObservation.direction==="反T"?"V1 反T观察":"V1 正T观察",
@@ -6069,7 +6083,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-3.5} y={marker.y-3.5} width="7" height="7" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y-2} ${marker.x+4.5},${marker.y-2} ${marker.x},${marker.y+4.5}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y+2} ${marker.x+4.5},${marker.y+2} ${marker.x},${marker.y-4.5}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>})}
-              {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} ${marker.labelRendered?"with-label":"dot-only"}`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
+              {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} ${marker.labelRendered?"with-label":"dot-only"}`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · ${marker.action.reason??"影子参考，不可执行"}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{marker.action.reason??marker.label}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></>}<circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/></g>)}
               {intradayMarkerLayout.manualTrades.map(marker=><g className={`manual-trade-marker ${marker.isSell?"sell":"buy"}`} key={`manual-${marker.row.id}`}><title>{`${marker.row.time??marker.time} · ${marker.row.side}模拟成交 · ¥${marker.row.price.toFixed(2)} · ${marker.row.quantity.toLocaleString("zh-CN")}股`}</title><circle className="manual-trade-anchor" cx={marker.x} cy={marker.y} r="3"/><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+4:marker.labelY-12} className="marker-label-leader"/><circle className="manual-trade-badge" cx={marker.labelX} cy={marker.labelY-4} r="8"/><text x={marker.labelX} y={marker.labelY-1} textAnchor="middle">{marker.label}</text></g>)}
