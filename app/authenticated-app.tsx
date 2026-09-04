@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import type { ZijinFactorLifecycle } from "./zijin-factor-lifecycle-panel";
@@ -82,6 +82,43 @@ const LIVE_CHART = Object.freeze({
   volumeBottom: 300,
 });
 
+type CockpitLayoutPreset="trading"|"review"|"research";
+type ChartViewport={start:number;span:number};
+type CockpitLayoutSnapshot={
+  annotation:"full"|"compact";
+  indicators:boolean;
+  signals:boolean;
+  formalSignals:boolean;
+  v29Signals:boolean;
+  v1Signals:boolean;
+  pricePlan:boolean;
+  volume:boolean;
+  rabbit:boolean;
+  decisionMode:"focus"|"all";
+  panelWidth:number;
+  panelCollapsed:boolean;
+  orderFlowHeight:number;
+  viewport:ChartViewport;
+};
+
+const COCKPIT_VIEWPORT_MIN_SPAN=30;
+const COCKPIT_VIEWPORT_FULL_SPAN=240;
+const clampCockpitViewport=(viewport:ChartViewport):ChartViewport=>{
+  const span=Math.max(COCKPIT_VIEWPORT_MIN_SPAN,Math.min(COCKPIT_VIEWPORT_FULL_SPAN,Number(viewport.span)||COCKPIT_VIEWPORT_FULL_SPAN));
+  const start=Math.max(0,Math.min(COCKPIT_VIEWPORT_FULL_SPAN-span,Number(viewport.start)||0));
+  return {start,span};
+};
+const cockpitSlotLabel=(slot:number)=>{
+  const safe=Math.max(0,Math.min(COCKPIT_VIEWPORT_FULL_SPAN,Math.round(slot)));
+  const totalMinutes=safe<=120?9*60+30+safe:13*60+(safe-120);
+  return `${String(Math.floor(totalMinutes/60)).padStart(2,"0")}:${String(totalMinutes%60).padStart(2,"0")}`;
+};
+const DEFAULT_COCKPIT_LAYOUTS:Record<CockpitLayoutPreset,CockpitLayoutSnapshot>={
+  trading:{annotation:"compact",indicators:true,signals:true,formalSignals:true,v29Signals:false,v1Signals:false,pricePlan:true,volume:true,rabbit:false,decisionMode:"focus",panelWidth:380,panelCollapsed:false,orderFlowHeight:130,viewport:{start:0,span:240}},
+  review:{annotation:"full",indicators:true,signals:true,formalSignals:true,v29Signals:true,v1Signals:true,pricePlan:true,volume:true,rabbit:false,decisionMode:"all",panelWidth:420,panelCollapsed:false,orderFlowHeight:155,viewport:{start:0,span:240}},
+  research:{annotation:"full",indicators:true,signals:true,formalSignals:true,v29Signals:true,v1Signals:true,pricePlan:true,volume:true,rabbit:true,decisionMode:"all",panelWidth:480,panelCollapsed:false,orderFlowHeight:180,viewport:{start:0,span:240}},
+};
+
 const liveChartX = (time:string|number|null|undefined) =>
   intradayChartX(time, LIVE_CHART.plotLeft, LIVE_CHART.plotRight - LIVE_CHART.plotLeft);
 
@@ -109,13 +146,6 @@ const formatLiveSecondTimestamp = (timestamp:number) => {
     date:`${read("year")}-${read("month")}-${read("day")}`,
     time:`${hour}${minute}${second}`,
   };
-};
-
-const liveChartSecondX = (time:string) => {
-  const match=String(time).match(/^(\d{2})(\d{2})(\d{2})$/);
-  if(!match)return liveChartX(time);
-  const minuteSlot=aShareMinuteSlot(`${match[1]}${match[2]}`);
-  return liveChartSlotX(minuteSlot+Number(match[3])/60);
 };
 
 const liveChartPriceY = (price:number, min:number, max:number) => {
@@ -1782,14 +1812,26 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [eventRadar, setEventRadar] = useState<EventRadarResponse | null>(null);
   const [eventRadarError, setEventRadarError] = useState("");
   const [starredRevision, setStarredRevision] = useState(0);
-  const [indicatorsVisible, setIndicatorsVisible] = useState(true);
-  const [signalLayerVisible,setSignalLayerVisible]=useState(true);
-  const [chartAnnotationMode,setChartAnnotationMode]=useState<"full"|"compact">(()=>{
-    try{return localStorage.getItem("rabbit-chart-annotation-mode")==="compact"?"compact":"full"}catch{return "full"}
+  const [initialCockpitUi] = useState<Partial<CockpitLayoutSnapshot>>(()=>{
+    try{return JSON.parse(localStorage.getItem("rabbit-cockpit-ui-state")??"{}") as Partial<CockpitLayoutSnapshot>}catch{return {}}
   });
-  const [pricePlanLayerVisible,setPricePlanLayerVisible]=useState(true);
-  const [volumeLayerVisible,setVolumeLayerVisible]=useState(true);
+  const [cockpitLayoutPreset,setCockpitLayoutPreset]=useState<CockpitLayoutPreset>(()=>{
+    try{const value=localStorage.getItem("rabbit-cockpit-layout-active");return value==="review"||value==="research"?value:"trading"}catch{return "trading"}
+  });
+  const [layoutFeedback,setLayoutFeedback]=useState("");
+  const [indicatorsVisible, setIndicatorsVisible] = useState(initialCockpitUi.indicators??true);
+  const [signalLayerVisible,setSignalLayerVisible]=useState(initialCockpitUi.signals??true);
+  const [formalSignalVisible,setFormalSignalVisible]=useState(initialCockpitUi.formalSignals??true);
+  const [v29SignalVisible,setV29SignalVisible]=useState(initialCockpitUi.v29Signals??false);
+  const [v1SignalVisible,setV1SignalVisible]=useState(initialCockpitUi.v1Signals??false);
+  const [chartAnnotationMode,setChartAnnotationMode]=useState<"full"|"compact">(()=>{
+    if(initialCockpitUi.annotation)return initialCockpitUi.annotation;
+    try{return localStorage.getItem("rabbit-chart-annotation-mode")==="full"?"full":"compact"}catch{return "compact"}
+  });
+  const [pricePlanLayerVisible,setPricePlanLayerVisible]=useState(initialCockpitUi.pricePlan??true);
+  const [volumeLayerVisible,setVolumeLayerVisible]=useState(initialCockpitUi.volume??true);
   const [rabbitTrackerVisible,setRabbitTrackerVisible]=useState(()=>{
+    if(initialCockpitUi.rabbit!==undefined)return initialCockpitUi.rabbit;
     try{return localStorage.getItem("rabbit-chart-tracker-visible")!=="false"}catch{return true}
   });
   const [tEntryPrice,setTEntryPrice]=useState("");
@@ -1802,13 +1844,22 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [decisionAuditOpen,setDecisionAuditOpen]=useState(false);
   const [tCalculatorOpen,setTCalculatorOpen]=useState(false);
   const [showAllPriceLevels,setShowAllPriceLevels]=useState(false);
-  const [decisionZoneMode,setDecisionZoneMode]=useState<"focus"|"all">("focus");
+  const [decisionZoneMode,setDecisionZoneMode]=useState<"focus"|"all">(initialCockpitUi.decisionMode??"focus");
+  const [decisionPanelWidth,setDecisionPanelWidth]=useState(()=>Math.max(320,Math.min(520,Number(initialCockpitUi.panelWidth)||380)));
+  const [decisionPanelCollapsed,setDecisionPanelCollapsed]=useState(initialCockpitUi.panelCollapsed??false);
+  const [orderFlowHeight,setOrderFlowHeight]=useState(()=>Math.max(110,Math.min(220,Number(initialCockpitUi.orderFlowHeight)||130)));
+  const [chartViewport,setChartViewport]=useState<ChartViewport>(()=>clampCockpitViewport(initialCockpitUi.viewport??{start:0,span:240}));
+  const [chartPanning,setChartPanning]=useState(false);
   const [draggedStockCode, setDraggedStockCode] = useState<string | null>(null);
   const [dragOverStockCode, setDragOverStockCode] = useState<string | null>(null);
   const draggedStockCodeRef = useRef<string | null>(null);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const intradayChartRef = useRef<SVGSVGElement | null>(null);
+  const decisionPanelResizeRef=useRef<{pointerId:number;startX:number;startWidth:number}|null>(null);
+  const chartPanRef=useRef<{pointerId:number;startX:number;startSlot:number;startSpan:number;moved:boolean}|null>(null);
+  const chartPointersRef=useRef<Map<number,{x:number;y:number}>>(new Map());
+  const chartPinchRef=useRef<{distance:number;span:number;anchorSlot:number;anchorRatio:number}|null>(null);
   const [intradayCursorTime,setIntradayCursorTime]=useState<string|null>(null);
   const [tShareOpen,setTShareOpen]=useState(false);
   const [tShareQrEnabled,setTShareQrEnabled]=useState(true);
@@ -1821,6 +1872,57 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   useEffect(()=>{
     try{localStorage.setItem("rabbit-chart-annotation-mode",chartAnnotationMode)}catch{}
   },[chartAnnotationMode]);
+  const cockpitLayoutSnapshot=useMemo<CockpitLayoutSnapshot>(()=>({
+    annotation:chartAnnotationMode,
+    indicators:indicatorsVisible,
+    signals:signalLayerVisible,
+    formalSignals:formalSignalVisible,
+    v29Signals:v29SignalVisible,
+    v1Signals:v1SignalVisible,
+    pricePlan:pricePlanLayerVisible,
+    volume:volumeLayerVisible,
+    rabbit:rabbitTrackerVisible,
+    decisionMode:decisionZoneMode,
+    panelWidth:decisionPanelWidth,
+    panelCollapsed:decisionPanelCollapsed,
+    orderFlowHeight,
+    viewport:chartViewport,
+  }),[chartAnnotationMode,chartViewport,decisionPanelCollapsed,decisionPanelWidth,decisionZoneMode,formalSignalVisible,indicatorsVisible,orderFlowHeight,pricePlanLayerVisible,rabbitTrackerVisible,signalLayerVisible,v1SignalVisible,v29SignalVisible,volumeLayerVisible]);
+  useEffect(()=>{
+    try{
+      localStorage.setItem("rabbit-cockpit-ui-state",JSON.stringify(cockpitLayoutSnapshot));
+      localStorage.setItem("rabbit-cockpit-layout-active",cockpitLayoutPreset);
+    }catch{}
+  },[cockpitLayoutPreset,cockpitLayoutSnapshot]);
+  const applyCockpitLayoutPreset=(preset:CockpitLayoutPreset)=>{
+    let saved:Partial<CockpitLayoutSnapshot>={};
+    try{saved=JSON.parse(localStorage.getItem(`rabbit-cockpit-layout:${preset}`)??"{}") as Partial<CockpitLayoutSnapshot>}catch{}
+    const next={...DEFAULT_COCKPIT_LAYOUTS[preset],...saved,viewport:clampCockpitViewport(saved.viewport??DEFAULT_COCKPIT_LAYOUTS[preset].viewport)};
+    setCockpitLayoutPreset(preset);
+    setChartAnnotationMode(next.annotation);
+    setIndicatorsVisible(next.indicators);
+    setSignalLayerVisible(next.signals);
+    setFormalSignalVisible(next.formalSignals);
+    setV29SignalVisible(next.v29Signals);
+    setV1SignalVisible(next.v1Signals);
+    setPricePlanLayerVisible(next.pricePlan);
+    setVolumeLayerVisible(next.volume);
+    setRabbitTrackerVisible(next.rabbit);
+    setDecisionZoneMode(next.decisionMode);
+    setDecisionPanelWidth(Math.max(320,Math.min(520,next.panelWidth)));
+    setDecisionPanelCollapsed(next.panelCollapsed);
+    setOrderFlowHeight(Math.max(110,Math.min(220,next.orderFlowHeight)));
+    setChartViewport(next.viewport);
+    setLayoutFeedback("已切换");
+    window.setTimeout(()=>setLayoutFeedback(""),1200);
+  };
+  const saveCockpitLayout=()=>{
+    try{
+      localStorage.setItem(`rabbit-cockpit-layout:${cockpitLayoutPreset}`,JSON.stringify(cockpitLayoutSnapshot));
+      setLayoutFeedback("已保存");
+    }catch{setLayoutFeedback("保存失败")}
+    window.setTimeout(()=>setLayoutFeedback(""),1400);
+  };
   const stock = stockList[activeStock] || stockList[0];
   const activeProfitMode=preferences.profitMode;
   const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
@@ -2393,6 +2495,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       points:afterHoursPoints.length,
     };
   },[afterHoursPoints]);
+  const viewportSlotX=useCallback((slot:number)=>{
+    const ratio=(slot-chartViewport.start)/chartViewport.span;
+    return LIVE_CHART.plotLeft+ratio*(LIVE_CHART.plotRight-LIVE_CHART.plotLeft);
+  },[chartViewport]);
+  const viewportChartX=useCallback((time:string|number|null|undefined)=>viewportSlotX(aShareMinuteSlot(String(time??""))),[viewportSlotX]);
+  const viewportSecondX=useCallback((time:string)=>{
+    const match=String(time).match(/^(\d{2})(\d{2})(\d{2})$/);
+    if(!match)return viewportChartX(time);
+    return viewportSlotX(aShareMinuteSlot(`${match[1]}${match[2]}`)+Number(match[3])/60);
+  },[viewportChartX,viewportSlotX]);
+  const chartTimeTicks=useMemo(()=>Array.from({length:5},(_,index)=>{
+    const slot=chartViewport.start+chartViewport.span*(index/4);
+    return {slot,label:cockpitSlotLabel(slot),x:viewportSlotX(slot)};
+  }),[chartViewport,viewportSlotX]);
   const chartModel = useMemo(() => {
     if (minutePoints.length < 2) return null;
     const prices=minutePoints.flatMap(point=>[
@@ -2411,7 +2527,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     );
     if(!scale)return null;
     const {min,max}=scale;
-    const pointAt=(point:{price:number},index:number)=>`${liveChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
+    const pointAt=(point:{price:number},index:number)=>`${viewportChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
     const vwap=averageSeries.map((price,index)=>pointAt({price},index));
     const vwapChannelPath=(multiplier:number)=>`M${averageSeries.map((price,index)=>pointAt({price:price*multiplier},index)).join(" L")}`;
@@ -2431,7 +2547,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const sortedVolumes=minutePoints.map(point=>Math.max(0,point.volume)).sort((left,right)=>left-right);
     const volumeReference=Math.max(1,sortedVolumes[Math.floor((sortedVolumes.length-1)*.92)]??1);
     const lastVwap=averageSeries.at(-1) ?? minutePoints.at(-1)!.price;
-    const firstX=liveChartX(minutePoints[0].time); const lastX=liveChartX(minutePoints.at(-1)!.time);
+    const firstX=viewportChartX(minutePoints[0].time); const lastX=viewportChartX(minutePoints.at(-1)!.time);
     const biasValues=minutePoints.map((point,index)=>{
       const average=averageSeries[index]??point.price;
       return average>0?(point.price-average)/average*100:0;
@@ -2439,7 +2555,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const biasScale=Math.max(1.5,...biasValues.map(value=>Math.abs(value)));
     const biasMiddle=LIVE_CHART.volumeTop+(LIVE_CHART.volumeBottom-LIVE_CHART.volumeTop)/2;
     const biasAmplitude=(LIVE_CHART.volumeBottom-LIVE_CHART.volumeTop)*.38;
-    const biasPath=`M${biasValues.map((value,index)=>`${liveChartX(minutePoints[index].time)},${biasMiddle-(value/biasScale)*biasAmplitude}`).join(" L")}`;
+    const biasPath=`M${biasValues.map((value,index)=>`${viewportChartX(minutePoints[index].time)},${biasMiddle-(value/biasScale)*biasAmplitude}`).join(" L")}`;
     const volumeSignals=minutePoints.map((point,index)=>{
       const prior=minutePoints.slice(Math.max(0,index-20),index)
         .map(item=>Math.max(0,Number(item.volume)||0))
@@ -2461,7 +2577,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       : null;
     const closingAuctionJump=closingAuctionMovePct!==null&&Math.abs(closingAuctionMovePct)>=.3
       ? {
-        x:liveChartX(latestPoint.time),
+        x:viewportChartX(latestPoint.time),
         y:liveChartPriceY(latestPoint.price,min,max),
         time:latestPoint.time,
         movePct:closingAuctionMovePct,
@@ -2474,7 +2590,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const currentDelta=minutePoints[index].price-averageSeries[index];
       if((previousDelta<0&&currentDelta>=0)||(previousDelta>0&&currentDelta<=0)){
         latestVwapCross={
-          x:liveChartX(minutePoints[index].time),
+          x:viewportChartX(minutePoints[index].time),
           y:liveChartPriceY(minutePoints[index].price,min,max),
           time:minutePoints[index].time,
           direction:currentDelta>=0?"up":"down",
@@ -2489,7 +2605,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       latestBias:biasValues.at(-1)??0,
       biasAlert:Math.abs(biasValues.at(-1)??0)>=1.5,
       peakVolume:{
-        x:liveChartX(peakVolumePoint.time),
+        x:viewportChartX(peakVolumePoint.time),
         time:peakVolumePoint.time,
         volume:Math.max(0,peakVolumePoint.volume),
         ratio:volumeSignals[peakVolumeIndex]?.ratio??null,
@@ -2504,13 +2620,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         biasPercent:(averageSeries[index]??point.price)>0
           ? (point.price-(averageSeries[index]??point.price))/(averageSeries[index]??point.price)*100
           : 0,
-        x:liveChartX(point.time),
+        x:viewportChartX(point.time),
         y:liveChartPriceY(point.price,min,max),
       })),
       volumes:minutePoints.map((point,index)=>{
         const normalized=Math.min(1.35,Math.max(0,point.volume)/volumeReference);
         return {
-          x:liveChartX(point.time),
+          x:viewportChartX(point.time),
           height:Math.max(3,Math.sqrt(normalized/1.35)*44),
           up:index===0||point.price>=minutePoints[index-1].price,
           ratio:volumeSignals[index].ratio,
@@ -2519,14 +2635,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       }),
       ticks:scale.ticks.map(tick=>({...tick,y:liveChartPriceY(tick.value,min,max)})),
     };
-  },[minutePoints,activeQuote?.previousClose]);
+  },[minutePoints,activeQuote?.previousClose,viewportChartX]);
   const liveSecondChart=useMemo(()=>{
     if(!chartModel||liveSecondPoints.length===0)return null;
     const segments:Array<{points:string;last:{x:number;y:number;price:number;time:string}}>=[];
     let current:Array<{x:number;y:number;price:number;time:string}>=[];
     let previous:LiveSecondPoint|null=null;
     for(const point of liveSecondPoints){
-      const x=liveChartSecondX(point.time);
+      const x=viewportSecondX(point.time);
       const y=liveChartPriceY(point.price,chartModel.min,chartModel.max);
       const gap=previous!==null&&(point.date!==previous.date||point.timestamp-previous.timestamp>90_000);
       if(gap&&current.length>0){
@@ -2542,7 +2658,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       segments.push({points:current.map(item=>`${item.x},${item.y}`).join(" "),last});
     }
     return segments.length?{segments,last:segments.at(-1)!.last}:null;
-  },[chartModel,liveSecondPoints]);
+  },[chartModel,liveSecondPoints,viewportSecondX]);
   const liveChartLast=useMemo(()=>{
     if(!chartModel)return null;
     const quotePrice=activeQuote?.price;
@@ -2571,10 +2687,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(!chartModel||!zijinAhLinkage.available||!activeQuote?.previousClose||zijinAhLinkage.points.length<2)return null;
     const path=zijinAhLinkage.points.map((point,index)=>{
       const aEquivalent=activeQuote.previousClose!*(1+point.hkReturnPercent/100);
-      return `${index?"L":"M"}${liveChartX(point.time)},${liveChartPriceY(aEquivalent,chartModel.min,chartModel.max)}`;
+      return `${index?"L":"M"}${viewportChartX(point.time)},${liveChartPriceY(aEquivalent,chartModel.min,chartModel.max)}`;
     }).join(" ");
     return {path,last:zijinAhLinkage.points.at(-1)!};
-  },[chartModel,zijinAhLinkage,activeQuote]);
+  },[chartModel,zijinAhLinkage,activeQuote,viewportChartX]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
   const isZijinStock=stock?.code===STOCK_AGENTS.zijin.code;
   const zijinMainForceTrack=useMemo(
@@ -2875,7 +2991,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const bottom=65;
     const yFor=(value:number)=>top+(max-value)/(max-min)*(bottom-top);
     const points=bars.map(bar=>({
-        x:liveChartX(bar.time),
+        x:viewportChartX(bar.time),
       y:yFor(bar.cumulativeNetNotional),
       value:bar.cumulativeNetNotional,
     }));
@@ -2885,7 +3001,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       last:points.at(-1)??null,
       ticks,
     };
-  },[zijinMainForceTrack.bars]);
+  },[zijinMainForceTrack.bars,viewportChartX]);
   useEffect(()=>{
     const timer=window.setTimeout(()=>setIntradayCursorTime(null),0);
     return()=>window.clearTimeout(timer);
@@ -2893,7 +3009,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const intradayCursor=useMemo(()=>{
     if(!intradayCursorTime||!chartModel)return null;
     const point=chartModel.points.find(item=>item.time===intradayCursorTime);
-    if(!point)return null;
+    if(!point||point.x<LIVE_CHART.plotLeft||point.x>LIVE_CHART.plotRight)return null;
     const previousClose=Number(activeQuote?.previousClose);
     const changePercent=Number.isFinite(previousClose)&&previousClose>0
       ? (point.price-previousClose)/previousClose*100
@@ -2904,19 +3020,26 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return {...point,changePercent,mainForce};
   },[intradayCursorTime,chartModel,activeQuote?.previousClose,isZijinStock,zijinMainForceTrack.bars]);
   const mainForceCursorX=intradayCursor?.x??null;
-  const updateIntradayCursor=(clientX:number,clientY:number)=>{
+  const intradayLocalPosition=(clientX:number,clientY:number)=>{
     const svg=intradayChartRef.current;
-    if(!svg||!chartModel?.points.length)return;
+    if(!svg)return null;
     const matrix=svg.getScreenCTM();
-    if(!matrix)return;
+    if(!matrix)return null;
     const pointer=svg.createSVGPoint();
     pointer.x=clientX;
     pointer.y=clientY;
-    const local=pointer.matrixTransform(matrix.inverse());
+    return pointer.matrixTransform(matrix.inverse());
+  };
+  const updateIntradayCursor=(clientX:number,clientY:number)=>{
+    if(!chartModel?.points.length)return;
+    const local=intradayLocalPosition(clientX,clientY);
+    if(!local)return;
     const targetX=Math.max(LIVE_CHART.plotLeft,Math.min(LIVE_CHART.plotRight,local.x));
-    let nearest=chartModel.points[0];
+    const visiblePoints=chartModel.points.filter(point=>point.x>=LIVE_CHART.plotLeft&&point.x<=LIVE_CHART.plotRight);
+    if(!visiblePoints.length)return;
+    let nearest=visiblePoints[0];
     let distance=Math.abs(nearest.x-targetX);
-    for(const point of chartModel.points.slice(1)){
+    for(const point of visiblePoints.slice(1)){
       const nextDistance=Math.abs(point.x-targetX);
       if(nextDistance<distance){
         nearest=point;
@@ -2925,12 +3048,77 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     setIntradayCursorTime(current=>current===nearest.time?current:nearest.time);
   };
+  const zoomIntraday=(factor:number,anchorSlot=chartViewport.start+chartViewport.span/2,anchorRatio=.5)=>{
+    setChartViewport(current=>{
+      const span=Math.max(COCKPIT_VIEWPORT_MIN_SPAN,Math.min(COCKPIT_VIEWPORT_FULL_SPAN,current.span*factor));
+      return clampCockpitViewport({start:anchorSlot-anchorRatio*span,span});
+    });
+  };
+  const resetIntradayViewport=()=>setChartViewport({start:0,span:COCKPIT_VIEWPORT_FULL_SPAN});
+  const focusLatestIntraday=()=>{
+    const latestSlot=minutePoints.length?aShareMinuteSlot(minutePoints.at(-1)!.time):COCKPIT_VIEWPORT_FULL_SPAN;
+    setChartViewport(current=>clampCockpitViewport({start:latestSlot-current.span*.84,span:current.span}));
+  };
+  const handleIntradayWheel=(event:ReactWheelEvent<SVGSVGElement>)=>{
+    event.preventDefault();
+    const local=intradayLocalPosition(event.clientX,event.clientY);
+    const ratio=local?Math.max(0,Math.min(1,(local.x-LIVE_CHART.plotLeft)/(LIVE_CHART.plotRight-LIVE_CHART.plotLeft))):.5;
+    const anchorSlot=chartViewport.start+ratio*chartViewport.span;
+    zoomIntraday(event.deltaY>0?1.18:.84,anchorSlot,ratio);
+  };
   const handleIntradayPointer=(event:ReactPointerEvent<SVGSVGElement>)=>{
+    if(chartPointersRef.current.has(event.pointerId)){
+      chartPointersRef.current.set(event.pointerId,{x:event.clientX,y:event.clientY});
+      const pointers=[...chartPointersRef.current.values()];
+      if(pointers.length>=2&&chartPinchRef.current){
+        const distance=Math.max(12,Math.hypot(pointers[0].x-pointers[1].x,pointers[0].y-pointers[1].y));
+        const pinch=chartPinchRef.current;
+        const nextSpan=pinch.span*(pinch.distance/distance);
+        setChartViewport(clampCockpitViewport({start:pinch.anchorSlot-pinch.anchorRatio*nextSpan,span:nextSpan}));
+        setChartPanning(true);
+        return;
+      }
+      const drag=chartPanRef.current;
+      const local=intradayLocalPosition(event.clientX,event.clientY);
+      if(drag&&drag.pointerId===event.pointerId&&local){
+        const delta=local.x-drag.startX;
+        if(Math.abs(delta)>2)drag.moved=true;
+        if(drag.moved){
+          setChartPanning(true);
+          setChartViewport(clampCockpitViewport({start:drag.startSlot-delta/(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)*drag.startSpan,span:drag.startSpan}));
+          return;
+        }
+      }
+    }
     updateIntradayCursor(event.clientX,event.clientY);
   };
   const handleIntradayPointerDown=(event:ReactPointerEvent<SVGSVGElement>)=>{
+    if(event.pointerType==="mouse"&&event.button!==0)return;
+    event.preventDefault();
     updateIntradayCursor(event.clientX,event.clientY);
-    if(event.pointerType!=="mouse")event.currentTarget.setPointerCapture(event.pointerId);
+    const local=intradayLocalPosition(event.clientX,event.clientY);
+    if(!local)return;
+    chartPointersRef.current.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    event.currentTarget.setPointerCapture(event.pointerId);
+    if(chartPointersRef.current.size===1){
+      chartPanRef.current={pointerId:event.pointerId,startX:local.x,startSlot:chartViewport.start,startSpan:chartViewport.span,moved:false};
+    }else{
+      const pointers=[...chartPointersRef.current.values()];
+      const distance=Math.max(12,Math.hypot(pointers[0].x-pointers[1].x,pointers[0].y-pointers[1].y));
+      const centreX=(pointers[0].x+pointers[1].x)/2;
+      const centre=intradayLocalPosition(centreX,(pointers[0].y+pointers[1].y)/2);
+      const anchorRatio=centre?Math.max(0,Math.min(1,(centre.x-LIVE_CHART.plotLeft)/(LIVE_CHART.plotRight-LIVE_CHART.plotLeft))):.5;
+      chartPinchRef.current={distance,span:chartViewport.span,anchorSlot:chartViewport.start+anchorRatio*chartViewport.span,anchorRatio};
+      chartPanRef.current=null;
+    }
+  };
+  const handleIntradayPointerUp=(event:ReactPointerEvent<SVGSVGElement>)=>{
+    const drag=chartPanRef.current;
+    if(drag?.pointerId===event.pointerId&&!drag.moved)updateIntradayCursor(event.clientX,event.clientY);
+    chartPointersRef.current.delete(event.pointerId);
+    if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
+    if(chartPointersRef.current.size<2)chartPinchRef.current=null;
+    if(chartPointersRef.current.size===0){chartPanRef.current=null;setChartPanning(false)}
   };
   const handleIntradayKeyDown=(event:ReactKeyboardEvent<SVGSVGElement>)=>{
     if(!chartModel?.points.length)return;
@@ -2938,11 +3126,42 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       setIntradayCursorTime(null);
       return;
     }
+    if(event.key==="0"){
+      event.preventDefault();
+      resetIntradayViewport();
+      return;
+    }
+    if(event.key==="+"||event.key==="="){
+      event.preventDefault();
+      zoomIntraday(.84);
+      return;
+    }
+    if(event.key==="-"){
+      event.preventDefault();
+      zoomIntraday(1.18);
+      return;
+    }
     if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
     event.preventDefault();
     const currentIndex=Math.max(0,chartModel.points.findIndex(point=>point.time===intradayCursorTime));
     const nextIndex=Math.max(0,Math.min(chartModel.points.length-1,currentIndex+(event.key==="ArrowRight"?1:-1)));
     setIntradayCursorTime(chartModel.points[nextIndex].time);
+  };
+  const handleDecisionPanelResizeStart=(event:ReactPointerEvent<HTMLDivElement>)=>{
+    if((event.target as HTMLElement).closest("button")||decisionPanelCollapsed)return;
+    decisionPanelResizeRef.current={pointerId:event.pointerId,startX:event.clientX,startWidth:decisionPanelWidth};
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const handleDecisionPanelResize=(event:ReactPointerEvent<HTMLDivElement>)=>{
+    const resize=decisionPanelResizeRef.current;
+    if(!resize||resize.pointerId!==event.pointerId)return;
+    const workspaceWidth=workspaceRef.current?.getBoundingClientRect().width??1200;
+    setDecisionPanelWidth(Math.max(320,Math.min(Math.min(520,workspaceWidth*.46),resize.startWidth+resize.startX-event.clientX)));
+  };
+  const handleDecisionPanelResizeEnd=(event:ReactPointerEvent<HTMLDivElement>)=>{
+    if(decisionPanelResizeRef.current?.pointerId!==event.pointerId)return;
+    decisionPanelResizeRef.current=null;
+    if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
   };
   const zijinPricePlan=useMemo(()=>isZijinStock?buildZijinPricePlan({
     minutes:minutePoints,
@@ -3430,12 +3649,22 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const peakVolumeLabelX=Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4);
     const peakVolumeLabelWidth=Math.max(70,peakVolumeLabel.length*7.5);
     const peakVolumeLabelRightAligned=chartModel.peakVolume.x>LIVE_CHART.plotRight-72;
-    occupied.push({
-      left:(peakVolumeLabelRightAligned?peakVolumeLabelX-peakVolumeLabelWidth:peakVolumeLabelX)-6,
-      right:(peakVolumeLabelRightAligned?peakVolumeLabelX:Math.min(LIVE_CHART.plotRight,peakVolumeLabelX+peakVolumeLabelWidth))+6,
-      top:LIVE_CHART.volumeTop-4,
-      bottom:LIVE_CHART.volumeTop+21,
-    });
+    const peakVolumeSlot=aShareMinuteSlot(chartModel.peakVolume.time);
+    if(peakVolumeSlot>=chartViewport.start&&peakVolumeSlot<=chartViewport.start+chartViewport.span){
+      occupied.push({
+        left:(peakVolumeLabelRightAligned?peakVolumeLabelX-peakVolumeLabelWidth:peakVolumeLabelX)-6,
+        right:(peakVolumeLabelRightAligned?peakVolumeLabelX:Math.min(LIVE_CHART.plotRight,peakVolumeLabelX+peakVolumeLabelWidth))+6,
+        top:LIVE_CHART.volumeTop-4,
+        bottom:LIVE_CHART.volumeTop+21,
+      });
+    }
+    const strategyLayerVisible=(strategy:ChartObservation["strategy"])=>strategy==="closure"
+      ?formalSignalVisible
+      :strategy==="v29"
+        ?v29SignalVisible
+        :strategy==="v1"
+          ?v1SignalVisible
+          :true;
     const pointPosition=(time:string,price?:number,allowRecentFallback=false)=>{
       const exactPoint=minutePoints.find(point=>point.time===time);
       // Quote streams can briefly skip the confirmation minute while the
@@ -3445,7 +3674,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         ?[...minutePoints].reverse().find(candidate=>isRecentCausalEvent(time,candidate.time,1))
         :undefined);
       if(!point)return null;
-      return {x:liveChartX(point.time),y:liveChartPriceY(price??point.price,chartModel.min,chartModel.max)};
+      const slot=aShareMinuteSlot(point.time);
+      if(slot<chartViewport.start||slot>chartViewport.start+chartViewport.span)return null;
+      return {x:viewportChartX(point.time),y:liveChartPriceY(price??point.price,chartModel.min,chartModel.max)};
     };
     const reserveDirectionalMarkerLabel=(pointX:number,pointY:number,width:number,height:number,isSell:boolean,required=false)=>{
       const clampLabelX=(value:number)=>Math.max(LIVE_CHART.plotLeft+width/2+5,Math.min(LIVE_CHART.plotRight-width/2-5,value));
@@ -3523,7 +3754,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     // unreadable. Keep the anchors/titles and show one label per 10-minute
     // episode for each direction/action pair.
     const formalLabelLastTime=new Map<string,string>();
-    const actions=[...chartFormalActions].sort((left,right)=>left.time.localeCompare(right.time)).flatMap((action,index)=>{
+    const actions=(formalSignalVisible?[...chartFormalActions]:[]).sort((left,right)=>left.time.localeCompare(right.time)).flatMap((action,index)=>{
       // A live minute can be updated more than once by the public quote feed.
       // Anchor the marker to the price captured by the causal decision instead
       // of the first point sharing the same HHmm timestamp.
@@ -3542,8 +3773,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return [{...point,...placed,index,isSell,label,labelWidth,action}];
     });
     const selectedShadowActions=compactShadowChartActions([
-      ...(zijinV29Replay?.actions??[]).map(action=>({action,strategy:"v29" as const})),
-      ...(zijinV1ContextReplay?.actions??[]).map(action=>({action,strategy:"v1" as const})),
+      ...(v29SignalVisible?(zijinV29Replay?.actions??[]).map(action=>({action,strategy:"v29" as const})):[]),
+      ...(v1SignalVisible?(zijinV1ContextReplay?.actions??[]).map(action=>({action,strategy:"v1" as const})):[]),
     ],20) as {action:ReplayAction;strategy:"v29"|"v1"}[];
     selectedShadowActions.sort((left,right)=>{
       const rank=(strategy:"v29"|"v1")=>strategy==="v29"?0:1;
@@ -3566,7 +3797,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const topLocalPivotKeys=selectPivotObservationKeys(observationLayer,"pivot-top","local",1,70,30,minutePoints,activeQuote?.open);
     const bottomLocalPivotKeys=selectPivotObservationKeys(observationLayer,"pivot-bottom","local",1,70,30,minutePoints,activeQuote?.open);
     const observationPriority=(observation:ChartObservation)=>observation.strategy==="closure"?0:observation.strategy==="v29"?1:observation.strategy==="v1"?2:3;
-    const orderedDurableObservations=[...durableVisibleChartObservations].sort((left,right)=>observationPriority(left)-observationPriority(right)||left.time.localeCompare(right.time));
+    const orderedDurableObservations=durableVisibleChartObservations.filter(observation=>strategyLayerVisible(observation.strategy)).sort((left,right)=>observationPriority(left)-observationPriority(right)||left.time.localeCompare(right.time));
     const observations=orderedDurableObservations.flatMap((observation,index)=>{
       const pivotInfo=observation.strategy==="observation"&&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
         ?pivotPresentation(observation,minutePoints,activeQuote?.open)
@@ -3685,7 +3916,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...zijinV29ChartObservations,
       ...zijinV1ChartObservations,
       ...causalObservationLayer,
-    ];
+    ].filter(observation=>strategyLayerVisible(("strategy" in observation?observation.strategy:"observation") as ChartObservation["strategy"]));
     return {
       observations,
       // Keep every causal observation available to the crosshair without
@@ -3696,7 +3927,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
       manualTrades,
     };
-  },[activeChartDate,activeQuote?.open,alertHistory,causalObservationLayer,chartFormalActions,chartModel,currentObservations,durableVisibleChartObservations,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,activeQuote?.open,alertHistory,causalObservationLayer,chartFormalActions,chartModel,chartViewport,currentObservations,durableVisibleChartObservations,formalSignalVisible,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,v1SignalVisible,v29SignalVisible,viewportChartX,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -5804,9 +6035,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className="desk-core-reason"><span>当前依据</span><b>{marketSession.live?decisionModel.reason:"复盘模式"}</b></div>
       </section>
 
-      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${chartAnnotationMode==="compact"?"compact-chart-labels":""} ${signalLayerVisible?'':'hide-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'} ${rabbitTrackerVisible?'':'hide-rabbit-tracker'}`} ref={workspaceRef}>
+      <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionPanelCollapsed?'decision-panel-collapsed':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${chartAnnotationMode==="compact"?"compact-chart-labels":""} ${signalLayerVisible?'':'hide-signal-layer'} ${formalSignalVisible?'':'hide-formal-signal-layer'} ${v29SignalVisible?'':'hide-v29-signal-layer'} ${v1SignalVisible?'':'hide-v1-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'} ${rabbitTrackerVisible?'':'hide-rabbit-tracker'}`} ref={workspaceRef} style={{"--decision-panel-width":`${decisionPanelWidth}px`,"--order-flow-height":`${orderFlowHeight}px`} as CSSProperties}>
         <div className="chart-zone">
           <div className="chart-tools">
+            <div className="cockpit-layout-controls" aria-label="操盘台布局">
+              <select value={cockpitLayoutPreset} onChange={event=>applyCockpitLayoutPreset(event.target.value as CockpitLayoutPreset)} aria-label="切换操盘台布局">
+                <option value="trading">盘中操盘</option><option value="review">盘后复盘</option><option value="research">研究模式</option>
+              </select>
+              <button type="button" onClick={saveCockpitLayout}>{layoutFeedback||"保存布局"}</button>
+            </div>
             <div className="legend primary-chart-legend">
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
@@ -5826,7 +6063,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="intraday-only" title="保留历史 1 分钟线；仅叠加当前交易日有效报价的秒级观察轨迹">
               <i/>当日分时 <small>分钟历史 · 秒级观察</small>
             </div>
-             <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏中文信号提示" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="只保留信号点，隐藏图中文字；悬停仍可查看详情" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>标注</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button><button title="一键隐藏均价、信号、区间和成交量辅助层" className={!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible?"active minimal-layer-toggle":"minimal-layer-toggle"} onClick={()=>{const restore=!indicatorsVisible&&!signalLayerVisible&&!pricePlanLayerVisible&&!volumeLayerVisible;setIndicatorsVisible(restore);setSignalLayerVisible(restore);setPricePlanLayerVisible(restore);setVolumeLayerVisible(restore)}}>简洁</button></div><button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享今日记录</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
+             <div className="layer-switches" aria-label="图表图层开关"><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="只保留信号点，隐藏图中文字；悬停仍可查看详情" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div><button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
           <div className="chart-wrap">
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
@@ -5837,22 +6074,22 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span>实时盯盘</span><b>{chartHud.title}</b><small>{chartHud.detail} · {chartHud.risk}</small>
               {zijinChartPriceOverlay?.hiddenCount>0&&<button onClick={()=>setShowAllPriceLevels(value=>!value)}>{showAllPriceLevels?"只看最近2条":`展开全部 +${zijinChartPriceOverlay.hiddenCount}`}</button>}
             </div>
-            <svg ref={intradayChartRef} className="interactive-intraday-chart" viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；移动鼠标或拖动手指查看分钟详情`} tabIndex={0}
-              onPointerEnter={handleIntradayPointer} onPointerMove={handleIntradayPointer} onPointerDown={handleIntradayPointerDown}
-              onPointerLeave={event=>{if(event.pointerType==="mouse")setIntradayCursorTime(null)}} onKeyDown={handleIntradayKeyDown}>
-              <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient><clipPath id="intraday-vwap-channel-clip"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop}/></clipPath></defs>
+            <svg ref={intradayChartRef} className={`interactive-intraday-chart ${chartPanning?"is-panning":""}`} viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；滚轮或双指缩放，拖动时间轴，双击复位，点击查看分钟详情`} tabIndex={0}
+              onPointerEnter={handleIntradayPointer} onPointerMove={handleIntradayPointer} onPointerDown={handleIntradayPointerDown} onPointerUp={handleIntradayPointerUp} onPointerCancel={handleIntradayPointerUp}
+              onPointerLeave={event=>{if(event.pointerType==="mouse"&&!chartPanRef.current)setIntradayCursorTime(null)}} onWheel={handleIntradayWheel} onDoubleClick={resetIntradayViewport} onKeyDown={handleIntradayKeyDown}>
+              <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient><clipPath id="intraday-vwap-channel-clip"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop}/></clipPath><clipPath id="intraday-viewport-clip" clipPathUnits="userSpaceOnUse"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.priceTop}/></clipPath></defs>
               {(chartModel?.ticks??[20,72.5,125,177.5,230].map(y=>({value:null,percent:null,y}))).map((tick,index)=>{const centre=tick.percent!=null&&Math.abs(tick.percent)<1e-8;return <g key={tick.value??index}><line x1={LIVE_CHART.plotLeft} y1={tick.y} x2={LIVE_CHART.plotRight} y2={tick.y} className={`grid-line ${centre?"previous-close-line":""}`}/>{tick.value!=null&&<text x="5" y={tick.y+3.5} className="intraday-axis-label">{tick.value.toFixed(2)}</text>}{tick.percent!=null&&<text x="914" y={tick.y+3.5} textAnchor="end" className={`intraday-percent-label ${tick.percent>0?"up":tick.percent<0?"down":"flat"}`}>{tick.percent>0?"+":""}{tick.percent.toFixed(2)}%</text>}</g>})}
-              {A_SHARE_INTRADAY_AXIS.map(tick => {const x=liveChartSlotX(tick.slot);return <g key={tick.label}><line x1={x} y1={LIVE_CHART.priceTop} x2={x} y2={LIVE_CHART.volumeBottom} className="grid-line vertical"/><text x={x} y="317" textAnchor={tick.slot===0?"start":tick.slot===240?"end":"middle"} className="intraday-axis-label intraday-time-label">{tick.label}</text></g>})}
+              {chartTimeTicks.map((tick,index)=><g key={`${tick.label}-${index}`}><line x1={tick.x} y1={LIVE_CHART.priceTop} x2={tick.x} y2={LIVE_CHART.volumeBottom} className="grid-line vertical"/><text x={tick.x} y="317" textAnchor={index===0?"start":index===chartTimeTicks.length-1?"end":"middle"} className="intraday-axis-label intraday-time-label">{tick.label}</text></g>)}
               {zijinChartPriceOverlay&&<g className="zijin-chart-price-overlay" aria-label="紫金矿业实时预判区间与风控线；悬停显示具体价格">
                 {zijinChartPriceOverlay.bands.map(band=><g key={band.kind} className={`price-plan-band ${band.kind}`}><rect x={LIVE_CHART.plotLeft} y={band.top} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={band.height}/><text x={LIVE_CHART.plotLeft+5} y={Math.max(LIVE_CHART.priceTop+9,band.top+9)}>{band.label}</text></g>)}
                 {zijinChartPriceOverlay.lines.map(line=><g key={`${line.kind}-${line.price}`} className={`price-plan-line ${line.kind}`}><line x1={showAllPriceLevels?LIVE_CHART.plotLeft:LIVE_CHART.plotRight-145} y1={line.y} x2={LIVE_CHART.plotRight} y2={line.y}/><text x={LIVE_CHART.plotRight-4} y={Math.max(LIVE_CHART.priceTop+8,Math.min(LIVE_CHART.priceBottom-3,line.y-3))} textAnchor="end">{line.label} {line.price.toFixed(2)}</text></g>)}
               </g>}
-              {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<g className="vwap-channel-layer" clipPath="url(#intraday-vwap-channel-clip)" aria-label="VWAP 正负1.5%与正负2.5%偏离通道">{indicatorsVisible&&chartModel.biasAlert&&<rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop} className={`price-bias-alert ${chartModel.latestBias>=0?"up":"down"}`}/>} {indicatorsVisible&&<><path d={chartModel.vwapChannel.upperBandPath} className="vwap-channel-band upper"/><path d={chartModel.vwapChannel.lowerBandPath} className="vwap-channel-band lower"/><path d={chartModel.vwapChannel.upperInnerPath} className="vwap-channel-line upper inner"/><path d={chartModel.vwapChannel.upperOuterPath} className="vwap-channel-line upper outer"/><path d={chartModel.vwapChannel.lowerInnerPath} className="vwap-channel-line lower inner"/><path d={chartModel.vwapChannel.lowerOuterPath} className="vwap-channel-line lower outer"/></>}</g><path d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
+              {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<g className="vwap-channel-layer" clipPath="url(#intraday-vwap-channel-clip)" aria-label="VWAP 正负1.5%与正负2.5%偏离通道">{indicatorsVisible&&chartModel.biasAlert&&<rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop} className={`price-bias-alert ${chartModel.latestBias>=0?"up":"down"}`}/>} {indicatorsVisible&&<><path d={chartModel.vwapChannel.upperBandPath} className="vwap-channel-band upper"/><path d={chartModel.vwapChannel.lowerBandPath} className="vwap-channel-band lower"/><path d={chartModel.vwapChannel.upperInnerPath} className="vwap-channel-line upper inner"/><path d={chartModel.vwapChannel.upperOuterPath} className="vwap-channel-line upper outer"/><path d={chartModel.vwapChannel.lowerInnerPath} className="vwap-channel-line lower inner"/><path d={chartModel.vwapChannel.lowerOuterPath} className="vwap-channel-line lower outer"/></>}</g><path className="price-area-path" d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />
               {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}{zijinHkOverlay&&<path d={zijinHkOverlay.path} className={`hk-zijin-path ${zijinAhLinkage.bias}`}/>}<path d={chartModel.path} className="price-path"/>
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-3.5} y={marker.y-3.5} width="7" height="7" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y-2} ${marker.x+4.5},${marker.y-2} ${marker.x},${marker.y+4.5}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y+2} ${marker.x+4.5},${marker.y+2} ${marker.x},${marker.y-4.5}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>})}
+              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-3.5} y={marker.y-3.5} width="7" height="7" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y-2} ${marker.x+4.5},${marker.y-2} ${marker.x},${marker.y+4.5}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y+2} ${marker.x+4.5},${marker.y+2} ${marker.x},${marker.y-4.5}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>})}
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} ${marker.labelRendered?"with-label":"dot-only"}`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · 影子参考，不可执行`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
               {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{marker.action.reason??marker.label}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></>}<circle cx={marker.x} cy={marker.y} r="6" className={marker.isSell?'sell':'buy'}/></g>)}
@@ -5926,16 +6163,26 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                     <text x="11" y="96">BIAS</text><text x={tooltipWidth-11} y="96" textAnchor="end" className={intradayCursor.biasPercent>=0?"up":"down"}>{intradayCursor.biasPercent>=0?"+":""}{intradayCursor.biasPercent.toFixed(2)}%</text>
                     <text x="11" y="113">成交量</text><text x={tooltipWidth-11} y="113" textAnchor="end">{formatIntradayVolume(intradayCursor.volume)}</text>
                     {isZijinStock&&<><text x="11" y="130">主力净额</text><text x={tooltipWidth-11} y="130" textAnchor="end" className={(intradayCursor.mainForce?.netNotional??0)>=0?"force-buy":"force-sell"}>{intradayCursor.mainForce?formatMainForceAmount(intradayCursor.mainForce.netNotional):"无大额成交"}</text></>}
-                    <text x="11" y={isZijinStock?147:130}>提醒状态</text><text x={tooltipWidth-11} y={isZijinStock?147:130} textAnchor="end">{intradayCursorSignal}</text>
+                    <text x="11" y={isZijinStock?147:130}>信号依据</text><text x={tooltipWidth-11} y={isZijinStock?147:130} textAnchor="end">{intradayCursorSignal}</text>
                   </g>
                 </g>;
               })()}
             </svg>
+            <div className="chart-time-navigator" aria-label="图表缩放与时间轴定位">
+              <button type="button" onClick={()=>zoomIntraday(1.18)} disabled={chartViewport.span>=COCKPIT_VIEWPORT_FULL_SPAN} title="缩小时间轴">−</button>
+              <b>{Math.round(COCKPIT_VIEWPORT_FULL_SPAN/chartViewport.span*100)}%</b>
+              <button type="button" onClick={()=>zoomIntraday(.84)} disabled={chartViewport.span<=COCKPIT_VIEWPORT_MIN_SPAN} title="放大时间轴">＋</button>
+              <span>{cockpitSlotLabel(chartViewport.start)}–{cockpitSlotLabel(chartViewport.start+chartViewport.span)}</span>
+              <input type="range" min="0" max={Math.max(1,COCKPIT_VIEWPORT_FULL_SPAN-chartViewport.span)} step="1" value={chartViewport.start} disabled={chartViewport.span>=COCKPIT_VIEWPORT_FULL_SPAN} onChange={event=>setChartViewport(current=>clampCockpitViewport({start:Number(event.target.value),span:current.span}))} aria-label="时间轴定位"/>
+              <button type="button" onClick={focusLatestIntraday} disabled={chartViewport.span>=COCKPIT_VIEWPORT_FULL_SPAN}>最新</button>
+              <button type="button" onClick={resetIntradayViewport} disabled={chartViewport.span>=COCKPIT_VIEWPORT_FULL_SPAN}>复位</button>
+            </div>
           </div>
           {isZijinStock&&<section className="main-force-track" aria-label="紫金矿业全天 L2 大额主动净额追踪，非总成交量">
             <div className="main-force-track-head">
               <div><strong>主力追踪</strong><span>L2 大额主动净额 · 非总成交量 · 与主图按分钟对齐</span></div>
               <div className="main-force-track-legend"><span className="buy"><i/>大额主动净买</span><span className="sell"><i/>大额主动净卖</span><span className="cumulative"><i/>累计净额</span></div>
+              <label className="subchart-size-control" title="调整成交量与 L2 副图高度"><span>副图</span><input type="range" min="110" max="220" step="5" value={orderFlowHeight} onChange={event=>setOrderFlowHeight(Number(event.target.value))}/></label>
               <div className={`main-force-response ${zijinFundResponse.state}`} title={`${zijinFundResponse.message}；${zijinFundResponse.evidence}`}>
                 <span>{zijinFundResponse.label}</span>
                 <i><u style={{width:`${zijinFundResponse.score}%`}}/></i>
@@ -5949,14 +6196,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span>资金承接修复</span><b>{zijinRepair.title}</b><small>二次探底 {zijinRepair.checks?.secondBottom?"✓":"·"} · 动量 {zijinRepair.checks?.momentumPositive?"✓":"·"} · L2连续回流 {zijinRepair.checks?.l2BuyRecovery?"✓":"·"} · 局部突破 {zijinRepair.checks?.localBreakout?"✓":"·"}</small>
             </div>}
             <svg viewBox={`0 0 ${LIVE_CHART.width} 72`} preserveAspectRatio="none" role="img" aria-label={`主力追踪：${zijinMainForceTrack.stance}`}>
+              <defs><clipPath id="main-force-viewport-clip" clipPathUnits="userSpaceOnUse"><rect x={LIVE_CHART.plotLeft} y="0" width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height="72"/></clipPath></defs>
               <line x1={LIVE_CHART.plotLeft} y1="36" x2={LIVE_CHART.plotRight} y2="36" className="main-force-zero"/>
-              {A_SHARE_INTRADAY_AXIS.map(tick=><line key={tick.label} x1={liveChartSlotX(tick.slot)} y1="6" x2={liveChartSlotX(tick.slot)} y2="66" className="main-force-grid"/>)}
+              {chartTimeTicks.map((tick,index)=><line key={`${tick.label}-${index}`} x1={tick.x} y1="6" x2={tick.x} y2="66" className="main-force-grid"/>)}
               <text x={LIVE_CHART.plotLeft-5} y="10" textAnchor="end" className="main-force-bar-axis">{formatMainForceAmount(zijinMainForcePeak)}</text>
               <text x={LIVE_CHART.plotLeft-5} y="68" textAnchor="end" className="main-force-bar-axis">{formatMainForceAmount(-zijinMainForcePeak)}</text>
               {zijinMainForceTrack.bars.map(bar=>{
                 const height=Math.max(bar.netNotional===0?0:2,Math.min(28,Math.abs(bar.netNotional)/zijinMainForcePeak*28));
                 const y=bar.netNotional>=0?36-height:36;
-                return <rect key={bar.time} x={liveChartX(bar.time)-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
+                return <rect key={bar.time} x={viewportChartX(bar.time)-1.45} y={y} width="2.9" height={height} rx=".7" className={bar.netNotional>=0?"main-force-buy":"main-force-sell"}/>;
               })}
               {zijinMainForceCumulative&&<><path d={zijinMainForceCumulative.path} className="main-force-cumulative"/>{zijinMainForceCumulative.ticks.map((tick,index)=><text key={index} x={LIVE_CHART.plotRight+54} y={tick.y+3} textAnchor="end" className="main-force-cumulative-axis">{formatMainForceAmount(tick.value)}</text>)}{zijinMainForceCumulative.last&&<circle cx={zijinMainForceCumulative.last.x} cy={zijinMainForceCumulative.last.y} r="2.4" className="main-force-cumulative-dot"/>}</>}
               {intradayCursor&&mainForceCursorX!==null&&<line x1={mainForceCursorX} y1="6" x2={mainForceCursorX} y2="66" className="main-force-crosshair"/>}
@@ -5984,6 +6232,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </div>
         </div>
 
+        <div className="decision-panel-resizer" role="separator" aria-label="调整右侧决策面板宽度" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={520} aria-valuenow={decisionPanelWidth} onPointerDown={handleDecisionPanelResizeStart} onPointerMove={handleDecisionPanelResize} onPointerUp={handleDecisionPanelResizeEnd} onPointerCancel={handleDecisionPanelResizeEnd} onDoubleClick={()=>setDecisionPanelWidth(380)}>
+          <i aria-hidden="true"/><button type="button" onClick={()=>setDecisionPanelCollapsed(value=>!value)} title={decisionPanelCollapsed?"展开决策面板":"折叠决策面板"} aria-pressed={decisionPanelCollapsed}>{decisionPanelCollapsed?"‹":"›"}</button>
+        </div>
         <aside className={`decision-zone ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`}>
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
