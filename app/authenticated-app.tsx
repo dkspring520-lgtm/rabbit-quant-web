@@ -1196,26 +1196,98 @@ function buildPivotAndMacdObservations(
   }
   observations.push(...pivotEvents.sort((left,right)=>left.index-right.index).map(item=>item.observation));
 
-  // Causal MACD events are an independent observation family.  Only DIF/signal
-  // crossovers are surfaced: histogram flips are too noisy for a desk marker.
-  // For 紫金, a matching V1/V2.9 shadow event is required as a second vote.
+  // Causal MACD events are an independent observation family. A crossover is
+  // shown only when RSI and KDJ agree with its location; bottom entries also
+  // require a confirmed bullish divergence. For 紫金, a matching V1/V2.9
+  // shadow event remains the final vote. This is observation-only.
   let ema12:number|undefined;
   let ema26:number|undefined;
   let signal:number|undefined;
   let previousHistogram:number|undefined;
+  let previousPreviousHistogram:number|undefined;
   let lastMacdIndex=-Infinity;
   const alpha12=2/13;
   const alpha26=2/27;
   const alpha9=2/10;
+  const shadowCandidates=shadowObservations.filter(observation=>observation.observationKind!=="macd");
+  const rsiStates=[6,12,24].map(period=>({period,gainSum:0,lossSum:0,avgGain:undefined as number|undefined,avgLoss:undefined as number|undefined,value:undefined as number|undefined}));
+  const macdDiffHistory:number[]=[];
+  let kdjK=50;
+  let kdjD=50;
+  const minuteLow=(index:number)=>finitePositive(minutes[index]?.low)??safePrice(index);
+  const lowestIndex=(start:number,end:number)=>{
+    let selected=-1;
+    for(let index=Math.max(0,start);index<=Math.min(end,minutes.length-1);index+=1){
+      const low=minuteLow(index);
+      if(low===undefined)continue;
+      if(selected<0||low<(minuteLow(selected)??Infinity))selected=index;
+    }
+    return selected;
+  };
+  const confirmsBullishDivergence=(index:number)=>{
+    const recentStart=Math.max(0,index-8);
+    const priorEnd=recentStart-3;
+    const priorStart=Math.max(0,priorEnd-55);
+    if(priorEnd-priorStart<5)return false;
+    const recentLowIndex=lowestIndex(recentStart,index);
+    const priorLowIndex=lowestIndex(priorStart,priorEnd);
+    if(recentLowIndex<0||priorLowIndex<0)return false;
+    const recentLow=minuteLow(recentLowIndex);
+    const priorLow=minuteLow(priorLowIndex);
+    const recentDiff=macdDiffHistory[recentLowIndex];
+    const priorDiff=macdDiffHistory[priorLowIndex];
+    return recentLow!==undefined&&priorLow!==undefined
+      &&recentLow<=priorLow*1.003
+      &&Number.isFinite(recentDiff)&&Number.isFinite(priorDiff)
+      &&recentDiff>priorDiff;
+  };
   for(let index=0;index<minutes.length;index+=1){
     const price=Number(minutes[index]?.price);
     if(!Number.isFinite(price)||price<=0)continue;
+    if(index>0){
+      const previousPrice=Number(minutes[index-1]?.price);
+      if(Number.isFinite(previousPrice)&&previousPrice>0){
+        const change=price-previousPrice;
+        const gain=Math.max(0,change);
+        const loss=Math.max(0,-change);
+        rsiStates.forEach(state=>{
+          if(index<=state.period){
+            state.gainSum+=gain;
+            state.lossSum+=loss;
+            if(index===state.period){
+              state.avgGain=state.gainSum/state.period;
+              state.avgLoss=state.lossSum/state.period;
+            }
+          }else if(state.avgGain!==undefined&&state.avgLoss!==undefined){
+            state.avgGain=(state.avgGain*(state.period-1)+gain)/state.period;
+            state.avgLoss=(state.avgLoss*(state.period-1)+loss)/state.period;
+          }
+          if(state.avgGain!==undefined&&state.avgLoss!==undefined){
+            state.value=state.avgGain===0&&state.avgLoss===0?50:state.avgLoss===0?100:100-100/(1+state.avgGain/state.avgLoss);
+          }
+        });
+      }
+    }
+    const kdjStart=Math.max(0,index-8);
+    let periodHigh=-Infinity;
+    let periodLow=Infinity;
+    for(let cursor=kdjStart;cursor<=index;cursor+=1){
+      periodHigh=Math.max(periodHigh,finitePositive(minutes[cursor]?.high)??Number(minutes[cursor]?.price));
+      periodLow=Math.min(periodLow,finitePositive(minutes[cursor]?.low)??Number(minutes[cursor]?.price));
+    }
+    const rsv=periodHigh>periodLow?(price-periodLow)/(periodHigh-periodLow)*100:50;
+    kdjK=kdjK*2/3+rsv/3;
+    kdjD=kdjD*2/3+kdjK/3;
+    const kdjJ=3*kdjK-2*kdjD;
     ema12=ema12===undefined?price:ema12+(price-ema12)*alpha12;
     ema26=ema26===undefined?price:ema26+(price-ema26)*alpha26;
     const diff=ema12-ema26;
+    macdDiffHistory[index]=diff;
     signal=signal===undefined?diff:signal+(diff-signal)*alpha9;
     const histogram=diff-signal;
-    const enough=index>=25&&previousHistogram!==undefined;
+    const [rsi6,rsi12,rsi24]=rsiStates.map(state=>state.value);
+    const enough=index>=25&&previousHistogram!==undefined&&previousPreviousHistogram!==undefined
+      &&rsi6!==undefined&&rsi12!==undefined&&rsi24!==undefined;
     if(enough&&index-lastMacdIndex>=20){
       const golden=previousHistogram<=0&&histogram>0;
       const death=previousHistogram>=0&&histogram<0;
@@ -1223,24 +1295,32 @@ function buildPivotAndMacdObservations(
       if(macdState){
         const direction=macdState==="death-cross"?"反T":"正T";
         const label=direction==="反T"?"MACD↓":"MACD↑";
-        const score=macdState.includes("cross")?75:60;
-        macdEvents.push({index,observation:{
-          time:String(minutes[index].time),price,direction,score,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
-          confirmationLabel:label,macdState,
-          blockers:["观察层，不触发正式买卖","不计入正式胜率与收益"],
-          reason:`${label} · ${macdState==="golden-cross"?"DIF 上穿信号线":"DIF 下穿信号线"}${shadowObservations.length?"，影子层同向确认":""}，仅作辅助观察。`,
-          watchKey:`${date??"live"}:macd:${minutes[index].time}:${macdState}`,observationKind:"macd",
-        }});
-        lastMacdIndex=index;
+        const bullishDivergence=golden&&diff<0&&signal<0&&confirmsBullishDivergence(index);
+        const redBarsContracting=death&&diff>0&&signal>0&&previousHistogram>0&&previousPreviousHistogram>previousHistogram;
+        const rsiConfirmed=golden?rsi6<=30&&rsi12<=35&&rsi24<=45:rsi6>=70&&rsi12>=65&&rsi24>=55;
+        const kdjConfirmed=golden?kdjK<=25&&kdjD<=30&&kdjJ<=20:kdjK>=80&&kdjD>=75&&kdjJ>=85;
+        const indicatorConfirmed=rsiConfirmed&&kdjConfirmed&&(golden?bullishDivergence:redBarsContracting);
+        const shadowConfirmed=shadowCandidates.some(shadow=>shadow.direction===direction
+          &&(isRecentCausalEvent(shadow.time,String(minutes[index].time),5)||isRecentCausalEvent(String(minutes[index].time),shadow.time,5)));
+        if(indicatorConfirmed&&(!requireShadowConfirmation||shadowConfirmed)){
+          const macdReason=golden?"水下金叉并确认底背离":"水上死叉且红柱连续收缩";
+          macdEvents.push({index,observation:{
+            time:String(minutes[index].time),price,direction,score:85,threshold:100,edge:0,executable:false,stage:"watch",coverageOnly:false,
+            confirmationLabel:label,macdState,
+            blockers:["三指标共振观察层，不触发正式买卖","不计入正式胜率与收益"],
+            reason:`${label} · ${macdReason}；RSI 6/12/24 为 ${rsi6.toFixed(0)}/${rsi12.toFixed(0)}/${rsi24.toFixed(0)}，K/D/J 为 ${kdjK.toFixed(0)}/${kdjD.toFixed(0)}/${kdjJ.toFixed(0)}${shadowConfirmed?"；V1/V2.9 同向影子确认":""}。仅作辅助观察。`,
+            watchKey:`${date??"live"}:macd:${minutes[index].time}:${macdState}`,observationKind:"macd",
+          }});
+          lastMacdIndex=index;
+        }
       }
     }
+    previousPreviousHistogram=previousHistogram;
     previousHistogram=histogram;
   }
-  const shadowCandidates=shadowObservations.filter(observation=>observation.observationKind!=="macd");
-  const confirmedMacd=macdEvents.filter(({observation})=>!requireShadowConfirmation||shadowCandidates.some(shadow=>shadow.direction===observation.direction&&(isRecentCausalEvent(shadow.time,observation.time,5)||isRecentCausalEvent(observation.time,shadow.time,5))));
-  const visibleMacd=confirmedMacd.length<=4
-    ?confirmedMacd
-    :Array.from({length:4},(_,slot)=>confirmedMacd[Math.round(slot*(confirmedMacd.length-1)/3)]).filter((item,index,array)=>item&&array.findIndex(candidate=>candidate?.index===item.index)===index);
+  const visibleMacd=macdEvents.length<=4
+    ?macdEvents
+    :Array.from({length:4},(_,slot)=>macdEvents[Math.round(slot*(macdEvents.length-1)/3)]).filter((item,index,array)=>item&&array.findIndex(candidate=>candidate?.index===item.index)===index);
   observations.push(...visibleMacd.map(item=>item.observation));
   return observations.sort((left,right)=>left.time.localeCompare(right.time)||left.direction.localeCompare(right.direction));
 }
@@ -3663,6 +3743,33 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(slot<chartViewport.start||slot>chartViewport.start+chartViewport.span)return null;
       return {x:viewportChartX(point.time),y:liveChartPriceY(price??point.price,chartModel.min,chartModel.max)};
     };
+    // Labels must also avoid every visible marker anchor. Previously only
+    // label-to-label collisions were reserved, so a badge could cover a dot
+    // produced by another strategy at the same minute/price cluster.
+    const markerAnchorBoxes:LabelBox[]=[];
+    const reserveMarkerAnchor=(time:string,price?:number,allowRecentFallback=false)=>{
+      const point=pointPosition(time,price,allowRecentFallback);
+      if(point)markerAnchorBoxes.push({left:point.x-8,right:point.x+8,top:point.y-8,bottom:point.y+8});
+    };
+    if(formalSignalVisible)chartFormalActions.forEach(action=>reserveMarkerAnchor(action.time,action.price,true));
+    if(v29SignalVisible)(zijinV29Replay?.actions??[]).forEach(action=>reserveMarkerAnchor(action.time,action.price,true));
+    if(v1SignalVisible)(zijinV1ContextReplay?.actions??[]).forEach(action=>reserveMarkerAnchor(action.time,action.price,true));
+    durableVisibleChartObservations
+      .filter(observation=>strategyLayerVisible(observation.strategy))
+      .forEach(observation=>reserveMarkerAnchor(
+        observation.time,
+        observation.strategy==="observation"
+          ?observationReferencePrice(observation,observation.price,minutePoints,activeQuote?.open)
+          :observation.coverageOnly&&Number.isFinite(observation.pivotPrice)
+            ?observation.pivotPrice
+            :observation.price,
+      ));
+    tradeLedgerRows.forEach(row=>{
+      if(row.status==="已失效"||normalizeMarketDate(row.marketDate??row.tradingDate)!==activeChartDate)return;
+      const time=String(row.chartTime??row.time??"").replace(/\D/g,"").slice(0,4);
+      if(/^\d{4}$/.test(time))reserveMarkerAnchor(time,row.price,true);
+    });
+    const suppressOpeningAuxiliaryLabel=(time:string)=>time>="0930"&&time<"0945";
     const reserveDirectionalMarkerLabel=(pointX:number,pointY:number,width:number,height:number,isSell:boolean,required=false)=>{
       const clampLabelX=(value:number)=>Math.max(LIVE_CHART.plotLeft+width/2+5,Math.min(LIVE_CHART.plotRight-width/2-5,value));
       const preferredLabelX=clampLabelX(pointX);
@@ -3692,9 +3799,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         top:baseline-height+1,
         bottom:baseline+6,
       });
-      const collides=(box:LabelBox)=>occupied.some(other=>
-        box.left<other.right+8&&box.right>other.left-8&&box.top<other.bottom+8&&box.bottom>other.top-8
-      );
+      const overlaps=(box:LabelBox,other:LabelBox)=>box.left<other.right+8&&box.right>other.left-8&&box.top<other.bottom+8&&box.bottom>other.top-8;
+      const collides=(box:LabelBox)=>occupied.some(other=>overlaps(box,other))||markerAnchorBoxes.some(anchor=>overlaps(box,anchor));
       let best:{labelX:number;labelY:number;box:LabelBox;overlap:number;distance:number}|null=null;
       for(const labelX of labelXs){
         for(const baseline of orderedBaselines){
@@ -3736,8 +3842,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     // stamped at its real confirmation minute; no historical pivot is backfilled.
     // Repeated same-direction executions can be legitimate (and stay in the
     // ledger), but showing the same text every few minutes makes the chart
-    // unreadable. Keep the anchors/titles and show one label per 10-minute
-    // episode for each direction/action pair.
+    // unreadable. Keep the anchors/titles and show one label per 20-minute
+    // episode for each execution side.
     const formalLabelLastTime=new Map<string,string>();
     const actions=(formalSignalVisible?[...chartFormalActions]:[]).sort((left,right)=>left.time.localeCompare(right.time)).flatMap((action,index)=>{
       // A live minute can be updated more than once by the public quote feed.
@@ -3748,9 +3854,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const isSell=action.side==="卖出";
       const label=formalExecutionLabel(action.direction,isSell?"sell":"buy");
       const labelWidth=label.length*9+16;
-      const labelKey=`${action.direction??"正T"}:${action.side}`;
+      const labelKey=action.side;
       const previousLabelTime=formalLabelLastTime.get(labelKey);
-      const showLabel=!previousLabelTime||!isRecentCausalEvent(action.time,previousLabelTime,10);
+      const showLabel=!previousLabelTime||!isRecentCausalEvent(action.time,previousLabelTime,20);
       if(showLabel)formalLabelLastTime.set(labelKey,action.time);
       const placed=showLabel
         ?reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,18,isSell,true)
@@ -3775,9 +3881,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const label=strategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action);
       const chartLabel=shadowChartActionLabel(action);
       const labelWidth=Math.max(38,chartLabel.length*8+14);
-      const duplicatesHigherPriority=labeledSignalEpisodes.some(marker=>marker.isSell===isSell
-        &&(isRecentCausalEvent(action.time,marker.time,20)||isRecentCausalEvent(marker.time,action.time,20)));
-      const placed=duplicatesHigherPriority
+      const duplicatesHigherPriority=labeledSignalEpisodes.some(marker=>
+        isRecentCausalEvent(action.time,marker.time,20)||isRecentCausalEvent(marker.time,action.time,20));
+      const placed=duplicatesHigherPriority||suppressOpeningAuxiliaryLabel(action.time)
         ?{labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false}
         :reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,17,isSell);
       if(placed.labelRendered)labeledSignalEpisodes.push({time:action.time,isSell});
@@ -3849,9 +3955,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         &&pivotInfo?.openingAnchor!==true;
       const auxiliaryDotOnly=observation.strategy==="observation"
         &&(observation.observationKind==="macd"||pivotScope==="local");
-      const duplicatesHigherPriority=labeledObservationEpisodes.some(marker=>marker.isSell===isSell
-        &&(isRecentCausalEvent(observation.time,marker.time,20)||isRecentCausalEvent(marker.time,observation.time,20)));
-      const labelRendered=qualified&&!lowConfidencePivot&&!auxiliaryDotOnly&&!duplicatesHigherPriority;
+      const duplicatesHigherPriority=labeledObservationEpisodes.some(marker=>
+        isRecentCausalEvent(observation.time,marker.time,20)||isRecentCausalEvent(marker.time,observation.time,20));
+      const labelRendered=qualified&&!lowConfidencePivot&&!auxiliaryDotOnly&&!duplicatesHigherPriority&&!suppressOpeningAuxiliaryLabel(observation.time);
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
         : {labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false};
