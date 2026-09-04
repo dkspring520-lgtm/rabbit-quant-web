@@ -95,7 +95,7 @@ def is_a_share_cash_session(minute):
     return (
         "0915" <= clock <= "0925"
         or "0930" <= clock <= "1129"
-        or "1300" <= clock <= "1459"
+        or "1300" <= clock <= "1500"
     )
 
 def is_live_a_share_session():
@@ -251,6 +251,20 @@ class Collector:
                 "bigSellVolume": int(row.get("bigSellVolume", 0) or 0),
                 "bigBuyCount": int(row.get("bigBuyCount", 0) or 0),
                 "bigSellCount": int(row.get("bigSellCount", 0) or 0),
+                "footprint": {
+                    f"{float(level.get('price')):.4f}": {
+                        "price": round(float(level.get("price")), 4),
+                        "buyVolume": int(level.get("buyVolume", 0) or 0),
+                        "sellVolume": int(level.get("sellVolume", 0) or 0),
+                        "buyNotional": float(level.get("buyNotional", 0) or 0),
+                        "sellNotional": float(level.get("sellNotional", 0) or 0),
+                        "trades": int(level.get("trades", 0) or 0),
+                    }
+                    for level in row.get("footprint", [])
+                    if isinstance(level, dict)
+                    and isinstance(level.get("price"), (int, float))
+                    and float(level.get("price")) > 0
+                },
             }
             self.restored_minute_rows[minute] = {
                 "time": minute[-4:],
@@ -313,6 +327,7 @@ class Collector:
                 "bigSellVolume": 0,
                 "bigBuyCount": 0,
                 "bigSellCount": 0,
+                "footprint": {},
             }
             price = float(record.get("lastPrice", 0) or 0)
             self.restored_minute_rows[minute] = {
@@ -540,7 +555,7 @@ class Collector:
             "currentBar": tick_bars[-1],
         }
 
-    def update_minute_flow(self, minute, side, volume, notional):
+    def update_minute_flow(self, minute, side, volume, notional, price=None):
         if not is_a_share_cash_session(minute) or side not in {"B", "S"}:
             return
         # A new trading date starts a fresh all-day ledger.
@@ -553,6 +568,7 @@ class Collector:
             "bigBuyNotional": 0.0, "bigSellNotional": 0.0,
             "bigBuyVolume": 0, "bigSellVolume": 0,
             "bigBuyCount": 0, "bigSellCount": 0,
+            "footprint": {},
         })
         prefix = "Buy" if side == "B" else "Sell"
         flow[f"active{prefix}Notional"] += notional
@@ -561,6 +577,19 @@ class Collector:
             flow[f"big{prefix}Notional"] += notional
             flow[f"big{prefix}Volume"] += volume
             flow[f"big{prefix}Count"] += 1
+        if isinstance(price, (int, float)) and price > 0:
+            level_key = f"{price:.4f}"
+            level = flow["footprint"].setdefault(level_key, {
+                "price": round(float(price), 4),
+                "buyVolume": 0,
+                "sellVolume": 0,
+                "buyNotional": 0.0,
+                "sellNotional": 0.0,
+                "trades": 0,
+            })
+            level[f"{'buy' if side == 'B' else 'sell'}Volume"] += int(volume)
+            level[f"{'buy' if side == 'B' else 'sell'}Notional"] += float(notional)
+            level["trades"] += 1
         # Defensive cap if a vendor sends packets for more than one day.
         if len(self.minute_flows) > 260:
             for stale_minute in sorted(self.minute_flows)[:-260]:
@@ -573,6 +602,23 @@ class Collector:
         big_buy = float(flow.get("bigBuyNotional", 0) or 0)
         big_sell = float(flow.get("bigSellNotional", 0) or 0)
         active_total = active_buy + active_sell
+        footprint = sorted(
+            (
+                {
+                    "price": round(float(level.get("price", 0) or 0), 4),
+                    "buyVolume": int(level.get("buyVolume", 0) or 0),
+                    "sellVolume": int(level.get("sellVolume", 0) or 0),
+                    "deltaVolume": int(level.get("buyVolume", 0) or 0) - int(level.get("sellVolume", 0) or 0),
+                    "buyNotional": round(float(level.get("buyNotional", 0) or 0), 2),
+                    "sellNotional": round(float(level.get("sellNotional", 0) or 0), 2),
+                    "trades": int(level.get("trades", 0) or 0),
+                }
+                for level in flow.get("footprint", {}).values()
+                if isinstance(level, dict) and float(level.get("price", 0) or 0) > 0
+            ),
+            key=lambda level: level["price"],
+            reverse=True,
+        )
         return {
             "activeBuyNotional": round(active_buy, 2),
             "activeSellNotional": round(active_sell, 2),
@@ -587,14 +633,26 @@ class Collector:
             "bigSellVolume": int(flow.get("bigSellVolume", 0) or 0),
             "bigBuyCount": int(flow.get("bigBuyCount", 0) or 0),
             "bigSellCount": int(flow.get("bigSellCount", 0) or 0),
+            "footprint": footprint,
         }
 
     def recent_minute_payload(self):
-        active_date = (self.last_exchange_time or "")[:8]
+        valid_minutes = [
+            minute
+            for minute in (
+                list(self.minute_flows)
+                + list(self.restored_minute_rows)
+                + [bar.get("minute", "") for bar in self.minute_bars]
+                + ([self.current_minute_bar.get("minute", "")] if self.current_minute_bar else [])
+            )
+            if is_a_share_cash_session(minute)
+        ]
+        active_date = max(valid_minutes, default=(self.last_exchange_time or "")[:8])[:8]
         rows = {
             minute: dict(row)
             for minute, row in self.restored_minute_rows.items()
-            if not active_date or minute[:8] == active_date
+            if (not active_date or minute[:8] == active_date)
+            and is_a_share_cash_session(minute)
         }
         live_bars = [
             *self.minute_bars,
@@ -602,7 +660,7 @@ class Collector:
         ]
         for bar in live_bars:
             minute = bar["minute"]
-            if active_date and minute[:8] != active_date:
+            if (active_date and minute[:8] != active_date) or not is_a_share_cash_session(minute):
                 continue
             restored = rows.get(minute)
             rows[minute] = {
@@ -633,7 +691,7 @@ class Collector:
             self.last_exchange_time = f"{int(row['date']):08d}-{int(row['time']):09d}"
             minute = exchange_minute(self.last_exchange_time)
             if minute:
-                self.update_minute_flow(minute, side, volume, notional)
+                self.update_minute_flow(minute, side, volume, notional, price)
                 if price > 0:
                     self.update_minute_bar(
                         minute,
