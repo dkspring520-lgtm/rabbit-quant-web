@@ -82,7 +82,6 @@ const LIVE_CHART = Object.freeze({
   volumeBottom: 300,
 });
 
-type CockpitLayoutPreset="trading"|"review"|"research";
 type ChartViewport={start:number;span:number};
 type CockpitLayoutSnapshot={
   annotation:"full"|"compact";
@@ -113,12 +112,6 @@ const cockpitSlotLabel=(slot:number)=>{
   const totalMinutes=safe<=120?9*60+30+safe:13*60+(safe-120);
   return `${String(Math.floor(totalMinutes/60)).padStart(2,"0")}:${String(totalMinutes%60).padStart(2,"0")}`;
 };
-const DEFAULT_COCKPIT_LAYOUTS:Record<CockpitLayoutPreset,CockpitLayoutSnapshot>={
-  trading:{annotation:"compact",indicators:true,signals:true,formalSignals:true,v29Signals:false,v1Signals:false,pricePlan:true,volume:true,rabbit:false,decisionMode:"focus",panelWidth:380,panelCollapsed:false,orderFlowHeight:130,viewport:{start:0,span:240}},
-  review:{annotation:"full",indicators:true,signals:true,formalSignals:true,v29Signals:true,v1Signals:true,pricePlan:true,volume:true,rabbit:false,decisionMode:"all",panelWidth:420,panelCollapsed:false,orderFlowHeight:155,viewport:{start:0,span:240}},
-  research:{annotation:"full",indicators:true,signals:true,formalSignals:true,v29Signals:true,v1Signals:true,pricePlan:true,volume:true,rabbit:true,decisionMode:"all",panelWidth:480,panelCollapsed:false,orderFlowHeight:180,viewport:{start:0,span:240}},
-};
-
 const liveChartX = (time:string|number|null|undefined) =>
   intradayChartX(time, LIVE_CHART.plotLeft, LIVE_CHART.plotRight - LIVE_CHART.plotLeft);
 
@@ -1813,12 +1806,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [eventRadarError, setEventRadarError] = useState("");
   const [starredRevision, setStarredRevision] = useState(0);
   const [initialCockpitUi] = useState<Partial<CockpitLayoutSnapshot>>(()=>{
-    try{return JSON.parse(localStorage.getItem("rabbit-cockpit-ui-state")??"{}") as Partial<CockpitLayoutSnapshot>}catch{return {}}
+    try{
+      const saved=JSON.parse(localStorage.getItem("rabbit-cockpit-ui-state")??"{}") as Partial<CockpitLayoutSnapshot>;
+      if(localStorage.getItem("rabbit-cockpit-ui-version")!=="2"){
+        localStorage.setItem("rabbit-cockpit-ui-version","2");
+        return {...saved,annotation:"compact",signals:true,formalSignals:true,v29Signals:false,v1Signals:false};
+      }
+      return saved;
+    }catch{return {}}
   });
-  const [cockpitLayoutPreset,setCockpitLayoutPreset]=useState<CockpitLayoutPreset>(()=>{
-    try{const value=localStorage.getItem("rabbit-cockpit-layout-active");return value==="review"||value==="research"?value:"trading"}catch{return "trading"}
-  });
-  const [layoutFeedback,setLayoutFeedback]=useState("");
   const [indicatorsVisible, setIndicatorsVisible] = useState(initialCockpitUi.indicators??true);
   const [signalLayerVisible,setSignalLayerVisible]=useState(initialCockpitUi.signals??true);
   const [formalSignalVisible,setFormalSignalVisible]=useState(initialCockpitUi.formalSignals??true);
@@ -1889,40 +1885,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     viewport:chartViewport,
   }),[chartAnnotationMode,chartViewport,decisionPanelCollapsed,decisionPanelWidth,decisionZoneMode,formalSignalVisible,indicatorsVisible,orderFlowHeight,pricePlanLayerVisible,rabbitTrackerVisible,signalLayerVisible,v1SignalVisible,v29SignalVisible,volumeLayerVisible]);
   useEffect(()=>{
-    try{
-      localStorage.setItem("rabbit-cockpit-ui-state",JSON.stringify(cockpitLayoutSnapshot));
-      localStorage.setItem("rabbit-cockpit-layout-active",cockpitLayoutPreset);
-    }catch{}
-  },[cockpitLayoutPreset,cockpitLayoutSnapshot]);
-  const applyCockpitLayoutPreset=(preset:CockpitLayoutPreset)=>{
-    let saved:Partial<CockpitLayoutSnapshot>={};
-    try{saved=JSON.parse(localStorage.getItem(`rabbit-cockpit-layout:${preset}`)??"{}") as Partial<CockpitLayoutSnapshot>}catch{}
-    const next={...DEFAULT_COCKPIT_LAYOUTS[preset],...saved,viewport:clampCockpitViewport(saved.viewport??DEFAULT_COCKPIT_LAYOUTS[preset].viewport)};
-    setCockpitLayoutPreset(preset);
-    setChartAnnotationMode(next.annotation);
-    setIndicatorsVisible(next.indicators);
-    setSignalLayerVisible(next.signals);
-    setFormalSignalVisible(next.formalSignals);
-    setV29SignalVisible(next.v29Signals);
-    setV1SignalVisible(next.v1Signals);
-    setPricePlanLayerVisible(next.pricePlan);
-    setVolumeLayerVisible(next.volume);
-    setRabbitTrackerVisible(next.rabbit);
-    setDecisionZoneMode(next.decisionMode);
-    setDecisionPanelWidth(Math.max(320,Math.min(520,next.panelWidth)));
-    setDecisionPanelCollapsed(next.panelCollapsed);
-    setOrderFlowHeight(Math.max(110,Math.min(220,next.orderFlowHeight)));
-    setChartViewport(next.viewport);
-    setLayoutFeedback("已切换");
-    window.setTimeout(()=>setLayoutFeedback(""),1200);
-  };
-  const saveCockpitLayout=()=>{
-    try{
-      localStorage.setItem(`rabbit-cockpit-layout:${cockpitLayoutPreset}`,JSON.stringify(cockpitLayoutSnapshot));
-      setLayoutFeedback("已保存");
-    }catch{setLayoutFeedback("保存失败")}
-    window.setTimeout(()=>setLayoutFeedback(""),1400);
-  };
+    try{localStorage.setItem("rabbit-cockpit-ui-state",JSON.stringify(cockpitLayoutSnapshot))}catch{}
+  },[cockpitLayoutSnapshot]);
   const stock = stockList[activeStock] || stockList[0];
   const activeProfitMode=preferences.profitMode;
   const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
@@ -3055,10 +3019,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     });
   };
   const resetIntradayViewport=()=>setChartViewport({start:0,span:COCKPIT_VIEWPORT_FULL_SPAN});
-  const focusLatestIntraday=()=>{
-    const latestSlot=minutePoints.length?aShareMinuteSlot(minutePoints.at(-1)!.time):COCKPIT_VIEWPORT_FULL_SPAN;
-    setChartViewport(current=>clampCockpitViewport({start:latestSlot-current.span*.84,span:current.span}));
-  };
   const handleIntradayWheel=(event:ReactWheelEvent<SVGSVGElement>)=>{
     event.preventDefault();
     const local=intradayLocalPosition(event.clientX,event.clientY);
@@ -6038,12 +5998,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionPanelCollapsed?'decision-panel-collapsed':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${chartAnnotationMode==="compact"?"compact-chart-labels":""} ${signalLayerVisible?'':'hide-signal-layer'} ${formalSignalVisible?'':'hide-formal-signal-layer'} ${v29SignalVisible?'':'hide-v29-signal-layer'} ${v1SignalVisible?'':'hide-v1-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'} ${rabbitTrackerVisible?'':'hide-rabbit-tracker'}`} ref={workspaceRef} style={{"--decision-panel-width":`${decisionPanelWidth}px`,"--order-flow-height":`${orderFlowHeight}px`} as CSSProperties}>
         <div className="chart-zone">
           <div className="chart-tools">
-            <div className="cockpit-layout-controls" aria-label="操盘台布局">
-              <select value={cockpitLayoutPreset} onChange={event=>applyCockpitLayoutPreset(event.target.value as CockpitLayoutPreset)} aria-label="切换操盘台布局">
-                <option value="trading">盘中操盘</option><option value="review">盘后复盘</option><option value="research">研究模式</option>
-              </select>
-              <button type="button" onClick={saveCockpitLayout}>{layoutFeedback||"保存布局"}</button>
-            </div>
             <div className="legend primary-chart-legend">
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
@@ -6168,15 +6122,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 </g>;
               })()}
             </svg>
-            <div className="chart-time-navigator" aria-label="图表缩放与时间轴定位">
-              <button type="button" onClick={()=>zoomIntraday(1.18)} disabled={chartViewport.span>=COCKPIT_VIEWPORT_FULL_SPAN} title="缩小时间轴">−</button>
-              <b>{Math.round(COCKPIT_VIEWPORT_FULL_SPAN/chartViewport.span*100)}%</b>
-              <button type="button" onClick={()=>zoomIntraday(.84)} disabled={chartViewport.span<=COCKPIT_VIEWPORT_MIN_SPAN} title="放大时间轴">＋</button>
-              <span>{cockpitSlotLabel(chartViewport.start)}–{cockpitSlotLabel(chartViewport.start+chartViewport.span)}</span>
-              <input type="range" min="0" max={Math.max(1,COCKPIT_VIEWPORT_FULL_SPAN-chartViewport.span)} step="1" value={chartViewport.start} disabled={chartViewport.span>=COCKPIT_VIEWPORT_FULL_SPAN} onChange={event=>setChartViewport(current=>clampCockpitViewport({start:Number(event.target.value),span:current.span}))} aria-label="时间轴定位"/>
-              <button type="button" onClick={focusLatestIntraday} disabled={chartViewport.span>=COCKPIT_VIEWPORT_FULL_SPAN}>最新</button>
-              <button type="button" onClick={resetIntradayViewport} disabled={chartViewport.span>=COCKPIT_VIEWPORT_FULL_SPAN}>复位</button>
-            </div>
           </div>
           {isZijinStock&&<section className="main-force-track" aria-label="紫金矿业全天 L2 大额主动净额追踪，非总成交量">
             <div className="main-force-track-head">
