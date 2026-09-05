@@ -681,9 +681,15 @@ test("reconstructed runner returns the shared BacktestResult shape", () => {
   assert.equal(result.trades, 1);
   assert.equal(result.actions.length, 2);
   assert.equal(result.actions[0].direction, "正T");
+  assert.equal(result.actions[0].confirmationScore, 88);
+  assert.equal(result.actions[0].confirmationScoreKind, "factor-vote-score");
+  assert.equal(Object.hasOwn(result.actions[1], "confirmationScore"), false);
+  assert.equal(Object.hasOwn(result.actions[1], "confirmationScoreKind"), false);
   assert.equal(result.cycleNets.length, 1);
   assert.equal(result.curve.length, session.minutes.length);
   assert.equal(result.observations[0].stage, "candidate");
+  assert.equal(result.observations[0].confirmationScore, 88);
+  assert.match(result.observations[0].reason, /确认评分 88\/100（非胜率）/);
   assert.ok(Number.isFinite(result.maxDrawdown));
 });
 
@@ -704,7 +710,7 @@ test("V1 context shadow replay needs a frozen causal assessment before trading",
       return {
         session: input,
         rows: [
-          { date: input.date, time: "0945", index: 0, price: 35, factors },
+          { date: input.date, time: "0945", index: 0, price: 35, factors: { ...factors, "vwap.bias": -0.003 } },
           { date: input.date, time: "0946", index: 1, price: 35, factors },
         ],
       };
@@ -725,11 +731,98 @@ test("V1 context shadow replay needs a frozen causal assessment before trading",
   }))), options);
   assert.equal(accepted.trades, 1);
   assert.equal(accepted.actions[0].direction, "正T");
+  assert.equal(accepted.actions[0].confirmationScore, 88);
+  assert.equal(Object.hasOwn(accepted.actions[1], "confirmationScore"), false);
+  assert.equal(accepted.observations[0].confirmationScore, 88);
+  assert.equal(accepted.observations[0].score, 72);
+  assert.equal(accepted.observations[0].meanlineOrderflow.confirmed, true);
+  assert.equal(accepted.actions[0].meanlineOrderflow.confirmed, true);
+  assert.ok(accepted.observations[0].reason.includes(accepted.observations[0].meanlineOrderflow.summary));
   assert.equal(accepted.observations[0].probabilities["15m"], 0.7);
   assert.equal(accepted.observations[0].calibrated, false);
   assert.equal(accepted.diagnostics.contextApproved, 1);
   assert.equal(withoutAssessment.trades, 0);
+  assert.equal(withoutAssessment.observations[0].confidence, null);
+  assert.equal(withoutAssessment.observations[0].score, 88);
+  assert.equal(withoutAssessment.observations[0].confirmationScore, 88);
+  assert.equal(withoutAssessment.observations[0].confirmationScoreKind, "factor-vote-score");
   assert.ok(withoutAssessment.diagnostics.contextMissing > 0);
+});
+
+test("V1 confirmation scores use each direction's own factor votes", () => {
+  const session = replaySession([
+    { price: 35 }, { price: 35 }, { price: 35.12 }, { price: 35.12 }, { price: 34.9 },
+  ]);
+  const positiveFactors = v1ReplayFactors();
+  const reverseFactors = v1ReplayFactors({
+    "vwap.bias": 0.002,
+    "technical.macd_histogram": 0.0001,
+    "technical.macd_histogram_delta": -0.0001,
+    "orderflow.active_buy_imbalance": -0.2,
+    "orderflow.ofi_change_3m": -0.1,
+    "technical.rsi14": 0,
+    "technical.kdj_j9": 0.3,
+    "technical.bollinger_position_20": 0.3,
+    "price.return_5m": 0.001,
+    "price.session_return": 0.002,
+  });
+  const rows = session.minutes.map((point, index) => ({
+    date: session.date, time: point.time, index, price: point.price,
+    factors: index === 1 ? positiveFactors : index === 3 ? reverseFactors : v1ReplayFactors({ "vwap.bias": 0 }),
+  }));
+  const options = { factorEngine: replayFactorEngine(rows), feeRate: 0, slippage: 0, minCommission: false, baseShares: 1600, sellable: 1600 };
+  for (const run of [runZuoTV1ReconstructedReplay, runZuoTV1ContextShadowReplay]) {
+    const result = run(session, options);
+    assert.equal(result.observations.find(item => item.direction === "正T").confirmationScore, 88);
+    assert.equal(result.observations.find(item => item.direction === "反T").confirmationScore, 75);
+    assert.ok(result.observations.every(item => item.confirmationScoreKind === "factor-vote-score"));
+  }
+});
+
+test("V1 entry scores and meanline evidence cannot inherit future trade results", () => {
+  const base = replaySession([
+    { time: "0945", price: 35 },
+    { time: "0946", price: 35, v1ContextAssessment: validContextAssessment({ asOfIndex: 1 }) },
+    { time: "0947", price: 35.12, high: 35.15 },
+    { time: "0948", price: 35.2 },
+  ]);
+  const changed = replaySession(base.minutes.map((point, index) => index <= 1 ? point : {
+    ...point, price: 34.8, high: 35, low: 34.7,
+  }));
+  const options = {
+    factorEngine: {
+      computeSession(input) {
+        return {
+          session: input,
+          rows: input.minutes.map((point, index) => ({
+            date: input.date, time: point.time, index, price: point.price,
+            factors: v1ReplayFactors(index === 0 ? { "vwap.bias": -0.003 }
+              : index > 1 && point.price < 35 ? {
+                "vwap.bias": 0, "technical.macd_histogram_delta": -99,
+                "orderflow.active_buy_imbalance": -1, "orderflow.ofi_change_3m": -1,
+              } : {}),
+          })),
+        };
+      },
+    },
+    feeRate: 0, slippage: 0, minCommission: false, baseShares: 1600, sellable: 1600,
+  };
+  const details = item => ({
+    confirmationScore: item.confirmationScore,
+    confirmationScoreKind: item.confirmationScoreKind,
+    meanlineOrderflow: item.meanlineOrderflow,
+  });
+  for (const run of [runZuoTV1ReconstructedReplay, runZuoTV1ContextShadowReplay]) {
+    const first = run(base, options);
+    const second = run(changed, options);
+    assert.equal(first.actions[0].time, "0946");
+    assert.equal(second.actions[0].time, "0946");
+    assert.deepEqual(details(second.actions[0]), details(first.actions[0]));
+    assert.deepEqual(details(second.observations[0]), details(first.observations[0]));
+    assert.equal(first.actions[0].confirmationScore, 88);
+    assert.equal(Object.hasOwn(second.actions[1], "confirmationScore"), false);
+    assert.notEqual(first.net, second.net);
+  }
 });
 
 test("V1 context replay records attack-defense as the existing reverse-T reason", () => {
@@ -783,6 +876,8 @@ test("V1 context replay records attack-defense as the existing reverse-T reason"
   });
   assert.equal(result.trades, 1);
   assert.equal(result.actions[0].direction, "反T");
+  assert.equal(result.actions[0].confirmationScore, 88);
+  assert.equal(Object.hasOwn(result.actions[1], "confirmationScore"), false);
   assert.match(result.actions[0].reason, /攻弱且支撑失守/);
   assert.equal(result.diagnostics.attackDefenseConfirmed, 1);
   assert.match(result.observations.find(item => item.time === "1006").reason, /MACD↓仅作辅助/);

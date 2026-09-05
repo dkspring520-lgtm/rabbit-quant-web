@@ -65,6 +65,33 @@ test("missing active L2 prints stays unavailable and cannot create a formal sign
   const result=evaluateZijinOrderFlowRadar({minutes:[row(0),row(1),row(2)]});
   assert.equal(result.available,false);
   assert.equal(result.canCreateSignal,false);
+  assert.equal(result.scores.lowBuy,null);
+  assert.equal(result.scores.takeProfit,null);
+});
+
+test("historical L2 activity cannot fabricate a current score when this minute is missing",()=>{
+  const result=evaluateZijinOrderFlowRadar({minutes:[row(0,{buy:1000,sell:100}),row(1)]});
+  assert.equal(result.observedMinutes,1);
+  assert.equal(result.available,false);
+  assert.equal(result.scores.lowBuy,null);
+  assert.equal(result.scores.takeProfit,null);
+});
+
+test("stale order flow is withheld rather than displayed as a current confirmation",()=>{
+  const result=evaluateZijinOrderFlowRadar({minutes:[row(0,{buy:1000,sell:100})],stale:true});
+  assert.equal(result.available,false);
+  assert.equal(result.scores.lowBuy,null);
+  assert.match(result.reason,/过期/);
+});
+
+test("order-flow scores never masquerade as a win probability",()=>{
+  const result=evaluateZijinOrderFlowRadar({minutes:times.map((_,index)=>row(index,{price:10+index/100,buy:1000,sell:100}))});
+  assert.equal(result.available,true);
+  assert.equal(typeof result.scores.lowBuy,"number");
+  assert.equal(result.winRate,null);
+  assert.equal(result.probabilityStatus,"uncalibrated");
+  assert.equal(result.probabilities,undefined);
+  assert.equal(result.scores.probabilities,undefined);
 });
 
 test("collector and cockpit expose price-level footprint without promoting it to execution",async()=>{
@@ -81,7 +108,10 @@ test("collector and cockpit expose price-level footprint without promoting it to
   assert.match(page,/双兔订单流/);
   assert.match(page,/0–100 是订单流确认评分，不是历史胜率/);
   assert.match(page,/calibratedCandidateProbability/);
-  assert.match(page,/候卖":"候买".*candidateProbability/);
+  assert.match(page,/候卖":"候买".*strength.label/);
+  assert.match(page,/正T \{zijinOrderFlowRadar.available\?orderFlowBuyStrength.label/);
+  assert.match(page,/反T \{zijinOrderFlowRadar.available\?orderFlowSellStrength.label/);
+  assert.match(page,/胜率待校准/);
   assert.match(page,/engineCandidateProbability===null/);
   assert.match(page,/intradayChartType==="candle"/);
   assert.match(page,/真实1分钟开高低收蜡烛图/);

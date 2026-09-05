@@ -62,6 +62,7 @@ import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePe
 import { runZijinV29ShadowReplay, runZuoTV1ContextShadowReplay, runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
 import { evaluateZijinShadowExperiments } from "@/lib/zijin-shadow-experiments.mjs";
 import { evaluateZijinOrderFlowRadar } from "@/lib/zijin-order-flow-engine.mjs";
+import { observationConfirmationScore, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 const PublicLanding = dynamic(() => import("./public-landing"), {
@@ -467,7 +468,7 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
   return { label:"横盘震荡", level:"flat", score:46, summary:"价格围绕均线反复，方向尚未形成。", action:"只在区间边缘等待高胜率信号", details:[rangeNote,`5 日动量 ${(fiveDay*100).toFixed(2)}%`] };
 }
 
-type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; meta?:{hold?:number;[key:string]:unknown} };
+type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; confirmationScore?:number|null; meta?:{hold?:number;[key:string]:unknown} };
 const formalActionSide=(value:unknown):"buy"|"sell"=>String(value??"").includes("卖")?"sell":"buy";
 const formalExecutionLabel=(direction:"正T"|"反T"|undefined,side:"buy"|"sell")=>
   direction==="反T"
@@ -481,7 +482,7 @@ const v1ContextActionLabel=(action:ReplayAction)=>action.direction==="反T"
   : action.side==="买入"?"V1 正T":"V1 止盈";
 const shadowChartActionLabel=(action:ReplayAction)=>
   action.side==="买入"||action.side==="买回"?"候买":"候卖";
-type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; localPivotPrice?:number; absolutePivotPrice?:number; openingPrice?:number; pivotScope?:"absolute"|"local"; openingAnchor?:boolean; probabilityEligible?:boolean; volumeConfirmed?:boolean; vwapConfirmed?:boolean; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|70|75|80|90; calibrationSamples?:number; calibratedHitRate?:number; probabilitySource?:"historical"|"unavailable"; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
+type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; confirmationScore?:number|null; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; localPivotPrice?:number; absolutePivotPrice?:number; openingPrice?:number; pivotScope?:"absolute"|"local"; openingAnchor?:boolean; probabilityEligible?:boolean; volumeConfirmed?:boolean; vwapConfirmed?:boolean; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|70|75|80|90; calibrationSamples?:number; calibratedHitRate?:number; probabilitySource?:"historical"|"unavailable"; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
 const calibratedCandidateProbability=(observation:ReplayObservation)=>{
   if(observation.probabilitySource==="historical"&&observation.probabilityEligible===true
     &&Number(observation.calibrationSamples)>=30&&Number.isFinite(observation.probability))return Number(observation.probability);
@@ -2799,9 +2800,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     [isZijinStock,liveL2Status?.recentMinutes],
   );
   const zijinOrderFlowRadar=useMemo(
-    ()=>evaluateZijinOrderFlowRadar({minutes:isZijinStock?(liveL2Status?.recentMinutes??[]):[]}),
-    [isZijinStock,liveL2Status?.recentMinutes],
+    ()=>evaluateZijinOrderFlowRadar({minutes:isZijinStock?(liveL2Status?.recentMinutes??[]):[],stale:marketSession.live&&liveL2Stale}),
+    [isZijinStock,liveL2Status?.recentMinutes,marketSession.live,liveL2Stale],
   );
+  const orderFlowBuyStrength=signalStrengthPresentation({score:zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.lowBuy:null});
+  const orderFlowSellStrength=signalStrengthPresentation({score:zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.takeProfit:null});
   const zijinVisibleFootprint=useMemo(()=>{
     const rows=Array.isArray(zijinOrderFlowRadar.footprint)?zijinOrderFlowRadar.footprint:[];
     const reference=Number(zijinOrderFlowRadar.reference?.price);
@@ -3934,8 +3937,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const point=pointPosition(action.time,action.price,true);
       if(!point)return [];
       const isSell=action.side==="卖出";
-      const label=strategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action);
-      const chartLabel=shadowChartActionLabel(action);
+      const strength=signalStrengthPresentation({score:action.confirmationScore});
+      const label=`${strategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action)} · ${strength.detail}`;
+      const chartLabel=`${shadowChartActionLabel(action)}${action.confirmationScore==null?"":` ${strength.label}`}`;
       const labelWidth=Math.max(38,chartLabel.length*8+14);
       const duplicatesHigherPriority=labeledSignalEpisodes.some(marker=>
         isRecentCausalEvent(action.time,marker.time,20)||isRecentCausalEvent(marker.time,action.time,20));
@@ -3987,19 +3991,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const sideClass=isSell?"sell":"buy";
       const rawLabel=observationConfirmationLabel(observation,minutePoints,activeQuote?.open)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const candidateProbability=calibratedCandidateProbability(observation);
-      const calibratedLabel=`${rawLabel}${candidateProbability===null||rawLabel.includes("%")?"":` ${candidateProbability}%`}`;
+      const strength=signalStrengthPresentation({score:observationConfirmationScore(observation,observation.strategy),historicalProbability:candidateProbability});
+      const calibratedLabel=`${rawLabel}${rawLabel.includes("%")?"":` · ${strength.label}`}`;
       const fullLabel=observation.strategy==="observation"
         ?`${calibratedLabel} · 仅观察`
         :observation.strategy==="v1"
-        ?`V1 ${calibratedLabel}`
+        ?`${calibratedLabel} · ${strength.detail} · ${observation.reason}`
         :observation.strategy==="v29"
-          ?`V2.9 ${calibratedLabel}`
-          :calibratedLabel;
+          ?`${calibratedLabel} · ${strength.detail}`
+          :`${calibratedLabel} · ${strength.detail}（方向、位置、触发三项评分均值）`;
       const currentLabel=observation.strategy==="observation"
         ?rawLabel
         :observation.strategy==="v1"||observation.strategy==="v29"
-        ?`${isSell?"候卖":"候买"}${candidateProbability===null?"":` ${candidateProbability}%`}`
-        :rawLabel;
+        ?`${isSell?"候卖":"候买"} ${strength.label}`
+        :calibratedLabel;
       const labelWidth=Math.max(38,currentLabel.length*8+14);
       const labelVisible=true;
       // Candidate and confirmed evidence stays reviewable for the whole session;
@@ -4482,16 +4487,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const latestObservation=zijinV1ContextReplay?.observations?.at(-1)??null;
     const hintCount=(zijinV1ContextReplay?.actions.length??0)+(zijinV1ContextReplay?.observations?.length??0);
     if(latestAction)return {
-      signal:v1ContextActionLabel(latestAction),
+      signal:`${v1ContextActionLabel(latestAction)}${latestAction.confirmationScore==null?"":` · ${signalStrengthPresentation({score:latestAction.confirmationScore}).label}`}`,
       tone:"confirmed",
       summary:`已回放 ${minutePoints.length} 分钟 · ${hintCount} 个提示点`,
       detail:`${formatTime(latestAction.time)} ${latestAction.reason??"形成情境确认"}；不进入正式闭环。`,
     };
     if(latestObservation)return {
-      signal:latestObservation.direction==="反T"?"V1 反T观察":"V1 正T观察",
+      signal:`V1 ${latestObservation.direction} · ${signalStrengthPresentation({score:latestObservation.confirmationScore}).label}`,
       tone:"waiting",
       summary:`已回放 ${minutePoints.length} 分钟 · ${hintCount} 个提示点`,
-      detail:"情境证据尚未完成联合确认；仅作只读参考，不进入正式闭环。",
+      detail:`${signalStrengthPresentation({score:latestObservation.confirmationScore}).detail}；${latestObservation.reason}；只读参考，不进入正式闭环。`,
     };
     return {
       signal:zijinV1ContextReplay?"等待情境数据":"尚未启动",
@@ -6534,8 +6539,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </details>}
           {isZijinStock&&<details className={`zijin-order-flow-radar ${zijinOrderFlowRadar.available?"ready":"waiting"}`} aria-label="双兔订单流影子确认">
             <summary>
-              <div><span>双兔订单流</span><b>{zijinOrderFlowRadar.scores?.stance??"等待成交"}</b><small>{zijinOrderFlowRadar.asOfTime?`${formatTime(zijinOrderFlowRadar.asOfTime)} · 真实L2逐笔`:zijinOrderFlowRadar.reason}</small></div>
-              <strong><i className="buy">低吸 {zijinOrderFlowRadar.scores?.lowBuy??"--"}</i><i className="sell">止盈 {zijinOrderFlowRadar.scores?.takeProfit??"--"}</i></strong>
+              <div><span>双兔订单流</span><b>{zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.stance:zijinOrderFlowRadar.reason}</b><small>{zijinOrderFlowRadar.asOfTime?`${formatTime(zijinOrderFlowRadar.asOfTime)} · ${marketSession.live?"当分钟":"盘后参考"} · 胜率待校准`:"胜率待校准"}</small></div>
+              <strong><i className="buy" title={orderFlowBuyStrength.detail}>正T {zijinOrderFlowRadar.available?orderFlowBuyStrength.label:"待数据"}</i><i className="sell" title={orderFlowSellStrength.detail}>反T {zijinOrderFlowRadar.available?orderFlowSellStrength.label:"待数据"}</i></strong>
             </summary>
             {zijinOrderFlowRadar.available?<div className="zijin-order-flow-body">
               <div className="zijin-order-flow-metrics">
