@@ -3960,3 +3960,12 @@
 :root:not([data-theme="light"]) .app-shell.tv-console .decision-zone .decision-primary-card,
 :root:not([data-theme="light"]) .app-shell.tv-console .decision-zone .decision-position-card{box-shadow:none}
 :root:not([data-theme="light"]) .app-shell.tv-console .primary-action{box-shadow:inset 0 0 0 1px rgba(226,183,95,.25)}
+/* Intraday chart input isolation and compact order-flow score badge. */
+.chart-wrap{overscroll-behavior:contain}
+.interactive-intraday-chart{touch-action:none;overscroll-behavior:contain}
+.intraday-order-flow-badge{pointer-events:all;filter:drop-shadow(0 4px 8px rgba(0,0,0,.28))}
+.intraday-order-flow-badge rect{fill:color-mix(in srgb,var(--desk-panel-raised,#1b2422) 92%,var(--amber,#f2b84b) 8%);stroke:rgba(242,184,75,.7);stroke-width:1;vector-effect:non-scaling-stroke}
+.intraday-order-flow-badge text{fill:var(--text,#edf4f1);font:700 8px var(--font-geist-mono),monospace}
+.intraday-order-flow-badge text.scores{font-size:6.5px;fill:var(--amber,#f2b84b)}
+:root[data-theme="light"] .intraday-order-flow-badge rect{fill:rgba(255,249,231,.96);stroke:#b77b12}
+:root[data-theme="light"] .intraday-order-flow-badge text{fill:#4f3a12}
