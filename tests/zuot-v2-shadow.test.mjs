@@ -8,6 +8,7 @@ import {
   evaluateZuoTShadowRow,
   evaluateZuoTV1AttackDefenseStructure,
   evaluateZuoTV1ContextShadowDecision,
+  evaluateZuoTV1MeanlineOrderflow,
   runZijinV29ShadowReplay,
   runZuoTV1ContextShadowReplay,
   runZuoTV1ReconstructedReplay,
@@ -217,6 +218,43 @@ test("V1 structure confirmation permits a reconstructed candidate", () => {
   assert.equal(decision.candidate, true);
   assert.equal(decision.v1Structure.confirmed, true);
   assert.equal(decision.formal, true);
+});
+
+test("V1 meanline shadow confirms only causal reclaim with MACD and real L2", () => {
+  const rows = [
+    { factors: { "vwap.bias": -0.003 } },
+    { factors: {
+      "vwap.bias": -0.001,
+      "technical.macd_histogram": -0.0001,
+      "technical.macd_histogram_delta": 0.0002,
+      "orderflow.active_buy_imbalance": 0.12,
+      "orderflow.ofi_change_3m": 0.04,
+    } },
+  ];
+  const result = evaluateZuoTV1MeanlineOrderflow({
+    direction: "positiveT", rows, index: 1, factors: rows[1].factors,
+  });
+  assert.equal(result.confirmed, true);
+  assert.equal(result.orderFlowAvailable, true);
+  assert.equal(result.meanlineReclaim, true);
+});
+
+test("V1 meanline shadow stays observation-only without L2", () => {
+  const rows = [
+    { factors: { "vwap.bias": -0.003 } },
+    { factors: {
+      "vwap.bias": -0.001,
+      "technical.macd_histogram": -0.0001,
+      "technical.macd_histogram_delta": 0.0002,
+      "orderflow.active_buy_imbalance": null,
+      "orderflow.ofi_change_3m": null,
+    } },
+  ];
+  const result = evaluateZuoTV1MeanlineOrderflow({
+    direction: "positiveT", rows, index: 1, factors: rows[1].factors,
+  });
+  assert.equal(result.confirmed, false);
+  assert.equal(result.state, "awaiting-orderflow");
 });
 
 test("V1 candidate remains observational without structure confirmation", () => {
