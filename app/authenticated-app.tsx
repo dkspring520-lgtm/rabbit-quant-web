@@ -2540,21 +2540,34 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         l2,
       });
     }
+    const secondExtremes=new Map<string,{high:number;low:number}>();
+    for(const tick of liveSecondPoints){
+      const minute=String(tick.time).replace(/\D/g,"").slice(0,4);
+      if(!/^\d{4}$/.test(minute)||!Number.isFinite(tick.price)||tick.price<=0)continue;
+      const previous=secondExtremes.get(minute);
+      secondExtremes.set(minute,{
+        high:Math.max(previous?.high??tick.price,tick.price),
+        low:Math.min(previous?.low??tick.price,tick.price),
+      });
+    }
     return [...merged.values()].sort((a,b)=>a.time.localeCompare(b.time)).map(point=>{
       // Some upstream snapshots occasionally carry a day-level high/low in a
       // minute bar.  It must not stretch the intraday scale when it is plainly
       // inconsistent with that minute's last price.
       const price=Number(point.price);
       if(!Number.isFinite(price)||price<=0)return point;
-      const high=Number(point.high);
-      const low=Number(point.low);
+      const secondRange=secondExtremes.get(point.time);
+      const reportedHigh=Number(point.high);
+      const reportedLow=Number(point.low);
+      const high=reportedHigh>price?reportedHigh:secondRange?.high??reportedHigh;
+      const low=reportedLow<price?reportedLow:secondRange?.low??reportedLow;
       return {
         ...point,
         high:Number.isFinite(high)&&high>=price&&high<=price*1.06?high:price,
         low:Number.isFinite(low)&&low<=price&&low>=price*.94?low:price,
       };
     });
-  }, [rawMinutePoints,l2MinutePoints]);
+  }, [rawMinutePoints,l2MinutePoints,liveSecondPoints]);
   const l2CalculationCoverage=useMemo(
     ()=>stock?.code==="601899"?minutePoints.filter(point=>point.dataSource==="l2-primary").length:0,
     [stock?.code,minutePoints],
@@ -6237,6 +6250,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
               {indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}
+              {isZijinStock&&<span className={`order-flow-legend ${zijinOrderFlowRadar.available?"ready":"waiting"}`} title="订单流确认评分，不是历史胜率；只有真实 L2 主动成交才显示"><i/>OF {zijinOrderFlowRadar.available?`正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label}`:"待L2"}</span>}
               {isZijinStock&&<span className="strategy-signal-legend" aria-label="信号分类图例"><span title="紫金专属闭环正式信号"><i className="formal"/>正式</span><span title="V2.9 影子参考，不可执行"><i className="v29"/>V2.9</span><span title="V1 影子参考，不可执行"><i className="v1"/>V1</span></span>}
               {causalObservationLayer.length>0&&<span className="strategy-signal-legend observation-signal-legend" aria-label="观察层图例"><span title="拐点概率与 MACD 观察，仅供参考"><i className="observation"/>观察</span></span>}
               {intradayMarkerLayout.manualTrades.length>0&&<span className="manual-trade-legend" title="本机快捷打点，不会发送到券商"><i className="buy">B</i><i className="sell">S</i>模拟成交</span>}

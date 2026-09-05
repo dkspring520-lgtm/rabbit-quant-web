@@ -2216,7 +2216,7 @@
 
 /* Intraday view switch: desktop defaults to causal 1-minute OHLC candles. */
 .layer-switches button.chart-mode{border-color:rgba(242,184,75,.42);background:rgba(242,184,75,.1);color:var(--amber);font-family:var(--font-geist-mono),monospace}
-.intraday-candle line{vector-effect:non-scaling-stroke;stroke-width:1;shape-rendering:crispEdges}
+.intraday-candle line{vector-effect:non-scaling-stroke;stroke-width:1.6;stroke-linecap:round;shape-rendering:crispEdges}
 .intraday-candle rect{vector-effect:non-scaling-stroke;stroke-width:.8;shape-rendering:crispEdges}
 .intraday-candle.up line,.intraday-candle.up rect{stroke:#ff655f;fill:rgba(255,101,95,.78)}
 .intraday-candle.down line,.intraday-candle.down rect{stroke:#28d7c4;fill:rgba(40,215,196,.72)}
@@ -3962,6 +3962,10 @@
 :root:not([data-theme="light"]) .app-shell.tv-console .primary-action{box-shadow:inset 0 0 0 1px rgba(226,183,95,.25)}
 /* Intraday chart input isolation and compact order-flow score badge. */
 .chart-wrap{overscroll-behavior:contain}
+.order-flow-legend{display:inline-flex;align-items:center;gap:4px;color:var(--amber);font:700 9px var(--font-geist-mono),monospace;white-space:nowrap}
+.order-flow-legend i{width:5px;height:5px;border-radius:50%;background:var(--amber);box-shadow:0 0 7px rgba(242,184,75,.42)}
+.order-flow-legend.waiting{color:var(--dim)}
+.order-flow-legend.waiting i{background:var(--dim);box-shadow:none}
 .interactive-intraday-chart{touch-action:none;overscroll-behavior:contain}
 .intraday-order-flow-badge{pointer-events:all;filter:drop-shadow(0 4px 8px rgba(0,0,0,.28))}
 .intraday-order-flow-badge rect{fill:color-mix(in srgb,var(--desk-panel-raised,#1b2422) 92%,var(--amber,#f2b84b) 8%);stroke:rgba(242,184,75,.7);stroke-width:1;vector-effect:non-scaling-stroke}
