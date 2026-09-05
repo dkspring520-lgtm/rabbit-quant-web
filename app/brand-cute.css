@@ -134,6 +134,14 @@
     #080a09;
 }
 
+/* Keep the brand rail on the same dark surface as the global header.  The
+   previous warm gradient made the area immediately to the right of the logo
+   look like a separate panel and drift from the navigation background. */
+:root[data-theme="dark"] .topbar .brand-lockup {
+  background: var(--topbar-bg, rgba(8, 10, 10, .96));
+  border-right-color: var(--line);
+}
+
 :root[data-theme="dark"] :is(
   .topbar .brand-type-fallback strong::before,
   .public-brand > span b::before,
