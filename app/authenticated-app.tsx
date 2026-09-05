@@ -3372,7 +3372,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         :{date:preopenPlanDate,plan:zijinPreopenPricePlan});
       try{localStorage.setItem(preopenPlanStorageKey,JSON.stringify(zijinPreopenPricePlan));}catch{}
     }
-  },[frozenZijinPreopenPlan?.date,frozenZijinPreopenPlan?.plan,isZijinStock,marketSession.phase,preopenPlanDate,preopenPlanStorageKey,zijinPreopenPricePlan]);
+  },[frozenZijinPreopenPlan,frozenZijinPreopenPlan?.date,isZijinStock,marketSession.phase,preopenPlanDate,preopenPlanStorageKey,zijinPreopenPricePlan]);
   const zijinPreopenGate=useMemo(()=>evaluateZijinPreopenGate({
     plan:frozenZijinPreopenPlan?.date===preopenPlanDate?frozenZijinPreopenPlan.plan:null,
     minutes:minutePoints,
