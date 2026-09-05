@@ -782,7 +782,7 @@
 .minimal-ui .decision-zone.focus-mode .zijin-strategy-control,
 .minimal-ui .decision-zone.focus-mode .signal-funnel,
 .minimal-ui .decision-zone.focus-mode .signal-funnel-note,
-.minimal-ui .decision-zone.focus-mode .research-fold,
+.minimal-ui .decision-zone.focus-mode .research-fold:not(.zijin-order-flow-radar),
 .minimal-ui .decision-zone.focus-mode .stock-agent-card,
 .minimal-ui .decision-zone.focus-mode .stock-state,
 .minimal-ui .decision-zone.focus-mode .web4-monitor,
@@ -793,6 +793,7 @@
 .minimal-ui .decision-zone.focus-mode .decision-label,
 .minimal-ui .decision-zone.focus-mode>.t-calculator,
 .minimal-ui .decision-zone.focus-mode .rabbit-decision-header{display:none!important}
+.minimal-ui .decision-zone.focus-mode .zijin-order-flow-radar{display:block!important}
 .minimal-ui .decision-zone.focus-mode .decision-audit-details,
 .minimal-ui .decision-zone.focus-mode .zijin-risk-plan,
 .minimal-ui .decision-zone.focus-mode .zijin-price-plan-note,
