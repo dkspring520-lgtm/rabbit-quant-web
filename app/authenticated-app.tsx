@@ -3249,7 +3249,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     updateIntradayCursor(event.clientX,event.clientY);
   };
   const handleIntradayPointerDown=(event:ReactPointerEvent<SVGSVGElement>)=>{
-    if(event.pointerType==="mouse"&&event.button!==0)return;
+    if(event.pointerType==="mouse"&&event.button!==0){
+      // Prevent the browser's middle-click auto-scroll mode from taking over
+      // the cockpit chart. Left drag remains the chart pan gesture.
+      if(event.button===1){
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
     event.preventDefault();
     updateIntradayCursor(event.clientX,event.clientY);
     const local=intradayLocalPosition(event.clientX,event.clientY);
@@ -6279,7 +6287,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             <svg ref={intradayChartRef} className={`interactive-intraday-chart ${chartPanning?"is-panning":""}`} viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="none" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；滚轮或双指缩放，拖动时间轴，双击复位，点击查看分钟详情`} tabIndex={0}
               onPointerEnter={handleIntradayPointer} onPointerMove={handleIntradayPointer} onPointerDown={handleIntradayPointerDown} onPointerUp={handleIntradayPointerUp} onPointerCancel={handleIntradayPointerUp}
-              onPointerLeave={event=>{if(event.pointerType==="mouse"&&!chartPanRef.current)setIntradayCursorTime(null)}} onDoubleClick={resetIntradayViewport} onKeyDown={handleIntradayKeyDown}>
+              onPointerLeave={event=>{if(event.pointerType==="mouse"&&!chartPanRef.current)setIntradayCursorTime(null)}} onAuxClick={event=>{if(event.button===1){event.preventDefault();event.stopPropagation()}}} onDoubleClick={resetIntradayViewport} onKeyDown={handleIntradayKeyDown}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient><clipPath id="intraday-vwap-channel-clip"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop}/></clipPath><clipPath id="intraday-viewport-clip" clipPathUnits="userSpaceOnUse"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.priceTop}/></clipPath></defs>
               {(chartModel?.ticks??[20,72.5,125,177.5,230].map(y=>({value:null,percent:null,y}))).map((tick,index)=>{const centre=tick.percent!=null&&Math.abs(tick.percent)<1e-8;return <g key={tick.value??index}><line x1={LIVE_CHART.plotLeft} y1={tick.y} x2={LIVE_CHART.plotRight} y2={tick.y} className={`grid-line ${centre?"previous-close-line":""}`}/>{tick.value!=null&&<text x="5" y={tick.y+3.5} className="intraday-axis-label">{tick.value.toFixed(2)}</text>}{tick.percent!=null&&<text x="914" y={tick.y+3.5} textAnchor="end" className={`intraday-percent-label ${tick.percent>0?"up":tick.percent<0?"down":"flat"}`}>{tick.percent>0?"+":""}{tick.percent.toFixed(2)}%</text>}</g>})}
               {chartTimeTicks.map((tick,index)=><g key={`${tick.label}-${index}`}><line x1={tick.x} y1={LIVE_CHART.priceTop} x2={tick.x} y2={LIVE_CHART.volumeBottom} className="grid-line vertical"/><text x={tick.x} y="317" textAnchor={index===0?"start":index===chartTimeTicks.length-1?"end":"middle"} className="intraday-axis-label intraday-time-label">{tick.label}</text></g>)}
