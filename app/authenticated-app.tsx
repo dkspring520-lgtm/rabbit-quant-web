@@ -752,7 +752,7 @@ function buildLiveSignalLifecycle({
 type ChartObservationStrategy = "closure"|"v29"|"v1"|"observation";
 type ChartObservation = ReplayObservation & {strategy:ChartObservationStrategy};
 type PersistedChartObservation = ReplayObservation & {strategy?:ChartObservationStrategy};
-type L2ReplayState = { available:boolean; source:string; minuteCount:number; observations:ReplayObservation[]; reason:string };
+type L2ReplayState = { available:boolean; source:string; minuteCount:number; minutes?:Record<string,unknown>[]; observations:ReplayObservation[]; reason:string };
 type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime:string; entryPrice:number; entryLabel:string; exitTime:string; exitPrice:number; exitLabel:string; grossPct:number; holdingMinutes:number; mfePct:number; maePct:number; bestTime:string; worstTime:string; outcomeMode:"post-replay-causal"; favorable:boolean; status:string };
 type CandidateOutcome = { direction:"正T"|"反T"; time:string; price:number; outcomeMode:"post-replay-fixed-horizon"; horizons:{minutes:number;complete:boolean;endTime?:string;returnPct?:number;mfePct?:number;maePct?:number;bestTime?:string;worstTime?:string}[] };
 type OpenCandidateObservation = { direction:"正T"|"反T"; time:string; price:number; label:string; status:"候补未闭环" };
@@ -8304,6 +8304,10 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [multiDayRunKind, setMultiDayRunKind] = useState<MultiDayRunKind>("recent");
   const [source, setSource] = useState<MarketData | null>(null);
   const [l2Replay, setL2Replay] = useState<L2ReplayState>({available:false,source:"idle",minuteCount:0,observations:[],reason:"等待紫金矿业回放"});
+  const replayOrderFlowRadar=useMemo(()=>{
+    if(stock.code!=="601899"||!l2Replay.available||!l2Replay.minutes?.length)return null;
+    return evaluateZijinOrderFlowRadar({minutes:l2Replay.minutes});
+  },[stock.code,l2Replay]);
   const [error, setError] = useState("");
   const [runStatus, setRunStatus] = useState("等待运行");
   const [accountNotice, setAccountNotice] = useState("");
@@ -8446,6 +8450,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
             available:Boolean(l2Payload.available),
             source:l2Payload.source??"unavailable",
             minuteCount:l2Payload.minutes?.length??0,
+            minutes:l2Payload.minutes??[],
             observations,
             reason:l2Payload.available
               ? observations.length?`L2已进入正式过滤，并复现 ${observations.length} 个独立资金修复阶段`:"L2已进入正式过滤，本日没有通过持续资金确认的修复候选"
@@ -9051,6 +9056,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
             <div className="curve-legend"><span><i/>真实分时价格</span><span className="base-legend"><i/>昨收</span><span className="sell-marker">● 卖出</span><span className="buy-marker">● 买入 / 买回</span>{visibleBacktestObservations.length>0&&<span className="candidate-marker">○ 候补观察</span>}{replayCausalObservations.length>0&&<span className="observation-marker">△ 概率 / MACD 观察</span>}{l2Replay.observations.length>0&&<span className="l2-marker">◎ 资金承接修复</span>}</div>
           </div>
           {result&&source?.quote.code==="601899"&&<div className={`l2-replay-audit ${l2Replay.available?"available":"unavailable"}`}><span><i/>L2严格因果回放</span><b>{l2Replay.reason}</b><em>{l2Replay.available?`${l2Replay.minuteCount} 个L2分钟点 · 图上合并为 ${visibleL2ReplayMarkers.length} 个关键波段 · ${l2Replay.source==="archive"?"交易日归档":"当日实时快照"}`:"未使用L2补值"}</em></div>}
+          {result&&source?.quote.code==="601899"&&<div className={`replay-order-flow-summary ${replayOrderFlowRadar?.available?"available":"unavailable"}`}><span>订单流评分</span><b>{replayOrderFlowRadar?.available?`正T ${replayOrderFlowRadar.scores.lowBuy}分 · 反T ${replayOrderFlowRadar.scores.takeProfit}分`:"回放无当前分钟L2"}</b><small>{replayOrderFlowRadar?.available?`Delta 1/3/5分：${[replayOrderFlowRadar.delta.oneMinute,replayOrderFlowRadar.delta.threeMinute,replayOrderFlowRadar.delta.fiveMinute].map(value=>value==null?"--":formatMainForceAmount(Number(value))).join(" · ")} · ${replayOrderFlowRadar.absorption.label} · ${replayOrderFlowRadar.divergence.label}`:"未使用公开行情补造评分"}</small></div>}
           <svg viewBox="0 0 840 230" preserveAspectRatio="none" aria-label="完整交易日真实分时及做T买卖点">
             <defs><linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#28d7c4" stopOpacity=".16"/><stop offset="1" stopColor="#28d7c4" stopOpacity="0"/></linearGradient></defs>
             {result&&source&&chartTicks.map((value,index)=>{const y=18+index*46;return <g key={value}><line x1="65" x2="820" y1={y} y2={y} className="equity-grid"/><text x="57" y={y+3} textAnchor="end" className="equity-axis-label">¥{value.toFixed(2)}</text></g>})}
@@ -9059,6 +9065,15 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
             {points&&<>
               <polyline points={`${points} 820,202 65,202`} fill="url(#equityFill)"/>
               <polyline points={points} className="equity-line" fill="none"/>
+              {source?.quote.code==="601899"&&l2Replay.available&&l2Replay.minutes?.map((minute,index)=>{
+                const time=String(minute.time??"").replace(/\D/g,"").slice(-4);
+                const minuteIndex=fullDayMinutes.findIndex(point=>point.time===time);
+                if(minuteIndex<0)return null;
+                const radar=evaluateZijinOrderFlowRadar({minutes:l2Replay.minutes,index});
+                if(!radar.available)return null;
+                const point=chartPoint(Number(minute.price??minute.close),minuteIndex);
+                return <g className="replay-order-flow-marker" key={`of-${time}`}><circle cx={point.x} cy={point.y} r="3"/><title>{`${formatTime(time)} · 订单流 正T ${radar.scores.lowBuy}分 / 反T ${radar.scores.takeProfit}分 · ${radar.absorption.label} · ${radar.divergence.label}`}</title></g>;
+              })}
               {visibleReplayChartObservations.map((observation,index)=>{
                 const minuteIndex=fullDayMinutes.findIndex(point=>point.time===observation.time);
                 if(minuteIndex<0)return null;
