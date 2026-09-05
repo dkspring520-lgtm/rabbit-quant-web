@@ -3610,3 +3610,122 @@
     padding-right:22px;
   }
 }
+
+/* TradingView inspired terminal skin: visual-only pass for the live desk. */
+.app-shell.tv-console{
+  --tv-bg:#131722;
+  --tv-panel:#1e222d;
+  --tv-panel-2:#191d27;
+  --tv-border:#2a2e39;
+  --tv-muted:#8b93a7;
+  --tv-text:#d6d9e0;
+  background:var(--tv-bg);
+  color:var(--tv-text);
+}
+.app-shell.tv-console .topbar{
+  min-height:48px;
+  height:48px;
+  padding:0 16px;
+  background:var(--tv-panel);
+  border-bottom:1px solid var(--tv-border);
+}
+.app-shell.tv-console .brand-primary-logo{width:150px;height:auto}
+.app-shell.tv-console .brand-type{display:none}
+.app-shell.tv-console .main-nav{gap:2px;margin-left:18px}
+.app-shell.tv-console .main-nav button,
+.app-shell.tv-console .top-actions button{
+  min-height:30px;
+  padding:0 9px;
+  border-radius:3px;
+  color:var(--tv-muted);
+  font-size:11px;
+}
+.app-shell.tv-console .main-nav button:hover,
+.app-shell.tv-console .main-nav button.active,
+.app-shell.tv-console .top-actions button:hover{
+  color:var(--tv-text);
+  background:#262b36;
+}
+.app-shell.tv-console .main-nav button.active{box-shadow:inset 0 -2px #26a69a}
+.app-shell.tv-console .top-actions{gap:6px}
+.app-shell.tv-console .top-actions .auto-off,
+.app-shell.tv-console .top-actions .profile-cycle,
+.app-shell.tv-console .top-actions .strategy-help{display:none}
+.app-shell.tv-console .ticker{
+  height:36px;
+  background:var(--tv-panel-2);
+  border-bottom:1px solid var(--tv-border);
+}
+.app-shell.tv-console .ticker-item{flex-basis:210px;border-right:1px solid var(--tv-border)}
+.app-shell.tv-console .ticker .ticker-stock-button{font-size:11px;padding-inline:10px}
+.app-shell.tv-console .ticker-item.selected{background:#262b36}
+.app-shell.tv-console .ticker-item.selected .ticker-stock-button>span{color:var(--tv-text)}
+.app-shell.tv-console .session-ribbon{height:24px;flex-basis:24px;padding:0 16px;background:#171b24;border-bottom:1px solid var(--tv-border);font-size:9px}
+.app-shell.tv-console .stock-head{
+  height:78px;
+  min-height:78px;
+  padding:8px 18px;
+  gap:16px;
+  background:var(--tv-bg);
+  border-bottom:1px solid var(--tv-border);
+}
+.app-shell.tv-console .stock-identity{min-width:180px}
+.app-shell.tv-console .stock-identity h1{font-size:18px;font-weight:600}
+.app-shell.tv-console .quote strong{font-size:28px}
+.app-shell.tv-console .quote-metrics{gap:12px;font-size:9px}
+.app-shell.tv-console .opening-assessment{min-width:220px;border-left-color:#f0b90b}
+.app-shell.tv-console .desk-core-strip{min-height:50px;padding:5px 12px;gap:5px;background:var(--tv-panel);border-bottom:1px solid var(--tv-border)}
+.app-shell.tv-console .desk-core-strip>div{border-color:var(--tv-border);border-radius:3px;background:transparent;padding:5px 8px}
+.app-shell.tv-console .desk-core-strip span{font-size:8px;color:var(--tv-muted)}
+.app-shell.tv-console .desk-core-strip b{font-size:13px}
+.app-shell.tv-console .workspace{height:calc(100vh - 236px);min-height:520px;background:var(--tv-bg);border-bottom:1px solid var(--tv-border)}
+.app-shell.tv-console .chart-zone{background:var(--tv-bg);border-color:var(--tv-border)}
+.app-shell.tv-console .chart-tools{height:40px;flex-basis:40px;padding:0 12px;background:var(--tv-panel);border-bottom:1px solid var(--tv-border);gap:8px}
+.app-shell.tv-console .chart-tools .legend{gap:10px;color:var(--tv-muted);font-size:10px}
+.app-shell.tv-console .layer-switches{gap:3px}
+.app-shell.tv-console .layer-switches button,
+.app-shell.tv-console .chart-tools>.tool-button{
+  min-height:26px;
+  padding:0 7px;
+  border-color:var(--tv-border);
+  border-radius:3px;
+  background:transparent;
+  color:var(--tv-muted);
+  font-size:9px;
+}
+.app-shell.tv-console .layer-switches button:hover,
+.app-shell.tv-console .layer-switches button.active,
+.app-shell.tv-console .chart-tools>.tool-button:hover{background:#292e39;color:var(--tv-text);border-color:#48505e}
+.app-shell.tv-console .layer-switches button.active{color:#26a69a;border-color:rgba(38,166,154,.55)}
+.app-shell.tv-console .chart-wrap{background:var(--tv-bg);padding-top:8px}
+.app-shell.tv-console .grid-line{stroke:#242936;stroke-dasharray:2 5}
+.app-shell.tv-console .grid-line.vertical{opacity:.32}
+.app-shell.tv-console .decision-zone{padding:10px;background:var(--tv-panel-2);border-left:1px solid var(--tv-border)}
+.app-shell.tv-console .decision-zone-tabs{margin:-10px -10px 10px;padding:0 10px;background:var(--tv-panel);border-bottom:1px solid var(--tv-border)}
+.app-shell.tv-console .decision-zone-tabs button{height:36px;color:var(--tv-muted);font-size:10px}
+.app-shell.tv-console .decision-zone-tabs button.active{color:var(--tv-text);box-shadow:inset 0 -2px #26a69a}
+.app-shell.tv-console .decision-zone article,
+.app-shell.tv-console .decision-zone details,
+.app-shell.tv-console .decision-zone .t-calculator,
+.app-shell.tv-console .decision-zone .decision-primary-card,
+.app-shell.tv-console .decision-zone .decision-position-card{
+  border-color:var(--tv-border);
+  border-radius:4px;
+  box-shadow:none;
+}
+.app-shell.tv-console .decision-zone h2{font-size:13px}
+.app-shell.tv-console .decision-zone p,
+.app-shell.tv-console .decision-zone small{color:var(--tv-muted)}
+.app-shell.tv-console .primary-action{min-height:38px;border-radius:3px;font-size:11px}
+.app-shell.tv-console .quick-sim-order-actions button{min-height:32px;border-radius:3px;font-size:10px}
+.app-shell.tv-console .lower-panel{background:var(--tv-panel);border-top:1px solid var(--tv-border)}
+.app-shell.tv-console .lower-tabs button{font-size:10px}
+@media(max-width:820px){
+  .app-shell.tv-console .topbar{height:44px;min-height:44px;padding-inline:10px}
+  .app-shell.tv-console .brand-primary-logo{width:126px}
+  .app-shell.tv-console .main-nav{display:none}
+  .app-shell.tv-console .ticker{height:34px}
+  .app-shell.tv-console .stock-head{height:70px;min-height:70px;padding-inline:12px}
+  .app-shell.tv-console .workspace{height:auto;min-height:0}
+  .app-shell.tv-console .chart-tools{height:auto;min-height:48px;flex-basis:auto}
+}
