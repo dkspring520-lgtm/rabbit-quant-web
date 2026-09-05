@@ -3999,6 +3999,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const observationPriority=(observation:ChartObservation)=>observation.strategy==="closure"?0:observation.strategy==="v29"?1:observation.strategy==="v1"?2:3;
     const orderedDurableObservations=durableVisibleChartObservations.filter(observation=>strategyLayerVisible(observation.strategy)).sort((left,right)=>observationPriority(left)-observationPriority(right)||left.time.localeCompare(right.time));
     const labeledObservationEpisodes=[...labeledSignalEpisodes];
+    const openingAnchorShown=new Set<"top"|"bottom">();
     const observations=orderedDurableObservations.flatMap((observation,index)=>{
       const pivotInfo=observation.strategy==="observation"&&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
         ?pivotPresentation(observation,minutePoints,activeQuote?.open)
@@ -4008,6 +4009,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         :null;
       const pivotScope=pivotInfo?.scope??observation.pivotScope;
       if(observation.strategy==="observation"&&pivotKind){
+        // Opening high/low is a daily anchor, not a repeating intraday
+        // signal. Keep only the first validated anchor for each direction.
+        if(pivotInfo?.openingAnchor===true){
+          const anchorSide=pivotKind==="pivot-top"?"top":"bottom";
+          if(openingAnchorShown.has(anchorSide))return [];
+          openingAnchorShown.add(anchorSide);
+        }
         const selectedPivotKeys=pivotKind==="pivot-top"
           ?pivotScope==="local"?topLocalPivotKeys:topAbsolutePivotKeys
           :pivotScope==="local"?bottomLocalPivotKeys:bottomAbsolutePivotKeys;
