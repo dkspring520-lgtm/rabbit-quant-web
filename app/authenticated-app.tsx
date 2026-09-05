@@ -2602,12 +2602,19 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const pointAt=(point:{price:number},index:number)=>`${viewportChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
     const candleWidth=Math.max(1.4,Math.min(5.8,(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)/chartViewport.span*.68));
-    const candles=minutePoints.flatMap(point=>{
-      const open=Number(point.open);
+    let candleEstimated=false;
+    const candles=minutePoints.flatMap((point,index)=>{
       const close=Number(point.price);
-      const high=Number(point.high);
-      const low=Number(point.low);
-      if(![open,close,high,low].every(Number.isFinite)||open<=0||close<=0||high<Math.max(open,close)||low>Math.min(open,close))return [];
+      if(!Number.isFinite(close)||close<=0)return [];
+      const previousClose=Number(minutePoints[index-1]?.price);
+      const rawOpen=Number(point.open);
+      const rawHigh=Number(point.high);
+      const rawLow=Number(point.low);
+      const hasRealOhlc=Number.isFinite(rawOpen)&&rawOpen>0&&Number.isFinite(rawHigh)&&rawHigh>=Math.max(rawOpen,close)&&Number.isFinite(rawLow)&&rawLow<=Math.min(rawOpen,close);
+      const open=hasRealOhlc?rawOpen:(Number.isFinite(previousClose)&&previousClose>0?previousClose:close);
+      const high=hasRealOhlc?rawHigh:Math.max(open,close);
+      const low=hasRealOhlc?rawLow:Math.min(open,close);
+      if(!hasRealOhlc)candleEstimated=true;
       const openY=liveChartPriceY(open,min,max);
       const closeY=liveChartPriceY(close,min,max);
       return [{
@@ -2694,7 +2701,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     const recentVwapCross=latestVwapCross&&latestVwapCross.index>=minutePoints.length-3?latestVwapCross:null;
     return {
-      path,candles,candleReady,vwapPath:`M${vwap.join(' L')}`,vwapChannel,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,
+      path,candles,candleReady,candleEstimated,vwapPath:`M${vwap.join(' L')}`,vwapChannel,min,max,last:minutePoints.at(-1)!,firstX,lastX,lastVwap,
       biasPath,
       latestBias:biasValues.at(-1)??0,
       biasAlert:Math.abs(biasValues.at(-1)??0)>=1.5,
@@ -6218,9 +6225,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             <span className={`live-scan ${marketSession.live?"":"paused"}`} title={marketSession.live?(currentTrial?"1 秒轮询试用 · 实时行情源":trialError||(currentMarket?`公开行情 · ${currentMarket.delayed?"延迟数据":"已更新"}`:marketError||"连接行情中")):"当前为收盘复盘模式"}><i/>{marketSession.live?(currentTrial?"实时行情":currentMarket?currentMarket.delayed?"行情延迟":"行情已更新":"连接行情"):"复盘模式"}</span>
             <div className="intraday-only" title="1分钟K使用真实开高低收；数据不完整时自动回退分时线">
-              <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"} <small>{intradayChartType==="candle"&&chartModel?.candleReady?"真实 OHLC":"分钟历史 · 秒级观察"}</small>
+              <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"} <small>{intradayChartType==="candle"&&chartModel?.candleReady?(chartModel.candleEstimated?"估算 OHLC":"真实 OHLC"):"分钟历史 · 秒级观察"}</small>
             </div>
-             <div className="layer-switches" aria-label="图表图层开关"><button type="button" className="chart-mode active" onClick={()=>setIntradayChartType(value=>value==="candle"?"line":"candle")} title={intradayChartType==="candle"?"当前为1分钟K，点击切换分时":"当前为分时，点击切换1分钟K"}>{intradayChartType==="candle"?"1mK":"分时"}</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="只保留信号点，隐藏图中文字；悬停仍可查看详情" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
+             <div className="layer-switches" aria-label="图表图层开关"><button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button><button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="只保留信号点，隐藏图中文字；悬停仍可查看详情" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
           <div className="chart-wrap">
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
