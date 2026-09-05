@@ -2805,6 +2805,19 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   );
   const orderFlowBuyStrength=signalStrengthPresentation({score:zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.lowBuy:null});
   const orderFlowSellStrength=signalStrengthPresentation({score:zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.takeProfit:null});
+  const orderFlowChartPoint=useMemo(()=>{
+    if(!chartModel||!zijinOrderFlowRadar.available)return null;
+    const source=zijinOrderFlowRadar.asOfTime
+      ?chartModel.points.find(point=>point.time===zijinOrderFlowRadar.asOfTime)
+      :null;
+    const point=source??chartModel.points.at(-1);
+    if(!point)return null;
+    return {
+      x:Math.max(LIVE_CHART.plotLeft+52,Math.min(LIVE_CHART.plotRight-52,point.x)),
+      y:Math.max(LIVE_CHART.priceTop+14,Math.min(LIVE_CHART.priceBottom-14,point.y)),
+      time:point.time,
+    };
+  },[chartModel,zijinOrderFlowRadar]);
   const zijinVisibleFootprint=useMemo(()=>{
     const rows=Array.isArray(zijinOrderFlowRadar.footprint)?zijinOrderFlowRadar.footprint:[];
     const reference=Number(zijinOrderFlowRadar.reference?.price);
@@ -3182,8 +3195,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     });
   };
   const resetIntradayViewport=()=>setChartViewport({start:0,span:COCKPIT_VIEWPORT_FULL_SPAN});
-  const handleIntradayWheel=(event:ReactWheelEvent<SVGSVGElement>)=>{
+  const handleIntradayWheel=(event:ReactWheelEvent<HTMLElement>)=>{
     event.preventDefault();
+    event.stopPropagation();
     const local=intradayLocalPosition(event.clientX,event.clientY);
     const ratio=local?Math.max(0,Math.min(1,(local.x-LIVE_CHART.plotLeft)/(LIVE_CHART.plotRight-LIVE_CHART.plotLeft))):.5;
     const anchorSlot=chartViewport.start+ratio*chartViewport.span;
@@ -3994,7 +4008,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const strength=signalStrengthPresentation({score:observationConfirmationScore(observation,observation.strategy),historicalProbability:candidateProbability});
       const calibratedLabel=`${rawLabel}${rawLabel.includes("%")?"":` · ${strength.label}`}`;
       const fullLabel=observation.strategy==="observation"
-        ?`${calibratedLabel} · 仅观察`
+        ?`${rawLabel} · 仅观察`
         :observation.strategy==="v1"
         ?`${calibratedLabel} · ${strength.detail} · ${observation.reason}`
         :observation.strategy==="v29"
@@ -6234,7 +6248,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
              <div className="layer-switches" aria-label="图表图层开关"><button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button><button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="只保留信号点，隐藏图中文字；悬停仍可查看详情" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
-          <div className="chart-wrap">
+          <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
               <span className="rabbit-chart-avatar"/>
               <div><b>兔兔分时花园</b><small>价格 · 均价 · 成交量</small></div>
@@ -6245,7 +6259,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             <svg ref={intradayChartRef} className={`interactive-intraday-chart ${chartPanning?"is-panning":""}`} viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="none" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；滚轮或双指缩放，拖动时间轴，双击复位，点击查看分钟详情`} tabIndex={0}
               onPointerEnter={handleIntradayPointer} onPointerMove={handleIntradayPointer} onPointerDown={handleIntradayPointerDown} onPointerUp={handleIntradayPointerUp} onPointerCancel={handleIntradayPointerUp}
-              onPointerLeave={event=>{if(event.pointerType==="mouse"&&!chartPanRef.current)setIntradayCursorTime(null)}} onWheel={handleIntradayWheel} onDoubleClick={resetIntradayViewport} onKeyDown={handleIntradayKeyDown}>
+              onPointerLeave={event=>{if(event.pointerType==="mouse"&&!chartPanRef.current)setIntradayCursorTime(null)}} onDoubleClick={resetIntradayViewport} onKeyDown={handleIntradayKeyDown}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient><clipPath id="intraday-vwap-channel-clip"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop}/></clipPath><clipPath id="intraday-viewport-clip" clipPathUnits="userSpaceOnUse"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.priceTop}/></clipPath></defs>
               {(chartModel?.ticks??[20,72.5,125,177.5,230].map(y=>({value:null,percent:null,y}))).map((tick,index)=>{const centre=tick.percent!=null&&Math.abs(tick.percent)<1e-8;return <g key={tick.value??index}><line x1={LIVE_CHART.plotLeft} y1={tick.y} x2={LIVE_CHART.plotRight} y2={tick.y} className={`grid-line ${centre?"previous-close-line":""}`}/>{tick.value!=null&&<text x="5" y={tick.y+3.5} className="intraday-axis-label">{tick.value.toFixed(2)}</text>}{tick.percent!=null&&<text x="914" y={tick.y+3.5} textAnchor="end" className={`intraday-percent-label ${tick.percent>0?"up":tick.percent<0?"down":"flat"}`}>{tick.percent>0?"+":""}{tick.percent.toFixed(2)}%</text>}</g>})}
               {chartTimeTicks.map((tick,index)=><g key={`${tick.label}-${index}`}><line x1={tick.x} y1={LIVE_CHART.priceTop} x2={tick.x} y2={LIVE_CHART.volumeBottom} className="grid-line vertical"/><text x={tick.x} y="317" textAnchor={index===0?"start":index===chartTimeTicks.length-1?"end":"middle"} className="intraday-axis-label intraday-time-label">{tick.label}</text></g>)}
@@ -6258,6 +6272,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
+              {isZijinStock&&orderFlowChartPoint&&<g className="intraday-order-flow-badge" transform={`translate(${orderFlowChartPoint.x} ${orderFlowChartPoint.y})`} aria-label={`订单流确认评分：正T ${orderFlowBuyStrength.label}，反T ${orderFlowSellStrength.label}`}>
+                <title>{`${orderFlowChartPoint.time.slice(0,2)}:${orderFlowChartPoint.time.slice(2)} · 订单流确认评分 · 正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label} · 不是历史胜率，胜率待校准`}</title>
+                <rect x="-50" y="-12" width="100" height="24" rx="6"/>
+                <text x="0" y="-1" textAnchor="middle">OF 确认</text>
+                <text x="0" y="8" textAnchor="middle" className="scores">正T {orderFlowBuyStrength.label} · 反T {orderFlowSellStrength.label}</text>
+              </g>}
               {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-(marker.labelRendered?5:4)} ${marker.x+(marker.labelRendered?5:4)},${marker.y} ${marker.x},${marker.y+(marker.labelRendered?5:4)} ${marker.x-(marker.labelRendered?5:4)},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-3.5} y={marker.y-3.5} width="7" height="7" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y-2} ${marker.x+4.5},${marker.y-2} ${marker.x},${marker.y+4.5}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4.5},${marker.y+2} ${marker.x+4.5},${marker.y+2} ${marker.x},${marker.y-4.5}`}/>:<circle cx={marker.x} cy={marker.y} r={marker.labelRendered?4:3}/>}</g>})}
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} ${marker.labelRendered?"with-label":"dot-only"}`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · ${marker.action.reason??"影子参考，不可执行"}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-5.5} ${marker.x+5.5},${marker.y} ${marker.x},${marker.y+5.5} ${marker.x-5.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
               {intradayMarkerLayout.rabbitCandidates.map(marker=><g key={marker.key} className={`candidate-signal-marker rabbit-candidate-marker ${marker.isSell?"sell":"buy"} dot-only`}><title>{marker.label}</title><circle cx={marker.x} cy={marker.y} r="3"/></g>)}
