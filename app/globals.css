@@ -3972,6 +3972,8 @@
 }
 /* Intraday chart input isolation and compact order-flow score badge. */
 .chart-wrap{overscroll-behavior:contain}
+.replay-order-flow-summary{display:flex;align-items:center;gap:10px;margin:7px 0;padding:7px 9px;border:1px solid var(--line-soft);background:rgba(242,184,75,.045);font-size:9px;min-width:0}.replay-order-flow-summary span{color:var(--amber);font-weight:700;white-space:nowrap}.replay-order-flow-summary b{color:var(--text);white-space:nowrap}.replay-order-flow-summary small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)}.replay-order-flow-summary.unavailable{background:rgba(255,255,255,.018)}.replay-order-flow-summary.unavailable span{color:var(--dim)}
+.replay-order-flow-marker circle{fill:var(--amber);stroke:#fff;stroke-width:1.2;opacity:.9}
 .order-flow-legend{display:inline-flex;align-items:center;gap:4px;color:var(--amber);font:700 9px var(--font-geist-mono),monospace;white-space:nowrap}
 .order-flow-legend i{width:5px;height:5px;border-radius:50%;background:var(--amber);box-shadow:0 0 7px rgba(242,184,75,.42)}
 .order-flow-legend.waiting{color:var(--dim)}
