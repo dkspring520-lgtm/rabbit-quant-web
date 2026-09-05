@@ -3619,8 +3619,24 @@
   --tv-border:#2a2e39;
   --tv-muted:#8b93a7;
   --tv-text:#d6d9e0;
+  --bg:var(--tv-bg);
+  --panel:var(--tv-panel);
+  --surface:var(--tv-panel);
+  --surface-2:#262b36;
+  --field:#131722;
+  --line:var(--tv-border);
+  --line-soft:#242936;
+  --text:var(--tv-text);
+  --text-soft:#b7bdc9;
+  --muted:var(--tv-muted);
+  --dim:#687080;
+  --teal:#26a69a;
+  --coral:#ef5350;
+  --green:#26a69a;
+  --amber:#f0b90b;
   background:var(--tv-bg);
   color:var(--tv-text);
+  color-scheme:dark;
 }
 .app-shell.tv-console .topbar{
   min-height:48px;
@@ -3678,9 +3694,9 @@
 .app-shell.tv-console .desk-core-strip>div{border-color:var(--tv-border);border-radius:3px;background:transparent;padding:5px 8px}
 .app-shell.tv-console .desk-core-strip span{font-size:8px;color:var(--tv-muted)}
 .app-shell.tv-console .desk-core-strip b{font-size:13px}
-.app-shell.tv-console .workspace{height:calc(100vh - 236px);min-height:520px;background:var(--tv-bg);border-bottom:1px solid var(--tv-border)}
+.app-shell.tv-console .workspace{height:min(760px,calc(100vh - 236px));min-height:520px;background:var(--tv-bg);border-bottom:1px solid var(--tv-border)}
 .app-shell.tv-console .chart-zone{background:var(--tv-bg);border-color:var(--tv-border)}
-.app-shell.tv-console .chart-tools{height:40px;flex-basis:40px;padding:0 12px;background:var(--tv-panel);border-bottom:1px solid var(--tv-border);gap:8px}
+.app-shell.tv-console .chart-tools{position:relative;z-index:5;height:40px;flex-basis:40px;padding:0 12px;background:var(--tv-panel);border-bottom:1px solid var(--tv-border);gap:8px}
 .app-shell.tv-console .chart-tools .legend{gap:10px;color:var(--tv-muted);font-size:10px}
 .app-shell.tv-console .layer-switches{gap:3px}
 .app-shell.tv-console .layer-switches button,
