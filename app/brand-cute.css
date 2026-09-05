@@ -426,9 +426,21 @@
   :root[data-theme] .minimal-ui .topbar .main-nav button.active::before,
   :root[data-theme] .minimal-ui .topbar .main-nav button.active::after,
   :root[data-theme] .minimal-ui .topbar .main-nav button.active:before,
-  :root[data-theme] .minimal-ui .topbar .main-nav button.active:after {
+:root[data-theme] .minimal-ui .topbar .main-nav button.active:after {
     content: none !important;
     display: none !important;
+  }
+
+  /* The navigation is a control row, not a container card.  Removing the
+     surrounding rounded frame prevents the large pill seen beside the logo;
+     each tab keeps its own compact selected state. */
+  :root[data-theme] .minimal-ui .topbar .main-nav {
+    height: 44px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
   /* No selected-tab underline should leak into the logo row either. */
