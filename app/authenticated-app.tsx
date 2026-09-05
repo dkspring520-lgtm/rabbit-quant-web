@@ -2611,11 +2611,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const rawOpen=Number(point.open);
       const rawHigh=Number(point.high);
       const rawLow=Number(point.low);
-      const hasRealOhlc=Number.isFinite(rawOpen)&&rawOpen>0&&Number.isFinite(rawHigh)&&rawHigh>=Math.max(rawOpen,close)&&Number.isFinite(rawLow)&&rawLow<=Math.min(rawOpen,close);
-      const open=hasRealOhlc?rawOpen:(Number.isFinite(previousClose)&&previousClose>0?previousClose:close);
-      const high=hasRealOhlc?rawHigh:Math.max(open,close);
-      const low=hasRealOhlc?rawLow:Math.min(open,close);
-      if(!hasRealOhlc)candleEstimated=true;
+      // Keep valid high/low independently of the open field. Some quote
+      // adapters provide the minute range first; requiring all four fields
+      // used to collapse those candles into a flat body with no wicks.
+      const open=Number.isFinite(rawOpen)&&rawOpen>0
+        ?rawOpen
+        :(Number.isFinite(previousClose)&&previousClose>0?previousClose:close);
+      const hasRealHigh=Number.isFinite(rawHigh)&&rawHigh>=Math.max(open,close);
+      const hasRealLow=Number.isFinite(rawLow)&&rawLow<=Math.min(open,close);
+      const high=hasRealHigh?rawHigh:Math.max(open,close);
+      const low=hasRealLow?rawLow:Math.min(open,close);
+      if(!(Number.isFinite(rawOpen)&&rawOpen>0&&hasRealHigh&&hasRealLow))candleEstimated=true;
       const openY=liveChartPriceY(open,min,max);
       const closeY=liveChartPriceY(close,min,max);
       return [{
