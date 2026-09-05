@@ -3823,6 +3823,26 @@
 :root[data-theme="light"] .app-shell.tv-console .primary-action{box-shadow:none}
 :root[data-theme="light"] .app-shell.tv-console .t-calculator-inputs input{background:#fff;color:#131722;border-color:#dfe3e8}
 :root[data-theme="light"] .app-shell.tv-console .signal-tape>span{background:#fff;border-color:#e1e5ea}
+:root[data-theme="light"] .app-shell.tv-console .layer-switches button.chart-mode.active{
+  color:#2962ff;
+  border-color:#9bb6ff;
+  background:#eef3ff;
+}
+:root[data-theme="light"] .app-shell.tv-console .layer-switches button.formal.active{
+  color:#d64545;
+  border-color:#e6a4a4;
+  background:#fff1f1;
+}
+:root[data-theme="light"] .app-shell.tv-console .layer-switches button.v29.active{
+  color:#a87508;
+  border-color:#e4c477;
+  background:#fff8e7;
+}
+:root[data-theme="light"] .app-shell.tv-console .layer-switches button.v1.active{
+  color:#4f7fd8;
+  border-color:#a9c0ef;
+  background:#f0f5ff;
+}
 
 /* Black-gold cockpit: TradingView spacing and controls with the requested
    premium black/gold treatment.  Red/green remain reserved for price and
@@ -3844,8 +3864,10 @@
   --text-soft:#c7cbd3;
   --muted:var(--tv-muted);
   --dim:#68717f;
-  --teal:#d6ad58;
-  --teal-2:#b88b35;
+  /* Keep teal/coral semantic colors intact; gold is reserved for the
+     black-gold brand accent and selected controls. */
+  --teal:#26a69a;
+  --teal-2:#168f84;
   --amber:#e2b75f;
   background:var(--tv-bg);
   color:var(--tv-text);
@@ -3865,6 +3887,46 @@
 :root:not([data-theme="light"]) .app-shell.tv-console .main-nav button.active,
 :root:not([data-theme="light"]) .app-shell.tv-console .decision-zone-tabs button.active{box-shadow:inset 0 -2px var(--amber);color:var(--tv-text)}
 :root:not([data-theme="light"]) .app-shell.tv-console .layer-switches button.active{color:var(--amber);border-color:rgba(226,183,95,.58);background:rgba(226,183,95,.08)}
+:root:not([data-theme="light"]) .app-shell.tv-console .layer-switches button.chart-mode:not(.active),
+:root:not([data-theme="light"]) .app-shell.tv-console .layer-switches button:not(.active){
+  color:var(--tv-muted);
+  border-color:var(--tv-border);
+  background:transparent;
+}
+:root:not([data-theme="light"]) .app-shell.tv-console .layer-switches button:not(.active):hover{
+  color:var(--tv-text);
+  border-color:#48505e;
+  background:#1a1e25;
+}
+:root:not([data-theme="light"]) .app-shell.tv-console .layer-switches button.formal.active{
+  color:#ff7773;
+  border-color:rgba(239,83,80,.68);
+  background:rgba(239,83,80,.1);
+}
+:root:not([data-theme="light"]) .app-shell.tv-console .layer-switches button.v29.active{
+  color:#e2b75f;
+  border-color:rgba(226,183,95,.68);
+  background:rgba(226,183,95,.1);
+}
+:root:not([data-theme="light"]) .app-shell.tv-console .layer-switches button.v1.active{
+  color:#79a7ff;
+  border-color:rgba(121,167,255,.66);
+  background:rgba(121,167,255,.1);
+}
+:root:not([data-theme="light"]) .app-shell.tv-console .quick-sim-order-presets button.active{
+  border-color:rgba(226,183,95,.72);
+  background:rgba(226,183,95,.12);
+  color:#f5d98f;
+  box-shadow:inset 0 0 0 1px rgba(226,183,95,.18);
+}
+:root:not([data-theme="light"]) .app-shell.tv-console .quick-sim-order-actions .buy{
+  border-color:#ef5350;
+  background:#d94441;
+}
+:root:not([data-theme="light"]) .app-shell.tv-console .quick-sim-order-actions .sell{
+  border-color:#26a69a;
+  background:#208f85;
+}
 :root:not([data-theme="light"]) .app-shell.tv-console .grid-line{stroke:#242932}
 :root:not([data-theme="light"]) .app-shell.tv-console .decision-zone article,
 :root:not([data-theme="light"]) .app-shell.tv-console .decision-zone details,
