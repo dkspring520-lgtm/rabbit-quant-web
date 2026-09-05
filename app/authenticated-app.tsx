@@ -3372,7 +3372,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         :{date:preopenPlanDate,plan:zijinPreopenPricePlan});
       try{localStorage.setItem(preopenPlanStorageKey,JSON.stringify(zijinPreopenPricePlan));}catch{}
     }
-  },[frozenZijinPreopenPlan?.date,isZijinStock,marketSession.phase,preopenPlanDate,preopenPlanStorageKey,zijinPreopenPricePlan]);
+  },[frozenZijinPreopenPlan?.date,frozenZijinPreopenPlan?.plan,isZijinStock,marketSession.phase,preopenPlanDate,preopenPlanStorageKey,zijinPreopenPricePlan]);
   const zijinPreopenGate=useMemo(()=>evaluateZijinPreopenGate({
     plan:frozenZijinPreopenPlan?.date===preopenPlanDate?frozenZijinPreopenPlan.plan:null,
     minutes:minutePoints,
@@ -5789,7 +5789,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       seen.add(key);
       return [{...signal,price:Number(price)}];
     });
-  },[intradayMarkerLayout.observations,intradayMarkerLayout.rabbitCandidates,minutePoints]);
+  },[activeQuote?.open,intradayMarkerLayout.observations,intradayMarkerLayout.rabbitCandidates,minutePoints]);
   const tShareHasClosedCycle=cycleStage==="closed"||tradeLedgerSummary.validCount>=2;
   const tShareTitle=tShareHasClosedCycle?"今日做T复盘":"今日观察";
   const tShareStatus=tShareHasClosedCycle
