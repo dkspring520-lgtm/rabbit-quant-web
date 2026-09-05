@@ -3745,3 +3745,130 @@
   .app-shell.tv-console .workspace{height:auto;min-height:0}
   .app-shell.tv-console .chart-tools{height:auto;min-height:48px;flex-basis:auto}
 }
+
+/* TradingView-grade cockpit variants.  The desk keeps one layout and swaps
+   only its visual tokens, so signals and chart geometry remain identical in
+   day and black-gold modes. */
+:root[data-theme="light"] .app-shell.tv-console{
+  --tv-bg:#f4f6f8;
+  --tv-panel:#ffffff;
+  --tv-panel-2:#f8fafc;
+  --tv-border:#dfe3e8;
+  --tv-muted:#6b7280;
+  --tv-text:#131722;
+  --bg:var(--tv-bg);
+  --surface:var(--tv-panel);
+  --surface-2:#eef1f5;
+  --field:#ffffff;
+  --line:var(--tv-border);
+  --line-soft:#edf0f3;
+  --text:var(--tv-text);
+  --text-soft:#374151;
+  --muted:var(--tv-muted);
+  --dim:#8b95a3;
+  --teal:#26a69a;
+  --teal-2:#168f84;
+  --coral:#ef5350;
+  --green:#26a69a;
+  --amber:#d99d16;
+  background:var(--tv-bg);
+  color:var(--tv-text);
+  color-scheme:light;
+}
+:root[data-theme="light"] .app-shell.tv-console .topbar,
+:root[data-theme="light"] .app-shell.tv-console .ticker,
+:root[data-theme="light"] .app-shell.tv-console .chart-tools,
+:root[data-theme="light"] .app-shell.tv-console .desk-core-strip,
+:root[data-theme="light"] .app-shell.tv-console .lower-panel{
+  background:var(--tv-panel);
+  border-color:var(--tv-border);
+}
+:root[data-theme="light"] .app-shell.tv-console .ticker{background:var(--tv-panel-2)}
+:root[data-theme="light"] .app-shell.tv-console .ticker button:hover,
+:root[data-theme="light"] .app-shell.tv-console .ticker button.selected,
+:root[data-theme="light"] .app-shell.tv-console .main-nav button:hover,
+:root[data-theme="light"] .app-shell.tv-console .main-nav button.active,
+:root[data-theme="light"] .app-shell.tv-console .top-actions button:hover,
+:root[data-theme="light"] .app-shell.tv-console .layer-switches button:hover,
+:root[data-theme="light"] .app-shell.tv-console .layer-switches button.active,
+:root[data-theme="light"] .app-shell.tv-console .chart-tools>.tool-button:hover{
+  background:#eef3ff;
+  color:#131722;
+}
+:root[data-theme="light"] .app-shell.tv-console .main-nav button.active,
+:root[data-theme="light"] .app-shell.tv-console .decision-zone-tabs button.active{
+  box-shadow:inset 0 -2px #2962ff;
+}
+:root[data-theme="light"] .app-shell.tv-console .stock-head,
+:root[data-theme="light"] .app-shell.tv-console .chart-zone,
+:root[data-theme="light"] .app-shell.tv-console .chart-wrap,
+:root[data-theme="light"] .app-shell.tv-console .workspace{background:var(--tv-bg)}
+:root[data-theme="light"] .app-shell.tv-console .decision-zone{background:var(--tv-panel-2)}
+:root[data-theme="light"] .app-shell.tv-console .decision-zone-tabs{background:var(--tv-panel)}
+:root[data-theme="light"] .app-shell.tv-console .grid-line{stroke:#dfe3e8}
+:root[data-theme="light"] .app-shell.tv-console .grid-line.vertical{opacity:.52}
+:root[data-theme="light"] .app-shell.tv-console .chart-tools .legend,
+:root[data-theme="light"] .app-shell.tv-console .layer-switches button,
+:root[data-theme="light"] .app-shell.tv-console .chart-tools>.tool-button{color:#6b7280}
+:root[data-theme="light"] .app-shell.tv-console .layer-switches button.active{color:#2962ff;border-color:#9bb6ff;background:#eef3ff}
+:root[data-theme="light"] .app-shell.tv-console .decision-zone article,
+:root[data-theme="light"] .app-shell.tv-console .decision-zone details,
+:root[data-theme="light"] .app-shell.tv-console .decision-zone .t-calculator,
+:root[data-theme="light"] .app-shell.tv-console .decision-zone .decision-primary-card,
+:root[data-theme="light"] .app-shell.tv-console .decision-zone .decision-position-card{
+  background:#fff;
+  border-color:var(--tv-border);
+  box-shadow:0 1px 3px rgba(19,23,34,.05);
+}
+:root[data-theme="light"] .app-shell.tv-console .primary-action{box-shadow:none}
+:root[data-theme="light"] .app-shell.tv-console .t-calculator-inputs input{background:#fff;color:#131722;border-color:#dfe3e8}
+:root[data-theme="light"] .app-shell.tv-console .signal-tape>span{background:#fff;border-color:#e1e5ea}
+
+/* Black-gold cockpit: TradingView spacing and controls with the requested
+   premium black/gold treatment.  Red/green remain reserved for price and
+   action semantics rather than decoration. */
+:root:not([data-theme="light"]) .app-shell.tv-console{
+  --tv-bg:#0b0d10;
+  --tv-panel:#12151a;
+  --tv-panel-2:#0f1216;
+  --tv-border:#292d35;
+  --tv-muted:#8d95a2;
+  --tv-text:#e5e7eb;
+  --bg:var(--tv-bg);
+  --surface:var(--tv-panel);
+  --surface-2:#1a1e25;
+  --field:#0b0d10;
+  --line:var(--tv-border);
+  --line-soft:#20242b;
+  --text:var(--tv-text);
+  --text-soft:#c7cbd3;
+  --muted:var(--tv-muted);
+  --dim:#68717f;
+  --teal:#d6ad58;
+  --teal-2:#b88b35;
+  --amber:#e2b75f;
+  background:var(--tv-bg);
+  color:var(--tv-text);
+}
+:root:not([data-theme="light"]) .app-shell.tv-console .topbar,
+:root:not([data-theme="light"]) .app-shell.tv-console .ticker,
+:root:not([data-theme="light"]) .app-shell.tv-console .chart-tools,
+:root:not([data-theme="light"]) .app-shell.tv-console .desk-core-strip,
+:root:not([data-theme="light"]) .app-shell.tv-console .lower-panel{background:var(--tv-panel);border-color:var(--tv-border)}
+:root:not([data-theme="light"]) .app-shell.tv-console .ticker{background:var(--tv-panel-2)}
+:root:not([data-theme="light"]) .app-shell.tv-console .stock-head,
+:root:not([data-theme="light"]) .app-shell.tv-console .chart-zone,
+:root:not([data-theme="light"]) .app-shell.tv-console .chart-wrap,
+:root:not([data-theme="light"]) .app-shell.tv-console .workspace{background:var(--tv-bg)}
+:root:not([data-theme="light"]) .app-shell.tv-console .decision-zone{background:var(--tv-panel-2)}
+:root:not([data-theme="light"]) .app-shell.tv-console .decision-zone-tabs{background:var(--tv-panel)}
+:root:not([data-theme="light"]) .app-shell.tv-console .main-nav button.active,
+:root:not([data-theme="light"]) .app-shell.tv-console .decision-zone-tabs button.active{box-shadow:inset 0 -2px var(--amber);color:var(--tv-text)}
+:root:not([data-theme="light"]) .app-shell.tv-console .layer-switches button.active{color:var(--amber);border-color:rgba(226,183,95,.58);background:rgba(226,183,95,.08)}
+:root:not([data-theme="light"]) .app-shell.tv-console .grid-line{stroke:#242932}
+:root:not([data-theme="light"]) .app-shell.tv-console .decision-zone article,
+:root:not([data-theme="light"]) .app-shell.tv-console .decision-zone details,
+:root:not([data-theme="light"]) .app-shell.tv-console .decision-zone .t-calculator,
+:root:not([data-theme="light"]) .app-shell.tv-console .decision-zone .decision-primary-card,
+:root:not([data-theme="light"]) .app-shell.tv-console .decision-zone .decision-position-card{box-shadow:none}
+:root:not([data-theme="light"]) .app-shell.tv-console .primary-action{box-shadow:inset 0 0 0 1px rgba(226,183,95,.25)}
