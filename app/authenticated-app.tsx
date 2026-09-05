@@ -8306,6 +8306,13 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
   const [l2Replay, setL2Replay] = useState<L2ReplayState>({available:false,source:"idle",minuteCount:0,observations:[],reason:"等待紫金矿业回放"});
   const replayOrderFlowRadar=useMemo(()=>{
     if(stock.code!=="601899"||!l2Replay.available||!l2Replay.minutes?.length)return null;
+    // Replay data may end with a minute that has no prints (for example the
+    // closing/auction row).  Use the latest minute with real active flow so
+    // the summary does not incorrectly report the whole replay as missing.
+    for(let index=l2Replay.minutes.length-1;index>=0;index-=1){
+      const radar=evaluateZijinOrderFlowRadar({minutes:l2Replay.minutes,index});
+      if(radar.available)return radar;
+    }
     return evaluateZijinOrderFlowRadar({minutes:l2Replay.minutes});
   },[stock.code,l2Replay]);
   const [error, setError] = useState("");
