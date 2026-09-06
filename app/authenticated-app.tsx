@@ -4062,7 +4062,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           ?`${calibratedLabel} · ${strength.detail}`
           :`${calibratedLabel} · ${strength.detail}（方向、位置、触发三项评分均值）`;
       const currentLabel=observation.strategy==="observation"
-        ?rawLabel
+        ?(observation.stage==="candidate"&&!rawLabel.includes("分")&&!rawLabel.includes("%")?`${rawLabel} · ${observationConfirmationScore(observation,observation.strategy)}分`:rawLabel)
         :observation.strategy==="v1"||observation.strategy==="v29"
         ?`${isSell?"候卖":"候买"} ${strength.label}`
         :calibratedLabel;
