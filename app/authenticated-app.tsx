@@ -4065,7 +4065,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const rawLabel=observationConfirmationLabel(observation,minutePoints,activeQuote?.open)??(assessment==="confirmed"?(isSell?"转弱确认":"转强确认"):assessment==="strong"?(isSell?"高位候选":"低位候选"):"观察");
       const candidateProbability=calibratedCandidateProbability(observation);
       const strength=signalStrengthPresentation({score:observationConfirmationScore(observation,observation.strategy),historicalProbability:candidateProbability});
-      const calibratedLabel=`${rawLabel}${rawLabel.includes("%")?"":` · ${strength.label}`}`;
+      // An unconfirmed observation is only a condition score. Calling it
+      // “确认分” makes a failed rebound look like a confirmed entry.
+      const displayStrengthLabel=observation.strategy==="observation"&&assessment!=="confirmed"&&strength.label.startsWith("确认分")
+        ?strength.label.replace("确认分","条件分")
+        :strength.label;
+      const calibratedLabel=`${rawLabel}${rawLabel.includes("%")?"":` · ${displayStrengthLabel}`}`;
       const fullLabel=observation.strategy==="observation"
         ?`${rawLabel} · 仅观察`
         :observation.strategy==="v1"
@@ -4074,9 +4079,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           ?`${calibratedLabel} · ${strength.detail}`
           :`${calibratedLabel} · ${strength.detail}（方向、位置、触发三项评分均值）`;
       const currentLabel=observation.strategy==="observation"
-        ?(observation.stage==="candidate"&&!rawLabel.includes("分")&&!rawLabel.includes("%")?`${rawLabel} · ${strength.label}`:rawLabel)
+        ?(observation.stage==="candidate"&&!rawLabel.includes("分")&&!rawLabel.includes("%")?`${rawLabel} · ${displayStrengthLabel}`:rawLabel)
         :observation.strategy==="v1"||observation.strategy==="v29"
-        ?`${isSell?"候卖":"候买"} ${strength.label}`
+        ?`${isSell?"候卖":"候买"} ${displayStrengthLabel}`
         :calibratedLabel;
       const labelWidth=Math.max(38,currentLabel.length*8+14);
       const labelVisible=true;
