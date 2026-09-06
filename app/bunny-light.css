@@ -2268,6 +2268,33 @@
   background: #fff8e9;
   border-color: #f5e0b5;
 }
+
+/* Final theme synchronization: prevent legacy terminal surfaces from leaking
+   into daylight pages and keep every desk layer on the same neutral palette. */
+:root[data-theme="light"] body,
+:root[data-theme="light"] .app-shell {
+  background: #f6f8fb !important;
+}
+:root[data-theme="light"] .topbar,
+:root[data-theme="light"] .ticker,
+:root[data-theme="light"] .session-ribbon,
+:root[data-theme="light"] .stock-head,
+:root[data-theme="light"] .workspace,
+:root[data-theme="light"] .chart-zone,
+:root[data-theme="light"] .chart-tools,
+:root[data-theme="light"] .chart-wrap,
+:root[data-theme="light"] .decision-zone {
+  background-color: #ffffff !important;
+}
+:root[data-theme="light"] .workspace,
+:root[data-theme="light"] .chart-zone,
+:root[data-theme="light"] .decision-zone {
+  border-color: #e3e9ef !important;
+}
+:root[data-theme="light"] .topbar {
+  border-top: 0 !important;
+  box-shadow: 0 4px 18px rgba(75, 92, 110, .06) !important;
+}
 :root[data-theme="light"] .zijin-price-plan-grid > div,
 :root[data-theme="light"] .zijin-risk-plan > div {
   border-radius: 12px;
