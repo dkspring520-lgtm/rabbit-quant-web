@@ -1038,8 +1038,8 @@
 /* Sell first, buy second: the two decision prices read as one balanced pair. */
 :root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid .sell{order:1}
 :root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid .buy{order:2}
-:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-head b{font-size:15px}
-:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid b{font-size:17px}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-head b{font-size:12px}
+:root:not([data-theme="light"]) .minimal-ui .zijin-price-plan-grid b{font-size:14px}
 
 /* Low-frequency controls stay in one quiet row. */
 :root:not([data-theme="light"]) .minimal-ui .alert-channel>div:first-child small{display:none}
@@ -1783,12 +1783,12 @@
   padding: 14px;
 }
 .global-decision-card .global-decision-status {
-  font-size: 22px;
+  font-size: 16px;
   line-height: 1.16;
   letter-spacing: -.02em;
 }
 .minimal-ui .decision-zone.focus-mode .decision-primary-card > .global-decision-status {
-  font-size: 22px;
+  font-size: 16px;
 }
 .decision-condition-grid {
   position: relative;
