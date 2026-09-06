@@ -44,6 +44,7 @@ import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-reminder.mjs";
 import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-policy.mjs";
 import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intraday-chart-model.mjs";
+import { intradayTooltipLayout } from "@/lib/intraday-layout.mjs";
 import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
 import { buildZijinPreopenPricePlan, evaluateZijinPreopenGate } from "@/lib/zijin-preopen-price-plan.mjs";
 import { buildZijinMainForceTrack } from "@/lib/zijin-main-force-track.mjs";
@@ -6383,10 +6384,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {intradayCursor&&(()=>{
                 const tooltipWidth=176;
                 const tooltipHeight=isZijinStock?156:139;
-                const chartMid=(LIVE_CHART.plotLeft+LIVE_CHART.plotRight)/2;
-                const tooltipX=intradayCursor.x>chartMid
-                  ? LIVE_CHART.plotLeft+10
-                  : LIVE_CHART.plotRight-tooltipWidth-32;
+                const tooltipX=intradayTooltipLayout({cursorX:intradayCursor.x,plotLeft:LIVE_CHART.plotLeft,plotRight:LIVE_CHART.plotRight,width:tooltipWidth,gutter:16});
                 const tooltipY=LIVE_CHART.priceTop+6;
                 const axisTimeX=Math.max(LIVE_CHART.plotLeft+24,Math.min(LIVE_CHART.plotRight-24,intradayCursor.x));
                 const axisPriceY=Math.max(LIVE_CHART.priceTop+9,Math.min(LIVE_CHART.priceBottom-9,intradayCursor.y));
