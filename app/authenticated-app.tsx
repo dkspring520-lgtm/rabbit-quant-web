@@ -4084,7 +4084,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         ?`${isSell?"候卖":"候买"} ${displayStrengthLabel}`
         :calibratedLabel;
       const labelWidth=Math.max(38,currentLabel.length*8+14);
-      const labelVisible=true;
+      // Observation-layer text is detail-on-hover, not a permanent trading
+      // instruction. Formal/V1/V2.9 labels keep their compact text badges.
+      const labelVisible=observation.strategy!=="observation"||chartAnnotationMode==="full";
       // Candidate and confirmed evidence stays reviewable for the whole session;
       // only an unqualified absolute pivot is compacted to a dot. Local
       // support/resistance that survived the one-per-direction cap still gets
@@ -4177,7 +4179,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
       manualTrades,
     };
-  },[activeChartDate,activeQuote?.open,alertHistory,causalObservationLayer,chartFormalActions,chartModel,chartViewport,currentObservations,durableVisibleChartObservations,formalSignalVisible,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,v1SignalVisible,v29SignalVisible,viewportChartX,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  },[activeChartDate,activeQuote?.open,alertHistory,causalObservationLayer,chartAnnotationMode,chartFormalActions,chartModel,chartViewport,currentObservations,durableVisibleChartObservations,formalSignalVisible,isZijinStock,minutePoints,peakVolumeLabel,positiveTBlockedByFlow,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,v1SignalVisible,v29SignalVisible,viewportChartX,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
