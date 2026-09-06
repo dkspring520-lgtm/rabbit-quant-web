@@ -6385,8 +6385,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 const tooltipHeight=isZijinStock?156:139;
                 const chartMid=(LIVE_CHART.plotLeft+LIVE_CHART.plotRight)/2;
                 const tooltipX=intradayCursor.x>chartMid
-                  ? LIVE_CHART.plotLeft+6
-                  : LIVE_CHART.plotRight-tooltipWidth-14;
+                  ? LIVE_CHART.plotLeft+10
+                  : LIVE_CHART.plotRight-tooltipWidth-32;
                 const tooltipY=LIVE_CHART.priceTop+6;
                 const axisTimeX=Math.max(LIVE_CHART.plotLeft+24,Math.min(LIVE_CHART.plotRight-24,intradayCursor.x));
                 const axisPriceY=Math.max(LIVE_CHART.priceTop+9,Math.min(LIVE_CHART.priceBottom-9,intradayCursor.y));

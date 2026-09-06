@@ -83,6 +83,15 @@
   box-shadow: 0 5px 24px rgba(103, 75, 94, .07);
   backdrop-filter: blur(18px);
 }
+/* Legacy research/backtest pages inherit the daylight surface tokens too. */
+:root[data-theme="light"] :is(.module-view,.backtest-view,.holdings-view,.fortune-view,.research-view,.public-site,.panel,.card,.modal-content) {
+  background-color: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+:root[data-theme="light"] :is(.module-view,.backtest-view,.holdings-view,.fortune-view,.research-view) :is(article,.panel,.card,.table-wrap,.backtest-config,.growth-panel) {
+  background-color: var(--panel) !important;
+  border-color: var(--line-soft) !important;
+}
 :root[data-theme="light"] .chart-zone,
 :root[data-theme="light"] .chart-wrap {
   overflow: hidden;
