@@ -2452,9 +2452,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : liveL2Status?.status?.authorized===false
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
     : liveL2Status?.status?.connected&&!liveL2Stale
-      ? {tone:"ok",label:"行情正常 · L2可用",detail:`${l2ConsoleNode} · 行情已更新 · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2TransportText} · ${liveL2LatencyText}`}
+      ? {tone:"ok",label:"L2：连接正常",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"已收到逐笔，订单流另行核验":"十档在线，逐笔待数据"} · ${liveL2TransportText} · ${liveL2LatencyText}`}
       : marketSession.live
-      ? {tone:"stale",label:"行情正常 · 订单流不可用",detail:`${l2ConsoleNode} · L2已过期，已拦截订单流信号 · ${liveL2LatencyText}`}
+      ? {tone:"stale",label:"L2：订单流不可用",detail:`${l2ConsoleNode} · L2已过期，已拦截订单流信号；普通行情独立核验 · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
   const incomingMinutePoints = useMemo(() => {
     // The trial quote endpoint intentionally returns only the latest quote.
@@ -2595,11 +2595,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[afterHoursPoints]);
   const viewportSlotX=useCallback((slot:number)=>{
     const ratio=(slot-chartViewport.start)/chartViewport.span;
-    // Keep every series (including zoomed candles and overlays) inside the
-    // plot gutter; previously an out-of-range viewport could place bars and
-    // axis-adjacent markers beyond both safety edges.
-    const x=LIVE_CHART.plotLeft+ratio*(LIVE_CHART.plotRight-LIVE_CHART.plotLeft);
-    return Math.max(LIVE_CHART.plotLeft+1,Math.min(LIVE_CHART.plotRight-1,x));
+    // Preserve geometry; SVG plot clipping hides offscreen data without
+    // stacking historical candles at either edge of the visible window.
+    return LIVE_CHART.plotLeft+ratio*(LIVE_CHART.plotRight-LIVE_CHART.plotLeft);
   },[chartViewport]);
   const viewportChartX=useCallback((time:string|number|null|undefined)=>viewportSlotX(aShareMinuteSlot(String(time??""))),[viewportSlotX]);
   const viewportSecondX=useCallback((time:string)=>{
@@ -4066,7 +4064,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           ?`${calibratedLabel} · ${strength.detail}`
           :`${calibratedLabel} · ${strength.detail}（方向、位置、触发三项评分均值）`;
       const currentLabel=observation.strategy==="observation"
-        ?(observation.stage==="candidate"&&!rawLabel.includes("分")&&!rawLabel.includes("%")?`${rawLabel} · 确认分 ${observationConfirmationScore(observation,observation.strategy)}`:rawLabel)
+        ?(observation.stage==="candidate"&&!rawLabel.includes("分")&&!rawLabel.includes("%")?`${rawLabel} · ${strength.label}`:rawLabel)
         :observation.strategy==="v1"||observation.strategy==="v29"
         ?`${isSell?"候卖":"候买"} ${strength.label}`
         :calibratedLabel;
@@ -4151,7 +4149,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...causalObservationLayer,
     ].filter(observation=>strategyLayerVisible(("strategy" in observation?observation.strategy:"observation") as ChartObservation["strategy"]));
     return {
-      observations,
+      observations: chartAnnotationMode==="compact" ? observations.map(marker=>({
+        ...marker,
+        labelRendered:marker.labelRendered && observations.filter(item=>item.labelRendered&&item.isSell===marker.isSell)
+          .sort((a,b)=>(observationConfirmationScore(b.observation,b.strategy)??-1)-(observationConfirmationScore(a.observation,a.strategy)??-1)||b.observation.time.localeCompare(a.observation.time))[0]===marker,
+      })) : observations,
       // Keep every causal observation available to the crosshair without
       // rendering every label on the chart. Compaction is visual-only.
       tooltipObservations:tooltipEligible,
