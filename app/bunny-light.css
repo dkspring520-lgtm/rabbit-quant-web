@@ -90,6 +90,10 @@
 :root[data-theme="light"] .chart-wrap svg {
   overflow: hidden;
 }
+:root[data-theme="light"] .interactive-intraday-chart {
+  overflow: hidden !important;
+  clip-path: inset(0);
+}
 
 :root[data-theme="light"] .topbar .brand {
   background: transparent;
