@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessMarketDataQuality, marketTimestampMillis, shouldPreferL2Quote } from "../lib/market-data-quality.mjs";
+import { assessMarketDataQuality, auditMinuteOhlc, marketTimestampMillis, shouldPreferL2Quote } from "../lib/market-data-quality.mjs";
 
 function points(count, start = 9 * 60 + 30) {
   return Array.from({ length: count }, (_, index) => {
@@ -62,4 +62,21 @@ test("a current L2 price remains the preferred low-latency source", () => {
     quoteTimestamp: "2026-08-25T09:36:45+08:00",
     now: new Date("2026-08-25T09:36:48+08:00"),
   }), true);
+});
+
+test("provider-neutral OHLC audit accepts normal Tencent/Sina/Eastmoney-shaped rows", () => {
+  const rows = ["tencent-public", "sina-public", "eastmoney-public"].map((provider, index) => ({ provider, time: `093${index}`, open: 10, high: 10.08, low: 9.96, price: 10.04 }));
+  const audit = auditMinuteOhlc(rows);
+  assert.deepEqual({ total: audit.total, valid: audit.valid, rejected: audit.rejected }, { total: 3, valid: 3, rejected: 0 });
+});
+
+test("OHLC audit rejects leaked session extremes and malformed rows", () => {
+  const audit = auditMinuteOhlc([
+    { time: "0930", open: 10, high: 10.08, low: 9.96, price: 10.04 },
+    { time: "0931", open: 10, high: 12, low: 9.96, price: 10.04 },
+    { time: "0932", open: 10, high: null, low: 9.9, price: 10 },
+  ]);
+  assert.equal(audit.valid, 1);
+  assert.equal(audit.rejected, 2);
+  assert.equal(audit.rejectionRate, 2 / 3);
 });
