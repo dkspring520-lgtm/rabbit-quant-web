@@ -2248,6 +2248,26 @@
   border-color: #cbece5;
   background: #f3fbf9;
 }
+:root[data-theme="light"] .decision-execution-grid p {
+  background: #f8fafc;
+  border-color: #e6ebf1;
+}
+:root[data-theme="light"] .decision-execution-grid p.positive {
+  background: #fff2f4;
+  border-color: #ffd9df;
+}
+:root[data-theme="light"] .decision-execution-grid p.reverse {
+  background: #eefaf6;
+  border-color: #ccefe3;
+}
+:root[data-theme="light"] .decision-execution-grid p.risk {
+  background: #fff4f1;
+  border-color: #ffdcd4;
+}
+:root[data-theme="light"] .decision-execution-grid p.space {
+  background: #fff8e9;
+  border-color: #f5e0b5;
+}
 :root[data-theme="light"] .zijin-price-plan-grid > div,
 :root[data-theme="light"] .zijin-risk-plan > div {
   border-radius: 12px;
