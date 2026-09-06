@@ -83,6 +83,13 @@
   box-shadow: 0 5px 24px rgba(103, 75, 94, .07);
   backdrop-filter: blur(18px);
 }
+:root[data-theme="light"] .chart-zone,
+:root[data-theme="light"] .chart-wrap {
+  overflow: hidden;
+}
+:root[data-theme="light"] .chart-wrap svg {
+  overflow: hidden;
+}
 
 :root[data-theme="light"] .topbar .brand {
   background: transparent;
