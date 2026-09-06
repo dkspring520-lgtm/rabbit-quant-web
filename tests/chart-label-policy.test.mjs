@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { persistentChartLabel, selectCompactChartLabels } from '../lib/chart-label-policy.mjs';
 
 test('compact labels keep candidates and V1/V2.9, not ordinary rebound text', () => {
-  for (const strategy of ['closure', 'v1', 'v29']) {
-    assert.equal(persistentChartLabel(strategy, '正T候选'), true);
-    assert.equal(persistentChartLabel(strategy, '反T候选'), true);
+  assert.equal(persistentChartLabel('closure', '正T候选'), false);
+  for (const strategy of ['v1', 'v29']) {
+    assert.equal(persistentChartLabel(strategy, '候买'), true);
+    assert.equal(persistentChartLabel(strategy, '候卖'), true);
   }
   assert.equal(persistentChartLabel('observation', '反弹观察'), false);
   assert.equal(persistentChartLabel('closure', '反弹观察'), false);
