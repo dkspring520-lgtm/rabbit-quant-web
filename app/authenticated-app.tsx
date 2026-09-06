@@ -65,7 +65,6 @@ import { evaluateZijinOrderFlowRadar } from "@/lib/zijin-order-flow-engine.mjs";
 import { observationConfirmationScore, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
-import { LightweightIntradayChart, type LightweightCandle } from "./lightweight-intraday-chart";
 const PublicLanding = dynamic(() => import("./public-landing"), {
   loading: () => <main className="public-site public-site-loading" aria-busy="true" />,
 });
@@ -1911,7 +1910,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   });
   const [indicatorsVisible, setIndicatorsVisible] = useState(initialCockpitUi.indicators??true);
   const [intradayChartType,setIntradayChartType]=useState<"line"|"candle">(initialCockpitUi.chartType??"candle");
-  const [lightweightChartVisible,setLightweightChartVisible]=useState(false);
   const [signalLayerVisible,setSignalLayerVisible]=useState(initialCockpitUi.signals??true);
   const [formalSignalVisible,setFormalSignalVisible]=useState(initialCockpitUi.formalSignals??true);
   const [v29SignalVisible,setV29SignalVisible]=useState(initialCockpitUi.v29Signals??false);
@@ -2189,11 +2187,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const toggleWorkspaceFullscreen=async()=>{
     const target=workspaceRef.current;
     if(!target)return;
-    if(!target.requestFullscreen){setWorkspaceFullscreen(value=>!value);setLightweightChartVisible(false);return;}
+    if(!target.requestFullscreen){setWorkspaceFullscreen(value=>!value);return;}
     try{
       if(document.fullscreenElement===target)await document.exitFullscreen?.();
       else{
-        setLightweightChartVisible(false);
+        
         if(document.fullscreenElement)await document.exitFullscreen?.();
         await target.requestFullscreen?.();
       }
@@ -6298,7 +6296,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
              <div className="layer-switches" aria-label="图表图层开关"><button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button><button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="只保留信号点，隐藏图中文字；悬停仍可查看详情" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
-          <button type="button" className={`lightweight-chart-toggle ${lightweightChartVisible?"active":""}`} onClick={()=>setLightweightChartVisible(value=>!value)} title="切换 TradingView 风格轻量图表">{lightweightChartVisible?"使用原图":"使用轻量图"}</button>
           <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
               <span className="rabbit-chart-avatar"/>
@@ -6308,7 +6305,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span>实时盯盘</span><b>{chartHud.title}</b><small>{chartHud.detail} · {chartHud.risk}</small>
               {zijinChartPriceOverlay?.hiddenCount>0&&<button onClick={()=>setShowAllPriceLevels(value=>!value)}>{showAllPriceLevels?"只看最近2条":`展开全部 +${zijinChartPriceOverlay.hiddenCount}`}</button>}
             </div>
-            {lightweightChartVisible&&!workspaceFullscreen&&<LightweightIntradayChart data={minutePoints.map((point,index)=>{const date=(activeChartDate||new Date().toISOString()).replace(/\D/g,"").slice(0,8);const time=String(point.time).replace(/\D/g,"").slice(-4).padStart(4,"0");const t=Date.UTC(Number(date.slice(0,4)),Number(date.slice(4,6))-1,Number(date.slice(6,8)),Number(time.slice(0,2)),Number(time.slice(2)));const close=Number(point.price);const open=Number(point.open)>0?Number(point.open):Number(minutePoints[index-1]?.price)||close;return {time:Math.floor(t/1000) as any,open,high:Number(point.high)>=Math.max(open,close)?Number(point.high):Math.max(open,close),low:Number(point.low)<=Math.min(open,close)?Number(point.low):Math.min(open,close),close,volume:Number(point.volume)||0,vwap:point.averagePrice??null};})}/>}<svg ref={intradayChartRef} className={`interactive-intraday-chart ${chartPanning?"is-panning":""}`} viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="none" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；滚轮或双指缩放，拖动时间轴，双击复位，点击查看分钟详情`} tabIndex={0}
+            {false&&<LightweightIntradayChart data={minutePoints.map((point,index)=>{const date=(activeChartDate||new Date().toISOString()).replace(/\D/g,"").slice(0,8);const time=String(point.time).replace(/\D/g,"").slice(-4).padStart(4,"0");const t=Date.UTC(Number(date.slice(0,4)),Number(date.slice(4,6))-1,Number(date.slice(6,8)),Number(time.slice(0,2)),Number(time.slice(2)));const close=Number(point.price);const open=Number(point.open)>0?Number(point.open):Number(minutePoints[index-1]?.price)||close;return {time:Math.floor(t/1000) as any,open,high:Number(point.high)>=Math.max(open,close)?Number(point.high):Math.max(open,close),low:Number(point.low)<=Math.min(open,close)?Number(point.low):Math.min(open,close),close,volume:Number(point.volume)||0,vwap:point.averagePrice??null};})}/>}<svg ref={intradayChartRef} className={`interactive-intraday-chart ${chartPanning?"is-panning":""}`} viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="none" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；滚轮或双指缩放，拖动时间轴，双击复位，点击查看分钟详情`} tabIndex={0}
               onPointerEnter={handleIntradayPointer} onPointerMove={handleIntradayPointer} onPointerDown={handleIntradayPointerDown} onPointerUp={handleIntradayPointerUp} onPointerCancel={handleIntradayPointerUp}
               onPointerLeave={event=>{if(event.pointerType==="mouse"&&!chartPanRef.current)setIntradayCursorTime(null)}} onAuxClick={event=>{if(event.button===1){event.preventDefault();event.stopPropagation()}}} onDoubleClick={resetIntradayViewport} onKeyDown={handleIntradayKeyDown}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient><clipPath id="intraday-vwap-channel-clip"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop}/></clipPath><clipPath id="intraday-viewport-clip" clipPathUnits="userSpaceOnUse"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.priceTop}/></clipPath></defs>
