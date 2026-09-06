@@ -2559,8 +2559,19 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const secondRange=secondExtremes.get(point.time);
       const reportedHigh=Number(point.high);
       const reportedLow=Number(point.low);
-      const high=reportedHigh>price?reportedHigh:secondRange?.high??reportedHigh;
-      const low=reportedLow<price?reportedLow:secondRange?.low??reportedLow;
+      // Prefer the observed second-level range whenever it extends the
+      // minute. Some providers send a stale/session high-low pair that would
+      // otherwise flatten the candle and hide its wick.
+      const high=Math.max(
+        price,
+        Number.isFinite(reportedHigh)&&reportedHigh>0?reportedHigh:price,
+        secondRange?.high??price,
+      );
+      const low=Math.min(
+        price,
+        Number.isFinite(reportedLow)&&reportedLow>0?reportedLow:price,
+        secondRange?.low??price,
+      );
       return {
         ...point,
         high:Number.isFinite(high)&&high>=price&&high<=price*1.06?high:price,
@@ -2615,7 +2626,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const {min,max}=scale;
     const pointAt=(point:{price:number},index:number)=>`${viewportChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
-    const candleWidth=Math.max(1.4,Math.min(5.8,(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)/chartViewport.span*.68));
+    const candleWidth=Math.max(2.2,Math.min(6.2,(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)/chartViewport.span*.78));
     let candleEstimated=false;
     const candles=minutePoints.flatMap((point,index)=>{
       const close=Number(point.price);
