@@ -5,10 +5,10 @@
  * light theme so the established dark workspace and trading logic stay intact.
  */
 :root[data-theme="light"] {
-  --bg: #fff8fb;
+  --bg: #f6f8fb;
   --surface: #ffffff;
-  --surface-2: #fff1f6;
-  --panel: #fffafd;
+  --surface-2: #f1f5f9;
+  --panel: #f8fafc;
   --panel-strong: #ffffff;
   --field: #fffefe;
   --line: #eee3e9;
@@ -23,7 +23,7 @@
   --amber: #efa849;
   --green: #1db58d;
   --red: #ff557f;
-  --grid: #f0e7ec;
+  --grid: #e6ebf1;
   --shadow: rgba(123, 87, 108, .09);
   --radius: 14px;
   color-scheme: light;
@@ -73,7 +73,7 @@
   background:
     radial-gradient(circle at 8% 3%, rgba(255, 206, 221, .18), transparent 27rem),
     radial-gradient(circle at 94% 9%, rgba(188, 239, 229, .15), transparent 26rem),
-    #fffafd;
+    #f6f8fb;
 }
 
 /* Navigation */
@@ -232,7 +232,7 @@
 }
 
 :root[data-theme="light"] .workspace {
-  background: #fff;
+  background: #f8fafc;
   border: 1px solid #eee3e9;
   box-shadow: 0 12px 34px rgba(111, 79, 99, .075);
 }
@@ -240,7 +240,7 @@
 :root[data-theme="light"] .chart-zone,
 :root[data-theme="light"] .chart-tools,
 :root[data-theme="light"] .chart-wrap {
-  background: #fff;
+  background: #f8fafc;
 }
 
 :root[data-theme="light"] .chart-zone {
@@ -267,7 +267,7 @@
 }
 
 :root[data-theme="light"] .main-force-track {
-  background: linear-gradient(180deg, #fffafd, #fff7fb);
+  background: #f8fafc;
   border-top-color: #f0e3eb;
 }
 
@@ -309,7 +309,7 @@
 }
 
 :root[data-theme="light"] .decision-zone {
-  background: linear-gradient(180deg, #fffbfd, #fff8fb);
+  background: #ffffff;
   padding: 16px;
 }
 
