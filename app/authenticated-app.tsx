@@ -2627,7 +2627,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const {min,max}=scale;
     const pointAt=(point:{price:number},index:number)=>`${viewportChartX(minutePoints[index].time)},${liveChartPriceY(point.price,min,max)}`;
     const path=`M${minutePoints.map(pointAt).join(' L')}`;
-    const candleWidth=Math.max(2.2,Math.min(6.2,(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)/chartViewport.span*.78));
+    const candleWidth=Math.max(3.2,Math.min(7.2,(LIVE_CHART.plotRight-LIVE_CHART.plotLeft)/chartViewport.span*.86));
     let candleEstimated=false;
     const candles=minutePoints.flatMap((point,index)=>{
       const close=Number(point.price);
@@ -2657,7 +2657,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         highY:liveChartPriceY(high,min,max),
         lowY:liveChartPriceY(low,min,max),
         bodyY:Math.min(openY,closeY),
-        bodyHeight:Math.max(1.2,Math.abs(closeY-openY)),
+        bodyHeight:Math.max(2.2,Math.abs(closeY-openY)),
         up:close>=open,
       }];
     });
