@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { ensureVinextWindowsCompatibility } from './vinext-windows-compat.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 export const projectRoot = resolve(scriptDir, "..");
@@ -67,6 +68,9 @@ export async function runSiteCommand(command, args = [], { timeoutMs = 0, killAf
   const environment = await createSiteEnvironment();
   const executable = resolveLocalExecutable(command);
   const nodeShimTarget = resolveWindowsNodeShim(executable);
+  if (nodeShimTarget?.endsWith(join('vinext', 'dist', 'cli.js')) && args[0] === 'start') {
+    await ensureVinextWindowsCompatibility(projectRoot);
+  }
   const spawnExecutable = nodeShimTarget ? process.execPath : executable;
   const spawnArgs = nodeShimTarget ? [nodeShimTarget, ...args] : args;
   return new Promise((resolveResult, reject) => {
