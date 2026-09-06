@@ -3455,6 +3455,7 @@
   outline-offset:-1px;
 }
 /* The mapped series may extend outside a zoomed time window; axes stay fixed. */
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-candles,
 .app-shell.minimal-ui .interactive-intraday-chart .price-area-path,
 .app-shell.minimal-ui .interactive-intraday-chart .price-path,
 .app-shell.minimal-ui .interactive-intraday-chart .vwap-path,
@@ -3987,6 +3988,13 @@
 .order-flow-legend.waiting{color:var(--dim)}
 .order-flow-legend.waiting i{background:var(--dim);box-shadow:none}
 .interactive-intraday-chart{touch-action:none;overscroll-behavior:contain}
+/* Mobile uses an auto-height workspace: a zero flex basis has no height to fill. */
+@media(max-width:760px){
+  .app-shell.minimal-ui.tv-console .workspace .chart-wrap{flex:0 0 auto;height:auto;min-height:280px}
+  .app-shell.minimal-ui.tv-console .workspace .chart-wrap>svg.interactive-intraday-chart{
+    flex:0 0 auto;height:clamp(280px,50svh,400px);min-height:280px;
+  }
+}
 .intraday-order-flow-badge{pointer-events:all;filter:drop-shadow(0 4px 8px rgba(0,0,0,.28))}
 .intraday-order-flow-badge rect{fill:color-mix(in srgb,var(--desk-panel-raised,#1b2422) 92%,var(--amber,#f2b84b) 8%);stroke:rgba(242,184,75,.7);stroke-width:1;vector-effect:non-scaling-stroke}
 .intraday-order-flow-badge text{fill:var(--text,#edf4f1);font:700 8px var(--font-geist-mono),monospace}
