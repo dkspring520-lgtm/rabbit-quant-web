@@ -2644,8 +2644,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const open=Number.isFinite(rawOpen)&&rawOpen>0
         ?rawOpen
         :(Number.isFinite(previousClose)&&previousClose>0?previousClose:close);
-      const hasRealHigh=Number.isFinite(rawHigh)&&rawHigh>=Math.max(open,close);
-      const hasRealLow=Number.isFinite(rawLow)&&rawLow<=Math.min(open,close);
+      // Minute feeds occasionally leak a session high/low into the first or
+      // last bar. Reject implausibly wide ranges instead of drawing a giant
+      // wick at the viewport edge; the candle remains visible using its
+      // verified open/close range and is marked as estimated below.
+      const rawRange=(Number.isFinite(rawHigh)&&Number.isFinite(rawLow)&&close>0)
+        ?(rawHigh-rawLow)/close
+        :Number.POSITIVE_INFINITY;
+      const rangePlausible=rawRange<=0.04;
+      const hasRealHigh=rangePlausible&&Number.isFinite(rawHigh)&&rawHigh>=Math.max(open,close);
+      const hasRealLow=rangePlausible&&Number.isFinite(rawLow)&&rawLow<=Math.min(open,close);
       const high=hasRealHigh?rawHigh:Math.max(open,close);
       const low=hasRealLow?rawLow:Math.min(open,close);
       if(!(Number.isFinite(rawOpen)&&rawOpen>0&&hasRealHigh&&hasRealLow))candleEstimated=true;
