@@ -64,6 +64,7 @@ import { runZijinV29ShadowReplay, runZuoTV1ContextShadowReplay, runZuoTV1Reconst
 import { evaluateZijinShadowExperiments } from "@/lib/zijin-shadow-experiments.mjs";
 import { evaluateZijinOrderFlowRadar } from "@/lib/zijin-order-flow-engine.mjs";
 import { observationConfirmationScore, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
+import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 const PublicLanding = dynamic(() => import("./public-landing"), {
@@ -4004,7 +4005,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const isSell=action.side==="卖出";
       const strength=signalStrengthPresentation({score:action.confirmationScore});
       const label=`${strategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action)} · ${strength.detail}`;
-      const chartLabel=`${shadowChartActionLabel(action)}${action.confirmationScore==null?"":` ${strength.label}`}`;
+      const chartLabel=`${strategy==="v1"?"V1":"V2.9"}影子 ${shadowChartActionLabel(action)} ${strength.label}`;
       const labelWidth=Math.max(38,chartLabel.length*8+14);
       const duplicatesHigherPriority=labeledSignalEpisodes.some(marker=>
         isRecentCausalEvent(action.time,marker.time,20)||isRecentCausalEvent(marker.time,action.time,20));
@@ -4022,7 +4023,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const bottomLocalPivotKeys=selectPivotObservationKeys(observationLayer,"pivot-bottom","local",1,70,30,minutePoints,activeQuote?.open);
     const observationPriority=(observation:ChartObservation)=>observation.strategy==="closure"?0:observation.strategy==="v29"?1:observation.strategy==="v1"?2:3;
     const orderedDurableObservations=durableVisibleChartObservations.filter(observation=>strategyLayerVisible(observation.strategy)).sort((left,right)=>observationPriority(left)-observationPriority(right)||left.time.localeCompare(right.time));
-    const labeledObservationEpisodes=[...labeledSignalEpisodes];
+    const labeledObservationEpisodes:Array<{time:string;isSell:boolean;strategy:string}>=[];
     const openingAnchorShown=new Set<"top"|"bottom">();
     const observations=orderedDurableObservations.flatMap((observation,index)=>{
       const pivotInfo=observation.strategy==="observation"&&(observation.observationKind==="pivot-top"||observation.observationKind==="pivot-bottom")
@@ -4081,12 +4082,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const currentLabel=observation.strategy==="observation"
         ?(observation.stage==="candidate"&&!rawLabel.includes("分")&&!rawLabel.includes("%")?`${rawLabel} · ${displayStrengthLabel}`:rawLabel)
         :observation.strategy==="v1"||observation.strategy==="v29"
-        ?`${isSell?"候卖":"候买"} ${displayStrengthLabel}`
+        ?`${observation.strategy==="v1"?"V1":"V2.9"}影子 ${isSell?"候卖":"候买"} ${displayStrengthLabel}`
         :calibratedLabel;
       const labelWidth=Math.max(38,currentLabel.length*8+14);
       // Observation-layer text is detail-on-hover, not a permanent trading
       // instruction. Formal/V1/V2.9 labels keep their compact text badges.
-      const labelVisible=observation.strategy!=="observation"||chartAnnotationMode==="full";
+      const labelVisible=persistentChartLabel(observation.strategy,rawLabel,chartAnnotationMode);
       // Candidate and confirmed evidence stays reviewable for the whole session;
       // only an unqualified absolute pivot is compacted to a dot. Local
       // support/resistance that survived the one-per-direction cap still gets
@@ -4099,12 +4100,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const auxiliaryDotOnly=observation.strategy==="observation"
         &&(observation.observationKind==="macd"||pivotScope==="local");
       const duplicatesHigherPriority=labeledObservationEpisodes.some(marker=>
-        isRecentCausalEvent(observation.time,marker.time,20)||isRecentCausalEvent(marker.time,observation.time,20));
-      const labelRendered=qualified&&!lowConfidencePivot&&!auxiliaryDotOnly&&!duplicatesHigherPriority&&!suppressOpeningAuxiliaryLabel(observation.time);
+        marker.strategy===observation.strategy&&marker.isSell===isSell&&
+        (isRecentCausalEvent(observation.time,marker.time,20)||isRecentCausalEvent(marker.time,observation.time,20)));
+      const labelRendered=labelVisible&&qualified&&!lowConfidencePivot&&!auxiliaryDotOnly&&!duplicatesHigherPriority&&!suppressOpeningAuxiliaryLabel(observation.time);
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
         : {labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false};
-      if(placed.labelRendered)labeledObservationEpisodes.push({time:observation.time,isSell});
+      if(placed.labelRendered)labeledObservationEpisodes.push({time:observation.time,isSell,strategy:observation.strategy});
       return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,fullLabel,labelWidth,labelVisible,observation,strategy:observation.strategy}];
     });
     // Every delivered candidate reminder is evidence, not just the latest
@@ -4166,11 +4168,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...causalObservationLayer,
     ].filter(observation=>strategyLayerVisible(("strategy" in observation?observation.strategy:"observation") as ChartObservation["strategy"]));
     return {
-      observations: chartAnnotationMode==="compact" ? observations.map(marker=>({
-        ...marker,
-        labelRendered:marker.labelRendered && observations.filter(item=>item.labelRendered&&item.isSell===marker.isSell)
-          .sort((a,b)=>(observationConfirmationScore(b.observation,b.strategy)??-1)-(observationConfirmationScore(a.observation,a.strategy)??-1)||b.observation.time.localeCompare(a.observation.time))[0]===marker,
-      })) : observations,
+      observations: chartAnnotationMode==="compact"
+        ?selectCompactChartLabels(observations,marker=>observationConfirmationScore(marker.observation,marker.strategy))
+        :observations,
       // Keep every causal observation available to the crosshair without
       // rendering every label on the chart. Compaction is visual-only.
       tooltipObservations:tooltipEligible,
@@ -6317,7 +6317,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="intraday-only" title="1分钟K使用真实开高低收；数据不完整时自动回退分时线">
               <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"} <small>{intradayChartType==="candle"&&chartModel?.candleReady?(chartModel.candleEstimated?"估算 OHLC":"真实 OHLC"):"分钟历史 · 秒级观察"}</small>
             </div>
-             <div className="layer-switches" aria-label="图表图层开关"><button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button><button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="只保留信号点，隐藏图中文字；悬停仍可查看详情" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
+             <div className="layer-switches" aria-label="图表图层开关"><button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button><button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="保留候选及策略短标与评分；普通观察文字仅在详情中显示" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
           <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
