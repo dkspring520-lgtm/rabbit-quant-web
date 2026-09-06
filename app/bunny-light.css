@@ -2215,7 +2215,7 @@
 
 /* Daylight cockpit refinement: clean white surfaces with local rabbit accents. */
 :root[data-theme="light"] .decision-zone {
-  background: #fbfbfc;
+  background: #fff;
 }
 :root[data-theme="light"] .decision-primary-card.global-decision-card,
 :root[data-theme="light"] .decision-position-card {
