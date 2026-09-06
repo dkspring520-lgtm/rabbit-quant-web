@@ -2452,9 +2452,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : liveL2Status?.status?.authorized===false
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
     : liveL2Status?.status?.connected&&!liveL2Stale
-      ? {tone:"ok",label:"L2：接口 OK",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2TransportText} · ${liveL2LatencyText}`}
-    : marketSession.live
-      ? {tone:"stale",label:"L2：行情中断",detail:`${l2ConsoleNode} · ${liveL2LatencyText}`}
+      ? {tone:"ok",label:"行情正常 · L2可用",detail:`${l2ConsoleNode} · 行情已更新 · ${liveL2HasTicks?"十档与逐笔在线":"十档在线，逐笔待数据"} · ${liveL2TransportText} · ${liveL2LatencyText}`}
+      : marketSession.live
+      ? {tone:"stale",label:"行情正常 · 订单流不可用",detail:`${l2ConsoleNode} · L2已过期，已拦截订单流信号 · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
   const incomingMinutePoints = useMemo(() => {
     // The trial quote endpoint intentionally returns only the latest quote.
@@ -6376,7 +6376,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 const chartMid=(LIVE_CHART.plotLeft+LIVE_CHART.plotRight)/2;
                 const tooltipX=intradayCursor.x>chartMid
                   ? LIVE_CHART.plotLeft+6
-                  : LIVE_CHART.plotRight-tooltipWidth-6;
+                  : LIVE_CHART.plotRight-tooltipWidth-14;
                 const tooltipY=LIVE_CHART.priceTop+6;
                 const axisTimeX=Math.max(LIVE_CHART.plotLeft+24,Math.min(LIVE_CHART.plotRight-24,intradayCursor.x));
                 const axisPriceY=Math.max(LIVE_CHART.priceTop+9,Math.min(LIVE_CHART.priceBottom-9,intradayCursor.y));
