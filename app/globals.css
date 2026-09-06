@@ -3151,12 +3151,6 @@
 
 /* "标注" mode keeps points and native SVG titles, but removes the text
    badges that compete with the price line. */
-.app-shell.minimal-ui .compact-chart-labels .candidate-signal-marker.with-label>rect:not(.observation-anchor),
-.app-shell.minimal-ui .compact-chart-labels .candidate-signal-marker.with-label>text,
-.app-shell.minimal-ui .compact-chart-labels .candidate-signal-marker.with-label>.marker-label-leader,
-.app-shell.minimal-ui .compact-chart-labels .live-signal-marker>rect,
-.app-shell.minimal-ui .compact-chart-labels .live-signal-marker>text,
-.app-shell.minimal-ui .compact-chart-labels .live-signal-marker>.marker-label-leader,
 .app-shell.minimal-ui .compact-chart-labels .peak-volume-marker>text,
 .app-shell.minimal-ui .compact-chart-labels .vwap-cross-marker>text,
 .app-shell.minimal-ui .compact-chart-labels .closing-auction-marker>text,
