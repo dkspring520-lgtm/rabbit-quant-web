@@ -3572,7 +3572,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       minutePoints,
       activeChartDate??undefined,
       isZijinStock?[...zijinV29ChartObservations,...zijinV1ChartObservations]:[],
-      isZijinStock,
+      false,
       activeQuote?.open,
       similarityArchive,
     ),
@@ -6277,7 +6277,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="legend primary-chart-legend">
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
-              {indicatorsVisible&&<span><i className="average-line"/>均价 <b>{chartModel?.lastVwap?.toFixed(2) ?? "--"}</b></span>}
+              $old{isZijinStock&&<span className="order-flow-legend"><i/>订单流 {liveL2HasTicks?"已接入":"待L2"}</span>}
               {isZijinStock&&<span className={`order-flow-legend ${zijinOrderFlowRadar.available?"ready":"waiting"}`} title="订单流确认评分，不是历史胜率；只有真实 L2 主动成交才显示"><i/>OF {zijinOrderFlowRadar.available?`正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label}`:"待L2"}</span>}
               {isZijinStock&&<span className="strategy-signal-legend" aria-label="信号分类图例"><span title="紫金专属闭环正式信号"><i className="formal"/>正式</span><span title="V2.9 影子参考，不可执行"><i className="v29"/>V2.9</span><span title="V1 影子参考，不可执行"><i className="v1"/>V1</span></span>}
               {causalObservationLayer.length>0&&<span className="strategy-signal-legend observation-signal-legend" aria-label="观察层图例"><span title="拐点概率与 MACD 观察，仅供参考"><i className="observation"/>观察</span></span>}
