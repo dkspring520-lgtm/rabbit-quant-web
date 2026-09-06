@@ -2435,6 +2435,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // indicator, not a connection diagnostic.
   const l2ConsoleNode="上海节点";
   const l2ConnectionLimited=Boolean(liveL2Status?.error&&/maximum|active connections|连接.*上限|额度/i.test(liveL2Status.error));
+  const l2PermissionExpired=Boolean(liveL2Status?.error&&/expired|过期|到期|permission denied|权限/i.test(liveL2Status.error));
+  const l2TransportInterrupted=Boolean(liveL2Status?.error&&/timeout|timed out|断开|中断|unavailable|连接失败|fetch failed/i.test(liveL2Status.error));
   const auctionPhase=marketSession.phase==="preauction"||marketSession.phase==="auction"||marketSession.phase==="auction-result";
   const l2ConsoleStatus=stock.code!=="601899"
     ? {tone:"inactive",label:"L2：未启用",detail:"仅紫金矿业接入"}
@@ -2450,13 +2452,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ? {tone:"loading",label:"L2：连接中",detail:"正在核验上海节点"}
     : !liveL2CollectorAlive
       ? {tone:"off",label:"L2：采集器离线",detail:`${l2ConsoleNode} · 心跳${liveL2HeartbeatSeconds===null?"已中断":`中断 ${liveL2HeartbeatSeconds} 秒`}`}
+    : l2PermissionExpired
+      ? {tone:"off",label:"L2：权限已过期",detail:`${l2ConsoleNode} · 已停止订单流信号，请更新 L2 授权`}
     : l2ConnectionLimited
       ? {tone:"off",label:"L2：连接受限",detail:"账号连接额度已满，请清理旧连接"}
     : liveL2Status?.status?.authorized===false
       ? {tone:"off",label:"L2：权限 OFF",detail:"账号未获 601899 数据权限"}
     : liveL2Status?.status?.connected&&!liveL2Stale
       ? {tone:"ok",label:"L2：连接正常",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"已收到逐笔，订单流另行核验":"十档在线，逐笔待数据"} · ${liveL2TransportText} · ${liveL2LatencyText}`}
-      : marketSession.live
+    : l2TransportInterrupted
+      ? {tone:"off",label:"L2：行情中断",detail:`${l2ConsoleNode} · 暂停订单流信号，普通行情独立核验`}
+    : marketSession.live
       ? {tone:"stale",label:"L2：订单流不可用",detail:`${l2ConsoleNode} · L2已过期，已拦截订单流信号；普通行情独立核验 · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
   const incomingMinutePoints = useMemo(() => {
