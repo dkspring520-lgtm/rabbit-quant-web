@@ -2595,7 +2595,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[afterHoursPoints]);
   const viewportSlotX=useCallback((slot:number)=>{
     const ratio=(slot-chartViewport.start)/chartViewport.span;
-    return LIVE_CHART.plotLeft+ratio*(LIVE_CHART.plotRight-LIVE_CHART.plotLeft);
+    // Keep every series (including zoomed candles and overlays) inside the
+    // plot gutter; previously an out-of-range viewport could place bars and
+    // axis-adjacent markers beyond both safety edges.
+    const x=LIVE_CHART.plotLeft+ratio*(LIVE_CHART.plotRight-LIVE_CHART.plotLeft);
+    return Math.max(LIVE_CHART.plotLeft+1,Math.min(LIVE_CHART.plotRight-1,x));
   },[chartViewport]);
   const viewportChartX=useCallback((time:string|number|null|undefined)=>viewportSlotX(aShareMinuteSlot(String(time??""))),[viewportSlotX]);
   const viewportSecondX=useCallback((time:string)=>{
