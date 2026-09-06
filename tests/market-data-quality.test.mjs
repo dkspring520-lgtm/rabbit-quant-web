@@ -80,3 +80,24 @@ test("OHLC audit rejects leaked session extremes and malformed rows", () => {
   assert.equal(audit.rejected, 2);
   assert.equal(audit.rejectionRate, 2 / 3);
 });
+
+test("OHLC audit distinguishes a genuine large move from malformed ordering", () => {
+  const audit = auditMinuteOhlc([
+    { time: "0933", open: "10.00", high: "10.80", low: "9.90", close: "10.70" },
+    { time: "0934", open: 10, high: 10.1, low: 9.8, close: 10.2 },
+  ], { maxRangePct: 0.10 });
+  assert.equal(audit.valid, 1);
+  assert.equal(audit.rejected, 1);
+  assert.match(audit.issues[0].reason, /高低价与开收盘/);
+});
+
+test("OHLC audit rejects non-finite, zero and partial candles without inventing a wick", () => {
+  const audit = auditMinuteOhlc([
+    { time: "0935", open: 10, high: 10.2, low: 9.9, close: "NaN" },
+    { time: "0936", open: 0, high: 10.2, low: 9.9, close: 10 },
+    { time: "0937", open: 10, high: undefined, low: 9.9, close: 10 },
+  ]);
+  assert.equal(audit.valid, 0);
+  assert.equal(audit.rejected, 3);
+  assert.ok(audit.issues.every((issue) => issue.reason === "缺少有效OHLC"));
+});
