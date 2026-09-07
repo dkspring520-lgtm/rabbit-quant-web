@@ -6523,6 +6523,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>
           </div>
+          {isZijinStock&&<section className={`order-flow-top-card ${zijinOrderFlowRadar.available?"ready":"waiting"}`} aria-label="顶部双兔订单流摘要">
+            <div className="order-flow-top-head"><span><i/>双兔订单流</span><b>{zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.stance:"等待 L2"}</b></div>
+            <div className="order-flow-top-scores"><span className="buy">正T <b>{zijinOrderFlowRadar.available?orderFlowBuyStrength.label:"待数据"}</b></span><span className="sell">反T <b>{zijinOrderFlowRadar.available?orderFlowSellStrength.label:"待数据"}</b></span><small>{zijinOrderFlowRadar.available?`Delta 3分 ${Number.isFinite(zijinOrderFlowRadar.delta?.threeMinute)?formatMainForceAmount(Number(zijinOrderFlowRadar.delta.threeMinute)):"--"} · ${zijinOrderFlowRadar.divergence?.label??"无背离"}`:"L2 订单流尚未就绪"}</small></div>
+            <button type="button" onClick={()=>{setDecisionZoneMode("all");requestAnimationFrame(()=>document.querySelector(".zijin-order-flow-radar")?.scrollIntoView({behavior:"smooth",block:"nearest"}))}}>查看订单流详情 →</button>
+          </section>}
           <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="操盘决策与执行摘要">
             <header><span>操盘决策 <small className="decision-engine-badge">闭环策略</small></span><em>{executionSnapshot?`${executionSnapshot.direction} · 把握度 ${executionSnapshot.confidence}%`:`${decisionConditionsConfirmed}/4 条件`}</em></header>
             <b className="global-decision-status">{decisionModel.status==="locked"

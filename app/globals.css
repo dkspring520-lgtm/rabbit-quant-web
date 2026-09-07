@@ -2827,6 +2827,7 @@
 .interactive-intraday-chart .candidate-signal-marker.v1-context-marker.dot-only{
   display:none;
 }
+.order-flow-top-card{margin:10px 0 12px;padding:10px 12px;border:1px solid rgba(242,184,75,.32);border-radius:12px;background:rgba(22,18,10,.72);display:grid;gap:7px}.order-flow-top-card.ready{border-color:rgba(64,234,214,.36)}.order-flow-top-head,.order-flow-top-scores{display:flex;align-items:center;justify-content:space-between;gap:8px}.order-flow-top-head span{font-size:11px;color:var(--text);font-weight:750}.order-flow-top-head span i{display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:var(--amber);vertical-align:middle}.order-flow-top-card.ready .order-flow-top-head span i{background:var(--teal)}.order-flow-top-head b{font-size:11px;color:var(--amber)}.order-flow-top-card.ready .order-flow-top-head b{color:var(--teal)}.order-flow-top-scores span{font-size:10px;color:var(--muted)}.order-flow-top-scores span b{margin-left:3px;color:var(--amber)}.order-flow-top-scores span.sell b{color:var(--coral)}.order-flow-top-scores small{margin-left:auto;color:var(--dim);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.order-flow-top-card>button{justify-self:start;border:0;padding:0;background:transparent;color:var(--teal);font:inherit;font-size:10px;cursor:pointer}
 .interactive-intraday-chart .candidate-signal-marker.v1-context-marker .marker-label-leader{
   stroke:#69aefc;
   stroke-dasharray:4 3;
