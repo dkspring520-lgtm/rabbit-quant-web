@@ -2832,6 +2832,14 @@
   stroke:#69aefc;
   stroke-dasharray:4 3;
 }
+.interactive-intraday-chart .candidate-signal-marker circle,
+.interactive-intraday-chart .live-signal-marker circle{
+  r:4.5px;
+}
+.interactive-intraday-chart .candidate-signal-marker:hover circle,
+.interactive-intraday-chart .live-signal-marker:hover circle{
+  r:4.5px;
+}
 .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker circle,
 .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker rect{
   stroke:#e5b85b;
