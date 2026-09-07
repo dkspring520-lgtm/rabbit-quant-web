@@ -2887,6 +2887,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     [zijinMainForceTrack.bars],
   );
   const positiveTBlockedByFlow=Boolean(isZijinStock&&zijinFundResponse.positiveTBlocked);
+  // Once continuous trading has started, live order flow overrides the
+  // opening prior. A bearish Delta divergence plus sustained net outflow and
+  // weak T scores must suppress the pre-open "正T优先" anchor.
+  const liveOpeningFlowConflict=Boolean(
+    isZijinStock&&marketSession.live&&zijinOrderFlowRadar.available
+      &&/顶背离|卖压|净流出/.test(`${zijinOrderFlowRadar.divergence?.label??""}${zijinOrderFlowRadar.divergence?.reason??""}`)
+      &&Number(zijinOrderFlowRadar.scores?.lowBuy??100)<=25
+      &&Number(zijinOrderFlowRadar.delta?.threeMinute??0)<0,
+  );
   const zijinMainForceIntent=useMemo(
     ()=>summarizeZijinMainForceIntent(zijinMainForceTrack.bars),
     [zijinMainForceTrack.bars],
@@ -4344,6 +4353,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const gateDirection=gateAvailable
       ? zijinPreopenGate.allowedDirections.join("/")||zijinPreopenGate.predictedDirection
       : null;
+    if(liveOpeningFlowConflict)return {
+      title:"实时结论",
+      value:"资金流出 · 暂停正T",
+      suffix:"",
+      detail:"开盘预判已被实时订单流覆盖",
+      tone:"down",
+      ariaLabel:"实时订单流冲突警告",
+      tooltip:"Delta 顶背离、资金净流出且正T评分偏低，已锁定正T；等待订单流止跌并重新确认。",
+    };
     const direction=gateDirection??(openingAssessment.session==="高开"?"反T":openingAssessment.session==="低开"?"正T":"双向观察");
     return {
       title:"开盘结论",
