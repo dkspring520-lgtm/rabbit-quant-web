@@ -1893,6 +1893,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [clockNow, setClockNow] = useState<Date|null>(null);
   const [liveSecondPoints, setLiveSecondPoints] = useState<LiveSecondPoint[]>([]);
   const liveSecondQuoteRef = useRef<{price:number|null;fresh:boolean}>({price:null,fresh:false});
+  // Guard the local simulator against pointer/click bursts. A repeated click
+  // should never create a wall of identical B/S markers on the chart.
+  const lastQuickOrderRef = useRef<{key:string;at:number}|null>(null);
   const [tradeLedgerState,setTradeLedgerState]=useState<{key:string;rows:TradeLedgerRow[]}>({key:"",rows:[]});
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
   const [trialError, setTrialError] = useState("");
@@ -5885,6 +5888,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const time=now.toLocaleTimeString("en-GB",{timeZone:"Asia/Shanghai",hour12:false});
     const wallMinute=time.replace(/\D/g,"").slice(0,4);
     const chartTime=minutePoints.some(point=>point.time===wallMinute)?wallMinute:(minutePoints.at(-1)?.time??wallMinute);
+    const duplicateKey=`${tradingDate}:${stock.code}:${chartTime}:${side}:${price.toFixed(4)}:${quantity}`;
+    const previousQuickOrder=lastQuickOrderRef.current;
+    if(previousQuickOrder?.key===duplicateKey&&now.getTime()-previousQuickOrder.at<1200){
+      setQuickOrderFeedback("已忽略重复点击");
+      return;
+    }
+    lastQuickOrderRef.current={key:duplicateKey,at:now.getTime()};
     const id=globalThis.crypto?.randomUUID?.()??`${now.getTime()}-${Math.random().toString(36).slice(2)}`;
     const row:TradeLedgerRow={
       id,tradingDate,time,side,price,quantity,
