@@ -13,6 +13,9 @@ test('compact labels keep candidates and V1/V2.9, not ordinary rebound text', ()
   assert.equal(persistentChartLabel('observation', '反弹观察', 'full'), true);
   assert.equal(persistentChartLabel('observation', '正T候选'), false);
   assert.equal(persistentChartLabel('observation', 'MACD↑'), true);
+  assert.equal(persistentChartLabel('observation', '顶 70%'), true);
+  assert.equal(persistentChartLabel('observation', '底 80%'), true);
+  assert.equal(persistentChartLabel('observation', '绝对顶观察'), false);
 });
 
 test('hidden 99-point observation cannot consume the visible V1 candidate slot', () => {

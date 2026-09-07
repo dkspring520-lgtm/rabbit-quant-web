@@ -1868,7 +1868,7 @@
 }
 .interactive-intraday-chart .candidate-signal-marker.dot-only:hover circle {
   opacity: 1;
-  r: 4.8px;
+  r: 4.5px;
 }
 .interactive-intraday-chart .grid-line {
   opacity: .5;
