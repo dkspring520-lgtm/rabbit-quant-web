@@ -2823,6 +2823,10 @@
   stroke:#e5b85b;
   stroke-dasharray:5 3;
 }
+.interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker.dot-only,
+.interactive-intraday-chart .candidate-signal-marker.v1-context-marker.dot-only{
+  display:none;
+}
 .interactive-intraday-chart .candidate-signal-marker.v1-context-marker .marker-label-leader{
   stroke:#69aefc;
   stroke-dasharray:4 3;
