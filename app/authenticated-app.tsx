@@ -1342,6 +1342,8 @@ function buildPivotAndMacdObservations(
 
 function compactIntradayPrompt(value:string, fallback="等待确认") {
   const normalized=value.replace(/[·•\s]/g,"");
+  if(/正T.*确认(?:分|进度)?/.test(normalized))return "正T候选";
+  if(/反T.*确认(?:分|进度)?/.test(normalized))return "反T候选";
   if(/正T.*(?:候选|观察)/.test(normalized))return "正T候选";
   if(/反T.*(?:候选|观察)/.test(normalized))return "反T候选";
   if(/候选卖点|卖点候选/.test(normalized))return "候选卖点";
@@ -4104,11 +4106,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         &&pivotInfo?.probabilityEligible!==true
         &&pivotInfo?.openingAnchor!==true;
       const auxiliaryDotOnly=observation.strategy==="observation"
-        &&(observation.observationKind==="macd"||pivotScope==="local");
+        &&(observation.observationKind==="macd"||pivotScope==="local"||Boolean(observation.repairPhase)
+          ||/(均价上方|均价下方).*观察/.test(String(observation.confirmationLabel??"")));
       const duplicatesHigherPriority=labeledObservationEpisodes.some(marker=>
         marker.strategy===observation.strategy&&marker.isSell===isSell&&
         (isRecentCausalEvent(observation.time,marker.time,20)||isRecentCausalEvent(marker.time,observation.time,20)));
-      const labelRendered=labelVisible&&qualified&&!lowConfidencePivot&&!auxiliaryDotOnly&&!duplicatesHigherPriority&&!suppressOpeningAuxiliaryLabel(observation.time);
+      const nonActionableText=/均价上方|均价下方|修复观察/.test(currentLabel);
+      const labelRendered=labelVisible&&qualified&&!lowConfidencePivot&&!auxiliaryDotOnly&&!nonActionableText&&!duplicatesHigherPriority&&!suppressOpeningAuxiliaryLabel(observation.time);
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
         : {labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false};
