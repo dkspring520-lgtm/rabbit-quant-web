@@ -4172,10 +4172,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // must not paint either their badge or their anchor dot.  Apply this
       // after the final display label is resolved so closure observations and
       // old cached observations are filtered in the same place as new ones.
-      const hideAuxiliaryObservation=observation.strategy==="observation"
-        &&(Boolean(observation.repairPhase)
-          ||/(均价上方|均价下方).*观察/.test(String(observation.confirmationLabel??""))
-          ||/反弹观察|回落观察|反弹确认|回落确认|修复观察/.test(`${rawLabel??""} ${currentLabel??""}`));
+      // These labels can come from the regular closure stream as well as the
+      // dedicated observation layer (and old persisted replay snapshots may
+      // still carry the original wording).  Filter by presentation text
+      // rather than strategy so a refresh cannot resurrect the auxiliary
+      // rebound/recovery badges that are intentionally not trading signals.
+      const auxiliaryObservationText=`${rawLabel??""} ${currentLabel??""} ${fullLabel??""}`;
+      const hideAuxiliaryObservation=Boolean(observation.repairPhase)
+        ||/(均价上方|均价下方).*观察/.test(auxiliaryObservationText)
+        ||/反弹观察|回落观察|反弹确认|回落确认|修复观察/.test(auxiliaryObservationText);
       const hideNonActionableObservation=/反弹观察|回落观察|反弹确认|回落确认|修复观察|均价上方|均价下方/.test(
         `${rawLabel??""} ${currentLabel??""} ${fullLabel??""}`,
       );
@@ -4188,9 +4193,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // Ordinary rebound/recovery observations and unqualified pivots are
       // audit evidence only.  Do not leave their unlabeled yellow anchor on
       // the price series; MACD and calibrated 70/80% pivots remain visible.
-      const hideUnlabeledObservation=observation.strategy==="observation"
-        &&observation.observationKind!=="macd"
-        &&!labelRendered;
+      const hideUnlabeledObservation=!labelRendered
+        &&observation.observationKind!=="macd";
       if(hideUnlabeledObservation)return [];
       const placed=labelRendered
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
