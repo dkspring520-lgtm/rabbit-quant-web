@@ -6623,6 +6623,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           {isZijinStock&&<section className={`order-flow-top-card ${zijinOrderFlowRadar.available||liveL2SessionReady?"ready":"waiting"}`} aria-label="顶部双兔订单流摘要">
             <div className="order-flow-top-head"><span><i/>双兔订单流</span><b>{orderFlowTopStatus}</b></div>
             <div className="order-flow-top-scores"><span className="buy">正T <b>{zijinOrderFlowRadar.available?orderFlowBuyStrength.label:"待数据"}</b></span><span className="sell">反T <b>{zijinOrderFlowRadar.available?orderFlowSellStrength.label:"待数据"}</b></span><small>{orderFlowTopDetail}</small></div>
+            <div className="order-flow-behavior-grid" aria-label="订单流行为传感器">
+              <span><em>吸收</em><b>{web4Microstructure.absorption.available?web4Microstructure.absorption.side==="buy"?"买方承接":web4Microstructure.absorption.side==="sell"?"卖方承接":"无明确":"待数据"}</b></span>
+              <span><em>扫单</em><b>{web4Microstructure.behavior.sweeps.available?`买 ${web4Microstructure.behavior.sweeps.buy??0} · 卖 ${web4Microstructure.behavior.sweeps.sell??0}`:"待数据"}</b></span>
+              <span><em>冰山</em><b>{web4Microstructure.behavior.iceberg.available?`买 ${web4Microstructure.behavior.iceberg.buy??0} · 卖 ${web4Microstructure.behavior.iceberg.sell??0}`:"待数据"}</b></span>
+              <span><em>成交强度</em><b>{web4Microstructure.behavior.intensity.available?`${web4Microstructure.behavior.intensity.value.toFixed(1)}×`:"待数据"}</b></span>
+              <span><em>冲击效率</em><b>{web4Microstructure.behavior.impactEfficiency.available?web4Microstructure.behavior.impactEfficiency.value.toExponential(1):"待数据"}</b></span>
+              <span><em>流动性</em><b>{web4Microstructure.behavior.liquidityVacuum.available?(web4Microstructure.behavior.liquidityVacuum.value?"真空":"正常"):"待数据"}</b></span>
+            </div>
             <button type="button" onClick={()=>{setDecisionZoneMode("all");requestAnimationFrame(()=>document.querySelector(".zijin-order-flow-radar")?.scrollIntoView({behavior:"smooth",block:"nearest"}))}}>查看订单流详情 →</button>
           </section>}
           <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="操盘决策与执行摘要">
