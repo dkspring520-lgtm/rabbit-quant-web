@@ -4013,7 +4013,26 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     };
     // A user's simulated fills remain visible and get first choice of label
     // space. They never become strategy signals or broker orders.
-    const manualTrades=tradeLedgerRows.flatMap((row,index)=>{
+    // Keep the full ledger for audit, but collapse duplicate visual fills.
+    // A double-click/retry (or a replay refresh) can leave several identical
+    // B/S rows at the same minute. Rendering every row makes the chart look
+    // like it is continuously firing signals. One badge per minute/side/
+    // price is enough; the tooltip still exposes the retained row details.
+    const visibleManualTradeRows=(()=>{
+      const seen=new Set<string>();
+      return tradeLedgerRows.filter(row=>{
+        if(row.status==="已失效"||normalizeMarketDate(row.marketDate??row.tradingDate)!==activeChartDate)return true;
+        const time=String(row.chartTime??row.time??"").replace(/\D/g,"").slice(0,4);
+        if(!/^\d{4}$/.test(time))return true;
+        const side=row.side||"";
+        const price=Number.isFinite(Number(row.price))?Number(row.price).toFixed(2):"";
+        const key=`${time}|${side}|${price}`;
+        if(seen.has(key))return false;
+        seen.add(key);
+        return true;
+      });
+    })();
+    const manualTrades=visibleManualTradeRows.flatMap((row,index)=>{
       if(row.status==="已失效"||normalizeMarketDate(row.marketDate??row.tradingDate)!==activeChartDate)return [];
       const time=String(row.chartTime??row.time??"").replace(/\D/g,"").slice(0,4);
       if(!/^\d{4}$/.test(time))return [];
