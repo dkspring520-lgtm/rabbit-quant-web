@@ -6627,7 +6627,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span><em>冲击效率</em><b>{web4Microstructure.behavior.impactEfficiency.available?web4Microstructure.behavior.impactEfficiency.value.toExponential(1):"待数据"}</b></span>
               <span><em>流动性</em><b>{web4Microstructure.behavior.liquidityVacuum.available?(web4Microstructure.behavior.liquidityVacuum.value?"真空":"正常"):"待数据"}</b></span>
             </div>
-            <button type="button" onClick={()=>{setDecisionZoneMode("all");requestAnimationFrame(()=>document.querySelector(".zijin-order-flow-radar")?.scrollIntoView({behavior:"smooth",block:"nearest"}))}}>查看订单流详情 →</button>
           </section>}
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
