@@ -4108,6 +4108,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const auxiliaryDotOnly=observation.strategy==="observation"
         &&(observation.observationKind==="macd"||pivotScope==="local"||Boolean(observation.repairPhase)
           ||/(均价上方|均价下方).*观察/.test(String(observation.confirmationLabel??"")));
+      // Non-actionable VWAP-position and repair reminders are intentionally
+      // removed from the main chart, not merely unlabeled. They remain in the
+      // research/audit data but must not look like live trading signals.
+      const hideAuxiliaryObservation=observation.strategy==="observation"
+        &&(Boolean(observation.repairPhase)
+          ||/(均价上方|均价下方).*观察/.test(String(observation.confirmationLabel??"")));
+      if(hideAuxiliaryObservation)return [];
       const duplicatesHigherPriority=labeledObservationEpisodes.some(marker=>
         marker.strategy===observation.strategy&&marker.isSell===isSell&&
         (isRecentCausalEvent(observation.time,marker.time,20)||isRecentCausalEvent(marker.time,observation.time,20)));
