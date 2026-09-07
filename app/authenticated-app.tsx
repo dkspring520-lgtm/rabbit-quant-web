@@ -2207,7 +2207,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [liveL2Transport,setLiveL2Transport]=useState<"connecting"|"stream"|"polling">("connecting");
   const [liveL2PushLatencyMs,setLiveL2PushLatencyMs]=useState<number|null>(null);
   useEffect(()=>{
-    if(!localAuth||stock?.code!=="601899"||!shouldRunTradingDeskPolling(activeView,document.visibilityState))return;
+    if(!localAuth||stock?.code!=="601899"||activeView!=="操盘台")return;
     let active=true;
     let timer:number|undefined;
     let source:EventSource|null=null;
@@ -2215,6 +2215,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     let lastStreamPayloadAt=Date.now();
     let lastSuccessfulPayloadAt=Date.now();
     let consecutivePollFailures=0;
+    const shouldPollNow=()=>shouldRunTradingDeskPolling(activeView,document.visibilityState);
     const closeStream=()=>{
       source?.close();
       source=null;
@@ -2271,6 +2272,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       }
     };
     const poll=async()=>{
+      if(!active||!shouldPollNow()){
+        timer=undefined;
+        return;
+      }
       try{
         const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"},{timeoutMs:1_500,key:"zijin-l2-orderflow-poll"});
         const payload=await response.json() as ZijinL2State;
@@ -2293,7 +2298,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       setLiveL2Transport("polling");
       void poll();
     };
-    if(marketDataActive&&typeof EventSource!=="undefined"){
+    const startStream=()=>{
+      if(!active||!shouldPollNow()||!marketDataActive||typeof EventSource==="undefined"||source)return;
       setLiveL2Transport("connecting");
       source=new EventSource(`/api/research/zijin-l2-orderflow?stream=1&t=${Date.now()}`);
       source.addEventListener("snapshot",event=>{
@@ -2313,11 +2319,28 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         closeStream();
         startPolling();
       },1_000);
-    }else startPolling();
+    };
+    const onVisibilityChange=()=>{
+      if(!active)return;
+      if(!shouldPollNow()){
+        closeStream();
+        if(timer!==undefined){window.clearTimeout(timer);timer=undefined;}
+        return;
+      }
+      if(source||timer!==undefined)return;
+      startStream();
+      if(!source)startPolling();
+    };
+    document.addEventListener("visibilitychange",onVisibilityChange);
+    if(shouldPollNow()){
+      startStream();
+      if(!source)startPolling();
+    }
     return()=>{
       active=false;
       closeStream();
       if(timer!==undefined)window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange",onVisibilityChange);
     };
   },[localAuth,activeView,stock?.code,marketDataActive]);
   const liveL2CollectorAlive=Boolean(liveL2Status&&(liveL2Status.status?.collectorAlive!==false&&liveL2Status.meta?.collectorStale!==true));
@@ -2855,6 +2878,24 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>evaluateZijinOrderFlowRadar({minutes:isZijinStock?(liveL2Status?.recentMinutes??[]):[],stale:marketSession.live&&liveL2Stale}),
     [isZijinStock,liveL2Status?.recentMinutes,marketSession.live,liveL2Stale],
   );
+  const liveL2SessionReady=Boolean(
+    isZijinStock
+      &&liveL2Status?.status?.connected===true
+      &&liveL2Status?.status?.authorized!==false
+      &&liveL2Status?.status?.stale!==true
+      &&liveL2Status?.meta?.stale!==true
+      &&liveL2CollectorAlive,
+  );
+  const orderFlowTopStatus=zijinOrderFlowRadar.available
+    ?(zijinOrderFlowRadar.scores?.stance??"订单流已就绪")
+    :liveL2SessionReady
+      ?"L2已连接"
+      :"等待 L2";
+  const orderFlowTopDetail=zijinOrderFlowRadar.available
+    ?`Delta 3分 ${Number.isFinite(zijinOrderFlowRadar.delta?.threeMinute)?formatMainForceAmount(Number(zijinOrderFlowRadar.delta.threeMinute)):"--"} · ${zijinOrderFlowRadar.divergence?.label??"无背离"}`
+    :liveL2SessionReady
+      ?"本分钟暂无可评分逐笔，连接保持正常"
+      :"L2 订单流尚未就绪";
   const orderFlowBuyStrength=signalStrengthPresentation({score:zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.lowBuy:null});
   const orderFlowSellStrength=signalStrengthPresentation({score:zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.takeProfit:null});
   const orderFlowChartPoint=useMemo(()=>{
@@ -4022,7 +4063,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const isSell=action.side==="卖出";
       const strength=signalStrengthPresentation({score:action.confirmationScore});
       const label=`${strategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action)} · ${strength.detail}`;
-      const chartLabel=`${strategy==="v1"?"V1":"V2.9"}影子 ${shadowChartActionLabel(action)} ${strength.label}`;
+      // The marker color and layer switch already identify V1/V2.9. Keep the
+      // permanent badge action-first; version detail remains in the hover title.
+      const chartLabel=`${shadowChartActionLabel(action)} ${strength.label}`;
       const labelWidth=Math.max(38,chartLabel.length*8+14);
       const duplicatesHigherPriority=labeledSignalEpisodes.some(marker=>
         isRecentCausalEvent(action.time,marker.time,20)||isRecentCausalEvent(marker.time,action.time,20));
@@ -4099,7 +4142,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const currentLabel=observation.strategy==="observation"
         ?(observation.stage==="candidate"&&!rawLabel.includes("分")&&!rawLabel.includes("%")?`${rawLabel} · ${displayStrengthLabel}`:rawLabel)
         :observation.strategy==="v1"||observation.strategy==="v29"
-        ?`${observation.strategy==="v1"?"V1":"V2.9"}影子 ${isSell?"候卖":"候买"} ${displayStrengthLabel}`
+        ?`${isSell?"候卖":"候买"} ${displayStrengthLabel}`
         :calibratedLabel;
       const labelWidth=Math.max(38,currentLabel.length*8+14);
       // Observation-layer text is detail-on-hover, not a permanent trading
@@ -4122,7 +4165,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // research/audit data but must not look like live trading signals.
       const hideAuxiliaryObservation=observation.strategy==="observation"
         &&(Boolean(observation.repairPhase)
-          ||/(均价上方|均价下方).*观察/.test(String(observation.confirmationLabel??"")));
+          ||/(均价上方|均价下方).*观察/.test(String(observation.confirmationLabel??""))
+          ||/反弹观察/.test(String(rawLabel??"")));
       if(hideAuxiliaryObservation)return [];
       const duplicatesHigherPriority=labeledObservationEpisodes.some(marker=>
         marker.strategy===observation.strategy&&marker.isSell===isSell&&
@@ -6523,9 +6567,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>
           </div>
-          {isZijinStock&&<section className={`order-flow-top-card ${zijinOrderFlowRadar.available?"ready":"waiting"}`} aria-label="顶部双兔订单流摘要">
-            <div className="order-flow-top-head"><span><i/>双兔订单流</span><b>{zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.stance:"等待 L2"}</b></div>
-            <div className="order-flow-top-scores"><span className="buy">正T <b>{zijinOrderFlowRadar.available?orderFlowBuyStrength.label:"待数据"}</b></span><span className="sell">反T <b>{zijinOrderFlowRadar.available?orderFlowSellStrength.label:"待数据"}</b></span><small>{zijinOrderFlowRadar.available?`Delta 3分 ${Number.isFinite(zijinOrderFlowRadar.delta?.threeMinute)?formatMainForceAmount(Number(zijinOrderFlowRadar.delta.threeMinute)):"--"} · ${zijinOrderFlowRadar.divergence?.label??"无背离"}`:"L2 订单流尚未就绪"}</small></div>
+          {isZijinStock&&<section className={`order-flow-top-card ${zijinOrderFlowRadar.available||liveL2SessionReady?"ready":"waiting"}`} aria-label="顶部双兔订单流摘要">
+            <div className="order-flow-top-head"><span><i/>双兔订单流</span><b>{orderFlowTopStatus}</b></div>
+            <div className="order-flow-top-scores"><span className="buy">正T <b>{zijinOrderFlowRadar.available?orderFlowBuyStrength.label:"待数据"}</b></span><span className="sell">反T <b>{zijinOrderFlowRadar.available?orderFlowSellStrength.label:"待数据"}</b></span><small>{orderFlowTopDetail}</small></div>
             <button type="button" onClick={()=>{setDecisionZoneMode("all");requestAnimationFrame(()=>document.querySelector(".zijin-order-flow-radar")?.scrollIntoView({behavior:"smooth",block:"nearest"}))}}>查看订单流详情 →</button>
           </section>}
           <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="操盘决策与执行摘要">
