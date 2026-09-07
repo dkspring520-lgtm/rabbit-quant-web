@@ -4016,8 +4016,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     // Keep the full ledger for audit, but collapse duplicate visual fills.
     // A double-click/retry (or a replay refresh) can leave several identical
     // B/S rows at the same minute. Rendering every row makes the chart look
-    // like it is continuously firing signals. One badge per minute/side/
-    // price is enough; the tooltip still exposes the retained row details.
+    // like it is continuously firing signals. One badge per minute and side
+    // is enough; the tooltip still exposes the retained row details.
     const visibleManualTradeRows=(()=>{
       const seen=new Set<string>();
       return tradeLedgerRows.filter(row=>{
@@ -4025,8 +4025,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const time=String(row.chartTime??row.time??"").replace(/\D/g,"").slice(0,4);
         if(!/^\d{4}$/.test(time))return true;
         const side=row.side||"";
-        const price=Number.isFinite(Number(row.price))?Number(row.price).toFixed(2):"";
-        const key=`${time}|${side}|${price}`;
+        const key=`${time}|${side}`;
         if(seen.has(key))return false;
         seen.add(key);
         return true;
