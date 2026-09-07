@@ -2872,7 +2872,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return {path,last:zijinAhLinkage.points.at(-1)!};
   },[chartModel,zijinAhLinkage,activeQuote,viewportChartX]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
-  const isZijinStock=stock?.code===STOCK_AGENTS.zijin.code;
+  // Market providers may append an exchange suffix (601899.SH/SSE). Keep
+  // the 紫金-specific cockpit panels visible for those canonical variants.
+  const isZijinStock=String(stock?.code??"").split(/[.\s_-]/,1)[0]===STOCK_AGENTS.zijin.code;
   const zijinMainForceTrack=useMemo(
     ()=>buildZijinMainForceTrack(isZijinStock?(liveL2Status?.recentMinutes??[]):[]),
     [isZijinStock,liveL2Status?.recentMinutes],
