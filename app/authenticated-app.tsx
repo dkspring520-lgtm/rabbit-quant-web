@@ -6616,10 +6616,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <i aria-hidden="true"/><button type="button" onClick={()=>setDecisionPanelCollapsed(value=>!value)} title={decisionPanelCollapsed?"展开决策面板":"折叠决策面板"} aria-pressed={decisionPanelCollapsed}>{decisionPanelCollapsed?"‹":"›"}</button>
         </div>
         <aside className={`decision-zone ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`}>
-          <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
-            <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
-            <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>
-          </div>
           {isZijinStock&&<section className={`order-flow-top-card ${zijinOrderFlowRadar.available||liveL2SessionReady?"ready":"waiting"}`} aria-label="顶部双兔订单流摘要">
             <div className="order-flow-top-head"><span><i/>双兔订单流</span><b>{orderFlowTopStatus}</b></div>
             <div className="order-flow-top-scores"><span className="buy">正T <b>{zijinOrderFlowRadar.available?orderFlowBuyStrength.label:"待数据"}</b></span><span className="sell">反T <b>{zijinOrderFlowRadar.available?orderFlowSellStrength.label:"待数据"}</b></span><small>{orderFlowTopDetail}</small></div>
@@ -6633,6 +6629,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             <button type="button" onClick={()=>{setDecisionZoneMode("all");requestAnimationFrame(()=>document.querySelector(".zijin-order-flow-radar")?.scrollIntoView({behavior:"smooth",block:"nearest"}))}}>查看订单流详情 →</button>
           </section>}
+          <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
+            <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
+            <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>
+          </div>
           <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="操盘决策与执行摘要">
             <header><span>操盘决策 <small className="decision-engine-badge">闭环策略</small></span><em>{executionSnapshot?`${executionSnapshot.direction} · 把握度 ${executionSnapshot.confidence}%`:`${decisionConditionsConfirmed}/4 条件`}</em></header>
             <b className="global-decision-status">{decisionModel.status==="locked"
@@ -6769,27 +6769,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               </article>
             </div>
             <footer>实验版本 {zijinShadowExperiments.version} · 只用已出现的分钟/L2数据 · 通过样本外验证后再讨论是否保留</footer>
-          </details>}
-          {isZijinStock&&<details className={`zijin-order-flow-radar ${zijinOrderFlowRadar.available?"ready":"waiting"}`} aria-label="双兔订单流影子确认">
-            <summary>
-              <div><span>双兔订单流</span><b>{zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.stance:zijinOrderFlowRadar.reason}</b><small>{zijinOrderFlowRadar.asOfTime?`${formatTime(zijinOrderFlowRadar.asOfTime)} · ${marketSession.live?"当分钟":"盘后参考"} · 胜率待校准`:"胜率待校准"}</small></div>
-              <strong><i className="buy" title={orderFlowBuyStrength.detail}>正T {zijinOrderFlowRadar.available?orderFlowBuyStrength.label:"待数据"}</i><i className="sell" title={orderFlowSellStrength.detail}>反T {zijinOrderFlowRadar.available?orderFlowSellStrength.label:"待数据"}</i></strong>
-            </summary>
-            {zijinOrderFlowRadar.available?<div className="zijin-order-flow-body">
-              <div className="zijin-order-flow-metrics">
-                <article><span>Delta 1 / 3 / 5分</span><b>{[zijinOrderFlowRadar.delta?.oneMinute,zijinOrderFlowRadar.delta?.threeMinute,zijinOrderFlowRadar.delta?.fiveMinute].map(value=>Number.isFinite(value)?formatMainForceAmount(Number(value)):"--").join(" · ")}</b></article>
-                <article><span>累计 Delta</span><b className={(zijinOrderFlowRadar.delta?.cumulative??0)>=0?"buy":"sell"}>{Number.isFinite(zijinOrderFlowRadar.delta?.cumulative)?formatMainForceAmount(Number(zijinOrderFlowRadar.delta.cumulative)):"--"}</b></article>
-                <article><span>Delta 背离</span><b>{zijinOrderFlowRadar.divergence?.label??"等待"}</b><small>{zijinOrderFlowRadar.divergence?.reason}</small></article>
-                <article><span>买卖吸收</span><b>{zijinOrderFlowRadar.absorption?.label??"等待"}</b><small>{zijinOrderFlowRadar.absorption?.reason}</small></article>
-                <article><span>价格推进</span><b>{zijinOrderFlowRadar.efficiency?.label??"等待"}</b><small>{zijinOrderFlowRadar.efficiency?.value==null?"等待5分钟Delta":`${zijinOrderFlowRadar.efficiency.value} bp/百万元`}</small></article>
-                <article><span>VWAP / MA5 / 量能</span><b>{zijinOrderFlowRadar.reference?.vwap?.toFixed(2)??"--"} / {zijinOrderFlowRadar.reference?.ma5?.toFixed(2)??"--"} / {zijinOrderFlowRadar.volume?.ratio==null?"--":`${zijinOrderFlowRadar.volume.ratio.toFixed(2)}×`}</b><small>{zijinOrderFlowRadar.volume?.label}</small></article>
-              </div>
-              <div className="zijin-footprint">
-                <header><span>主动卖（Bid）</span><b>最新分钟价位足迹</b><span>主动买（Ask）</span></header>
-                {zijinVisibleFootprint.length?zijinVisibleFootprint.map(level=>{const buy=Math.max(0,Number(level.buyVolume)||0);const sell=Math.max(0,Number(level.sellVolume)||0);const total=Math.max(1,buy+sell);return <div className="zijin-footprint-row" key={level.price}><span className="sell"><i style={{width:`${sell/total*100}%`}}/>{sell.toLocaleString("zh-CN")}</span><b>{Number(level.price).toFixed(2)}<small>{Number(level.deltaVolume)>=0?"+":""}{Number(level.deltaVolume).toLocaleString("zh-CN")}</small></b><span className="buy">{buy.toLocaleString("zh-CN")}<i style={{width:`${buy/total*100}%`}}/></span></div>}):<p>逐价足迹从本次采集器更新后开始积累，旧分钟不会补造。</p>}
-              </div>
-              <footer>0–100 是订单流确认评分，不是历史胜率；当前只影响研究解释，不生成正式信号、不触发提醒或下单。</footer>
-            </div>:<p className="zijin-order-flow-empty">{zijinOrderFlowRadar.reason}。订单流层保持关闭，不使用公开行情补造主动买卖。</p>}
           </details>}
           <div className="signal-funnel" aria-label="候选观察与正式执行信号">
             <div className="signal-layer candidate"><span>本股实时观察</span><b>{visibleStockAgentEvaluation?Number(visibleStockAgentEvaluation.status==="candidate"):signalFunnel.currentObservations}<small> 个</small></b><em>{visibleStockAgentEvaluation?`${STOCK_AGENTS.zijin.name} · ${visibleStockAgentEvaluation.title}`:`条件候补 ${signalFunnel.currentCandidates} · 全自选观察 ${signalFunnel.observations}`}</em></div>
