@@ -4021,3 +4021,153 @@
 :root[data-theme="light"] .intraday-order-flow-badge text{fill:#4f3a12}
 /* Compact behavior sensors shown at the top of the cockpit decision rail. */
 .order-flow-behavior-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px 8px;padding-top:2px}.order-flow-behavior-grid span{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:4px;font-size:9px;color:var(--muted)}.order-flow-behavior-grid em{font-style:normal;color:var(--dim);white-space:nowrap}.order-flow-behavior-grid b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:9px;font-weight:650;text-align:right}
+
+/* The right rail is a flex column inside a resizable grid cell.  Without an
+   explicit zero minimum, a long research detail or sensor value can widen the
+   cell and make the sticky tabs look offset on narrow screens.  Keep every
+   direct rail item inside the same content box, while the tabs remain the only
+   full-bleed element. */
+.app-shell.minimal-ui .decision-zone{
+  min-width:0;
+  max-width:100%;
+  overflow-x:hidden;
+}
+.app-shell.minimal-ui .decision-zone>*{
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+}
+.app-shell.minimal-ui .decision-zone>.order-flow-top-card{
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  z-index:1;
+}
+.app-shell.minimal-ui .decision-zone>.decision-zone-tabs{z-index:7}
+.app-shell.minimal-ui .order-flow-top-head,
+.app-shell.minimal-ui .order-flow-top-scores,
+.app-shell.minimal-ui .order-flow-top-scores>small{min-width:0}
+
+/* A resizable decision rail can be narrow even on a desktop viewport.  The
+   older mobile-only action rule therefore left the disabled execution button
+   with its legacy 18px label, which made the last character wrap onto a new
+   line.  Keep the state readable in one compact row at every rail width. */
+.app-shell.minimal-ui.tv-console .decision-zone .primary-action{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  min-width:0;
+  min-height:44px;
+  padding:9px 11px;
+  gap:8px;
+}
+.app-shell.minimal-ui.tv-console .decision-zone .primary-action>span{
+  display:block;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:clamp(12px,.95vw,14px);
+  line-height:1.25;
+}
+.app-shell.minimal-ui.tv-console .decision-zone .primary-action>small{
+  display:block;
+  min-width:0;
+  flex:0 0 auto;
+  white-space:nowrap;
+  font-size:8px;
+  line-height:1.25;
+}
+
+/* The reminder controls were competing with the sync state for one grid row.
+   Give the state a small header lane and let controls use their own row, so
+   neither side can push beyond a narrow decision rail. */
+@media(min-width:761px){
+  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(0,max-content)!important;
+    grid-template-areas:
+      "label status"
+      "actions actions";
+    align-items:center;
+    gap:6px 8px;
+    min-width:0;
+    overflow:hidden;
+  }
+  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel>div:first-child{
+    grid-area:label!important;
+    grid-column:auto!important;
+    grid-row:auto!important;
+    min-width:0;
+  }
+  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel>.alert-channel-actions{
+    grid-area:actions!important;
+    grid-column:auto!important;
+    grid-row:auto!important;
+    display:grid!important;
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+    width:100%!important;
+    min-width:0;
+    gap:5px;
+  }
+  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel-actions button,
+  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel-actions .utility{
+    min-width:0!important;
+    width:100%!important;
+    height:30px;
+    padding:0 5px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel>.formal-sync-status,
+  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel>.mobile-push-guide{
+    grid-area:status!important;
+    grid-column:auto!important;
+    grid-row:auto!important;
+    min-width:0;
+    max-width:150px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    justify-self:end;
+  }
+}
+
+/* The lower research drawer participates in the same resizable layout.  Do
+   not let its heading or the disclosure affordance become a floating overlay
+   when the rail/viewport is constrained. */
+.app-shell.minimal-ui .lower-panel,
+.app-shell.minimal-ui .history,
+.app-shell.minimal-ui .agents{min-width:0;max-width:100%;overflow-x:hidden}
+.app-shell.minimal-ui .agents-title{min-width:0;max-width:100%;gap:6px;overflow:hidden}
+.app-shell.minimal-ui .agents-title>span,
+.app-shell.minimal-ui .agents-title>small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-shell.minimal-ui .agents-title>span{flex:0 1 auto}
+.app-shell.minimal-ui .agents-title>small{flex:1 1 auto}
+.app-shell.minimal-ui .agents-title>b{flex:0 0 auto;white-space:nowrap}
+
+@media(max-width:760px){
+  .app-shell.minimal-ui .decision-zone>.order-flow-top-card{
+    margin:8px 0 10px;
+    padding:9px 10px;
+  }
+  .app-shell.minimal-ui .order-flow-top-scores{
+    display:grid;
+    grid-template-columns:max-content max-content minmax(0,1fr);
+    align-items:center;
+  }
+  .app-shell.minimal-ui .order-flow-top-scores>small{
+    max-width:100%;
+  }
+  .app-shell.minimal-ui .order-flow-behavior-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app-shell.minimal-ui .lower-panel,
+  .app-shell.minimal-ui .history,
+  .app-shell.minimal-ui .agents{min-width:0;max-width:100%}
+  .app-shell.minimal-ui .agents-title{min-width:0;gap:6px;overflow:hidden}
+  .app-shell.minimal-ui .agents-title>span,
+  .app-shell.minimal-ui .agents-title>small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .app-shell.minimal-ui .agents-title>span{flex:0 1 auto}
+  .app-shell.minimal-ui .agents-title>small{flex:1 1 auto}
+  .app-shell.minimal-ui .agents-title>b{flex:0 0 auto;white-space:nowrap}
+}
