@@ -5,7 +5,10 @@ export type Web4RealtimeResult = {
   label: string;
   direction: "正T" | "反T" | null;
   confidence: number;
-  formalEligible: boolean;
+  /** Multi-source consistency in the diagnostic shadow layer only. */
+  shadowAligned: boolean;
+  /** Always false: this monitor must not alter formal strategy execution. */
+  affectsFormal: false;
   candidate: boolean;
   nonTechnicalSupport: number;
   votes: Array<{ id:string; label:string; state:Web4VoteState; detail:string }>;

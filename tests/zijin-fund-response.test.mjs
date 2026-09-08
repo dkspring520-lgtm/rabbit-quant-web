@@ -45,7 +45,7 @@ test("classification is causal and later rows cannot alter an earlier result", (
   assert.deepEqual(evaluateZijinFundResponse(prefix), before);
 });
 
-test("keeps positive T locked while aligned net selling remains, even as selling slows", () => {
+test("records aligned net selling as a shadow warning without a formal lock", () => {
   const result = evaluateZijinFundResponse([
     bar("1000", 31.40, -1_400_000),
     bar("1001", 31.34, -1_300_000),
@@ -59,7 +59,8 @@ test("keeps positive T locked while aligned net selling remains, even as selling
     bar("1009", 30.90, -550_000),
   ]);
   assert.equal(result.state, "outflow");
-  assert.equal(result.positiveTBlocked, true);
+  assert.equal(result.bearishFlowShadow, true);
   assert.equal(result.outflowDecelerating, true);
+  assert.match(result.message, /影子观察/);
   assert.ok(result.netFlowAcceleration > 0);
 });

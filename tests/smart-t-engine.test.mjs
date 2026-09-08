@@ -250,7 +250,7 @@ test("trend risk voting collapses correlated detectors into independent groups",
   assert.equal(independent.votes, 3);
 });
 
-test("mature sell reversal override accepts only a non-accelerating peak", () => {
+test("mature sell reversal override accepts only a non-accelerating peak and ignores order flow", () => {
   const base = {
     direction: "SELL_FIRST",
     trendRiskVotes: 2,
@@ -264,7 +264,6 @@ test("mature sell reversal override accepts only a non-accelerating peak", () =>
     scoreConfirmed: true,
     structuralConfirmation: true,
     executionMomentumConfirmed: true,
-    orderFlow: { available: false, pass: true, score: 0 },
   };
 
   assert.equal(qualifiesMatureSellReversalRiskOverride(base), true);
@@ -275,11 +274,7 @@ test("mature sell reversal override accepts only a non-accelerating peak", () =>
   }), false);
   assert.equal(qualifiesMatureSellReversalRiskOverride({
     ...base,
-    orderFlow: { available: true, pass: true, score: 2 },
-  }), false);
-  assert.equal(qualifiesMatureSellReversalRiskOverride({
-    ...base,
-    orderFlow: { available: true, pass: true, score: 3 },
+    orderFlow: { available: true, pass: false, score: 0 },
   }), true);
   assert.equal(qualifiesMatureSellReversalRiskOverride({
     ...base,
@@ -1822,11 +1817,11 @@ test("missing QMT fields preserve the public-minute V4 baseline", () => {
 
   assert.deepEqual(explicitMissing.actions, baseline.actions);
   assert.deepEqual(explicitMissing.cycleNets, baseline.cycleNets);
-  assert.equal(explicitMissing.diagnostics.orderFlowAvailablePoints, 0);
-  assert.equal(explicitMissing.diagnostics.orderFlowBlocked, 0);
+  assert.equal(explicitMissing.diagnostics.orderFlowShadowAvailablePoints, 0);
+  assert.equal(explicitMissing.diagnostics.orderFlowShadowConflictPoints, 0);
 });
 
-test("supportive QMT order flow confirms rather than invents a V4 entry", () => {
+test("supportive QMT order flow remains a shadow annotation beside a V4 entry", () => {
   const rows = openingRecoverySession("rise").map((point, index) => ({
     ...point,
     activeBuyVolume: 70,
@@ -1838,12 +1833,13 @@ test("supportive QMT order flow confirms rather than invents a V4 entry", () => 
   const result = runSmartTReplay(rows, options);
 
   assert.equal(result.trades, 1);
-  assert.ok(result.diagnostics.orderFlowAvailablePoints > 0);
-  assert.equal(result.diagnostics.orderFlowBlocked, 0);
-  assert.match(result.actions[0].reason, /QMT/);
+  assert.ok(result.diagnostics.orderFlowShadowAvailablePoints > 0);
+  assert.equal(result.diagnostics.orderFlowShadowConflictPoints, 0);
+  assert.match(result.actions[0].reason, /订单流影子观察/);
 });
 
-test("adverse QMT order flow blocks a formal buy without hiding the candidate", () => {
+test("adverse QMT order flow stays shadow-only and cannot block a formal buy", () => {
+  const baseline = runSmartTReplay(openingRecoverySession("rise"), options);
   const rows = openingRecoverySession("rise").map((point, index) => ({
     ...point,
     activeBuyVolume: 20,
@@ -1854,11 +1850,13 @@ test("adverse QMT order flow blocks a formal buy without hiding the candidate", 
   }));
   const result = runSmartTReplay(rows, options);
 
-  assert.equal(result.actions.length, 0);
-  assert.equal(result.trades, 0);
-  assert.ok(result.observations.length > 0, "the setup must remain auditable");
-  assert.ok(result.observations.some((item) => item.blockers.some((blocker) => blocker.includes("QMT order flow"))));
-  assert.ok(result.diagnostics.orderFlowBlocked > 0);
+  assert.deepEqual(
+    result.actions.map(({ time, side, direction }) => ({ time, side, direction })),
+    baseline.actions.map(({ time, side, direction }) => ({ time, side, direction })),
+  );
+  assert.equal(result.trades, baseline.trades);
+  assert.ok(result.diagnostics.orderFlowShadowConflictPoints > 0);
+  assert.ok(result.observations.every((item) => !item.blockers.some((blocker) => blocker.includes("QMT order flow"))));
 });
 
 test("a weak session cannot create a late reverse-T sale only because cumulative VWAP is low", () => {

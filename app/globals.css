@@ -4083,7 +4083,7 @@
    Give the state a small header lane and let controls use their own row, so
    neither side can push beyond a narrow decision rail. */
 @media(min-width:761px){
-  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel{
+  .app-shell.minimal-ui.tv-console .decision-zone .alert-channel{
     display:grid!important;
     grid-template-columns:minmax(0,1fr) minmax(0,max-content)!important;
     grid-template-areas:
@@ -4094,24 +4094,20 @@
     min-width:0;
     overflow:hidden;
   }
-  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel>div:first-child{
+  .app-shell.minimal-ui.tv-console .decision-zone .alert-channel>div:first-child{
     grid-area:label!important;
-    grid-column:auto!important;
-    grid-row:auto!important;
     min-width:0;
   }
-  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel>.alert-channel-actions{
+  .app-shell.minimal-ui.tv-console .decision-zone .alert-channel>.alert-channel-actions{
     grid-area:actions!important;
-    grid-column:auto!important;
-    grid-row:auto!important;
     display:grid!important;
-    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
     width:100%!important;
     min-width:0;
     gap:5px;
   }
-  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel-actions button,
-  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel-actions .utility{
+  .app-shell.minimal-ui.tv-console .decision-zone .alert-channel-actions button,
+  .app-shell.minimal-ui.tv-console .decision-zone .alert-channel-actions .utility{
     min-width:0!important;
     width:100%!important;
     height:30px;
@@ -4120,11 +4116,9 @@
     text-overflow:ellipsis;
     white-space:nowrap;
   }
-  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel>.formal-sync-status,
-  .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .alert-channel>.mobile-push-guide{
+  .app-shell.minimal-ui.tv-console .decision-zone .alert-channel>.formal-sync-status,
+  .app-shell.minimal-ui.tv-console .decision-zone .alert-channel>.mobile-push-guide{
     grid-area:status!important;
-    grid-column:auto!important;
-    grid-row:auto!important;
     min-width:0;
     max-width:150px;
     overflow:hidden;
