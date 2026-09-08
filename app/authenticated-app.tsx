@@ -1659,6 +1659,16 @@ const isZijinExperimentDeepLink = () => {
   if(typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).get("view") === "zijin-lab";
 };
+// The lightweight studio passes only the focused instrument in the URL. Keep
+// explicit views authoritative so a stock code can never steal an existing
+// deep link such as the 紫金实验室 or membership page.
+const readProfessionalHandoffStockCode = () => {
+  if(typeof window === "undefined") return null;
+  const params=new URLSearchParams(window.location.search);
+  if(params.get("view"))return null;
+  const code=(params.get("code")??"").trim();
+  return /^\d{6}$/.test(code)?code:null;
+};
 const ensureZijinExperimentStock = (list: typeof initialStocks) => {
   const normalized=normalizeWatchlist(list);
   if(normalized.some(item=>item.code==="601899"))return normalized;
@@ -1784,6 +1794,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const monitorLimit=watchlistLimitForRole(accountRole,accountMembership?.active===true,accountMembership?.planId);
   const remoteSyncReady = useRef(false);
   const [remoteSyncEpoch,setRemoteSyncEpoch]=useState(0);
+  const professionalHandoffHandled=useRef<string|null>(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [preferences, setPreferences] = useState<AccountPreferences>(DEFAULT_PREFERENCES);
   const [hasPersistedPreferences,setHasPersistedPreferences]=useState(false);
@@ -2103,6 +2114,24 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     },0);
     return()=>window.clearTimeout(timer);
   },[authReady,localAuth,stockList]);
+  useEffect(()=>{
+    if(!authReady||!localAuth)return;
+    const handoffCode=readProfessionalHandoffStockCode();
+    if(!handoffCode)return;
+    // A signed-in account first replaces the temporary local list with its
+    // server-approved monitor list. Waiting here prevents a transient match
+    // from selecting or persisting a stock the account does not actually own.
+    if(!demoMode&&!remoteSyncReady.current)return;
+    const handoffKey=`${accountName.toLowerCase()}:${handoffCode}`;
+    if(professionalHandoffHandled.current===handoffKey)return;
+    const index=stockList.findIndex(item=>item.code===handoffCode);
+    // Do not add an unknown URL code to the watchlist or send it to the
+    // monitor-sync effect. A handoff may only select an existing instrument.
+    if(index<0){professionalHandoffHandled.current=handoffKey;return;}
+    professionalHandoffHandled.current=handoffKey;
+    selectActiveStock(index);
+    setActiveView("操盘台");
+  },[accountName,authReady,demoMode,localAuth,remoteSyncEpoch,selectActiveStock,stockList]);
   useEffect(()=>{
     if(!authReady||typeof window==="undefined")return;
     const requested=new URLSearchParams(window.location.search).get("view");
