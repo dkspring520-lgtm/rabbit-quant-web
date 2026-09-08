@@ -3777,6 +3777,17 @@
 .app-shell.tv-console .quick-sim-order-actions button{min-height:32px;border-radius:3px;font-size:10px}
 .app-shell.tv-console .lower-panel{background:var(--tv-panel);border-top:1px solid var(--tv-border)}
 .app-shell.tv-console .lower-tabs button{font-size:10px}
+
+/* The cockpit's order-flow summary is a primary rail item.  A legacy
+   compact-layout rule assigns unknown children order:10; explicitly pin this
+   card before the mode tabs in every theme/viewport so it cannot drift below
+   the research and alert sections. */
+.app-shell.minimal-ui .decision-zone>.order-flow-top-card{
+  order:-1!important;
+  flex:0 0 auto;
+  position:relative;
+  z-index:6;
+}
 @media(max-width:820px){
   .app-shell.tv-console .topbar{height:44px;min-height:44px;padding-inline:10px}
   .app-shell.tv-console .brand-primary-logo{width:126px}
