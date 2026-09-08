@@ -11,12 +11,13 @@ test("technical evidence alone never becomes a confirmed WEB 4.0 state", () => {
     market:{ level:"normal", label:"外部环境正常" },
     events:{ level:"normal", label:"事件正常" },
   });
-  assert.equal(result.formalEligible, false);
+  assert.equal(result.shadowAligned, false);
+  assert.equal(result.affectsFormal, false);
   assert.equal(result.status, "degraded");
   assert.match(result.blockers.join("、"), /L2/);
 });
 
-test("technical, fresh L2 and independent context can form a multi-source confirmation", () => {
+test("technical, fresh L2 and independent context can form a shadow multi-source alignment", () => {
   const result = evaluateWeb4RealtimeMonitor({
     symbol:"601899",
     technical:{ candidate:true, ready:true, direction:"正T", confirmed:4 },
@@ -26,11 +27,12 @@ test("technical, fresh L2 and independent context can form a multi-source confir
     events:{ level:"normal", label:"事件正常" },
   });
   assert.equal(result.status, "confirmed");
-  assert.equal(result.formalEligible, true);
+  assert.equal(result.shadowAligned, true);
+  assert.equal(result.affectsFormal, false);
   assert.ok(result.confidence >= 60);
 });
 
-test("fresh conflicting L2 blocks a technical candidate", () => {
+test("fresh conflicting L2 is recorded as a shadow conflict without a formal effect", () => {
   const result = evaluateWeb4RealtimeMonitor({
     symbol:"601899",
     technical:{ candidate:true, ready:true, direction:"正T", confirmed:4 },
@@ -40,7 +42,8 @@ test("fresh conflicting L2 blocks a technical candidate", () => {
     events:{ level:"normal", label:"事件正常" },
   });
   assert.equal(result.status, "conflict");
-  assert.equal(result.formalEligible, false);
+  assert.equal(result.shadowAligned, false);
+  assert.equal(result.affectsFormal, false);
   assert.match(result.summary, /L2/);
 });
 
@@ -53,5 +56,6 @@ test("verified external hard risk locks the WEB 4.0 monitor", () => {
     events:{ level:"locked", hardLock:true, label:"重大事件核验" },
   });
   assert.equal(result.status, "risk");
-  assert.equal(result.formalEligible, false);
+  assert.equal(result.shadowAligned, false);
+  assert.equal(result.affectsFormal, false);
 });

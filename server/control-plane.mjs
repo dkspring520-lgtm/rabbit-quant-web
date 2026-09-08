@@ -205,7 +205,6 @@ function blockedReason(result) {
     ["qualityBlocked", "成交量或价格确认不足"],
     ["timingBlocked", "当前时间不在允许的新开仓窗口"],
     ["openingChaseBlocked", "开盘波动过快，已拦截追涨杀跌"],
-    ["orderFlowBlocked", "盘口/主动买卖量确认不足"],
   ].filter(([key]) => Number(diagnostics[key] || 0) > 0).sort((a, b) => Number(diagnostics[b[0]]) - Number(diagnostics[a[0]]));
   if (reasons.length) return `${reasons[0][1]}（本轮拦截 ${diagnostics[reasons[0][0]]} 次）`;
   if (Number(diagnostics.candidates || 0) > 0) return `已有 ${diagnostics.candidates} 个候选，但尚未同时通过趋势、量价、成本与风控`;

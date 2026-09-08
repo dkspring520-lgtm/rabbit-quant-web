@@ -136,6 +136,7 @@ test("Zijin production uses the dedicated causal study mapping", () => {
   assert.equal(zijin.errorAuditPriority, true);
   assert.equal(zijin.reference, null);
   assert.equal(zijin.positionSizeMode, "fixed");
+  assert.equal(zijin.volatilityMode, "causal-realized");
   assert.equal(zijin.profileOverrides.hardTrendContinuationGate, 0);
   assert.equal(zijin.profileOverrides.obviousDirectionalErrorGate, 1);
   assert.equal(zijin.profileOverrides.causalTrendCorrectionRequireAlignedTurn, 1);
@@ -150,7 +151,7 @@ test("Zijin production uses the dedicated causal study mapping", () => {
   assert.equal(zijin.profileOverrides.maxSellTrendRiskVotes, 1);
   assert.equal(zijin.profileOverrides.hardSellEntryTimingGate, 1);
   assert.equal(zijin.profileOverrides.requireRapidRiseSellConfirmation, 1);
-  assert.equal(zijin.profileOverrides.requireEarlyOpeningRiskL2, 1);
+  assert.equal(zijin.profileOverrides.requireEarlyOpeningRiskL2, 0);
   assert.equal(zijin.profileOverrides.adaptiveTimeExit, 0);
   assert.equal(zijin.profileOverrides.timeExitMinutes, 60);
   assert.equal(zijin.profileOverrides.adaptiveMaxHoldMinutes, 60);
@@ -186,7 +187,7 @@ test("production replay, live desk, and background scanner stay on closure-first
   assert.match(page, /resolveBacktestStrategyExperiment\(code,"closure-first"\)/);
   assert.match(page, /resolveBacktestStrategyExperiment\(item\.code,"closure-first"\)/);
   assert.match(page, /strategyVersion:"closure-first"/);
-  assert.match(page, /闭环已固定/);
+  assert.match(page, /正式闭环/);
   assert.match(controlPlane, /resolveBacktestStrategyExperiment\(monitor\.code, "closure-first"\)/);
   assert.match(controlPlane, /profileOverrides: experiment\.profileOverrides/);
 });
