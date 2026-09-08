@@ -6921,7 +6921,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                     ?decisionModel.status==="locked"
                       ?'风控锁定 · 暂停做T'
                       :decisionModel.status!=="ready"
-                        ?'条件未完成 · 暂不可执行'
+                        ?'等待正式信号'
                         :formalActionMarkerPending
                           ?'正式信号待写入分时图'
                         :!decisionActionSide
@@ -6933,7 +6933,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                         :`已记录${openedCycleSide==="buy"?"买入":"卖出"} · 等待${expectedClosingSide==="sell"?"卖出":"买回"}`
                       :'本次T已闭环'}</span>
             <small>{cycleStage==='ready'
-              ?decisionModel.status==="ready"&&decisionActionSide?'记录首笔成交':'完成条件后解锁'
+              ?decisionModel.status==="ready"&&decisionActionSide?'记录首笔成交':'正式信号后解锁'
               :cycleStage==='opened'
                 ?decisionMatchesCycle?'完成反向成交':'同方向信号已冻结'
                 :'开始下一次循环'} →</small>
