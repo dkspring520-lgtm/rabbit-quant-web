@@ -63,6 +63,7 @@ import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePe
 import { runZijinV29ShadowReplay, runZuoTV1ContextShadowReplay, runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
 import { evaluateZijinShadowExperiments } from "@/lib/zijin-shadow-experiments.mjs";
 import { evaluateZijinOrderFlowRadar } from "@/lib/zijin-order-flow-engine.mjs";
+import { relateOrderFlowShadowToFormalSignal } from "@/lib/order-flow-formal-link.mjs";
 import { observationConfirmationScore, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
 import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
@@ -2483,7 +2484,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : !liveL2CollectorAlive
       ? {tone:"off",label:"L2：采集器离线",detail:`${l2ConsoleNode} · 心跳${liveL2HeartbeatSeconds===null?"已中断":`中断 ${liveL2HeartbeatSeconds} 秒`}`}
     : l2PermissionExpired
-      ? {tone:"off",label:"L2：权限已过期",detail:`${l2ConsoleNode} · 已停止订单流信号，请更新 L2 授权`}
+    ? {tone:"off",label:"L2：权限已过期",detail:`${l2ConsoleNode} · 订单流影子观察已暂停，请更新 L2 授权`}
     : l2ConnectionLimited
       ? {tone:"off",label:"L2：连接受限",detail:"账号连接额度已满，请清理旧连接"}
     : liveL2Status?.status?.authorized===false
@@ -2491,9 +2492,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : liveL2Status?.status?.connected&&!liveL2Stale
       ? {tone:"ok",label:"L2：连接正常",detail:`${l2ConsoleNode} · ${liveL2HasTicks?"已收到逐笔，订单流另行核验":"十档在线，逐笔待数据"} · ${liveL2TransportText} · ${liveL2LatencyText}`}
     : l2TransportInterrupted
-      ? {tone:"off",label:"L2：行情中断",detail:`${l2ConsoleNode} · 暂停订单流信号，普通行情独立核验`}
+    ? {tone:"off",label:"L2：行情中断",detail:`${l2ConsoleNode} · 暂停订单流影子观察，普通行情独立核验`}
     : marketSession.live
-      ? {tone:"stale",label:"L2：订单流不可用",detail:`${l2ConsoleNode} · L2已过期，已拦截订单流信号；普通行情独立核验 · ${liveL2LatencyText}`}
+    ? {tone:"stale",label:"L2：订单流不可用",detail:`${l2ConsoleNode} · L2已过期，订单流影子观察已暂停；普通行情独立核验 · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
   const incomingMinutePoints = useMemo(() => {
     // The trial quote endpoint intentionally returns only the latest quote.
@@ -2894,22 +2895,24 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       &&liveL2CollectorAlive,
   );
   // 双兔订单流只记录盘口/成交行为的影子质量提示，不改写正式闭环。
-  const orderFlowShadowWarning=Boolean(
-    isZijinStock&&marketSession.live&&zijinOrderFlowRadar.available
-      &&/顶背离|卖压|净流出/.test(`${zijinOrderFlowRadar.divergence?.label??""}${zijinOrderFlowRadar.divergence?.reason??""}`)
-      &&Number(zijinOrderFlowRadar.scores?.lowBuy??100)<=25
-      &&Number(zijinOrderFlowRadar.delta?.threeMinute??0)<0,
-  );
   const orderFlowTopStatus=zijinOrderFlowRadar.available
     ?(zijinOrderFlowRadar.scores?.stance??"订单流已就绪")
     :liveL2SessionReady
       ?"L2已连接"
       :"等待 L2";
-  const orderFlowTopDetail=zijinOrderFlowRadar.available
-    ?`影子观察 · Delta 3分 ${Number.isFinite(zijinOrderFlowRadar.delta?.threeMinute)?formatMainForceAmount(Number(zijinOrderFlowRadar.delta.threeMinute)):"--"} · ${zijinOrderFlowRadar.divergence?.label??"无背离"}${orderFlowShadowWarning?" · 与正式策略不一致":""}`
+  const orderFlowDataLabel=zijinOrderFlowRadar.available
+    ?(marketSession.live?"真实逐笔":"复盘逐笔")
     :liveL2SessionReady
-      ?"本分钟暂无可评分逐笔，连接保持正常"
-      :"L2 订单流尚未就绪";
+      ?"十档在线 · 等逐笔"
+      :"L2 待连接";
+  const orderFlowAsOfLabel=zijinOrderFlowRadar.asOfTime
+    ?`${formatTime(zijinOrderFlowRadar.asOfTime)} 快照`
+    :"等待本分钟";
+  const orderFlowFreshnessLabel=liveL2LatencyMs===null
+    ?"新鲜度待测"
+    :liveL2LatencyMs<1_000
+      ?`新鲜 ${liveL2LatencyMs}ms`
+      :`延迟 ${(liveL2LatencyMs/1_000).toFixed(1)}秒`;
   const orderFlowBuyStrength=signalStrengthPresentation({score:zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.lowBuy:null});
   const orderFlowSellStrength=signalStrengthPresentation({score:zijinOrderFlowRadar.available?zijinOrderFlowRadar.scores?.takeProfit:null});
   const orderFlowChartPoint=useMemo(()=>{
@@ -4563,6 +4566,26 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     asOfDate:currentTrial?.sampleDate??currentMarket?.sampleDate??null,
     stale:!isZijinStock||liveL2Stale||!liveL2HasTicks,
   }),[isZijinStock,minutePoints,currentMarket?.intradaySessions,currentMarket?.sampleDate,currentTrial?.sampleDate,liveL2Status,liveL2Stale,liveL2HasTicks]);
+  // Never render a cached/stale L2 conclusion as the current order-flow view.
+  // The card may still show its transport state, but all behavior fields below
+  // are withheld until both the radar and microstructure snapshot are current.
+  const orderFlowCurrentAvailable=Boolean(zijinOrderFlowRadar.available&&web4Microstructure.stale!==true);
+  const orderFlowCardStatus=orderFlowCurrentAvailable
+    ?orderFlowTopStatus
+    :web4Microstructure.stale
+      ?"数据延迟"
+      :orderFlowTopStatus;
+  const orderFlowCardBuyStrength=signalStrengthPresentation({score:orderFlowCurrentAvailable?zijinOrderFlowRadar.scores?.lowBuy:null});
+  const orderFlowCardSellStrength=signalStrengthPresentation({score:orderFlowCurrentAvailable?zijinOrderFlowRadar.scores?.takeProfit:null});
+  const orderFlowLiveBar=liveL2Status?.l2Bar??liveL2Status?.recentMinutes?.at(-1);
+  const orderFlowActiveBuyNotional=Number(orderFlowLiveBar?.activeBuyNotional??liveL2Status?.flow?.activeBuyNotional60s);
+  const orderFlowActiveSellNotional=Number(orderFlowLiveBar?.activeSellNotional??liveL2Status?.flow?.activeSellNotional60s);
+  const orderFlowBuyNotional=orderFlowCurrentAvailable&&Number.isFinite(orderFlowActiveBuyNotional)&&orderFlowActiveBuyNotional>=0?orderFlowActiveBuyNotional:null;
+  const orderFlowSellNotional=orderFlowCurrentAvailable&&Number.isFinite(orderFlowActiveSellNotional)&&orderFlowActiveSellNotional>=0?orderFlowActiveSellNotional:null;
+  const orderFlowBookImbalance=orderFlowCurrentAvailable?Number(web4Microstructure.book?.imbalance):Number.NaN;
+  const orderFlowMicropriceEdgeBps=orderFlowCurrentAvailable?Number(web4Microstructure.book?.micropriceEdgeBps):Number.NaN;
+  const orderFlowCvdBalance=orderFlowCurrentAvailable?Number(web4Microstructure.cvd?.recentBalance):Number.NaN;
+  const orderFlowEfficiencyValue=orderFlowCurrentAvailable?Number(zijinOrderFlowRadar.efficiency?.value):Number.NaN;
   const web4L2Evidence=useMemo(()=>{
     if(secondLevelSignal&&secondLevelSignal.state!=="normal"){
       const direction=secondLevelSignal.direction;
@@ -5011,6 +5034,38 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       confidence:plan.confidence,
     };
   },[activeQuote?.price,decisionActionDirection,displayedZijinPricePlan]);
+  // The shared contract is display-only: the formal payload is read once here
+  // for presentation, while liveEngine/decisionModel remain the sole source
+  // for formal state, alerts and simulated execution.
+  const orderFlowFormalLink=useMemo(()=>relateOrderFlowShadowToFormalSignal({
+    formalSignal:decisionActionSide===null
+      ?null
+      :{
+        direction:decisionActionDirection,
+        side:decisionActionSide,
+        action:decisionExecutionLabel,
+        status:decisionModel.status,
+        confidence:executionSnapshot?.confidence,
+        time:latestFormalAction?.time,
+      },
+    orderFlowRadar:orderFlowCurrentAvailable
+      ?zijinOrderFlowRadar
+      :{available:false,reason:web4Microstructure.stale?"L2数据延迟，当前订单流不作判断":zijinOrderFlowRadar.reason},
+  }),[decisionActionDirection,decisionActionSide,decisionExecutionLabel,decisionModel.status,executionSnapshot?.confidence,latestFormalAction?.time,orderFlowCurrentAvailable,web4Microstructure.stale,zijinOrderFlowRadar]);
+  const orderFlowFormalLabel=decisionActionSide!==null
+    ?`正式 ${decisionExecutionLabel}`
+    :decisionModel.status==="locked"
+      ?"正式风控锁定"
+      :formalActionMarkerPending
+        ?"正式信号写入中"
+        :"正式等待确认";
+  const orderFlowShadowLabel=!orderFlowCurrentAvailable
+    ?"影子待数据"
+    :orderFlowFormalLink.shadowDirection==="正T"
+      ?"影子低吸观察"
+      :orderFlowFormalLink.shadowDirection==="反T"
+        ?"影子止盈观察"
+        :"影子中性等待";
   const completedCycleCount=Math.floor(tradeLedgerSummary.validCount/2);
   const maxDailyTrades=Math.max(1,Math.min(10,activePosition.maxDailyTrades??3));
   const cycleLimitReached=completedCycleCount>=maxDailyTrades;
@@ -6402,7 +6457,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
               {isZijinStock&&<span className="order-flow-legend"><i/>订单流 {liveL2HasTicks?"已接入":"待L2"}</span>}
-              {isZijinStock&&<span className={`order-flow-legend ${zijinOrderFlowRadar.available?"ready":"waiting"}`} title="订单流影子评分，不是历史胜率；只做质量观察，不影响正式闭环"><i/>OF影子 {zijinOrderFlowRadar.available?`正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label}`:"待L2"}</span>}
+              {isZijinStock&&<span className={`order-flow-legend ${zijinOrderFlowRadar.available?"ready":"waiting"}`} title="0–100 是订单流影子行为评分，不是胜率、命中率或买卖概率；只做质量观察，不影响正式闭环"><i/>OF影子 {zijinOrderFlowRadar.available?`正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label}`:"待L2"}</span>}
               {isZijinStock&&<span className="strategy-signal-legend" aria-label="信号分类图例"><span title="紫金专属闭环正式信号"><i className="formal"/>正式</span><span title="V2.9 影子参考，不可执行"><i className="v29"/>V2.9</span><span title="V1 影子参考，不可执行"><i className="v1"/>V1</span></span>}
               {causalObservationLayer.length>0&&<span className="strategy-signal-legend observation-signal-legend" aria-label="观察层图例"><span title="拐点概率与 MACD 观察，仅供参考"><i className="observation"/>观察</span></span>}
               {intradayMarkerLayout.manualTrades.length>0&&<span className="manual-trade-legend" title="本机快捷打点，不会发送到券商"><i className="buy">B</i><i className="sell">S</i>模拟成交</span>}
@@ -6587,17 +6642,57 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <i aria-hidden="true"/><button type="button" onClick={()=>setDecisionPanelCollapsed(value=>!value)} title={decisionPanelCollapsed?"展开决策面板":"折叠决策面板"} aria-pressed={decisionPanelCollapsed}>{decisionPanelCollapsed?"‹":"›"}</button>
         </div>
         <aside className={`decision-zone ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`}>
-          {isZijinStock&&<section className={`order-flow-top-card ${zijinOrderFlowRadar.available||liveL2SessionReady?"ready":"waiting"}`} aria-label="顶部双兔订单流影子观察">
-            <div className="order-flow-top-head"><span><i/>双兔订单流 · 影子</span><b>{orderFlowTopStatus}</b></div>
-            <div className="order-flow-top-scores"><span className="buy">正T <b>{zijinOrderFlowRadar.available?orderFlowBuyStrength.label:"待数据"}</b></span><span className="sell">反T <b>{zijinOrderFlowRadar.available?orderFlowSellStrength.label:"待数据"}</b></span><small>{orderFlowTopDetail}</small></div>
-            <div className="order-flow-behavior-grid" aria-label="订单流行为传感器">
-              <span><em>吸收</em><b>{web4Microstructure.absorption.available?web4Microstructure.absorption.side==="buy"?"买方承接":web4Microstructure.absorption.side==="sell"?"卖方承接":"无明确":"待数据"}</b></span>
-              <span><em>扫单</em><b>{web4Microstructure.behavior.sweeps.available?`买 ${web4Microstructure.behavior.sweeps.buy??0} · 卖 ${web4Microstructure.behavior.sweeps.sell??0}`:"待数据"}</b></span>
-              <span><em>冰山</em><b>{web4Microstructure.behavior.iceberg.available?`买 ${web4Microstructure.behavior.iceberg.buy??0} · 卖 ${web4Microstructure.behavior.iceberg.sell??0}`:"待数据"}</b></span>
-              <span><em>成交强度</em><b>{web4Microstructure.behavior.intensity.available?`${web4Microstructure.behavior.intensity.value.toFixed(1)}×`:"待数据"}</b></span>
-              <span><em>冲击效率</em><b>{web4Microstructure.behavior.impactEfficiency.available?web4Microstructure.behavior.impactEfficiency.value.toExponential(1):"待数据"}</b></span>
-              <span><em>流动性</em><b>{web4Microstructure.behavior.liquidityVacuum.available?(web4Microstructure.behavior.liquidityVacuum.value?"真空":"正常"):"待数据"}</b></span>
+          {isZijinStock&&<section className={`order-flow-top-card ${orderFlowCurrentAvailable?"ready":"waiting"} ${orderFlowFormalLink.state}`} aria-label="双兔订单流影子行为面板">
+            <div className="order-flow-top-head">
+              <span><i/>双兔订单流 <em>影子行为层</em></span>
+              <b>{orderFlowCardStatus}</b>
             </div>
+            <p className="order-flow-scope">影子行为评分，不是胜率、命中率或买卖概率；只解释正式闭环，不生成、拦截或改写正式信号。</p>
+            <div className="order-flow-health-grid" aria-label="订单流数据状态">
+              <span><em>数据来源</em><b>{orderFlowCurrentAvailable?orderFlowDataLabel:web4Microstructure.stale?"数据延迟 · 不作判断":orderFlowDataLabel}</b><small>{orderFlowCurrentAvailable?orderFlowAsOfLabel:"等待当前逐笔"}</small></span>
+              <span><em>新鲜度</em><b>{orderFlowFreshnessLabel}</b><small>{liveL2TransportText}</small></span>
+              <span><em>有效分钟</em><b>{orderFlowCurrentAvailable?`${zijinOrderFlowRadar.observedMinutes} 分钟`:"待累积"}</b><small>{liveL2HasTicks?"逐笔已接收":"逐笔未到"}</small></span>
+            </div>
+            <div className={`order-flow-formal-link ${orderFlowFormalLink.state}`} title="这是显示层的同向/分歧提示，不会改变正式信号、风控或下单状态。">
+              <div><em>正式闭环</em><b>{orderFlowFormalLabel}</b></div>
+              <i aria-hidden="true">↔</i>
+              <div><em>订单流影子</em><b>{orderFlowShadowLabel}</b></div>
+              <span>{orderFlowFormalLink.label}</span>
+              <small>{orderFlowFormalLink.detail}</small>
+            </div>
+            {orderFlowCurrentAvailable?<>
+              <div className="order-flow-score-row" aria-label="订单流影子行为评分">
+                <span>影子行为分 <small>非胜率</small></span>
+                <b className="buy">正T {orderFlowCardBuyStrength.label}</b>
+                <b className="sell">反T {orderFlowCardSellStrength.label}</b>
+              </div>
+              <div className="order-flow-section-head"><span>主动成交 · Delta</span><small>净额</small></div>
+              <div className="order-flow-delta-grid" aria-label="订单流Delta指标">
+                {[{label:"Delta 1分",value:zijinOrderFlowRadar.delta?.oneMinute},{label:"Delta 3分",value:zijinOrderFlowRadar.delta?.threeMinute},{label:"Delta 5分",value:zijinOrderFlowRadar.delta?.fiveMinute}].map(metric=>{
+                  const value=Number(metric.value);
+                  return <span key={metric.label} className={Number.isFinite(value)&&value!==0?(value>0?"buy":"sell"):"neutral"}><em>{metric.label}</em><b>{Number.isFinite(value)?formatMainForceAmount(value):"--"}</b></span>;
+                })}
+              </div>
+              <div className="order-flow-pressure-grid" aria-label="订单流主动成交与盘口结构">
+                <span><em>主动买 / 卖</em><b>{orderFlowBuyNotional===null||orderFlowSellNotional===null?"待逐笔":`${formatMainForceAmount(orderFlowBuyNotional)} / ${formatMainForceAmount(orderFlowSellNotional)}`}</b><small>{Number.isFinite(Number(zijinOrderFlowRadar.delta?.activeBuyRatio))?`买方占比 ${(Number(zijinOrderFlowRadar.delta.activeBuyRatio)*100).toFixed(1)}%`:"买卖方向待识别"}</small></span>
+                <span><em>近端盘口失衡</em><b className={Number.isFinite(orderFlowBookImbalance)&&orderFlowBookImbalance!==0?(orderFlowBookImbalance>0?"buy":"sell"):""}>{Number.isFinite(orderFlowBookImbalance)?`${orderFlowBookImbalance>=0?"+":""}${(orderFlowBookImbalance*100).toFixed(1)}%`:"待快照"}</b><small>{Number.isFinite(orderFlowMicropriceEdgeBps)?`微价边缘 ${orderFlowMicropriceEdgeBps>=0?"+":""}${orderFlowMicropriceEdgeBps.toFixed(1)}bp`:"微价待计算"}</small></span>
+                <span><em>CVD 近5分</em><b className={Number.isFinite(orderFlowCvdBalance)&&orderFlowCvdBalance!==0?(orderFlowCvdBalance>0?"buy":"sell"):""}>{Number.isFinite(orderFlowCvdBalance)?`${orderFlowCvdBalance>=0?"+":""}${(orderFlowCvdBalance*100).toFixed(1)}%`:"待逐笔"}</b><small>{web4Microstructure.cvd?.unit==="notional"?"净主动额 / 总主动额":"主动流向占比"}</small></span>
+              </div>
+              <div className="order-flow-section-head"><span>微观结构传感器</span><small>缺字段即待数据</small></div>
+              <div className="order-flow-behavior-grid detailed" aria-label="订单流行为传感器">
+                <span title={zijinOrderFlowRadar.absorption?.reason??"等待真实主动成交"}><em>吸收</em><b>{zijinOrderFlowRadar.absorption?.label??"待数据"}</b></span>
+                <span title={zijinOrderFlowRadar.divergence?.reason??"等待Delta比较波段"}><em>Delta背离</em><b>{zijinOrderFlowRadar.divergence?.label??"待数据"}</b></span>
+                <span title={Number.isFinite(orderFlowEfficiencyValue)?"近5分钟价格变动（bp）/ 每百万元净主动额；只作结构观察。":"等待可比较的价格与主动Delta。"}><em>推进效率</em><b>{Number.isFinite(orderFlowEfficiencyValue)?`${zijinOrderFlowRadar.efficiency?.label??"--"} · ${orderFlowEfficiencyValue.toFixed(1)}bp/百万`:zijinOrderFlowRadar.efficiency?.label??"待数据"}</b></span>
+                <span><em>成交强度</em><b>{web4Microstructure.behavior.intensity.available?`${web4Microstructure.behavior.intensity.value.toFixed(1)}×`:"待数据"}</b></span>
+                <span title="当前字段记录同向主动成交的连续性；未取得跨价位成交序列时，不把它称为扫单。"><em>攻击连续性</em><b>{web4Microstructure.behavior.sweeps.available?`买 ${web4Microstructure.behavior.sweeps.buy??0} · 卖 ${web4Microstructure.behavior.sweeps.sell??0}`:"未采集"}</b></span>
+                <span title="冰山强度必须来自持续补单字段；未采集时不推断冰山。"><em>冰山补单</em><b>{web4Microstructure.behavior.iceberg.available?`买 ${web4Microstructure.behavior.iceberg.buy??0} · 卖 ${web4Microstructure.behavior.iceberg.sell??0}`:"未采集"}</b></span>
+                <span title="基于近端盘口快照深度的变化，只作变薄观察，不预言后续价格。"><em>流动性</em><b>{web4Microstructure.behavior.liquidityVacuum.available?(web4Microstructure.behavior.liquidityVacuum.value?"流动性变薄（观察）":"近端深度未变薄"):"待数据"}</b></span>
+              </div>
+              {zijinVisibleFootprint.length>0&&<details className="order-flow-footprint" aria-label="当前分钟逐价成交足迹">
+                <summary><span>逐价成交足迹</span><small>买 / 卖量 · 当前分钟</small></summary>
+                <div>{zijinVisibleFootprint.map(row=><span className={row.deltaVolume>=0?"buy":"sell"} key={`${row.price}-${row.trades}`}><em>¥{row.price.toFixed(2)}</em><b>买 {formatIntradayVolume(row.buyVolume)}</b><i>卖 {formatIntradayVolume(row.sellVolume)}</i></span>)}</div>
+              </details>}
+            </>:<div className="order-flow-paused" role="status"><b>当前订单流不作判断</b><small>{web4Microstructure.stale?"L2快照已延迟；恢复真实逐笔后再展开行为指标。":"等待当前分钟的真实逐笔与盘口快照。"}</small></div>}
           </section>}
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
@@ -6635,7 +6730,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               aria-live="polite"
               title={`因果截至 ${formatTime(liveSignalLifecycle.asOf)} · ${liveSignalLifecycle.detail}`}
             >
-              <span>生命周期</span>
+              <span>生命周期 <i className={`lifecycle-source ${liveSignalLifecycle.source}`}>{liveSignalLifecycle.source}</i></span>
               <b>{liveSignalLifecycle.label}</b>
               <small>{liveSignalLifecycle.trail}</small>
             </div>
