@@ -1821,7 +1821,7 @@ test("missing QMT fields preserve the public-minute V4 baseline", () => {
   assert.equal(explicitMissing.diagnostics.orderFlowShadowConflictPoints, 0);
 });
 
-test("supportive QMT order flow remains a shadow annotation beside a V4 entry", () => {
+test("supportive QMT order flow remains a separate shadow diagnostic", () => {
   const rows = openingRecoverySession("rise").map((point, index) => ({
     ...point,
     activeBuyVolume: 70,
@@ -1835,7 +1835,8 @@ test("supportive QMT order flow remains a shadow annotation beside a V4 entry", 
   assert.equal(result.trades, 1);
   assert.ok(result.diagnostics.orderFlowShadowAvailablePoints > 0);
   assert.equal(result.diagnostics.orderFlowShadowConflictPoints, 0);
-  assert.match(result.actions[0].reason, /订单流影子观察/);
+  assert.doesNotMatch(result.actions[0].reason, /订单流|QMT/);
+  assert.ok(result.observations.every((item) => !("orderFlowShadowAvailable" in item)));
 });
 
 test("adverse QMT order flow stays shadow-only and cannot block a formal buy", () => {
