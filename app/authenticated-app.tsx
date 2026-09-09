@@ -4655,10 +4655,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return;
     }
     const state=secondLevelSignal?.state;
+    const latestMinute=minutePoints.at(-1)?.time??"";
+    const recentShadow=(items:ReplayObservation[]|undefined,kind:"v1"|"v29")=>{
+      const item=items?.at(-1)??null;
+      return item&&latestMinute&&isRecentCausalEvent(latestMinute,item.time,3)?{kind,item}:null;
+    };
+    const shadowSignal=recentShadow(zijinV29Replay?.observations,"v29")??recentShadow(zijinV1ContextReplay?.observations,"v1");
     const candidate=Boolean(
       decisionModel.status==="ready"||
       (state&&!["normal","invalid","expired"].includes(state))||
-      (orderFlowCurrentAvailable&&Number(web4L2Evidence.score)>=60),
+      (orderFlowCurrentAvailable&&Number(web4L2Evidence.score)>=60)||
+      shadowSignal,
     );
     if(!liveL2SessionReady||!candidate){
       setAiL2Review(current=>current?.decision==="execute"?current:null);
@@ -4668,7 +4675,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const review=async()=>{
       const l2=liveL2Status;
       const asOf=String(l2?.lastExchangeTime??l2?.meta?.servedAt??"");
-      const key=[asOf,state,decisionModel.mode,Math.round(Number(web4L2Evidence.score)),l2?.flow?.activeBuyRatio60s,l2?.book?.nearTouchImbalance].join("|");
+      const key=[asOf,state,shadowSignal?.kind,shadowSignal?.item.time,decisionModel.mode,Math.round(Number(web4L2Evidence.score)),l2?.flow?.activeBuyRatio60s,l2?.book?.nearTouchImbalance].join("|");
       if(!key||key===aiL2ReviewKeyRef.current||Date.now()-aiL2ReviewAtRef.current<4_000)return;
       aiL2ReviewKeyRef.current=key;
       aiL2ReviewAtRef.current=Date.now();
@@ -4677,7 +4684,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",cache:"no-store",
           body:JSON.stringify({
             code:"601899",asOf,
-            signal:{direction:decisionModel.mode??(state==="trigger"||state==="ready"?secondLevelSignal?.direction:null),state,score:Math.round(Number(web4L2Evidence.score)),reason:web4L2Evidence.label},
+            signal:{direction:decisionModel.mode??(state==="trigger"||state==="ready"?secondLevelSignal?.direction:null)??(shadowSignal?.item.direction==="正T"?"buy":"sell"),state:shadowSignal?`${shadowSignal.kind}_shadow`:state,score:Math.round(Number(shadowSignal?.item.score??web4L2Evidence.score)),reason:shadowSignal?`${shadowSignal.kind.toUpperCase()} 影子信号：${shadowSignal.item.reason}`:web4L2Evidence.label,shadow:Boolean(shadowSignal),source:shadowSignal?.kind??"formal"},
             quote:{price:activeQuote?.price,previousClose:activeQuote?.previousClose,vwap:chartModel?.lastVwap,time:decisionModel.lastTime},
             l2:{connected:l2?.status?.connected===true,authorized:l2?.status?.authorized!==false,stale:liveL2Stale,lastExchangeTime:l2?.lastExchangeTime,book:l2?.book,flow:l2?.flow,secondState:l2?.secondState},
             position:{openingShares:effectiveLivePosition.openingShares,sellable:effectiveLivePosition.sellable},
@@ -4693,7 +4700,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     void review();
     const timer=window.setInterval(()=>void review(),5_000);
     return()=>{cancelled=true;window.clearInterval(timer);};
-  },[localAuth,demoMode,marketSession.live,isZijinStock,liveL2SessionReady,liveL2Status,liveL2Stale,secondLevelSignal,decisionModel,orderFlowCurrentAvailable,web4L2Evidence.score,web4L2Evidence.label,activeQuote?.price,activeQuote?.previousClose,chartModel?.lastVwap,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,autoDecision.status,autoDecision.reason,currentEvents?.gate]);
+  },[localAuth,demoMode,marketSession.live,isZijinStock,liveL2SessionReady,liveL2Status,liveL2Stale,secondLevelSignal,decisionModel,orderFlowCurrentAvailable,web4L2Evidence.score,web4L2Evidence.label,activeQuote?.price,activeQuote?.previousClose,chartModel?.lastVwap,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,autoDecision.status,autoDecision.reason,currentEvents?.gate,minutePoints,zijinV29Replay,zijinV1ContextReplay]);
   const zijinV29OpeningShadow=useMemo(()=>{
     const l2State=secondLevelSignal?.state;
     const l2Direction=secondLevelSignal?.direction;
