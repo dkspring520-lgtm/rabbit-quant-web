@@ -7196,7 +7196,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       </div>}
 
       {isZijinStock&&<aside className={`ai-watch-bunny ${aiL2Review?.decision??"waiting"} ${((decisionModel.mode??(secondLevelSignal?.direction==="buy"?"正T":secondLevelSignal?.direction==="sell"?"反T":null))==="反T")?"sell":"buy"}`} aria-label="紫金矿业 AI L2 盯盘状态" title={aiL2Review?.reason??"等待 L2 候选信号"}>
-        <span className="ai-watch-bunny-mark"><Image src="/rabbits-gold.png" alt="AI盯盘小兔" width={42} height={42} priority/></span>
+        <span className="ai-watch-bunny-mark"><Image src="/rabbits-gold.png?v=6667ce5e7e7c" alt="AI盯盘小兔" width={64} height={64} priority unoptimized/></span>
         <span><b>AI 盯盘</b><small>{marketSession.live?(aiL2Review?.decision==="execute"?"建议确认":aiL2Review?.decision==="reject"?"暂缓执行":"持续观察"):"休市待命"}</small></span>
         <i aria-hidden="true"/>
       </aside>}
