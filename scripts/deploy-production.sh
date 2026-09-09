@@ -522,6 +522,9 @@ compose_up() {
     "APP_COMMIT_SHA=$app_commit_sha" \
     "APP_BUILD_TIME=$app_build_time" \
     "RABBIT_QUANT_ACTIVE_WEB_ORIGIN=$active_web_origin" \
+    "AI_BASE_URL=${AI_BASE_URL:-}" \
+    "AI_API_KEY=${AI_API_KEY:-}" \
+    "AI_MODEL=${AI_MODEL:-}" \
     "OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
     "OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}" \
     "BAIDU_SUBMIT_SITE=${BAIDU_SUBMIT_SITE:-https://www.zhuandianmi.com}" \
