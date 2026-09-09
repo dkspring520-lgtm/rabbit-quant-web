@@ -486,6 +486,7 @@ const v1ContextActionLabel=(action:ReplayAction)=>action.direction==="反T"
 const shadowChartActionLabel=(action:ReplayAction)=>
   action.side==="买入"||action.side==="买回"?"候买":"候卖";
 type ReplayObservation = { time:string; price?:number; direction:"正T"|"反T"; score:number; threshold:number; confirmationScore?:number|null; scoreBreakdown?:{direction:number;location:number;trigger:number;thresholds:{direction:number;location:number;trigger:number};passed:{direction:boolean;location:boolean;trigger:boolean};confirmed:boolean}; similarity?:{samples:number;ready:boolean;hitRate:number|null;averageFavorablePct:number|null;averageAdversePct:number|null}; edge:number; executable:boolean; stage?:"watch"|"candidate"; coverageOnly?:boolean; pairGap?:number|null; pivotTime?:string; pivotPrice?:number; localPivotPrice?:number; absolutePivotPrice?:number; openingPrice?:number; pivotScope?:"absolute"|"local"; openingAnchor?:boolean; probabilityEligible?:boolean; volumeConfirmed?:boolean; vwapConfirmed?:boolean; pivotLabel?:string; pivotAssessment?:"strong"|"confirmed"|"unconfirmed"; confirmationLabel?:string; repairPhase?:"bottom-watch"|"repair-confirmed"|"repair-extended"; blockers:string[]; reason:string; l2Strict?:boolean; candidateKey?:string; watchKey?:string; observationKind?:"pivot-top"|"pivot-bottom"|"macd"; probability?:60|70|75|80|90; calibrationSamples?:number; calibratedHitRate?:number; probabilitySource?:"historical"|"unavailable"; attempt?:1|2|3; macdState?:"golden-cross"|"death-cross"|"histogram-reversal" };
+type AiL2Review = { ok:boolean; provider:string; model?:string; decision:"execute"|"wait"|"reject"; confidence:number; reason:string; blockers:string[]; checks?:Record<string,unknown>; asOf:string; expiresInSeconds:number };
 const calibratedCandidateProbability=(observation:ReplayObservation)=>{
   if(observation.probabilitySource==="historical"&&observation.probabilityEligible===true
     &&Number(observation.calibrationSamples)>=30&&Number.isFinite(observation.probability))return Number(observation.probability);
@@ -2241,6 +2242,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [liveL2Status,setLiveL2Status]=useState<ZijinL2State|null>(null);
   const [liveL2Transport,setLiveL2Transport]=useState<"connecting"|"stream"|"polling">("connecting");
   const [liveL2PushLatencyMs,setLiveL2PushLatencyMs]=useState<number|null>(null);
+  const [aiL2Review,setAiL2Review]=useState<AiL2Review|null>(null);
+  const aiL2ReviewKeyRef=useRef("");
+  const aiL2ReviewAtRef=useRef(0);
   useEffect(()=>{
     if(!localAuth||stock?.code!=="601899"||activeView!=="操盘台")return;
     let active=true;
@@ -4643,6 +4647,52 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       label:web4Microstructure.available?`${zijinFundResponse.label} · 微观待持续`:zijinFundResponse.label,
     };
   },[secondLevelSignal,zijinRepair?.status,web4Microstructure.score,web4Microstructure.state,web4Microstructure.label,web4Microstructure.available,web4Microstructure.absorption.side,zijinFundResponse.state,zijinFundResponse.score,zijinFundResponse.label]);
+  useEffect(()=>{
+    if(!localAuth||demoMode||!marketSession.live||!isZijinStock){
+      setAiL2Review(null);
+      aiL2ReviewKeyRef.current="";
+      return;
+    }
+    const state=secondLevelSignal?.state;
+    const candidate=Boolean(
+      decisionModel.status==="ready"||
+      (state&&!["normal","invalid","expired"].includes(state))||
+      (orderFlowCurrentAvailable&&Number(web4L2Evidence.score)>=60),
+    );
+    if(!liveL2SessionReady||!candidate){
+      setAiL2Review(current=>current?.decision==="execute"?current:null);
+      return;
+    }
+    let cancelled=false;
+    const review=async()=>{
+      const l2=liveL2Status;
+      const asOf=String(l2?.lastExchangeTime??l2?.meta?.servedAt??"");
+      const key=[asOf,state,decisionModel.mode,Math.round(Number(web4L2Evidence.score)),l2?.flow?.activeBuyRatio60s,l2?.book?.nearTouchImbalance].join("|");
+      if(!key||key===aiL2ReviewKeyRef.current||Date.now()-aiL2ReviewAtRef.current<4_000)return;
+      aiL2ReviewKeyRef.current=key;
+      aiL2ReviewAtRef.current=Date.now();
+      try{
+        const response=await fetch("/api/research/zijin-l2-review",{
+          method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",cache:"no-store",
+          body:JSON.stringify({
+            code:"601899",asOf,
+            signal:{direction:decisionModel.mode??(state==="trigger"||state==="ready"?secondLevelSignal?.direction:null),state,score:Math.round(Number(web4L2Evidence.score)),reason:web4L2Evidence.label},
+            quote:{price:activeQuote?.price,previousClose:activeQuote?.previousClose,vwap:chartModel?.lastVwap,time:decisionModel.lastTime},
+            l2:{connected:l2?.status?.connected===true,authorized:l2?.status?.authorized!==false,stale:liveL2Stale,lastExchangeTime:l2?.lastExchangeTime,book:l2?.book,flow:l2?.flow,secondState:l2?.secondState},
+            position:{openingShares:effectiveLivePosition.openingShares,sellable:effectiveLivePosition.sellable},
+            risk:{decisionStatus:autoDecision.status,decisionReason:autoDecision.reason,eventGate:currentEvents?.gate},
+          }),
+        });
+        const payload=await response.json() as AiL2Review;
+        if(!cancelled&&payload&&typeof payload.decision==="string")setAiL2Review(payload);
+      }catch(error){
+        if(!cancelled)setAiL2Review({ok:false,provider:"client-error",decision:"wait",confidence:0,reason:error instanceof Error?error.message:"AI 复核暂不可用",blockers:["复核请求失败"],asOf:new Date().toISOString(),expiresInSeconds:5});
+      }
+    };
+    void review();
+    const timer=window.setInterval(()=>void review(),5_000);
+    return()=>{cancelled=true;window.clearInterval(timer);};
+  },[localAuth,demoMode,marketSession.live,isZijinStock,liveL2SessionReady,liveL2Status,liveL2Stale,secondLevelSignal,decisionModel,orderFlowCurrentAvailable,web4L2Evidence.score,web4L2Evidence.label,activeQuote?.price,activeQuote?.previousClose,chartModel?.lastVwap,effectiveLivePosition.openingShares,effectiveLivePosition.sellable,autoDecision.status,autoDecision.reason,currentEvents?.gate]);
   const zijinV29OpeningShadow=useMemo(()=>{
     const l2State=secondLevelSignal?.state;
     const l2Direction=secondLevelSignal?.direction;
@@ -6763,6 +6813,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <b>{liveSignalLifecycle.label}</b>
               <small>{liveSignalLifecycle.trail}</small>
             </div>
+            {isZijinStock&&marketSession.live&&<div className={`ai-l2-review ${aiL2Review?.decision??"waiting"}`} aria-live="polite">
+              <span>AI · L2 复核</span>
+              <b>{aiL2Review?.decision==="execute"?"建议确认":aiL2Review?.decision==="reject"?"暂不执行":"等待复核"}{aiL2Review?` · ${aiL2Review.confidence}/100`:""}</b>
+              <small>{aiL2Review?.reason??"候选信号出现后即时复核，保留人工确认"}</small>
+            </div>}
             <details className="decision-audit-details" open={decisionAuditOpen} onToggle={event=>setDecisionAuditOpen(event.currentTarget.open)}>
               <summary>条件与依据 <b>{decisionConditionsConfirmed}/4</b></summary>
               <small className="global-decision-summary">{signalMode === "反T" ? openingAssessment.negativeTitle : openingAssessment.positiveTitle}</small>
@@ -7139,6 +7194,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </div>
         </section>
       </div>}
+
+      {isZijinStock&&<aside className={`ai-watch-bunny ${aiL2Review?.decision??"waiting"}`} aria-label="紫金矿业 AI L2 盯盘状态" title={aiL2Review?.reason??"等待 L2 候选信号"}>
+        <Image src="/rabbit-logo-compact.png" alt="AI盯盘小兔" width={34} height={34} priority/>
+        <span><b>AI 盯盘</b><small>{marketSession.live?(aiL2Review?.decision==="execute"?"建议确认":aiL2Review?.decision==="reject"?"暂缓执行":"持续观察"):"休市待命"}</small></span>
+        <i aria-hidden="true"/>
+      </aside>}
 
       <footer className="trade-footer"><span><i className="online"/>策略研究工具 · 非交易级</span><ReleaseVersion/></footer>
     </main>
