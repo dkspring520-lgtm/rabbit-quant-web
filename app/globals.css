@@ -1670,10 +1670,8 @@
 .ai-l2-review.reject{border-color:color-mix(in srgb,var(--coral) 45%,var(--line));background:color-mix(in srgb,var(--coral) 6%,transparent)}
 .ai-l2-review.reject b{color:var(--coral)}
 .ai-watch-bunny{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;align-items:center;gap:8px;min-width:132px;padding:8px 10px;border:1px solid color-mix(in srgb,var(--amber) 45%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--panel) 92%,transparent);box-shadow:0 10px 28px rgba(0,0,0,.24);backdrop-filter:blur(10px)}
-.ai-watch-bunny-mark{display:block!important;width:34px;height:34px;overflow:hidden;flex:none;border-radius:50%}
-.ai-watch-bunny-mark img{width:68px!important;height:68px!important;max-width:none;object-fit:contain;transform:translate(-1px,-17px)}
-.ai-watch-bunny.buy .ai-watch-bunny-mark img{filter:sepia(1) saturate(4) hue-rotate(355deg) brightness(1.1)}
-.ai-watch-bunny.sell .ai-watch-bunny-mark img{transform:translate(-33px,-17px);filter:grayscale(.15) brightness(1.18)}
+.ai-watch-bunny-mark{display:block!important;width:38px;height:38px;overflow:hidden;flex:none;border-radius:50%}
+.ai-watch-bunny-mark img{width:38px!important;height:38px!important;max-width:none;object-fit:cover}
 .ai-watch-bunny>span:not(.ai-watch-bunny-mark){display:grid;gap:2px;min-width:0}
 .ai-watch-bunny b{color:var(--text);font-size:10px;white-space:nowrap}
 .ai-watch-bunny small{color:var(--amber);font:8px var(--font-geist-mono);white-space:nowrap}
@@ -1681,7 +1679,7 @@
 .ai-watch-bunny.execute{border-color:color-mix(in srgb,var(--teal) 60%,var(--line))}.ai-watch-bunny.execute small{color:var(--teal)}.ai-watch-bunny.execute i{background:var(--teal);box-shadow:0 0 0 4px color-mix(in srgb,var(--teal) 14%,transparent)}
 .ai-watch-bunny.reject{border-color:color-mix(in srgb,var(--coral) 55%,var(--line))}.ai-watch-bunny.reject small{color:var(--coral)}.ai-watch-bunny.reject i{background:var(--coral);box-shadow:0 0 0 4px color-mix(in srgb,var(--coral) 14%,transparent)}
 @keyframes ai-watch-pulse{0%,100%{opacity:.55;transform:scale(.9)}50%{opacity:1;transform:scale(1.12)}}
-@media(max-width:640px){.ai-watch-bunny{right:12px;bottom:12px;min-width:0;padding:7px 9px}.ai-watch-bunny>span:not(.ai-watch-bunny-mark){display:none}.ai-watch-bunny-mark{width:32px;height:32px}.ai-watch-bunny-mark img{width:64px!important;height:64px!important}.ai-watch-bunny.sell .ai-watch-bunny-mark img{transform:translate(-31px,-16px)}}
+@media(max-width:640px){.ai-watch-bunny{right:12px;bottom:12px;min-width:0;padding:7px 9px}.ai-watch-bunny>span:not(.ai-watch-bunny-mark){display:none}.ai-watch-bunny-mark{width:34px;height:34px}.ai-watch-bunny-mark img{width:34px!important;height:34px!important}}
 .history-collapse-toggle{
   display:inline-flex!important;
   align-items:center;
