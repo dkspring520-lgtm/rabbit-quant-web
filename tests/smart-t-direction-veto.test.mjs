@@ -314,13 +314,15 @@ test("afternoon one-way trend blocks only the counter-trend order", () => {
   }), false);
 });
 
-test("formal entries preserve the morning window and keep afternoon in observation mode", () => {
+test("formal entries preserve the morning window and allow both directions in the settled afternoon window", () => {
   assert.equal(causalFormalEntryWindowConflict("0936"), false);
   assert.equal(causalFormalEntryWindowConflict("0937"), false);
   assert.equal(causalFormalEntryWindowConflict("1129"), false);
   assert.equal(causalFormalEntryWindowConflict("1300"), true);
-  assert.equal(causalFormalEntryWindowConflict("1359"), true);
-  assert.equal(causalFormalEntryWindowConflict("1400"), true);
+  assert.equal(causalFormalEntryWindowConflict("1329"), true);
+  assert.equal(causalFormalEntryWindowConflict("1330", "BUY_FIRST"), false);
+  assert.equal(causalFormalEntryWindowConflict("1400", "SELL_FIRST"), false);
+  assert.equal(causalFormalEntryWindowConflict("1430", "BUY_FIRST"), false);
   assert.equal(causalFormalEntryWindowConflict("1450"), true);
 });
 
