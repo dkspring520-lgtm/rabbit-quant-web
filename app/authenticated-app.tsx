@@ -1833,6 +1833,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const deliveredAlertByCode=useRef<Record<string,TradeAlertToast>>({});
   const speechQueue=useRef<{spoken:string;risk:boolean;clip?:"buy"|"sell"|"risk"}[]>([]);
   const speechBusy=useRef(false);
+  const monitorVoiceReport=useRef<{at:number;key:string}>({at:0,key:""});
   const alertedEventKeys = useRef<Set<string>>(new Set());
   const queuedAlertEventKeys = useRef<Set<string>>(new Set());
   const lastFormalAlertAtBySide = useRef<Record<string,number>>({});
@@ -5318,6 +5319,34 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk,clip});
     drainAlertSpeech();
   },[drainAlertSpeech]);
+  const speakMonitorReport=useCallback((text:string)=>{
+    speechQueue.current.push({spoken:text,risk:false});
+    drainAlertSpeech();
+  },[drainAlertSpeech]);
+  useEffect(()=>{
+    if(!localAuth||demoMode||!isZijinStock||!marketSession.live||!alertSettings.sound)return;
+    const report=()=>{
+      const now=Date.now();
+      if(now-monitorVoiceReport.current.at<90_000)return;
+      const price=Number(activeQuote?.price);
+      if(!Number.isFinite(price))return;
+      const change=Number(activeQuote?.changePercent);
+      const flow=Number(liveL2Status?.flow?.activeBuyRatio60s);
+      const imbalance=Number(liveL2Status?.book?.nearTouchImbalance);
+      const l2State=liveL2Stale?"L2 数据偏旧":"L2 数据正常";
+      const flowLabel=Number.isFinite(flow)?flow>=.58?"主动买盘偏强":flow<=.42?"主动卖盘偏强":"买卖盘均衡":"订单流待数据";
+      const score=Math.round(Number(web4L2Evidence.score));
+      const decision=aiL2Review?.decision==="execute"?"AI 复核建议人工确认":aiL2Review?.decision==="reject"?"AI 复核建议暂缓执行":decisionModel.status==="ready"?"正式信号已形成，等待人工确认":"当前没有可执行信号";
+      const key=[Math.round(price*100),Number.isFinite(change)?Math.round(change*10):"",l2State,flowLabel,Number.isFinite(imbalance)?Math.round(imbalance*10):"",score,decision].join("|");
+      if(key===monitorVoiceReport.current.key)return;
+      monitorVoiceReport.current={at:now,key};
+      const changeText=Number.isFinite(change)?`，涨跌 ${change>=0?"加":"减"}${Math.abs(change).toFixed(2)}%`:"";
+      speakMonitorReport(`紫金矿业，现价 ${price.toFixed(2)} 元${changeText}；${l2State}，${flowLabel}；订单流评分 ${score} 分；${decision}`);
+    };
+    report();
+    const timer=window.setInterval(report,15_000);
+    return()=>window.clearInterval(timer);
+  },[localAuth,demoMode,isZijinStock,marketSession.live,alertSettings.sound,activeQuote?.price,activeQuote?.changePercent,liveL2Stale,liveL2Status?.flow?.activeBuyRatio60s,liveL2Status?.book?.nearTouchImbalance,web4L2Evidence.score,aiL2Review?.decision,decisionModel.status,speakMonitorReport]);
   const queueAlert=useCallback((incoming:TradeAlertToast)=>{
     const now=Date.now();
     let alert:TradeAlertToast={...incoming,id:incoming.id??`alert-${now}-${++alertSequence.current}`,createdAt:incoming.createdAt??new Date(now).toISOString()};
