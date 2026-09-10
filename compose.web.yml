@@ -23,6 +23,8 @@ x-web-common: &web-common
     AI_MODEL: ${AI_MODEL:-}
     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+    OPENAI_VOICE_MODEL: ${OPENAI_VOICE_MODEL:-gpt-4o-mini-tts}
+    OPENAI_VOICE: ${OPENAI_VOICE:-marin}
     BAIDU_SUBMIT_SITE: ${BAIDU_SUBMIT_SITE:-https://www.zhuandianmi.com}
     BAIDU_SUBMIT_TOKEN: ${BAIDU_SUBMIT_TOKEN:-}
     BAIDU_SUBMIT_ENDPOINT: ${BAIDU_SUBMIT_ENDPOINT:-http://data.zz.baidu.com/urls}
