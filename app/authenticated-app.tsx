@@ -5296,30 +5296,51 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const next=speechQueue.current.shift()!;
     speechBusy.current=true;
     playAlertTone(next.risk);
-    try{
-      if(next.clip){
-        const audio=new Audio(`/audio/trade-alerts/${next.clip}.wav`);
-        const completed=()=>{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);};
-        audio.onended=completed;
-        audio.onerror=()=>{
-          speechBusy.current=false;
-          speechQueue.current.unshift({spoken:next.spoken,risk:next.risk});
-          window.setTimeout(drainAlertSpeech,120);
-        };
-        void audio.play().catch(()=>audio.onerror?.(new Event("error")));
-        return;
-      }
-      if(!("speechSynthesis" in window)){speechBusy.current=false;return;}
+    const continueQueue=()=>{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);};
+    let browserFallbackStarted=false;
+    const playBrowserSpeech=()=>{
+      if(browserFallbackStarted)return;
+      browserFallbackStarted=true;
+      if(!("speechSynthesis" in window)){continueQueue();return;}
       const speech=new SpeechSynthesisUtterance(next.spoken);
       speech.lang="zh-CN";speech.rate=1.02;speech.pitch=next.risk?0.82:1.08;speech.volume=.92;
       const voices=window.speechSynthesis.getVoices();
       speech.voice=voices.find(voice=>voice.lang.toLowerCase().startsWith("zh-cn")&&/xiaoxiao|tingting|xiaochen|xiaoyi|natural/i.test(voice.name))
         ??voices.find(voice=>voice.lang.toLowerCase().startsWith("zh-cn"))
         ??null;
-      const completed=()=>{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);};
-      speech.onend=completed;speech.onerror=completed;
+      speech.onend=continueQueue;speech.onerror=continueQueue;
       window.speechSynthesis.speak(speech);
-    }catch{speechBusy.current=false;window.setTimeout(drainAlertSpeech,120);}
+    };
+    let fallbackStarted=false;
+    const playLocalFallback=()=>{
+      if(fallbackStarted)return;
+      fallbackStarted=true;
+      if(next.clip){
+        const audio=new Audio(`/audio/trade-alerts/${next.clip}.wav`);
+        audio.onended=continueQueue;
+        audio.onerror=playBrowserSpeech;
+        void audio.play().catch(playBrowserSpeech);
+        return;
+      }
+      playBrowserSpeech();
+    };
+    void fetch("/api/voice",{
+      method:"POST",
+      credentials:"include",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify({text:next.spoken,risk:next.risk}),
+    }).then((response:Response)=>{
+      if(!response.ok)throw new Error(`GPT voice HTTP ${response.status}`);
+      return response.blob();
+    }).then((blob:Blob)=>{
+      const source=URL.createObjectURL(blob);
+      const audio=new Audio(source);
+      let released=false;
+      const release=()=>{if(!released){released=true;URL.revokeObjectURL(source);}};
+      audio.onended=()=>{release();continueQueue();};
+      audio.onerror=()=>{release();playLocalFallback();};
+      void audio.play().catch(()=>{release();playLocalFallback();});
+    }).catch(playLocalFallback);
   },[playAlertTone]);
   const speakAlert=useCallback((text:string,risk=false,level:TradeAlertToast["level"]="signal",direction:"buy"|"sell"|null=null)=>{
     const clip=risk||level==="risk"?"risk":level==="signal"&&direction?direction:undefined;
@@ -7034,7 +7055,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             {zijinStructure&&<small className="zijin-structure-summary">多周期 {zijinStructure.direction} {zijinStructure.directionScore>=0?"+":""}{zijinStructure.directionScore} · 缠论 {zijinStructure.chan.location} · 威科夫 {zijinStructure.wyckoff.phase} · 成交密集区 ¥{zijinStructure.volumeProfile.valueAreaLow.toFixed(2)}–{zijinStructure.volumeProfile.valueAreaHigh.toFixed(2)}</small>}
             <i>{STOCK_AGENTS.zijin.badge} · 与内置闭环隔离 · 只给候选和解释，不生成正式成交</i>
           </div>}
-          <div className={`alert-channel ${marketSession.live?"market-live":""}`}><div><span>提醒</span><small>语音、弹窗与手机后台通知</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时播放简短语音">🔊 {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试"}</button>}</div><span className={`formal-sync-status ${formalSyncState.status}`} aria-live="polite" title="手机和电脑共用服务器正式信号记录"><i aria-hidden="true"/>{formalSyncState.message}</span></div>
+          <div className={`alert-channel ${marketSession.live?"market-live":""}`}><div><span>提醒</span><small>GPT 实时语音、弹窗与手机后台通知</small></div><div className="alert-channel-actions"><button className="utility" onClick={previewRabbitAlert} title="预览一条兔兔提醒">预览</button><button className="utility" onClick={()=>premiumEnabled?setAlertLogOpen(true):setAccountOpen(true)} disabled={demoMode} title={demoMode?'演示模式不保存提醒记录':premiumEnabled?'查看实际出现过的候选、正式与风险提醒':'提醒历史为会员功能'}>记录{premiumEnabled?"":"·会员"}</button><button className={`channel sound ${alertSettings.sound?"active":""}`} onClick={()=>void updateAlertSetting("sound")} aria-pressed={alertSettings.sound} title="网页打开时使用 GPT 播放实时监控语音；服务异常时自动使用本机语音">🎙️ GPT {alertSettings.sound?"开":"关"}</button><button className={`channel system ${alertSettings.system?"active":""}`} onClick={()=>void updateAlertSetting("system")} aria-pressed={alertSettings.system} title="网页打开时显示提醒弹窗">🔔 {alertSettings.system?"开":"关"}</button><button className={`channel mobile ${alertSettings.background?"active":""}`} onClick={()=>void updateAlertSetting("background")} aria-pressed={alertSettings.background} title={backgroundPushState==="unsupported"?"当前浏览器不支持后台推送":backgroundPushState==="error"?"订阅失败，可重新开启":"锁屏或切到后台时使用手机系统通知"}>📱 {backgroundPushState==="unsupported"?"不支持":alertSettings.background?"开":"关"}</button>{alertSettings.background&&<button className="utility" disabled={backgroundPushTesting} onClick={()=>void testBackgroundPush()} title="向本机发送一条后台系统通知">{backgroundPushTesting?"发送中":"测试"}</button>}</div><span className={`formal-sync-status ${formalSyncState.status}`} aria-live="polite" title="手机和电脑共用服务器正式信号记录"><i aria-hidden="true"/>{formalSyncState.message}</span></div>
           <div className="decision-label"><span>{stockAgent.name}</span><em>{stockAgent.canExecute?(decisionModel.status==="ready"?"信号已确认":decisionModel.status==="locked"?"禁止开T":"1秒监控中"):stockAgent.badge}</em></div>
           <details className="t-calculator" aria-label="日内做T试算" open={tCalculatorOpen} onToggle={event=>setTCalculatorOpen(event.currentTarget.open)}>
             <summary><span>日内做T试算</span><b>{tCalculatorOpen?"收起":"展开"}</b></summary>

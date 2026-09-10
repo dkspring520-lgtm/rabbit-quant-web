@@ -7,6 +7,7 @@ const server = fs.readFileSync(new URL("../server/control-plane.mjs", import.met
 const worker = fs.readFileSync(new URL("../public/notifications-sw.js", import.meta.url), "utf8");
 const manifest = fs.readFileSync(new URL("../app/manifest.ts", import.meta.url), "utf8");
 const speechPolicy = fs.readFileSync(new URL("../lib/alert-delivery-policy.mjs", import.meta.url), "utf8");
+const voiceRoute = fs.readFileSync(new URL("../app/api/voice/route.ts", import.meta.url), "utf8");
 
 test("mobile push uses a service worker and authenticated server subscription", () => {
   assert.match(page, /navigator\.serviceWorker\.register\("\/notifications-sw\.js"/);
@@ -20,7 +21,7 @@ test("mobile push uses a service worker and authenticated server subscription", 
   assert.match(manifest, /display: "standalone"/);
 });
 
-test("foreground voice is deliberately concise", () => {
+test("foreground voice uses authenticated GPT speech with a local fallback", () => {
   assert.match(speechPolicy, /风险提醒/);
   assert.match(speechPolicy, /买点提醒/);
   assert.match(speechPolicy, /卖点提醒/);
@@ -28,8 +29,13 @@ test("foreground voice is deliberately concise", () => {
   assert.match(speechPolicy, /低位观察/);
   assert.match(page, /conciseAlertSpeech/);
   assert.match(page, /speechQueue\.current\.push/);
-  assert.match(page, /speech\.onend=completed/);
+  assert.match(page, /fetch\("\/api\/voice"/);
+  assert.match(page, /speech\.onend=continueQueue/);
   assert.match(page, /new SpeechSynthesisUtterance\(next\.spoken\)/);
+  assert.match(voiceRoute, /hasActiveSession/);
+  assert.match(voiceRoute, /OPENAI_API_KEY/);
+  assert.match(voiceRoute, /gpt-4o-mini-tts/);
+  assert.match(voiceRoute, /\/audio\/speech/);
 });
 
 test("simultaneous stock alerts render as separate cards", () => {
