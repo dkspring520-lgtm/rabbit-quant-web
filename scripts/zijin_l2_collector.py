@@ -181,6 +181,7 @@ class Collector:
             "minimum_gross_spread_yuan": float(os.getenv("L2_FORWARD_MIN_GROSS_SPREAD_YUAN", "0.10")),
         }
         self.stale_seconds = float(os.getenv("L2_STALE_SECONDS", "8"))
+        self.max_stale_failovers = int(os.getenv("L2_MAX_STALE_FAILOVERS", "3"))
         self.subscribe_timeout = float(os.getenv("L2_SUBSCRIBE_TIMEOUT_SECONDS", "5"))
         self.big_order = float(os.getenv("L2_BIG_ORDER_NOTIONAL", "200000"))
         # The UI reads the atomically-published state file.  Keep this short enough
@@ -966,6 +967,7 @@ class Collector:
         reverse_shadow_regime = asyncio.create_task(self.refresh_reverse_shadow_regime())
         reverse_shadow_peers = asyncio.create_task(self.refresh_reverse_shadow_peers())
         node_index = 0
+        consecutive_stale_failovers = 0
         try:
             while True:
                 if writer.done():
@@ -1019,7 +1021,13 @@ class Collector:
                             age is None or age > self.stale_seconds
                         ):
                             self.failover_reason = "stale-feed"
+                            consecutive_stale_failovers += 1
+                            if consecutive_stale_failovers >= self.max_stale_failovers:
+                                raise RuntimeError(
+                                    f"L2 feed stale after {consecutive_stale_failovers} failovers; restart collector"
+                                )
                             break
+                        consecutive_stale_failovers = 0
                 except asyncio.CancelledError:
                     raise
                 except Exception as error:

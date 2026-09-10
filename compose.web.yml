@@ -60,6 +60,7 @@ services:
       # that the provider has not granted to this account.
       L2_NATS_URLS: nats://quote5.base32.cn:4222
       L2_SUBSCRIBE_TIMEOUT_SECONDS: "5"
+      L2_MAX_STALE_FAILOVERS: "3"
       L2_SYMBOL: "601899"
       L2_STATE_PATH: /training-state/zijin-l2-orderflow.json
       L2_FORWARD_PATH: /training-state/zijin-l2-forward.jsonl
@@ -79,7 +80,7 @@ services:
     volumes:
       - /opt/rabbit-quant-state:/training-state
     healthcheck:
-      test: ["CMD", "python", "-c", "import json,time,datetime;p=json.load(open('/training-state/zijin-l2-orderflow.json'));assert time.time()-datetime.datetime.fromisoformat(p['updatedAt'].replace('Z','+00:00')).timestamp()<15"]
+      test: ["CMD", "python", "-c", "import json,time,datetime;p=json.load(open('/training-state/zijin-l2-orderflow.json'));s=p.get('status',{});assert time.time()-datetime.datetime.fromisoformat(p['updatedAt'].replace('Z','+00:00')).timestamp()<15 and s.get('connected') is True and s.get('stale') is False and (s.get('ageSeconds') is not None and s['ageSeconds']<=15)"]
       interval: 20s
       timeout: 5s
       retries: 3

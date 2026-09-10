@@ -13,5 +13,8 @@ test("Zijin L2 supports authorized-node failover without hanging on a bad node",
   assert.match(collector, /timeout=5/);
   assert.match(collector, /is_live_a_share_session\(\)/);
   assert.match(collector, /self\.failover_reason = "stale-feed"/);
+  assert.match(collector, /L2_MAX_STALE_FAILOVERS/);
+  assert.match(collector, /restart collector/);
+  assert.match(compose, /s\.get\('stale'\) is False/);
   assert.match(collector, /node_index = \(node_index \+ 1\) % len\(self\.urls\)/);
 });
