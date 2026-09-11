@@ -59,6 +59,8 @@ test("explicit observations remain bounded and labelled as shadow evidence", () 
   assert.equal(assignment.horizons.find(item => item.id === "15m").probability, 0.64);
   assert.equal(assignment.factorResonance.find(item => item.id === "copper").state, "confirmed");
   assert.equal(assignment.researchOutlook.horizons.find(item => item.id === "long").state, "up");
+  assert.match(assignment.researchOutlook.plainSummary, /今天整体偏强/);
+  assert.match(assignment.researchOutlook.plainSummary, /铜价走势/);
   assert.deepEqual(assignment.findings, ["候选规则A", "候选规则B"]);
   assert.equal(assignment.status, "shadow-only");
 });
@@ -73,6 +75,8 @@ test("daily assignment scheduler, API and research院 display are wired", () => 
   assert.match(page, /研策兔每日作业/);
   assert.match(page, /短中长期方向判断/);
   assert.match(page, /查看今日线索与风险/);
+  assert.match(page, /为什么这样判断/);
+  assert.match(page, /今天收盘结论/);
   assert.match(styles, /\.ai-daily-assignment/);
   assert.match(styles, /\.ai-daily-outlook/);
 });
@@ -90,6 +94,32 @@ test("social research is always shown as a clue instead of strategy evidence", (
   assert.match(social.note, /待验证/);
   assert.equal(assignment.sourceDigest.highlights[0].status, "待验证线索");
   assert.equal(assignment.safety.formalStrategyWriteEnabled, false);
+});
+
+test("daily assignment explains missing inputs and conflicting time horizons in plain language", () => {
+  const assignment = createZijinDailyAssignment({
+    observations: {
+      direction: { state: "down", confidence: 0.71 },
+      horizons: { "60m": { state: "up", confidence: 0.64 } },
+      factors: {
+        copper: { state: "confirmed", score: 71 },
+        peer: { state: "否决", score: 0 },
+        vwap: { state: "否决", score: 27 },
+        momentum: { state: "否决", score: 0 },
+      },
+      onlineLearning: {
+        sources: [
+          { id: "market-data", available: true },
+          { id: "market-context", available: true },
+          { id: "l2", available: false },
+        ],
+      },
+    },
+  });
+  assert.match(assignment.researchOutlook.plainSummary, /今天整体偏弱/);
+  assert.match(assignment.researchOutlook.plainSummary, /板块和同行股票/);
+  assert.match(assignment.researchOutlook.plainSummary, /今天偏弱.*短线偏强/);
+  assert.match(assignment.sourceDigest.groups.find(item => item.id === "market").note, /还缺L2盘口/);
 });
 
 test("normalization cannot grant trading or formal-write permissions", () => {
