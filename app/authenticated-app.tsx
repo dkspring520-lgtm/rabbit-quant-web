@@ -6802,6 +6802,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <b className="buy">可买入信号 {orderFlowCardBuyStrength.label}</b>
                 <b className="sell">可卖出信号 {orderFlowCardSellStrength.label}</b>
               </div>
+              <details className="order-flow-details"><summary>查看订单流细节 <small>Delta、盘口、行为传感器</small></summary>
               <div className="order-flow-section-head"><span>主动成交 · Delta</span><small>净额</small></div>
               <div className="order-flow-delta-grid" aria-label="订单流Delta指标">
                 {[{label:"Delta 1分",value:zijinOrderFlowRadar.delta?.oneMinute},{label:"Delta 3分",value:zijinOrderFlowRadar.delta?.threeMinute},{label:"Delta 5分",value:zijinOrderFlowRadar.delta?.fiveMinute}].map(metric=>{
@@ -6824,6 +6825,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <span title="冰山强度必须来自持续补单字段；未采集时不推断冰山。"><em>冰山补单</em><b>{web4Microstructure.behavior.iceberg.available?`买 ${web4Microstructure.behavior.iceberg.buy??0} · 卖 ${web4Microstructure.behavior.iceberg.sell??0}`:"未采集"}</b></span>
                 <span title="基于近端盘口快照深度的变化，只作变薄观察，不预言后续价格。"><em>流动性</em><b>{web4Microstructure.behavior.liquidityVacuum.available?(web4Microstructure.behavior.liquidityVacuum.value?"流动性变薄（观察）":"近端深度未变薄"):"待数据"}</b></span>
               </div>
+              </details>
               {zijinVisibleFootprint.length>0&&<details className="order-flow-footprint" aria-label="当前分钟逐价成交足迹">
                 <summary><span>逐价成交足迹</span><small>买 / 卖量 · 当前分钟</small></summary>
                 <div>{zijinVisibleFootprint.map(row=><span className={row.deltaVolume>=0?"buy":"sell"} key={`${row.price}-${row.trades}`}><em>¥{row.price.toFixed(2)}</em><b>买 {formatIntradayVolume(row.buyVolume)}</b><i>卖 {formatIntradayVolume(row.sellVolume)}</i></span>)}</div>
