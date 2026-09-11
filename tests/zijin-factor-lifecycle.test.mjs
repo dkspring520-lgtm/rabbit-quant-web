@@ -68,5 +68,5 @@ test("daily scheduler and main-site read-only display are wired", () => {
   assert.match(route, /Cache-Control.*no-store/);
   assert.match(page, /\/api\/research\/zijin-factor-lifecycle/);
   assert.match(page, /ZijinFactorLifecyclePanel/);
-  assert.match(page, /不自动进入 V4/);
+  assert.match(page, /不进入 V4/);
 });

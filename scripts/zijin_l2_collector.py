@@ -827,6 +827,10 @@ class Collector:
             "volatility": atr,
             "secondState": second_state,
             "recentMinutes": self.recent_minute_payload(),
+            "recentTransactions": [
+                {"receivedAt": row[0], "side": row[1], "volume": row[2], "price": row[4]}
+                for row in list(self.transactions)[-80:]
+            ],
             "messages": self.message_counts,
             "forward": {
                 "path": self.forward_path, "samples": len(self.forward_minutes), "tradingDays": len(self.forward_days),

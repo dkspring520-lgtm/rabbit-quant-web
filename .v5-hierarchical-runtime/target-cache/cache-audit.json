@@ -1,0 +1,19 @@
+{
+  "fingerprint": {
+    "input": "D:\\BaiduNetdiskDownload\\zijin-601899\\zijin-peer-panel-2022-2026.parquet",
+    "size": 26692028,
+    "mtimeNs": 1784319648062326600,
+    "selectionEnd": "20251231",
+    "sampleBuilderVersion": 1
+  },
+  "firstDate": "20220104",
+  "lastDate": "20251231",
+  "minuteRows": 1634703,
+  "tradingDays": 969,
+  "causalCandidates": 29335,
+  "stockCount": 7,
+  "loaded2026Rows": 0,
+  "completeTargetDays": 969,
+  "meanPeerCoverage": 1.0,
+  "minimumPeerCoverage": 1.0
+}
