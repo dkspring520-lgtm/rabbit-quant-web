@@ -4233,10 +4233,12 @@
 .order-flow-formal-link.divergent{border-color:color-mix(in srgb,var(--coral) 38%,var(--line));background:color-mix(in srgb,var(--surface-2) 93%,var(--coral) 7%)}
 .order-flow-formal-link.divergent>span{background:color-mix(in srgb,var(--coral) 18%,transparent);color:var(--coral)}
 .order-flow-formal-link.unavailable>span{background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber)}
-.order-flow-score-row{display:grid;grid-template-columns:minmax(0,1fr) max-content max-content;align-items:center;gap:7px;padding:1px 0;min-width:0}
-.order-flow-score-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:8px}
+.order-flow-score-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:10px;padding:6px 0;min-width:0}
+.order-flow-score-row>span{grid-column:1/-1;min-width:0;color:var(--muted);font-size:10px}
 .order-flow-score-row small{color:var(--dim);font-size:7px}
-.order-flow-score-row>b{padding:3px 5px;border-radius:3px;background:var(--line-soft);font:700 8px/1 var(--font-geist-mono),monospace;white-space:nowrap}
+.order-flow-score-row>b{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px;border-radius:8px;background:var(--line-soft);min-width:0;text-align:center}
+.order-flow-score-row>b>span{font-size:15px;line-height:1.4;font-weight:600}
+.order-flow-score-row>b>strong{font:800 clamp(24px,2.5vw,34px)/1.2 var(--font-geist-mono),monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
 .order-flow-score-row>b.buy{color:var(--teal)}
 .order-flow-score-row>b.sell{color:var(--coral)}
 .order-flow-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0;padding-top:1px}
