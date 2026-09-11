@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateOrderBookImbalance, evaluateQmtOrderFlow, normalizeQmtOrderFlow, summarizeZijinOrderFlow } from "../lib/qmt-orderflow-confirmation.mjs";
+import { evaluateQmtOrderFlow, normalizeQmtOrderFlow, summarizeZijinOrderFlow } from "../lib/qmt-orderflow-confirmation.mjs";
 
 function rows(kind) {
   return [0, 1, 2].map((index) => ({
@@ -203,53 +203,3 @@ test("Zijin research summary classifies retained transaction flow without book s
   assert.equal(result.required, 2);
   assert.equal(result.stance, "buy");
 });
-
-test("evaluateOrderBookImbalance correctly calculates 5-level OBI", () => {
-  const snapshot = {
-    book: {
-      bidVolumes: [100, 80, 60, 40, 20], // total = 300
-      askVolumes: [50, 40, 30, 20, 10],  // total = 150
-    },
-  };
-  const res = evaluateOrderBookImbalance(snapshot);
-  assert.equal(res.available, true);
-  assert.equal(res.totalBidDepth, 300);
-  assert.equal(res.totalAskDepth, 150);
-  assert.equal(res.obi, (300 - 150) / 450); // ~0.3333
-  assert.equal(res.spoofingRisk, "NONE");
-});
-
-test("evaluateOrderBookImbalance detects BULL_TRAP when heavy bid book meets active selling", () => {
-  const snapshot = {
-    flow: {
-      activeBuyVolume: 200,
-      activeSellVolume: 800, // 80% active sell
-    },
-    book: {
-      bidVolumes: [500, 400, 300, 200, 100], // total = 1500 (heavy bids)
-      askVolumes: [50, 40, 30, 20, 10],      // total = 150
-    },
-  };
-  const res = evaluateOrderBookImbalance(snapshot);
-  assert.equal(res.available, true);
-  assert.ok(res.obi > 0.35);
-  assert.equal(res.spoofingRisk, "BULL_TRAP");
-});
-
-test("evaluateOrderBookImbalance detects BEAR_TRAP when heavy ask book meets active buying", () => {
-  const snapshot = {
-    flow: {
-      activeBuyVolume: 850, // 85% active buy
-      activeSellVolume: 150,
-    },
-    book: {
-      bidVolumes: [50, 40, 30, 20, 10],      // total = 150
-      askVolumes: [500, 400, 300, 200, 100], // total = 1500 (heavy asks)
-    },
-  };
-  const res = evaluateOrderBookImbalance(snapshot);
-  assert.equal(res.available, true);
-  assert.ok(res.obi < -0.35);
-  assert.equal(res.spoofingRisk, "BEAR_TRAP");
-});
-

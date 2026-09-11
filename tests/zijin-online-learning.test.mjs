@@ -4,10 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createZijinDailyAssignment } from "../lib/zijin-daily-assignment.mjs";
-import {
-  createZijinOnlineLearningObservations,
-  ZIJIN_EXTERNAL_RESEARCH_HYPOTHESES,
-} from "../lib/zijin-online-learning.mjs";
+import { createZijinOnlineLearningObservations } from "../lib/zijin-online-learning.mjs";
 
 const marketDate = "2026-08-19";
 const sourceTimestamp = "2026-08-19T15:00:00+08:00";
@@ -70,20 +67,7 @@ test("online learning converts current compliant sources into shadow-only eviden
   assert.equal(observations.factors.copper.state, "confirmed");
   assert.match(observations.candidateRules[0].source, /^一级/);
   assert.match(observations.candidateRules[1].source, /^三级线索/);
-  assert.equal(observations.researchHypotheses.length, 3);
-  assert.equal(observations.researchHypotheses[0].validationStatus, "pending-backtest");
-  assert.equal(observations.researchHypotheses[0].affectsFormalStrategy, false);
-  assert.equal(observations.researchHypotheses[0].canTrade, false);
-  assert.ok(observations.candidateRules.some(item => item.id === "douyin-houshanren-20260825-staged-exit"));
   assert.match(observations.integrity.evidenceHash, /^[a-f0-9]{64}$/);
-});
-
-test("external creator rules stay immutable research hypotheses", () => {
-  assert.equal(Object.isFrozen(ZIJIN_EXTERNAL_RESEARCH_HYPOTHESES), true);
-  assert.equal(ZIJIN_EXTERNAL_RESEARCH_HYPOTHESES.every(item => Object.isFrozen(item)), true);
-  assert.equal(ZIJIN_EXTERNAL_RESEARCH_HYPOTHESES.every(item => item.source === "抖音三级线索"), true);
-  assert.equal(ZIJIN_EXTERNAL_RESEARCH_HYPOTHESES.every(item => item.affectsFormalStrategy === false), true);
-  assert.equal(ZIJIN_EXTERNAL_RESEARCH_HYPOTHESES.every(item => item.canTrade === false), true);
 });
 
 test("stale or missing network data degrades without inventing direction", () => {

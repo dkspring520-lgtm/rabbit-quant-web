@@ -53,9 +53,9 @@
     "lastDate": "20260807"
   },
   "reproducibility": {
-    "gitCommit": "d75072ce8607bcb5572bdea31295bf9f5582fc5b",
-    "asOf": "2026-08-21T03:38:37.269Z",
-    "factorEngineVersion": "1.0.0",
+    "gitCommit": "45f43efd3f11e24962b2bb24e05fc3b868dc4c6b",
+    "asOf": "2026-08-15T00:43:11.114Z",
+    "factorEngineVersion": "1.1.0",
     "factorIds": [
       "vwap.bias",
       "volume.ratio_5_20",

@@ -14,9 +14,6 @@ import {
   buildZuoTCandidateEvents,
   buildZuoTShadowDecisions,
   ZUOT_V1_RECONSTRUCTED_FACTOR_IDS,
-  ZUOT_V1_THREE_WAVE_SHADOW_EXPERIMENT_ID,
-  ZUOT_V1_THREE_WAVE_FACTOR_IDS,
-  ZUOT_V1_THREE_WAVE_SHADOW_CONFIG,
   ZUOT_V2_CORE_FACTOR_IDS,
   ZUOT_V2_SHADOW_SAFETY,
   ZUOT_V2_SHADOW_VERSION,
@@ -29,9 +26,7 @@ export const ZUOT_SHADOW_EXPERIMENT_IDS = Object.freeze([
   "v1-reconstructed-baseline",
   "v2-confirm-only",
   "v2-standalone",
-  "v1-three-wave-shadow",
 ]);
-export const ZUOT_V1_THREE_WAVE_EXPERIMENT_ID = ZUOT_V1_THREE_WAVE_SHADOW_EXPERIMENT_ID;
 const SLIPPAGE_STRESS_BPS = Object.freeze([2, 5, 10]);
 export const ZUOT_V2_COMMON_BACKTEST_CONFIG = Object.freeze({
   quantity: 1600,
@@ -49,23 +44,10 @@ export const ZUOT_V2_COMMON_BACKTEST_CONFIG = Object.freeze({
   splitRatios: Object.freeze({ train: 0.60, validation: 0.20, test: 0.20 }),
   rolling: Object.freeze({ minimumTrainDays: 60, testDays: 20, stepDays: 20 }),
 });
-const EMPTY_SIGNAL_CONFIG = Object.freeze({});
 
 export function resolveZuoTShadowBacktestConfig(experimentId) {
   if (!ZUOT_SHADOW_EXPERIMENT_IDS.includes(experimentId)) throw new Error(`Unsupported experiment: ${experimentId}`);
   return ZUOT_V2_COMMON_BACKTEST_CONFIG;
-}
-
-/**
- * Resolve the causal signal-only configuration for an experiment. Execution
- * costs, exits and slippage intentionally remain shared by every experiment
- * so that the comparison is apples-to-apples.
- */
-export function resolveZuoTShadowSignalConfig(experimentId) {
-  if (!ZUOT_SHADOW_EXPERIMENT_IDS.includes(experimentId)) throw new Error(`Unsupported experiment: ${experimentId}`);
-  return experimentId === ZUOT_V1_THREE_WAVE_EXPERIMENT_ID
-    ? ZUOT_V1_THREE_WAVE_SHADOW_CONFIG
-    : EMPTY_SIGNAL_CONFIG;
 }
 
 const round = (value, digits = 8) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
@@ -160,10 +142,6 @@ function tradeMetrics(trades) {
       ? round(average(wins, trade => trade.netPnl) / Math.abs(average(losses, trade => trade.netPnl)))
       : null,
     profitFactor: grossLoss > 0 ? round(grossProfit / grossLoss) : grossProfit > 0 ? null : 0,
-    // False-hit is deliberately defined on closed trades only.  A candidate
-    // that is filtered before execution is not counted as a false hit.
-    falseHits: losses.length,
-    falseHitRate: ordered.length ? round(losses.length / ordered.length) : null,
     maximumDrawdown: round(maximumDrawdown(ordered.map(trade => trade.netReturn))),
     averageMfe: round(average(ordered, trade => trade.mfe)),
     averageMae: round(average(ordered, trade => trade.mae)),
@@ -178,21 +156,9 @@ function groupTradeMetrics(trades, selector) {
     .map(([key, rows]) => [String(key ?? "unknown"), tradeMetrics(rows)]));
 }
 
-function simulateSignals(signals, sessionsByDate, slippageBps, { preventOverlap = true } = {}) {
+function simulateSignals(signals, sessionsByDate, slippageBps) {
   const config = { ...ZUOT_V2_COMMON_BACKTEST_CONFIG, slippage: slippageBps / 100, slippageMode: "percent" };
-  const ordered = [...(Array.isArray(signals) ? signals : [])].sort((left, right) => String(left.date).localeCompare(String(right.date))
-    || Number(left.index) - Number(right.index)
-    || String(left.direction).localeCompare(String(right.direction)));
-  const blockedThroughByDate = new Map();
-  const trades = [];
-  let overlapBlocked = 0;
-  for (const signal of ordered) {
-    const date = String(signal.date ?? "");
-    const blockedThrough = blockedThroughByDate.get(date);
-    if (preventOverlap && Number.isFinite(blockedThrough) && Number(signal.index) <= blockedThrough) {
-      overlapBlocked += 1;
-      continue;
-    }
+  return signals.map(signal => {
     const computed = sessionsByDate.get(signal.date);
     const trade = simulateClosureTrade({
       session: computed?.session,
@@ -202,8 +168,7 @@ function simulateSignals(signals, sessionsByDate, slippageBps, { preventOverlap 
       config,
       pricePathMode: ZUOT_V2_COMMON_BACKTEST_CONFIG.pricePathMode,
     });
-    if (!trade) continue;
-    trades.push({
+    return trade ? {
       ...trade,
       experimentId: signal.experimentId,
       vwapBias: signal.vwapBias,
@@ -211,19 +176,16 @@ function simulateSignals(signals, sessionsByDate, slippageBps, { preventOverlap 
       v1VoteCount: signal.v1VoteCount,
       v2VoteCount: signal.v2VoteCount,
       continuationVeto: signal.continuationVeto,
-    });
-    if (preventOverlap) blockedThroughByDate.set(date, trade.exitIndex);
-  }
-  return { trades, overlapBlocked };
+    } : null;
+  }).filter(Boolean);
 }
 
-function evaluateScope({ decisions, sessionsByDate, dates, slippageBps, includeCounterfactual = false, config = {} }) {
+function evaluateScope({ decisions, sessionsByDate, dates, slippageBps, includeCounterfactual = false }) {
   const dateSet = dates instanceof Set ? dates : new Set(dates);
   const scoped = decisions.filter(decision => dateSet.has(decision.date));
-  const candidateEvents = buildZuoTCandidateEvents(scoped, { config });
+  const candidateEvents = buildZuoTCandidateEvents(scoped);
   const formalSignals = candidateEvents.map(event => event.formalDecision).filter(Boolean);
-  const simulation = simulateSignals(formalSignals, sessionsByDate, slippageBps);
-  const trades = simulation.trades;
+  const trades = simulateSignals(formalSignals, sessionsByDate, slippageBps);
   const metrics = tradeMetrics(trades);
   const candidateCount = candidateEvents.length;
   const takeProfits = metrics.exits.takeProfit ?? 0;
@@ -231,17 +193,8 @@ function evaluateScope({ decisions, sessionsByDate, dates, slippageBps, includeC
     slippageBpsPerSide: slippageBps,
     candidateEvents: candidateCount,
     formalSignals: formalSignals.length,
-    executedFormalSignals: trades.length,
     candidateToFormalRate: candidateCount ? round(formalSignals.length / candidateCount) : null,
     targetClosureRate: formalSignals.length ? round(takeProfits / formalSignals.length) : null,
-    // A false signal is a formal signal that did not reach its modeled
-    // take-profit before stop/timeout/closure.  Keep the denominator as all
-    // formal signals so sparse samples remain explicit rather than appearing
-    // artificially clean.
-    falseSignalRate: formalSignals.length ? round(1 - takeProfits / formalSignals.length) : null,
-    falseSignalRateDefinition: "formal signal not reaching modeled take-profit (stop-loss, timeout, or other closure)",
-    falseSignalRateDenominator: "formalSignals (includes signals skipped because their execution window overlaps an earlier trade)",
-    executionOverlapBlocked: simulation.overlapBlocked,
     metrics,
     byDirection: groupTradeMetrics(trades, trade => trade.direction),
     byYear: groupTradeMetrics(trades, trade => String(trade.date).slice(0, 4)),
@@ -253,18 +206,15 @@ function evaluateScope({ decisions, sessionsByDate, dates, slippageBps, includeC
   };
   if (includeCounterfactual) {
     const rejectedSignals = candidateEvents.filter(event => !event.formalDecision).map(event => event.firstDecision);
-    const rejectedSimulation = simulateSignals(rejectedSignals, sessionsByDate, slippageBps);
     report.rejectedSignalCounterfactual = {
       signals: rejectedSignals.length,
-      executedSignals: rejectedSimulation.trades.length,
-      metrics: tradeMetrics(rejectedSimulation.trades),
-      executionOverlapBlocked: rejectedSimulation.overlapBlocked,
+      metrics: tradeMetrics(simulateSignals(rejectedSignals, sessionsByDate, slippageBps)),
     };
   }
   return report;
 }
 
-function rollingOutOfSample({ decisions, sessionsByDate, developmentDates, config = {} }) {
+function rollingOutOfSample({ decisions, sessionsByDate, developmentDates }) {
   const folds = [];
   const aggregateTrades = [];
   const { minimumTrainDays, testDays, stepDays } = ZUOT_V2_COMMON_BACKTEST_CONFIG.rolling;
@@ -272,9 +222,8 @@ function rollingOutOfSample({ decisions, sessionsByDate, developmentDates, confi
     const test = developmentDates.slice(trainEnd, Math.min(developmentDates.length, trainEnd + testDays));
     if (!test.length) continue;
     const scoped = decisions.filter(decision => test.includes(decision.date));
-    const signals = buildZuoTCandidateEvents(scoped, { config }).map(event => event.formalDecision).filter(Boolean);
-    const simulation = simulateSignals(signals, sessionsByDate, 2);
-    const trades = simulation.trades;
+    const signals = buildZuoTCandidateEvents(scoped).map(event => event.formalDecision).filter(Boolean);
+    const trades = simulateSignals(signals, sessionsByDate, 2);
     aggregateTrades.push(...trades);
     folds.push({
       trainStart: developmentDates[0] ?? null,
@@ -285,7 +234,6 @@ function rollingOutOfSample({ decisions, sessionsByDate, developmentDates, confi
       testDays: test.length,
       fixedRuleNoRefit: true,
       timeOrdered: (developmentDates[trainEnd - 1] ?? "") < (test[0] ?? ""),
-      executionOverlapBlocked: simulation.overlapBlocked,
       result: tradeMetrics(trades),
     });
   }
@@ -300,64 +248,7 @@ function rollingOutOfSample({ decisions, sessionsByDate, developmentDates, confi
 function experimentFactorIds(experimentId) {
   return experimentId === "v1-reconstructed-baseline"
     ? ZUOT_V1_RECONSTRUCTED_FACTOR_IDS
-    : experimentId === ZUOT_V1_THREE_WAVE_EXPERIMENT_ID
-      ? ZUOT_V1_THREE_WAVE_FACTOR_IDS
     : ZUOT_V2_CORE_FACTOR_IDS;
-}
-
-function experimentLabel(experimentId) {
-  if (experimentId === "v1-reconstructed-baseline") return "重建版 V1 对照（非历史原件）";
-  if (experimentId === "v2-confirm-only") return "V2 仅确认 V1 候选";
-  if (experimentId === "v2-standalone") return "V2 精简因子独立候选";
-  if (experimentId === ZUOT_V1_THREE_WAVE_EXPERIMENT_ID) {
-    return "V1 三波衰竭 + VWAP偏离 + MACD背离影子";
-  }
-  return experimentId;
-}
-
-function experimentComparison(experiment, baseline) {
-  const metrics = experiment?.lockedTest?.["2bps"]?.metrics ?? {};
-  const baselineMetrics = baseline?.lockedTest?.["2bps"]?.metrics ?? {};
-  const delta = (value, reference) => Number.isFinite(value) && Number.isFinite(reference)
-    ? round(value - reference, 8)
-    : null;
-  return {
-    netPnlDeltaVsV1: delta(metrics.netPnl, baselineMetrics.netPnl),
-    profitFactorDeltaVsV1: delta(metrics.profitFactor, baselineMetrics.profitFactor),
-    maximumDrawdownDeltaVsV1: delta(metrics.maximumDrawdown, baselineMetrics.maximumDrawdown),
-    falseHitRateDeltaVsV1: delta(metrics.falseHitRate, baselineMetrics.falseHitRate),
-    formalSignalsDeltaVsV1: delta(experiment?.lockedTest?.["2bps"]?.formalSignals, baseline?.lockedTest?.["2bps"]?.formalSignals),
-    candidateEventsDeltaVsV1: delta(experiment?.lockedTest?.["2bps"]?.candidateEvents, baseline?.lockedTest?.["2bps"]?.candidateEvents),
-  };
-}
-
-function shadowLayerReview(experiment, baseline) {
-  const full = experiment?.fullSample?.["2bps"]?.metrics ?? {};
-  const locked = experiment?.lockedTest?.["2bps"]?.metrics ?? {};
-  const stress = experiment?.lockedTest?.["5bps"]?.metrics ?? {};
-  const baselineLocked = baseline?.lockedTest?.["2bps"]?.metrics ?? {};
-  const hasMinimumSample = Number.isFinite(full.trades) && full.trades >= 100;
-  const gates = {
-    minimumClosures100: hasMinimumSample,
-    lockedTestNetPositive: Number.isFinite(locked.netPnl) && locked.netPnl > 0,
-    lockedTestProfitFactor: locked.profitFactor !== null && Number.isFinite(locked.profitFactor) && locked.profitFactor >= 1.2,
-    lockedTestWinRate: locked.afterCostWinRate !== null && Number.isFinite(locked.afterCostWinRate) && locked.afterCostWinRate >= 0.52,
-    stress5BpsNetPositive: Number.isFinite(stress.netPnl) && stress.netPnl > 0,
-    drawdownNoWorseThanReconstructedV1: Number.isFinite(locked.maximumDrawdown)
-      && Number.isFinite(baselineLocked.maximumDrawdown)
-      && locked.maximumDrawdown <= baselineLocked.maximumDrawdown,
-    falseHitRateNoWorseThanReconstructedV1: Number.isFinite(locked.falseHitRate)
-      && (!Number.isFinite(baselineLocked.falseHitRate) || locked.falseHitRate <= baselineLocked.falseHitRate),
-  };
-  const passed = Object.values(gates).every(Boolean);
-  return {
-    gates,
-    passed,
-    status: passed ? "eligible-for-human-review" : hasMinimumSample ? "continue-shadow-research" : "insufficient-sample",
-    automaticPromotion: false,
-    falseHitRateDefinition: "净收益为负的已闭环交易数 / 已闭环交易总数；未触发候选不计入误伤。",
-    comparisonVsV1: experimentComparison(experiment, baseline),
-  };
 }
 
 function promotionReview(experiments) {
@@ -377,18 +268,12 @@ function promotionReview(experiments) {
       && baselineLocked.maximumDrawdown !== null
       && locked.maximumDrawdown <= baselineLocked.maximumDrawdown,
   };
-  const threeWave = experiments[ZUOT_V1_THREE_WAVE_EXPERIMENT_ID];
   return {
     gates,
     passed: Object.values(gates).every(Boolean),
     status: Object.values(gates).every(Boolean) ? "eligible-for-human-review" : "continue-shadow-research",
     automaticPromotion: false,
     warning: "V1 is a reconstructed comparison baseline, not a preserved historical artifact.",
-    shadowLayers: threeWave
-      ? {
-        [ZUOT_V1_THREE_WAVE_EXPERIMENT_ID]: shadowLayerReview(threeWave, baseline),
-      }
-      : {},
   };
 }
 
@@ -401,10 +286,7 @@ async function main() {
   const contextAvailable = await exists(contextDataPath);
   const context = contextAvailable ? JSON.parse(await readFile(contextDataPath, "utf8")) : null;
   const sessions = context ? addDailyContext(rawSessions, context) : rawSessions;
-  const allFactorIds = [...new Set([
-    ...ZUOT_V1_RECONSTRUCTED_FACTOR_IDS,
-    ...ZUOT_V1_THREE_WAVE_FACTOR_IDS,
-  ])];
+  const allFactorIds = [...new Set(ZUOT_V1_RECONSTRUCTED_FACTOR_IDS)];
   const factorEngine = new FactorEngine();
   const computedSessions = factorEngine.computeSessions(sessions, { factorIds: allFactorIds });
   const sessionsByDate = new Map(computedSessions.map(computed => [computed.session.date, computed]));
@@ -417,11 +299,7 @@ async function main() {
   const experiments = {};
 
   for (const experimentId of ZUOT_SHADOW_EXPERIMENT_IDS) {
-    const signalConfig = resolveZuoTShadowSignalConfig(experimentId);
-    const decisions = buildZuoTShadowDecisions(computedSessions, {
-      experimentId,
-      config: signalConfig,
-    });
+    const decisions = buildZuoTShadowDecisions(computedSessions, { experimentId });
     const fullSample = {};
     const lockedTest = {};
     for (const slippageBps of SLIPPAGE_STRESS_BPS) {
@@ -431,7 +309,6 @@ async function main() {
         dates: allDates,
         slippageBps,
         includeCounterfactual: slippageBps === 2,
-        config: signalConfig,
       });
       lockedTest[`${slippageBps}bps`] = evaluateScope({
         decisions,
@@ -439,16 +316,16 @@ async function main() {
         dates: lockedDates,
         slippageBps,
         includeCounterfactual: slippageBps === 2,
-        config: signalConfig,
       });
     }
     experiments[experimentId] = {
-      label: experimentLabel(experimentId),
+      label: experimentId === "v1-reconstructed-baseline"
+        ? "重建版 V1 对照（非历史原件）"
+        : experimentId === "v2-confirm-only" ? "V2 仅确认 V1 候选" : "V2 精简因子独立候选",
       factorIds: experimentFactorIds(experimentId),
-      signalConfig,
       fullSample,
       lockedTest,
-      rollingOutOfSample: rollingOutOfSample({ decisions, sessionsByDate, developmentDates, config: signalConfig }),
+      rollingOutOfSample: rollingOutOfSample({ decisions, sessionsByDate, developmentDates }),
     };
   }
 
@@ -473,27 +350,11 @@ async function main() {
       datasetChecksum: checksum,
       engineVersion: `${factorEngine.engineVersion}+zuot-${ZUOT_V2_SHADOW_VERSION}`,
       factorVersion: computedSessions[0]?.factorVersion ?? "unknown",
-      configHash: sha256({
-        backtest: ZUOT_V2_COMMON_BACKTEST_CONFIG,
-        experiments: ZUOT_SHADOW_EXPERIMENT_IDS,
-        signalConfigs: Object.fromEntries(ZUOT_SHADOW_EXPERIMENT_IDS.map(experimentId => [
-          experimentId,
-          resolveZuoTShadowSignalConfig(experimentId),
-        ])),
-        slippage: SLIPPAGE_STRESS_BPS,
-      }),
+      configHash: sha256({ backtest: ZUOT_V2_COMMON_BACKTEST_CONFIG, experiments: ZUOT_SHADOW_EXPERIMENT_IDS, slippage: SLIPPAGE_STRESS_BPS }),
       asOf: `${dates.at(-1)}T${computedSessions.at(-1)?.session.minutes.at(-1)?.time ?? "1500"}`,
       gitCommit: resolveGitCommit(),
     },
     commonBacktestConfig: ZUOT_V2_COMMON_BACKTEST_CONFIG,
-    metricDefinitions: {
-      falseHitRate: "净收益为负的已闭环交易数 / 已闭环交易总数；未触发候选不计入误伤。",
-      maximumDrawdown: "按逐笔闭环净收益序列计算的峰值回撤比例。",
-    },
-    signalConfigs: Object.fromEntries(ZUOT_SHADOW_EXPERIMENT_IDS.map(experimentId => [
-      experimentId,
-      resolveZuoTShadowSignalConfig(experimentId),
-    ])),
     timeSplits: splits,
     lockedTest: {
       locked: true,
