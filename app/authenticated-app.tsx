@@ -19,8 +19,6 @@ import "./bunny-light.css";
 import "./brand-cute.css";
 import "./position-setup.css";
 import "./referral.css";
-import { TerminalMarketRail } from "./terminal-market-rail";
-import "./terminal.css";
 import { buildHistoricalSimilarityArchive, runSmartTReplay, summarizeHistoricalSimilarity } from "@/lib/smart-t-engine.mjs";
 import { A_SHARE_INTRADAY_AXIS, aShareMinuteSlot, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareClosingAuctionMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
 import { confirmStockPosition, loadStockPosition, migrateLegacyPosition, normalizeStockPosition, saveStockPosition } from "@/lib/stock-position.mjs";
@@ -1812,7 +1810,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [openedCycleSide,setOpenedCycleSide]=useState<"buy"|"sell"|null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [activeView, setActiveView] = useState("首页");
-  const [terminalRailTab, setTerminalRailTab] = useState<"market"|"strategy">("market");
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
@@ -1961,7 +1958,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [tCalculatorOpen,setTCalculatorOpen]=useState(false);
   const [showAllPriceLevels,setShowAllPriceLevels]=useState(false);
   const [decisionZoneMode,setDecisionZoneMode]=useState<"focus"|"all">(initialCockpitUi.decisionMode??"focus");
-  const [decisionPanelWidth,setDecisionPanelWidth]=useState(()=>Math.max(320,Math.min(520,Number(initialCockpitUi.panelWidth)||320)));
+  const [decisionPanelWidth,setDecisionPanelWidth]=useState(()=>Math.max(320,Math.min(520,Number(initialCockpitUi.panelWidth)||380)));
   const [decisionPanelCollapsed,setDecisionPanelCollapsed]=useState(initialCockpitUi.panelCollapsed??false);
   const [orderFlowHeight,setOrderFlowHeight]=useState(()=>Math.max(110,Math.min(220,Number(initialCockpitUi.orderFlowHeight)||130)));
   const [chartViewport,setChartViewport]=useState<ChartViewport>({start:0,span:COCKPIT_VIEWPORT_FULL_SPAN});
@@ -2699,7 +2696,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     // guide bands are overlays and must not flatten the actual price curve.
     const scale=symmetricIntradayScale(
       [...prices,...averageSeries],
-      intradayChartType==="candle" ? null : activeQuote?.previousClose,
+      activeQuote?.previousClose,
       {tickCount:9,minimumPercent:.005,paddingFactor:1},
     );
     if(!scale)return null;
@@ -2855,27 +2852,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       }),
       ticks:scale.ticks.map(tick=>({...tick,y:liveChartPriceY(tick.value,min,max)})),
     };
-  },[chartViewport.span,intradayChartType,minutePoints,activeQuote?.previousClose,viewportChartX]);
-  const movingAveragePaths = useMemo(() => {
-    if (!chartModel || minutePoints.length < 5) return [];
-    return [5, 10, 20, 60].map(period => {
-      const points = minutePoints.map((point, index) => {
-        const start = Math.max(0, index - period + 1);
-        const slice = minutePoints.slice(start, index + 1).map(row => Number(row.price)).filter(Number.isFinite);
-        const average = slice.reduce((sum, value) => sum + value, 0) / Math.max(1, slice.length);
-        return `${viewportChartX(point.time)},${liveChartPriceY(average, chartModel.min, chartModel.max)}`;
-      });
-      return { period, path: `M${points.join(" L")}` };
-    });
-  }, [chartModel, minutePoints, viewportChartX]);
-  const kdjSnapshot = useMemo(() => {
-    const rows = minutePoints.slice(-9); if (!rows.length) return null;
-    const high = Math.max(...rows.map(row => Number(row.high) > 0 ? Number(row.high) : Number(row.price)));
-    const low = Math.min(...rows.map(row => Number(row.low) > 0 ? Number(row.low) : Number(row.price)));
-    const close = Number(rows.at(-1)?.price); const rsv = high === low ? 50 : (close - low) / (high - low) * 100;
-    const k = 66.67 * 2 / 3 + rsv / 3; const d = 50 * 2 / 3 + k / 3;
-    return { k, d, j: 3 * k - 2 * d };
-  }, [minutePoints]);
+  },[chartViewport.span,minutePoints,activeQuote?.previousClose,viewportChartX]);
   const liveSecondChart=useMemo(()=>{
     if(!chartModel||liveSecondPoints.length===0)return null;
     const segments:Array<{points:string;last:{x:number;y:number;price:number;time:string}}>=[];
@@ -5366,7 +5343,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }).catch(playLocalFallback);
   },[playAlertTone]);
   const speakAlert=useCallback((text:string,risk=false,level:TradeAlertToast["level"]="signal",direction:"buy"|"sell"|null=null)=>{
-    if(level==="candidate")return;
     const clip=risk||level==="risk"?"risk":level==="signal"&&direction?direction:undefined;
     speechQueue.current.push({spoken:conciseAlertSpeech({text,level,direction,risk}),risk,clip});
     drainAlertSpeech();
@@ -6516,7 +6492,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   }
 
   return (
-    <main className={`app-shell minimal-ui session-${marketSession.tone} ${activeView === "操盘台" ? "tv-console professional-terminal" : ""}`}>
+    <main className={`app-shell minimal-ui session-${marketSession.tone} ${activeView === "操盘台" ? "tv-console" : ""}`}>
       <header className="topbar">
         <div className="brand brand-lockup" aria-label="双兔助手 做T神器 Rabbit Smart-T">
           <Image className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志" width={280} height={72} priority/>
@@ -6544,19 +6520,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       {demoMode&&<div className="demo-ribbon" role="status"><b>免注册演示</b><span>当前为本机临时体验，不代表正式账户；下单接口关闭，演示操作不会同步到其他设备。</span><button onClick={()=>{setDemoMode(false);setLocalAuth(false);setAuthScreen('account');onLogout?.()}}>创建测试账户</button></div>}
 
       {activeView === "首页" ? <HomeView onNavigate={setActiveView} onOpenZijin={openZijinExperiment} stockCount={stockList.length} canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} referralCredits={accountMembership?.referralCredits??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} /> : activeView === "邀请中心" ? <ReferralCenter canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} demoMode={demoMode} referralCode={accountMembership?.referralCode??null} referralCredits={accountMembership?.referralCredits??0} referralReviews={accountMembership?.referralReviews??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} onOpenAccount={()=>setAccountOpen(true)} /> : activeView === "量化工具" ? <QuantToolsView onNavigate={setActiveView} /> : activeView === "操盘台" ? <>
-      <nav className="terminal-rail" aria-label="操盘台快捷工具">
-        <button title="行情与盘口" aria-label="行情与盘口" className={terminalRailTab==="market"?"active":""} onClick={()=>{setTerminalRailTab("market");setDecisionPanelCollapsed(false)}}>▥</button>
-        <button title="分时 / K线" aria-label="切换分时与K线" onClick={()=>setIntradayChartType(value=>value==="candle"?"line":"candle")}>⌁</button>
-        <button title="显示 / 隐藏指标" aria-label="显示或隐藏指标" aria-pressed={indicatorsVisible} onClick={()=>setIndicatorsVisible(value=>!value)}>ƒ</button>
-        <button title="双兔信号" aria-label="显示或隐藏双兔信号" aria-pressed={signalLayerVisible} onClick={()=>setSignalLayerVisible(value=>!value)}>⚑</button>
-        <span/>
-        <button title="多股票监控" aria-label="多股票监控" onClick={()=>setActiveView("多股监控")}>▦</button>
-        <button title="策略与执行" aria-label="策略与执行" className={terminalRailTab==="strategy"?"active":""} onClick={()=>{setTerminalRailTab("strategy");setDecisionPanelCollapsed(false)}}>≡</button>
-        <button title="模拟回测" aria-label="模拟回测" onClick={()=>setActiveView("模拟回测")}>↶</button>
-        <span/>
-        <button title="复位图表" aria-label="复位图表" onClick={resetIntradayViewport}>⊙</button>
-        <button title="全屏图表" aria-label="全屏图表" onClick={()=>void toggleWorkspaceFullscreen()}>⛶</button>
-      </nav>
       <section className="ticker" aria-label="股票监控列表">
         {stockList.map((item, index) => (
           <div
@@ -6657,7 +6620,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span>实时盯盘</span><b>{chartHud.title}</b><small>{chartHud.detail} · {chartHud.risk}</small>
               {zijinChartPriceOverlay?.hiddenCount>0&&<button onClick={()=>setShowAllPriceLevels(value=>!value)}>{showAllPriceLevels?"只看最近2条":`展开全部 +${zijinChartPriceOverlay.hiddenCount}`}</button>}
             </div>
-            <svg ref={intradayChartRef} className={`interactive-intraday-chart ${chartPanning?"is-panning":""}`} viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="none" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；滚轮或双指缩放，拖动时间轴，双击复位，点击查看分钟详情`} tabIndex={0}
+            {false&&<LightweightIntradayChart data={minutePoints.map((point,index)=>{const date=(activeChartDate||new Date().toISOString()).replace(/\D/g,"").slice(0,8);const time=String(point.time).replace(/\D/g,"").slice(-4).padStart(4,"0");const t=Date.UTC(Number(date.slice(0,4)),Number(date.slice(4,6))-1,Number(date.slice(6,8)),Number(time.slice(0,2)),Number(time.slice(2)));const close=Number(point.price);const open=Number(point.open)>0?Number(point.open):Number(minutePoints[index-1]?.price)||close;return {time:Math.floor(t/1000) as any,open,high:Number(point.high)>=Math.max(open,close)?Number(point.high):Math.max(open,close),low:Number(point.low)<=Math.min(open,close)?Number(point.low):Math.min(open,close),close,volume:Number(point.volume)||0,vwap:point.averagePrice??null};})}/>}<svg ref={intradayChartRef} className={`interactive-intraday-chart ${chartPanning?"is-panning":""}`} viewBox={`0 0 ${LIVE_CHART.width} ${LIVE_CHART.height}`} preserveAspectRatio="none" role="img" aria-label={`${activeQuote?.name || stock.name}当日分时图；滚轮或双指缩放，拖动时间轴，双击复位，点击查看分钟详情`} tabIndex={0}
               onPointerEnter={handleIntradayPointer} onPointerMove={handleIntradayPointer} onPointerDown={handleIntradayPointerDown} onPointerUp={handleIntradayPointerUp} onPointerCancel={handleIntradayPointerUp}
               onPointerLeave={event=>{if(event.pointerType==="mouse"&&!chartPanRef.current)setIntradayCursorTime(null)}} onAuxClick={event=>{if(event.button===1){event.preventDefault();event.stopPropagation()}}} onDoubleClick={resetIntradayViewport} onKeyDown={handleIntradayKeyDown}>
               <defs><linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ff655f" stopOpacity=".18"/><stop offset="1" stopColor="#ff655f" stopOpacity="0"/></linearGradient><clipPath id="intraday-vwap-channel-clip"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop}/></clipPath><clipPath id="intraday-viewport-clip" clipPathUnits="userSpaceOnUse"><rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.volumeBottom-LIVE_CHART.priceTop}/></clipPath></defs>
@@ -6668,7 +6631,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 {zijinChartPriceOverlay.lines.map(line=><g key={`${line.kind}-${line.price}`} className={`price-plan-line ${line.kind}`}><line x1={showAllPriceLevels?LIVE_CHART.plotLeft:LIVE_CHART.plotRight-145} y1={line.y} x2={LIVE_CHART.plotRight} y2={line.y}/><text x={LIVE_CHART.plotRight-4} y={Math.max(LIVE_CHART.priceTop+8,Math.min(LIVE_CHART.priceBottom-3,line.y-3))} textAnchor="end">{line.label} {line.price.toFixed(2)}</text></g>)}
               </g>}
               {chartModel&&<>{uiTheme==="light"&&chartModel.lastX<LIVE_CHART.plotRight-4&&<line className="future-session-boundary" x1={chartModel.lastX+4} y1={LIVE_CHART.priceTop} x2={chartModel.lastX+4} y2={LIVE_CHART.volumeBottom}/>}<g className="vwap-channel-layer" clipPath="url(#intraday-vwap-channel-clip)" aria-label="VWAP 正负1.5%与正负2.5%偏离通道">{indicatorsVisible&&chartModel.biasAlert&&<rect x={LIVE_CHART.plotLeft} y={LIVE_CHART.priceTop} width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height={LIVE_CHART.priceBottom-LIVE_CHART.priceTop} className={`price-bias-alert ${chartModel.latestBias>=0?"up":"down"}`}/>} {indicatorsVisible&&<><path d={chartModel.vwapChannel.upperBandPath} className="vwap-channel-band upper"/><path d={chartModel.vwapChannel.lowerBandPath} className="vwap-channel-band lower"/><path d={chartModel.vwapChannel.upperInnerPath} className="vwap-channel-line upper inner"/><path d={chartModel.vwapChannel.upperOuterPath} className="vwap-channel-line upper outer"/><path d={chartModel.vwapChannel.lowerInnerPath} className="vwap-channel-line lower inner"/><path d={chartModel.vwapChannel.lowerOuterPath} className="vwap-channel-line lower outer"/></>}</g>{(intradayChartType==="line"||!chartModel.candleReady)&&<path className="price-area-path" d={`${chartModel.path} L${chartModel.lastX} 252 L${chartModel.firstX} 252 Z`} fill="url(#priceFill)" />}
-              {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}{indicatorsVisible&&movingAveragePaths.map(item=><path key={item.period} d={item.path} className={`terminal-ma terminal-ma-${item.period}`} aria-label={`MA${item.period}`}/>)}{zijinHkOverlay&&<path d={zijinHkOverlay.path} className={`hk-zijin-path ${zijinAhLinkage.bias}`}/>} {(intradayChartType==="line"||!chartModel.candleReady)?<path d={chartModel.path} className="price-path"/>:<g className="intraday-candles" clipPath="url(#intraday-viewport-clip)" aria-label="真实1分钟开高低收蜡烛图">{chartModel.candles.map(candle=><g key={candle.time} className={`intraday-candle ${candle.up?"up":"down"}`}><line x1={candle.x} y1={candle.highY} x2={candle.x} y2={candle.lowY}/><rect x={candle.x-candle.width/2} y={candle.bodyY} width={candle.width} height={candle.bodyHeight} rx=".45"><title>{`${candle.time.slice(0,2)}:${candle.time.slice(2)} · 开 ${candle.open.toFixed(2)} 高 ${candle.high.toFixed(2)} 低 ${candle.low.toFixed(2)} 收 ${candle.close.toFixed(2)}`}</title></rect></g>)}</g>}
+              {indicatorsVisible&&<path d={chartModel.vwapPath} className="vwap-path"/>}{zijinHkOverlay&&<path d={zijinHkOverlay.path} className={`hk-zijin-path ${zijinAhLinkage.bias}`}/>} {(intradayChartType==="line"||!chartModel.candleReady)?<path d={chartModel.path} className="price-path"/>:<g className="intraday-candles" clipPath="url(#intraday-viewport-clip)" aria-label="真实1分钟开高低收蜡烛图">{chartModel.candles.map(candle=><g key={candle.time} className={`intraday-candle ${candle.up?"up":"down"}`}><line x1={candle.x} y1={candle.highY} x2={candle.x} y2={candle.lowY}/><rect x={candle.x-candle.width/2} y={candle.bodyY} width={candle.width} height={candle.bodyHeight} rx=".45"><title>{`${candle.time.slice(0,2)}:${candle.time.slice(2)} · 开 ${candle.open.toFixed(2)} 高 ${candle.high.toFixed(2)} 低 ${candle.low.toFixed(2)} 收 ${candle.close.toFixed(2)}`}</title></rect></g>)}</g>}
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
@@ -6797,6 +6760,24 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <em>{zijinFundResponse.evidence}</em>
             </div>
           </section>}
+          {afterHoursSummary&&<div className="after-hours-strip" role="status" aria-label="盘后固定价格交易数据">
+            <span><i/>盘后固定价</span><b>15:05–15:30</b><strong>¥{afterHoursSummary.price.toFixed(2)}</strong>
+            <small>{afterHoursSummary.points} 个成交点 · 成交量 {afterHoursSummary.totalVolume.toLocaleString("zh-CN")} · 仅展示，不触发做 T 信号</small>
+          </div>}
+          <div className="signal-tape">
+            <span className="tape-title">信号证据</span>
+            <span><i className={openingAssessment.session==="低开"||openingAssessment.session==="高开"?"ok":"wait"}>{openingAssessment.session==="低开"||openingAssessment.session==="高开"?"✓":"·"}</i>{openingAssessment.gapText}</span>
+            <span><i className={decisionModel.referenceConfirmed?"ok":"wait"}>{decisionModel.referenceConfirmed?"✓":"·"}</i>开盘价 + VWAP</span>
+            <span><i className={decisionModel.trendConfirmed?"ok":"wait"}>{decisionModel.trendConfirmed?"✓":"·"}</i>连续走势确认</span>
+            {stock?.code==="601899"&&<span title={zijinAhLinkage.reason}><i className={zijinAhLinkage.available&&zijinAhLinkage.state!=="neutral"?"ok":"wait"}>{zijinAhLinkage.available&&zijinAhLinkage.state!=="neutral"?"✓":"·"}</i>{zijinAhLinkage.label}</span>}
+            <span><i className={decisionModel.inDecisionWindow?"ok":"wait"}>{decisionModel.inDecisionWindow?"✓":"·"}</i>{decisionModel.lastTime||"--:--"} 时间门控</span>
+          </div>
+        </div>
+
+        <div className="decision-panel-resizer" role="separator" aria-label="调整右侧决策面板宽度" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={520} aria-valuenow={decisionPanelWidth} onPointerDown={handleDecisionPanelResizeStart} onPointerMove={handleDecisionPanelResize} onPointerUp={handleDecisionPanelResizeEnd} onPointerCancel={handleDecisionPanelResizeEnd} onDoubleClick={()=>setDecisionPanelWidth(380)}>
+          <i aria-hidden="true"/><button type="button" onClick={()=>setDecisionPanelCollapsed(value=>!value)} title={decisionPanelCollapsed?"展开决策面板":"折叠决策面板"} aria-pressed={decisionPanelCollapsed}>{decisionPanelCollapsed?"‹":"›"}</button>
+        </div>
+        <aside className={`decision-zone ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`}>
           {isZijinStock&&<section className={`order-flow-top-card ${orderFlowCurrentAvailable?"ready":"waiting"} ${orderFlowFormalLink.state}`} aria-label="双兔订单流影子行为面板">
             <div className="order-flow-top-head">
               <span><i/>双兔订单流 <em>影子行为层</em></span>
@@ -6821,7 +6802,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <b className="buy">可买入信号 {orderFlowCardBuyStrength.label}</b>
                 <b className="sell">可卖出信号 {orderFlowCardSellStrength.label}</b>
               </div>
-              <details className="order-flow-details"><summary>查看订单流细节 <small>Delta、盘口、行为传感器</small></summary>
               <div className="order-flow-section-head"><span>主动成交 · Delta</span><small>净额</small></div>
               <div className="order-flow-delta-grid" aria-label="订单流Delta指标">
                 {[{label:"Delta 1分",value:zijinOrderFlowRadar.delta?.oneMinute},{label:"Delta 3分",value:zijinOrderFlowRadar.delta?.threeMinute},{label:"Delta 5分",value:zijinOrderFlowRadar.delta?.fiveMinute}].map(metric=>{
@@ -6844,37 +6824,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <span title="冰山强度必须来自持续补单字段；未采集时不推断冰山。"><em>冰山补单</em><b>{web4Microstructure.behavior.iceberg.available?`买 ${web4Microstructure.behavior.iceberg.buy??0} · 卖 ${web4Microstructure.behavior.iceberg.sell??0}`:"未采集"}</b></span>
                 <span title="基于近端盘口快照深度的变化，只作变薄观察，不预言后续价格。"><em>流动性</em><b>{web4Microstructure.behavior.liquidityVacuum.available?(web4Microstructure.behavior.liquidityVacuum.value?"流动性变薄（观察）":"近端深度未变薄"):"待数据"}</b></span>
               </div>
-              </details>
               {zijinVisibleFootprint.length>0&&<details className="order-flow-footprint" aria-label="当前分钟逐价成交足迹">
                 <summary><span>逐价成交足迹</span><small>买 / 卖量 · 当前分钟</small></summary>
                 <div>{zijinVisibleFootprint.map(row=><span className={row.deltaVolume>=0?"buy":"sell"} key={`${row.price}-${row.trades}`}><em>¥{row.price.toFixed(2)}</em><b>买 {formatIntradayVolume(row.buyVolume)}</b><i>卖 {formatIntradayVolume(row.sellVolume)}</i></span>)}</div>
               </details>}
             </>:<div className="order-flow-paused" role="status"><b>当前订单流不作判断</b><small>{web4Microstructure.stale?"L2快照已延迟；恢复真实逐笔后再展开行为指标。":"等待当前分钟的真实逐笔与盘口快照。"}</small></div>}
           </section>}
-          {afterHoursSummary&&<div className="after-hours-strip" role="status" aria-label="盘后固定价格交易数据">
-            <span><i/>盘后固定价</span><b>15:05–15:30</b><strong>¥{afterHoursSummary.price.toFixed(2)}</strong>
-            <small>{afterHoursSummary.points} 个成交点 · 成交量 {afterHoursSummary.totalVolume.toLocaleString("zh-CN")} · 仅展示，不触发做 T 信号</small>
-          </div>}
-          <div className="signal-tape">
-            <span className="tape-title">信号证据</span>
-            <span><i className={openingAssessment.session==="低开"||openingAssessment.session==="高开"?"ok":"wait"}>{openingAssessment.session==="低开"||openingAssessment.session==="高开"?"✓":"·"}</i>{openingAssessment.gapText}</span>
-            <span><i className={decisionModel.referenceConfirmed?"ok":"wait"}>{decisionModel.referenceConfirmed?"✓":"·"}</i>开盘价 + VWAP</span>
-            <span><i className={decisionModel.trendConfirmed?"ok":"wait"}>{decisionModel.trendConfirmed?"✓":"·"}</i>连续走势确认</span>
-            {stock?.code==="601899"&&<span title={zijinAhLinkage.reason}><i className={zijinAhLinkage.available&&zijinAhLinkage.state!=="neutral"?"ok":"wait"}>{zijinAhLinkage.available&&zijinAhLinkage.state!=="neutral"?"✓":"·"}</i>{zijinAhLinkage.label}</span>}
-            <span><i className={decisionModel.inDecisionWindow?"ok":"wait"}>{decisionModel.inDecisionWindow?"✓":"·"}</i>{decisionModel.lastTime||"--:--"} 时间门控</span>
-          </div>
-        </div>
-
-        <div className="decision-panel-resizer" role="separator" aria-label="调整右侧决策面板宽度" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={520} aria-valuenow={decisionPanelWidth} onPointerDown={handleDecisionPanelResizeStart} onPointerMove={handleDecisionPanelResize} onPointerUp={handleDecisionPanelResizeEnd} onPointerCancel={handleDecisionPanelResizeEnd} onDoubleClick={()=>setDecisionPanelWidth(380)}>
-          <i aria-hidden="true"/><button type="button" onClick={()=>setDecisionPanelCollapsed(value=>!value)} title={decisionPanelCollapsed?"展开决策面板":"折叠决策面板"} aria-pressed={decisionPanelCollapsed}>{decisionPanelCollapsed?"‹":"›"}</button>
-        </div>
-        <aside className={`decision-zone ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`}>
-          <div className="terminal-rail-tabs" role="tablist" aria-label="盘口与策略">
-            <button role="tab" aria-selected={terminalRailTab==="market"} onClick={()=>setTerminalRailTab("market")}>行情 / 盘口</button>
-            <button role="tab" aria-selected={terminalRailTab==="strategy"} onClick={()=>setTerminalRailTab("strategy")}>双兔策略 / 执行</button>
-          </div>
-          {terminalRailTab==="market"&&<TerminalMarketRail code={stock.code} name={activeQuote?.name||stock.name} price={activeQuote?.price} changePercent={activeQuote?.changePercent} l2={isZijinStock?liveL2Status:null} />}
-          <div className="terminal-strategy-content" hidden={terminalRailTab!=="strategy"}>
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>
@@ -7214,14 +7169,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <div className="risk-box"><div><span>当前利润模式</span><b>{activeProfitSummary.label}</b></div><div><span>风险边界</span><b>-0.60%</b></div><p>{activeProfitSummary.id==="zijin-small-spread"?"每股毛价差至少 ¥0.10，并且扣除佣金、印花税和双向滑点后至少盈利 ¥30 才启动保护；继续上涨则持有，回吐后退出，0.30% 净收益直接锁定。":"扣费净收益达到 0.64% 后启动利润保护；走势继续有利则持有，出现连续反向动能或明显回吐才退出，达到 1.00% 上限直接锁定。"}</p></div>
           <button className="automation-reserved" disabled><span><i />自动交易接口</span><b>已预留 · 当前关闭</b></button>
           <div className="position-row"><span>计划仓位</span><div className="position-dots"><i className="on"/><i/><i/></div><b>1 / 3</b></div>
-          </div>
         </aside>
       </section>
 
       <section className="lower-panel">
         <div className={`history ${historyCollapsed?'collapsed':''}`}>
-          <div className="lower-tabs">{['今日T循环','历史信号','模拟记录','每日复盘','KDJ'].map(item=><button key={item} onClick={()=>{setPanel(item);setHistoryCollapsed(false)}} className={panel===item?'active':''}>{item}</button>)}<button type="button" className="history-collapse-toggle" onClick={()=>setHistoryCollapsed(current=>!current)} aria-expanded={!historyCollapsed}>{historyCollapsed?'展开':'收起'} <span aria-hidden="true">{historyCollapsed?'▾':'▴'}</span></button></div>
-          {!historyCollapsed&&(panel==="KDJ"?<div className="terminal-kdj-panel"><b>KDJ(9,3,3)</b><span>K <strong>{kdjSnapshot?.k.toFixed(1)??"—"}</strong></span><span>D <strong>{kdjSnapshot?.d.toFixed(1)??"—"}</strong></span><span>J <strong>{kdjSnapshot?.j.toFixed(1)??"—"}</strong></span><small>仅使用最近已发生分钟数据 · 不构成买卖信号</small></div>:panel==="每日复盘"?<DailyClosedLoopReview review={dailyClosedLoopReview} tradingDate={tradingDate}/>:<><div className="history-head"><span>时间</span><span>方向</span><span>价格</span><span>数量</span><span>价差</span><span>状态</span></div>
+          <div className="lower-tabs">{['今日T循环','历史信号','模拟记录','每日复盘'].map(item=><button key={item} onClick={()=>{setPanel(item);setHistoryCollapsed(false)}} className={panel===item?'active':''}>{item}</button>)}<button type="button" className="history-collapse-toggle" onClick={()=>setHistoryCollapsed(current=>!current)} aria-expanded={!historyCollapsed}>{historyCollapsed?'展开':'收起'} <span aria-hidden="true">{historyCollapsed?'▾':'▴'}</span></button></div>
+          {!historyCollapsed&&(panel==="每日复盘"?<DailyClosedLoopReview review={dailyClosedLoopReview} tradingDate={tradingDate}/>:<><div className="history-head"><span>时间</span><span>方向</span><span>价格</span><span>数量</span><span>价差</span><span>状态</span></div>
           {deskHistoryRows.length?deskHistoryRows.map((row,index)=><div className="history-row" key={`${row.time}-${row.direction}-${index}`}><span>{row.time}</span><span className={row.tone??""}>{row.direction}</span><span>{row.price}</span><span>{row.quantity}</span><span className={row.spread.startsWith("+")?"accent":""}>{row.spread}</span><span>{row.status}</span></div>):<div className="history-empty"><b>{panel==="今日T循环"?"暂无已确认闭环":panel==="历史信号"?"当前尚无候选或正式信号":"当前尚无正式模拟动作"}</b><span>{panel==="今日T循环"?"真实成交等量配对后显示":panel==="历史信号"?"候选或正式信号出现后显示":"正式模拟动作出现后显示"}</span></div>}</>)}
         </div>
         <div className={`agents ${agentOpen ? 'open' : ''}`}>
@@ -7691,7 +7645,6 @@ type ZijinShadowProgressStatus = {
 };
 type L2FootprintLevel={price:number;buyVolume:number;sellVolume:number;deltaVolume:number;buyNotional?:number;sellNotional?:number;trades:number};
 type ZijinL2State = {
-  recentTransactions?:{receivedAt:number;side:string;price:number;volume:number}[];
   node?:string; error?:string; lastExchangeTime?:string;
   status?:{connected?:boolean;transportConnected?:boolean;authorized?:boolean;collectorAlive?:boolean;collectorStale?:boolean;heartbeatAgeSeconds?:number|null;feedAgeSeconds?:number|null;stale?:boolean;ageSeconds?:number};
   meta?:{collectorAlive?:boolean;collectorStale?:boolean;heartbeatAgeSeconds?:number|null;stale?:boolean;servedAt?:string};
