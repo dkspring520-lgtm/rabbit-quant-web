@@ -6799,8 +6799,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             {orderFlowCurrentAvailable?<>
               <div className="order-flow-score-row" aria-label="订单流影子行为评分">
                 <span>影子行为分 <small>非胜率</small></span>
-                <b className="buy">可买入信号 {orderFlowCardBuyStrength.label}</b>
-                <b className="sell">可卖出信号 {orderFlowCardSellStrength.label}</b>
+                <b className="buy"><span>可买入信号</span><strong>{orderFlowCardBuyStrength.label}</strong></b>
+                <b className="sell"><span>可卖出信号</span><strong>{orderFlowCardSellStrength.label}</strong></b>
               </div>
               <details className="order-flow-details"><summary>查看订单流细节 <small>Delta、盘口、行为传感器</small></summary>
               <div className="order-flow-section-head"><span>主动成交 · Delta</span><small>净额</small></div>
