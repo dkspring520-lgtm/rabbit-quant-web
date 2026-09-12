@@ -1,6 +1,7 @@
 "use client";
 import {openingPathEvents} from '../lib/opening-path.mjs';
 import {advanceSlice} from '../lib/slice-alerts.mjs';
+import {openingScoreEvents} from '../lib/opening-score.mjs';
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import dynamic from "next/dynamic";
@@ -4608,6 +4609,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const orderFlowCurrentAvailable=Boolean(zijinOrderFlowRadar.available&&web4Microstructure.stale!==true);
   const pathEvents=useMemo(()=>openingPathEvents(minutePoints.slice(0,-1),activeQuote?.previousClose),[minutePoints,activeQuote?.previousClose]);
   const [selectedPathEvent,setSelectedPathEvent]=useState<string|null>(null);
+  const [selectedOpeningScore,setSelectedOpeningScore]=useState<string|null>(null);
+  const openingChartScores=useMemo(()=>openingScoreEvents(minutePoints.slice(0,-1),activeQuote?.previousClose),[minutePoints,activeQuote?.previousClose]);
   const sliceChartEvents=useMemo(()=>{
     const rows=liveL2Status?.recentMinutes??[];
     let state:any={};
@@ -6653,6 +6656,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {isZijinStock&&pathEvents.map(event=><g key={event.id} role="button" tabIndex={0} aria-label={event.state} onClick={()=>setSelectedPathEvent(event.id)} onKeyDown={key=>{if(key.key==='Enter')setSelectedPathEvent(event.id)}} style={{cursor:'pointer'}}><title>{event.state}：{event.reasons.join('；')}</title><circle cx={viewportChartX(event.time)} cy={liveChartPriceY(event.price,chartModel.min,chartModel.max)} r="5" fill={event.side==='buy'?'#28d7c4':event.side==='sell'?'#ff655f':'#d6a84d'}/></g>)}
+              {isZijinStock&&openingChartScores.map(event=>{const x=viewportChartX(event.time),y=liveChartPriceY(event.price,chartModel.min,chartModel.max);return <g key={event.id} role="button" tabIndex={0} aria-label={`${event.time} ${event.label}观察${event.score}分`} onClick={()=>setSelectedOpeningScore(selectedOpeningScore===event.id?null:event.id)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedOpeningScore(selectedOpeningScore===event.id?null:event.id);}}}><title>{event.time} · {event.label} · 观察{event.score}分 · {event.reasons.join('、')} · 非交易指令，不触发语音</title><circle cx={x} cy={y} r="5" fill="#dca838"/><text x={x+6} y={y+30} textAnchor="start" style={{fontSize:11,fontWeight:800,fill:'#dca838',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{event.label} {event.score}分</text>{selectedOpeningScore===event.id&&<text x={x+6} y={y+46} style={{fontSize:10,fill:'var(--text)',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{event.reasons.join(' · ')}（仅观察）</text>}</g>})}
               {isZijinStock&&sliceChartEvents.map(event=>{const x=viewportChartX(event.time),y=liveChartPriceY(event.price,chartModel.min,chartModel.max),label=`${event.side==='buy'?'买方':'卖方'}${event.score}分`;return <g key={event.id} aria-label={`${event.time} ${label}`}><title>{event.time} · {label} · 订单流观察评分，非成交指令</title><circle cx={x} cy={y} r="4" fill={event.side==='buy'?'#28d7c4':'#ff655f'}/><text x={x} y={event.side==='buy'?y+16:y-12} textAnchor="middle" style={{fontSize:10,fontWeight:800,fill:event.side==='buy'?'#28d7c4':'#ff655f',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{label}</text></g>})}
               {false&&isZijinStock&&orderFlowChartPoint&&<g className="intraday-order-flow-badge" transform={`translate(${orderFlowChartPoint.x} ${orderFlowChartPoint.y})`} aria-label={`订单流影子评分：正T ${orderFlowBuyStrength.label}，反T ${orderFlowSellStrength.label}`}>
                 <title>{`${orderFlowChartPoint.time.slice(0,2)}:${orderFlowChartPoint.time.slice(2)} · 订单流影子评分 · 正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label} · 仅作质量观察，不影响正式闭环`}</title>
