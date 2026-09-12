@@ -4277,3 +4277,11 @@
   .order-flow-formal-link{padding:6px;gap:4px}
   .order-flow-score-row{gap:4px}
 }
+/* Modal detail typography must not inherit the compact console's 8px labels. */
+dialog.flow-detail-drawer {font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+dialog.flow-detail-drawer p {font-size:14px;line-height:1.65;margin:12px 0}
+dialog.flow-detail-drawer small,dialog.flow-detail-drawer em {font-size:12px;line-height:1.5}
+dialog.flow-detail-drawer b {font-size:14px;line-height:1.5}
+dialog.flow-detail-drawer .order-flow-health-grid {grid-template-columns:1fr;gap:12px}
+dialog.flow-detail-drawer .order-flow-formal-link {gap:12px;padding:14px}
+dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
