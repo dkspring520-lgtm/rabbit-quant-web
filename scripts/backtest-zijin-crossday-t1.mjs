@@ -3,8 +3,9 @@ import { runSmartTReplay } from '../lib/smart-t-engine.mjs';
 
 const file = process.argv[2];
 if (!file) throw new Error('usage: node scripts/backtest-zijin-crossday-t1.mjs <jsonl>');
+const year = process.argv[3] ?? 'all';
 const sessions = fs.readFileSync(file, 'utf8').trim().split(/\r?\n/).map(JSON.parse)
-  .filter(x => x.symbol === '601899').sort((a,b) => String(a.date).localeCompare(String(b.date)));
+  .filter(x => x.symbol === '601899' && (year === 'all' || String(x.date).startsWith(year))).sort((a,b) => String(a.date).localeCompare(String(b.date)));
 const lot = n => Math.floor(Math.max(0, n) / 100) * 100;
 const buyFee = (p,q) => Math.max(5, p*q*.025/100);
 const sellFee = (p,q) => Math.max(5, p*q*.025/100) + p*q*.05/100;
@@ -35,4 +36,4 @@ for (const s of sessions) {
   daily.push({date:s.date, actions:dayActions, cash:Number(cash.toFixed(2)), total, sellable, equity:Number((cash+total*last).toFixed(2))});
 }
 const first = daily[0]?.equity ?? 0, last = daily.at(-1)?.equity ?? 0;
-console.log(JSON.stringify({kind:'zijin-crossday-t1',sessions:daily.length,trades,rejected,costs:Number(costs.toFixed(2)),startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),daily},null,2));
+console.log(JSON.stringify({kind:'zijin-crossday-t1',year,sessions:daily.length,trades,rejected,costs:Number(costs.toFixed(2)),startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),daily},null,2));
