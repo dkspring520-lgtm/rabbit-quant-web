@@ -44,4 +44,4 @@ for (const s of sessions) {
 }
 const first = initialCash, last = daily.at(-1)?.equity ?? initialCash;
 const holdLast = daily.at(-1) ? (initialCash - initialShares*initialRef) + initialShares*Number(sessions.at(-1).minutes.at(-1).price) : initialCash;
-console.log(JSON.stringify({kind:'zijin-crossday-t1',year,lateReverseCutoff,sessions:daily.length,trades,rejected,costs:Number(costs.toFixed(2)),startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),holdEndEquity:Number(holdLast.toFixed(2)),excessVsHold:Number((last-holdLast).toFixed(2)),daily},null,2));
+console.log(JSON.stringify({kind:'zijin-crossday-t1',year,lateReverseCutoff,execution:{signalToNextMinute:true,slippagePct:0.02,t1:true,feesIncluded:true,holdBenchmark:true},sessions:daily.length,trades,rejected,costs:Number(costs.toFixed(2)),startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),holdEndEquity:Number(holdLast.toFixed(2)),excessVsHold:Number((last-holdLast).toFixed(2)),daily},null,2));
