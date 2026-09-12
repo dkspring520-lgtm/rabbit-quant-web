@@ -4285,3 +4285,12 @@ dialog.flow-detail-drawer b {font-size:14px;line-height:1.5}
 dialog.flow-detail-drawer .order-flow-health-grid {grid-template-columns:1fr;gap:12px}
 dialog.flow-detail-drawer .order-flow-formal-link {gap:12px;padding:14px}
 dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
+/* Focused cockpit: quiet frame, readable scores, details on demand. */
+.app-shell.minimal-ui .decision-zone > .order-flow-top-card {border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:none;padding:12px;gap:6px}
+.app-shell.minimal-ui .decision-zone > .order-flow-top-card.ready {border-color:var(--line);border-left-color:var(--line)}
+.app-shell.minimal-ui .order-flow-top-card .order-flow-score-row {padding:0;gap:8px}
+.app-shell.minimal-ui .order-flow-top-card .order-flow-score-row > b {padding:8px;gap:4px;background:transparent;border-radius:4px;cursor:pointer}
+.app-shell.minimal-ui .order-flow-top-card .order-flow-score-row > b:focus-visible {outline:2px solid var(--teal);outline-offset:2px}
+.app-shell.minimal-ui .order-flow-top-card .order-flow-top-head button {font-size:12px;background:transparent;border:0;color:var(--muted);cursor:pointer}
+.app-shell.minimal-ui .order-flow-top-card > .order-flow-scope {margin:0;font-size:11px;line-height:1.5}
+.app-shell.minimal-ui .order-flow-top-card > button {font-size:12px}
