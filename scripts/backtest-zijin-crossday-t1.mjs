@@ -27,7 +27,8 @@ for (const s of sessions) {
     const i = rows.findIndex(x => String(x.time) === String(a.time));
     const fill = i >= 0 ? rows[i + 1] ?? null : null;
     if (!fill) { rejected++; continue; }
-    const price = Number(fill.price); const q = lot(a.quantity); if (!q || !Number.isFinite(price)) continue;
+    const rawPrice = Number(fill.price); const q = lot(a.quantity); if (!q || !Number.isFinite(rawPrice)) continue;
+    const price = rawPrice * (a.side === '买入' ? 1.0002 : 0.9998);
     if (a.side === '卖出') {
       if (q > sellable) { rejected++; continue; }
       cash += price*q - sellFee(price,q); costs += sellFee(price,q); sellable -= q; total -= q;
