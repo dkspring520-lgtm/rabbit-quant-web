@@ -1,7 +1,7 @@
 "use client";
+import {openingPathEvents} from '../lib/opening-path.mjs';
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
-import {SliceScorePanel} from './slice-score-panel';
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import type { ZijinFactorLifecycle } from "./zijin-factor-lifecycle-panel";
@@ -4605,6 +4605,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // The card may still show its transport state, but all behavior fields below
   // are withheld until both the radar and microstructure snapshot are current.
   const orderFlowCurrentAvailable=Boolean(zijinOrderFlowRadar.available&&web4Microstructure.stale!==true);
+  const pathEvents=useMemo(()=>openingPathEvents(minutePoints.slice(0,-1),activeQuote?.previousClose),[minutePoints,activeQuote?.previousClose]);
+  const [selectedPathEvent,setSelectedPathEvent]=useState<string|null>(null);
   const orderFlowCardStatus=orderFlowCurrentAvailable
     ?orderFlowTopStatus
     :web4Microstructure.stale
@@ -6612,7 +6614,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
              <div className="layer-switches" aria-label="图表图层开关"><button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button><button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="保留候选及策略短标与评分；普通观察文字仅在详情中显示" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
-          {isZijinStock&&<SliceScorePanel key={`${stock.code}:${activeChartDate}`} available={orderFlowCurrentAvailable} buy={Number(zijinOrderFlowRadar.scores?.lowBuy)} sell={Number(zijinOrderFlowRadar.scores?.takeProfit)} time={String(minutePoints.at(-1)?.time??'')} price={Number(minutePoints.at(-1)?.price)}/>}
+          {isZijinStock&&selectedPathEvent&&<div role="status">{pathEvents.find(event=>event.id===selectedPathEvent)?.state} · {pathEvents.find(event=>event.id===selectedPathEvent)?.reasons.join('；')} · 观察事件<button onClick={()=>setSelectedPathEvent(null)}>关闭</button></div>}
           <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
               <span className="rabbit-chart-avatar"/>
@@ -6637,7 +6639,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {isZijinStock&&orderFlowChartPoint&&<g className="intraday-order-flow-badge" transform={`translate(${orderFlowChartPoint.x} ${orderFlowChartPoint.y})`} aria-label={`订单流影子评分：正T ${orderFlowBuyStrength.label}，反T ${orderFlowSellStrength.label}`}>
+              {isZijinStock&&pathEvents.map(event=><g key={event.id} role="button" tabIndex={0} aria-label={event.state} onClick={()=>setSelectedPathEvent(event.id)} onKeyDown={key=>{if(key.key==='Enter')setSelectedPathEvent(event.id)}} style={{cursor:'pointer'}}><title>{event.state}：{event.reasons.join('；')}</title><circle cx={viewportChartX(event.time)} cy={liveChartPriceY(event.price,chartModel.min,chartModel.max)} r="5" fill={event.side==='buy'?'#28d7c4':event.side==='sell'?'#ff655f':'#d6a84d'}/></g>)}
+              {false&&isZijinStock&&orderFlowChartPoint&&<g className="intraday-order-flow-badge" transform={`translate(${orderFlowChartPoint.x} ${orderFlowChartPoint.y})`} aria-label={`订单流影子评分：正T ${orderFlowBuyStrength.label}，反T ${orderFlowSellStrength.label}`}>
                 <title>{`${orderFlowChartPoint.time.slice(0,2)}:${orderFlowChartPoint.time.slice(2)} · 订单流影子评分 · 正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label} · 仅作质量观察，不影响正式闭环`}</title>
                 <rect x="-50" y="-12" width="100" height="24" rx="6"/>
                 <text x="0" y="-1" textAnchor="middle">OF 影子</text>
