@@ -2,6 +2,8 @@
 import {openingPathEvents} from '../lib/opening-path.mjs';
 import {advanceSlice} from '../lib/slice-alerts.mjs';
 import {openingScoreEvents} from '../lib/opening-score.mjs';
+import OrderFlowDrawer from './order-flow-drawer';
+import {selectChartSession,snapshotTradingDate} from '../lib/chart-session.mjs';
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import dynamic from "next/dynamic";
@@ -203,12 +205,7 @@ function formalSyncErrorMessage(status:number,serverMessage=""){
   return serverMessage||"同步异常 · 将自动重试";
 }
 function marketDataSnapshotDate(data:MarketData|null|undefined){
-  const value=data?.sampleDate
-    ?? data?.sourceTimestamp
-    ?? data?.fetchedAt
-    ?? data?.intradaySessions?.at(-1)?.date
-    ?? null;
-  return normalizeMarketDate(value);
+  return snapshotTradingDate(data);
 }
 function mergeMarketDataSnapshot(current:MarketData|null|undefined,incoming:MarketData):MarketData{
   if(!current||current.quote.code!==incoming.quote.code)return incoming;
@@ -2533,47 +2530,19 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : marketSession.live
     ? {tone:"stale",label:"L2：订单流不可用",detail:`${l2ConsoleNode} · L2已过期，订单流影子观察已暂停；普通行情独立核验 · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
-  const incomingMinutePoints = useMemo(() => {
-    // The trial quote endpoint intentionally returns only the latest quote.
-    // Full minute history is carried by intradaySessions, so do not let a
-    // quote-only refresh blank the chart after the reference request already
-    // supplied a complete session.
-    const directMinutes=[
-      currentTrial?.minutes,
-      currentMarket?.minutes,
-      marketSnapshots[stock.code]?.minutes,
-    ].find(points=>Boolean(points?.length));
-    if(directMinutes?.length)return directMinutes;
-    const referenceDate=normalizeMarketDate(
-      currentTrial?.sampleDate
-        ??currentMarket?.sampleDate
-        ??currentTrial?.sourceTimestamp
-        ??currentMarket?.sourceTimestamp,
-    );
-    const sessions=[
-      ...(currentTrial?.intradaySessions??[]),
-      ...(currentMarket?.intradaySessions??[]),
-      ...(marketSnapshots[stock.code]?.intradaySessions??[]),
-    ]
-      .filter(session=>session.minutes?.length>0)
-      .filter(session=>{
-        const sessionDate=normalizeMarketDate(session.date);
-        return !referenceDate||!sessionDate||sessionDate<=referenceDate;
-      })
-      .sort((left,right)=>right.date.localeCompare(left.date));
-    return sessions[0]?.minutes??[];
-  },[currentMarket,currentTrial,marketSnapshots,stock.code]);
-  const minutePointCacheKey=`${stock.code}:${currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??""}`;
+  const selectedChartSession=useMemo(()=>selectChartSession([currentTrial,currentMarket,marketSnapshots[stock.code]]),[currentTrial,currentMarket,marketSnapshots,stock.code]);
+  const incomingMinutePoints=selectedChartSession.minutes as IntradayMinute[];
+  const minutePointCacheKey=`${stock.code}:${selectedChartSession.date??'unknown'}`;
   const minutePointCacheRef=useRef<{key:string;points:typeof incomingMinutePoints}>({key:"",points:[]});
   const rawMinutePoints=useMemo(()=>{
     if(incomingMinutePoints.length){
       minutePointCacheRef.current={key:minutePointCacheKey,points:incomingMinutePoints};
       return incomingMinutePoints;
     }
-    return minutePointCacheRef.current.key===minutePointCacheKey
+    return selectedChartSession.date&&minutePointCacheRef.current.key===minutePointCacheKey
       ?minutePointCacheRef.current.points
       :incomingMinutePoints;
-  },[incomingMinutePoints,minutePointCacheKey]);
+  },[incomingMinutePoints,minutePointCacheKey,selectedChartSession.date]);
   const l2MinutePoints=useMemo(()=>stock.code==="601899"?liveL2ByMinute:{},[stock.code,liveL2ByMinute]);
   const minutePoints = useMemo(() => {
     type LiveMinutePoint = {
@@ -3653,7 +3622,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>(isZijinStock?buildZijinL2CausalReplayObservations(minutePoints):[]) as ReplayObservation[],
     [isZijinStock,minutePoints],
   );
-  const activeChartDate=normalizeMarketDate(currentTrial?.sampleDate??currentMarket?.sampleDate??clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??null);
+  const activeChartDate=selectedChartSession.date;
   const currentObservations=useMemo(
     ()=>buildReplayChartObservations(stock?.code,minutePoints,(liveEngine.observations ?? []) as ReplayObservation[]),
     [stock?.code,minutePoints,liveEngine.observations],
@@ -4608,8 +4577,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // are withheld until both the radar and microstructure snapshot are current.
   const orderFlowCurrentAvailable=Boolean(zijinOrderFlowRadar.available&&web4Microstructure.stale!==true);
   const pathEvents=useMemo(()=>openingPathEvents(minutePoints.slice(0,-1),activeQuote?.previousClose),[minutePoints,activeQuote?.previousClose]);
-  const [selectedPathEvent,setSelectedPathEvent]=useState<string|null>(null);
-  const [selectedOpeningScore,setSelectedOpeningScore]=useState<string|null>(null);
+  const [flowDetail,setFlowDetail]=useState<{kind:'current'|'history';title:string;time?:string;price?:number;score?:number;reasons?:string[]}|null>(null);
+  useEffect(()=>setFlowDetail(null),[activeChartDate,isZijinStock]);
   const openingChartScores=useMemo(()=>openingScoreEvents(minutePoints.slice(0,-1),activeQuote?.previousClose),[minutePoints,activeQuote?.previousClose]);
   const sliceChartEvents=useMemo(()=>{
     const rows=liveL2Status?.recentMinutes??[];
@@ -6612,7 +6581,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
               {isZijinStock&&<span className="order-flow-legend"><i/>订单流 {liveL2HasTicks?"已接入":"待L2"}</span>}
-              {isZijinStock&&<span className={`order-flow-legend ${zijinOrderFlowRadar.available?"ready":"waiting"}`} title="0–100 是订单流影子行为评分，不是胜率、命中率或买卖概率；只做质量观察，不影响正式闭环"><i/>OF影子 {zijinOrderFlowRadar.available?`正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label}`:"待L2"}</span>}
               {isZijinStock&&<span className="strategy-signal-legend" aria-label="信号分类图例"><span title="紫金专属闭环正式信号"><i className="formal"/>正式</span><span title="V2.9 影子参考，不可执行"><i className="v29"/>V2.9</span><span title="V1 影子参考，不可执行"><i className="v1"/>V1</span></span>}
               {causalObservationLayer.length>0&&<span className="strategy-signal-legend observation-signal-legend" aria-label="观察层图例"><span title="拐点概率与 MACD 观察，仅供参考"><i className="observation"/>观察</span></span>}
               {intradayMarkerLayout.manualTrades.length>0&&<span className="manual-trade-legend" title="本机快捷打点，不会发送到券商"><i className="buy">B</i><i className="sell">S</i>模拟成交</span>}
@@ -6630,7 +6598,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
              <div className="layer-switches" aria-label="图表图层开关"><button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button><button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="保留候选及策略短标与评分；普通观察文字仅在详情中显示" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
           </div>
-          {isZijinStock&&selectedPathEvent&&<div role="status">{pathEvents.find(event=>event.id===selectedPathEvent)?.state} · {pathEvents.find(event=>event.id===selectedPathEvent)?.reasons.join('；')} · 观察事件<button onClick={()=>setSelectedPathEvent(null)}>关闭</button></div>}
+
           <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
             {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
               <span className="rabbit-chart-avatar"/>
@@ -6655,9 +6623,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {liveSecondChart&&<g className="live-second-layer" aria-label={`秒级观察轨迹，共 ${liveSecondPoints.length} 个有效报价点`}>{liveSecondChart.segments.map((segment,index)=><polyline key={index} points={segment.points} className="live-second-path"/>)}<circle cx={liveSecondChart.last.x} cy={liveSecondChart.last.y} r="2.4" className="live-second-dot"><title>{`${liveSecondChart.last.time.slice(0,2)}:${liveSecondChart.last.time.slice(2,4)}:${liveSecondChart.last.time.slice(4)} · 秒级观察 ${liveSecondChart.last.price.toFixed(2)}`}</title></circle></g>}
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
-              {isZijinStock&&pathEvents.map(event=><g key={event.id} role="button" tabIndex={0} aria-label={event.state} onClick={()=>setSelectedPathEvent(event.id)} onKeyDown={key=>{if(key.key==='Enter')setSelectedPathEvent(event.id)}} style={{cursor:'pointer'}}><title>{event.state}：{event.reasons.join('；')}</title><circle cx={viewportChartX(event.time)} cy={liveChartPriceY(event.price,chartModel.min,chartModel.max)} r="5" fill={event.side==='buy'?'#28d7c4':event.side==='sell'?'#ff655f':'#d6a84d'}/></g>)}
-              {isZijinStock&&openingChartScores.map(event=>{const x=viewportChartX(event.time),y=liveChartPriceY(event.price,chartModel.min,chartModel.max);return <g key={event.id} role="button" tabIndex={0} aria-label={`${event.time} ${event.label}观察${event.score}分`} onClick={()=>setSelectedOpeningScore(selectedOpeningScore===event.id?null:event.id)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedOpeningScore(selectedOpeningScore===event.id?null:event.id);}}}><title>{event.time} · {event.label} · 观察{event.score}分 · {event.reasons.join('、')} · 非交易指令，不触发语音</title><circle cx={x} cy={y} r="5" fill="#dca838"/><text x={x+6} y={y+30} textAnchor="start" style={{fontSize:11,fontWeight:800,fill:'#dca838',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{event.label} {event.score}分</text>{selectedOpeningScore===event.id&&<text x={x+6} y={y+46} style={{fontSize:10,fill:'var(--text)',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{event.reasons.join(' · ')}（仅观察）</text>}</g>})}
-              {isZijinStock&&sliceChartEvents.map(event=>{const x=viewportChartX(event.time),y=liveChartPriceY(event.price,chartModel.min,chartModel.max),label=`${event.side==='buy'?'买方':'卖方'}${event.score}分`;return <g key={event.id} aria-label={`${event.time} ${label}`}><title>{event.time} · {label} · 订单流观察评分，非成交指令</title><circle cx={x} cy={y} r="4" fill={event.side==='buy'?'#28d7c4':'#ff655f'}/><text x={x} y={event.side==='buy'?y+16:y-12} textAnchor="middle" style={{fontSize:10,fontWeight:800,fill:event.side==='buy'?'#28d7c4':'#ff655f',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{label}</text></g>})}
+              {isZijinStock&&pathEvents.map(event=><g key={event.id} role="button" tabIndex={0} onPointerDown={e=>e.stopPropagation()} aria-label={event.state} onClick={()=>setFlowDetail({kind:'history',title:event.state,time:event.time,price:event.price,reasons:event.reasons})} onKeyDown={key=>{if(key.key==='Enter'||key.key===' '){key.preventDefault();setFlowDetail({kind:'history',title:event.state,time:event.time,price:event.price,reasons:event.reasons});}}} style={{cursor:'pointer',pointerEvents:'bounding-box'}}><title>{event.state}：{event.reasons.join('；')}</title><circle cx={viewportChartX(event.time)} cy={liveChartPriceY(event.price,chartModel.min,chartModel.max)} r="5" fill={event.side==='buy'?'#28d7c4':event.side==='sell'?'#ff655f':'#d6a84d'}/></g>)}
+              {isZijinStock&&openingChartScores.map((event,index)=>{const x=viewportChartX(event.time),y=liveChartPriceY(event.price,chartModel.min,chartModel.max);let lastLabelX=-Infinity;let labelIndex=-1;for(let j=0;j<=index;j++){const candidateX=viewportChartX(openingChartScores[j].time);if(candidateX-lastLabelX>=180){lastLabelX=candidateX;labelIndex=j;}}const showLabel=labelIndex===index;return <g key={event.id} style={{cursor:'pointer',pointerEvents:'bounding-box'}} role="button" tabIndex={0} onPointerDown={e=>e.stopPropagation()} aria-label={`${event.time} ${event.label}观察${event.score}分`} onClick={()=>setFlowDetail({kind:'history',title:event.label,time:event.time,price:event.price,score:event.score,reasons:event.reasons})} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setFlowDetail({kind:'history',title:event.label,time:event.time,price:event.price,score:event.score,reasons:event.reasons});}}}><title>{event.time} · {event.label} · 观察{event.score}分 · {event.reasons.join('、')} · 非交易指令，不触发语音</title><circle cx={x} cy={y} r="5" fill="#dca838"/>{showLabel&&<text x={x+6} y={y+30} textAnchor={x>600?'end':'start'} style={{fontSize:11,fontWeight:800,fill:'#dca838',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{event.label} {event.score}分</text>}</g>})}
+              {isZijinStock&&sliceChartEvents.map(event=>{const x=viewportChartX(event.time),y=liveChartPriceY(event.price,chartModel.min,chartModel.max),label=`${event.side==='buy'?'买方':'卖方'}${event.score}分`;return <g key={event.id} style={{cursor:'pointer',pointerEvents:'bounding-box'}} role="button" tabIndex={0} onPointerDown={e=>e.stopPropagation()} aria-label={`${event.time} ${label}`} onClick={()=>setFlowDetail({kind:'history',title:label,time:event.time,price:event.price,score:event.score})} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setFlowDetail({kind:'history',title:label,time:event.time,price:event.price,score:event.score});}}}><title>{event.time} · {label} · 订单流观察评分，非成交指令</title><circle cx={x} cy={y} r="4" fill={event.side==='buy'?'#28d7c4':'#ff655f'}/><text x={x} y={event.side==='buy'?y+16:y-12} textAnchor="middle" style={{fontSize:10,fontWeight:800,fill:event.side==='buy'?'#28d7c4':'#ff655f',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{label}</text></g>})}
               {false&&isZijinStock&&orderFlowChartPoint&&<g className="intraday-order-flow-badge" transform={`translate(${orderFlowChartPoint.x} ${orderFlowChartPoint.y})`} aria-label={`订单流影子评分：正T ${orderFlowBuyStrength.label}，反T ${orderFlowSellStrength.label}`}>
                 <title>{`${orderFlowChartPoint.time.slice(0,2)}:${orderFlowChartPoint.time.slice(2)} · 订单流影子评分 · 正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label} · 仅作质量观察，不影响正式闭环`}</title>
                 <rect x="-50" y="-12" width="100" height="24" rx="6"/>
@@ -6803,10 +6771,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <aside className={`decision-zone ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`}>
           {isZijinStock&&<section className={`order-flow-top-card ${orderFlowCurrentAvailable?"ready":"waiting"} ${orderFlowFormalLink.state}`} aria-label="双兔订单流影子行为面板">
             <div className="order-flow-top-head">
-              <span><i/>双兔订单流 <em>影子行为层</em></span>
-              <b>{orderFlowCardStatus}</b>
+              <span><i/>双兔订单流 <em>观察评分</em></span>
+              <button type="button" onClick={()=>setFlowDetail({kind:'current',title:'数据状态与盘口'})}>{orderFlowCardStatus} ›</button>
             </div>
-            <p className="order-flow-scope">影子行为评分，不是胜率、命中率或买卖概率；只解释正式闭环，不生成、拦截或改写正式信号。</p>
+            <div className="order-flow-score-row" aria-label="当前买卖观察评分">
+              <span>当前评分 <small>非交易指令</small></span>
+              <b className="buy" role="button" tabIndex={0} onClick={()=>setFlowDetail({kind:'current',title:'买入评分 · 当前详情'})} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setFlowDetail({kind:'current',title:'买入评分 · 当前详情'});}}}><span>买入评分</span><strong>{orderFlowCurrentAvailable?orderFlowCardBuyStrength.label:"—"}</strong></b>
+              <b className="sell" role="button" tabIndex={0} onClick={()=>setFlowDetail({kind:'current',title:'卖出评分 · 当前详情'})} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setFlowDetail({kind:'current',title:'卖出评分 · 当前详情'});}}}><span>卖出评分</span><strong>{orderFlowCurrentAvailable?orderFlowCardSellStrength.label:"—"}</strong></b>
+            </div>
+            <p className="order-flow-scope" role="status">{orderFlowCurrentAvailable?`${pathEvents.at(-1)?.state??"路径待确认"} · ${orderFlowAsOfLabel}`:`${web4Microstructure.stale?"数据延迟":"等待真实逐笔"} · 暂不评分`}</p>
+            <button type="button" onClick={()=>setFlowDetail({kind:'current',title:'订单流详情'})}>依据与数据详情 ›</button>
+            <OrderFlowDrawer open={flowDetail!==null} onClose={()=>setFlowDetail(null)} title={flowDetail?.title??'订单流详情'}>
+            {flowDetail?.kind==='history'?<section aria-label="历史事件证据"><p>历史观察事件 · {activeChartDate??'交易日待核验'} {flowDetail.time}</p><p>价格 {flowDetail.price?.toFixed(2)}{flowDetail.score!=null?` · ${flowDetail.score}分`:null}</p>{flowDetail.reasons?.length?<ul>{flowDetail.reasons.map(reason=><li key={reason}>{reason}</li>)}</ul>:<p>该历史事件未保存逐项评分依据，不使用当前盘口补填。</p>}<p>失效条件：该事件未保存明确失效阈值，不能据此判断当前仍有效。</p><small>分数来自历史分钟重建，非成交记录；仅观察，不触发语音。</small></section>:<>
+              <p>当前数据 · {orderFlowAsOfLabel} · 随行情更新</p>
+            <p className="order-flow-scope">观察评分不是胜率或买卖概率，不生成、拦截或改写正式信号。图上分数是事件发生时的记录，与当前评分可能不同。</p>
             <div className="order-flow-health-grid" aria-label="订单流数据状态">
               <span><em>数据来源</em><b>{orderFlowCurrentAvailable?orderFlowDataLabel:web4Microstructure.stale?"数据延迟 · 不作判断":orderFlowDataLabel}</b><small>{orderFlowCurrentAvailable?orderFlowAsOfLabel:"等待当前逐笔"}</small></span>
               <span><em>新鲜度</em><b>{orderFlowFreshnessLabel}</b><small>{liveL2TransportText}</small></span>
@@ -6820,12 +6798,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <small>{orderFlowFormalLink.detail}</small>
             </div>
             {orderFlowCurrentAvailable?<>
-              <div className="order-flow-score-row" aria-label="订单流影子行为评分">
-                <span>影子行为分 <small>非胜率</small></span>
-                <b className="buy"><span>可买入信号</span><strong>{orderFlowCardBuyStrength.label}</strong></b>
-                <b className="sell"><span>可卖出信号</span><strong>{orderFlowCardSellStrength.label}</strong></b>
-              </div>
-              <details className="order-flow-details"><summary>查看订单流细节 <small>Delta、盘口、行为传感器</small></summary>
               <div className="order-flow-section-head"><span>主动成交 · Delta</span><small>净额</small></div>
               <div className="order-flow-delta-grid" aria-label="订单流Delta指标">
                 {[{label:"Delta 1分",value:zijinOrderFlowRadar.delta?.oneMinute},{label:"Delta 3分",value:zijinOrderFlowRadar.delta?.threeMinute},{label:"Delta 5分",value:zijinOrderFlowRadar.delta?.fiveMinute}].map(metric=>{
@@ -6848,12 +6820,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <span title="冰山强度必须来自持续补单字段；未采集时不推断冰山。"><em>冰山补单</em><b>{web4Microstructure.behavior.iceberg.available?`买 ${web4Microstructure.behavior.iceberg.buy??0} · 卖 ${web4Microstructure.behavior.iceberg.sell??0}`:"未采集"}</b></span>
                 <span title="基于近端盘口快照深度的变化，只作变薄观察，不预言后续价格。"><em>流动性</em><b>{web4Microstructure.behavior.liquidityVacuum.available?(web4Microstructure.behavior.liquidityVacuum.value?"流动性变薄（观察）":"近端深度未变薄"):"待数据"}</b></span>
               </div>
-              </details>
               {zijinVisibleFootprint.length>0&&<details className="order-flow-footprint" aria-label="当前分钟逐价成交足迹">
                 <summary><span>逐价成交足迹</span><small>买 / 卖量 · 当前分钟</small></summary>
                 <div>{zijinVisibleFootprint.map(row=><span className={row.deltaVolume>=0?"buy":"sell"} key={`${row.price}-${row.trades}`}><em>¥{row.price.toFixed(2)}</em><b>买 {formatIntradayVolume(row.buyVolume)}</b><i>卖 {formatIntradayVolume(row.sellVolume)}</i></span>)}</div>
               </details>}
             </>:<div className="order-flow-paused" role="status"><b>当前订单流不作判断</b><small>{web4Microstructure.stale?"L2快照已延迟；恢复真实逐笔后再展开行为指标。":"等待当前分钟的真实逐笔与盘口快照。"}</small></div>}
+            </>}
+            </OrderFlowDrawer>
           </section>}
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
