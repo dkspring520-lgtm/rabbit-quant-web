@@ -25,7 +25,7 @@ for (const s of sessions) {
     } else if (a.side === "买入") {
       const gross = a.price * q, c = fee("买入", a.price, q);
       if (cash < gross + c) { rejected++; continue; }
-      cash -= gross + c; total += q; costs += fee("买入", a.price, q);
+      cash -= gross; total += q; costs += c;
     }
   }
   const last = Number(rows.at(-1).price);
