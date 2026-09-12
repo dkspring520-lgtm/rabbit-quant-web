@@ -178,6 +178,8 @@ export type SmartTOptions = {
   gateAudit?: boolean;
   volatilityMode?: "fixed" | "causal-realized" | "causal-hybrid";
   directionPermission?: SmartTDirectionPermission;
+  lateReverseCutoff?: string;
+  shadowLateReverseCutoff?: string | null;
   similarityArchive?: Array<{
     date?: string;
     direction: "BUY_FIRST" | "SELL_FIRST";
