@@ -473,6 +473,7 @@ function recognizeStockState(bars: MarketBar[], quote: MarketData["quote"] | und
 }
 
 type ReplayAction = { time:string; side:"买入"|"卖出"|"买回"; price:number; quantity:number; curveIndex:number; direction?:"正T"|"反T"; cycleId?:number; reason?:string; confirmationScore?:number|null; meta?:{hold?:number;[key:string]:unknown} };
+type FormalAction = Omit<ReplayAction,"side"> & { side:"买入"|"卖出" };
 const formalActionSide=(value:unknown):"buy"|"sell"=>String(value??"").includes("卖")?"sell":"buy";
 const formalExecutionLabel=(direction:"正T"|"反T"|undefined,side:"buy"|"sell")=>
   direction==="反T"
@@ -1863,7 +1864,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     setFormalSyncState({status:localAuth&&!demoMode?"idle":"error",message:localAuth&&!demoMode?"等待正式信号":"请重新登录",at:null});
   },[accountName,localAuth,demoMode]);
   useEffect(()=>{try{localStorage.setItem(ZIJIN_MONITOR_STRATEGY_STORAGE_KEY,zijinMonitorStrategy)}catch{}},[zijinMonitorStrategy]);
-  const uploadClientFormalAction=useCallback(async({code,marketDate,action}:{code:string;marketDate:string;action:ReplayAction})=>{
+  const uploadClientFormalAction=useCallback(async({code,marketDate,action}:{code:string;marketDate:string;action:FormalAction})=>{
     if(!localAuth||demoMode||!code||!marketDate){
       if(!demoMode&&!localAuth)setFormalSyncState({status:"error",message:"请重新登录",at:Date.now()});
       return;
@@ -3858,7 +3859,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const key=`${action.time}:${action.side}:${action.direction??"正T"}`;
       if(seen.has(key))return;
       seen.add(key);
-      void uploadClientFormalAction({code:stock.code,marketDate:activeChartDate,action});
+      if(action.side!=="买回")void uploadClientFormalAction({code:stock.code,marketDate:activeChartDate,action});
     });
   },[activeChartDate,chartFormalStorageKey,liveEngine.actions,persistedChartFormalActions,stock.code,uploadClientFormalAction]);
   const rabbitTrackerSignal=useMemo(()=>{
