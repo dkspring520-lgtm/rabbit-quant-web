@@ -12,12 +12,14 @@ for(const session of sessions){
   cycles+=result.trades;
   for(const action of result.actions??[])if(action.side==='卖出'){
     formalSells++;const level=(action.price-low)/range;const before=rows.findIndex(r=>r.time===action.time);const prev=before>0?Number(rows[before-1].price):action.price;
+    const forward = Object.fromEntries([5,10,20].map(h => { const p=Number(rows[before+h]?.price); return [String(h), Number.isFinite(p) ? Number(((p/action.price-1)*100).toFixed(3)) : null]; }));
     const window=rows.slice(Math.max(0,before-10),before+1).map(r=>Number(r.price)).filter(Number.isFinite);
     const priorHigh=Math.max(...window), priorLow=Math.min(...window);
     const falling=action.price<prev, pullbackFromPriorHigh=(priorHigh-action.price)/Math.max(priorHigh-priorLow,.0001);
     const meta=action.meta??{};
     const lowRisk=level<.25 && !(pullbackFromPriorHigh>.35);
-    if(lowRisk) {blockedLowSells++;findings.push({date:session.date,time:action.time,price:action.price,dayLow:low,dayHigh:high,positionInRange:Number(level.toFixed(3)),falling,priorHigh,priorLow,pullbackFromPriorHigh:Number(pullbackFromPriorHigh.toFixed(3)),reason:action.reason,meta});}
+    if(lowRisk) {blockedLowSells++;findings.push({date:session.date,time:action.time,price:action.price,dayLow:low,dayHigh:high,positionInRange:Number(level.toFixed(3)),falling,priorHigh,priorLow,pullbackFromPriorHigh:Number(pullbackFromPriorHigh.toFixed(3)),forwardPct:forward,reason:action.reason,meta});}
+    else findings.push({date:session.date,time:action.time,price:action.price,positionInRange:Number(level.toFixed(3)),forwardPct:forward,reason:action.reason});
   }
 }
 console.log(JSON.stringify({kind:'formal-sell-audit',sessions:sessions.length,formalSells,cycles,suspiciousLowOrFallingSells:blockedLowSells,findings:findings.slice(0,100)},null,2));
