@@ -48,7 +48,7 @@ import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
 import { REFERENCE_DATA_BOOTSTRAP_DELAY_MS, clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "@/lib/client-polling-policy.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-reminder.mjs";
-import { conciseAlertSpeech, resolveAlertDelivery, hasFormalAlertScore } from "@/lib/alert-delivery-policy.mjs";
+import { conciseAlertSpeech, resolveAlertDelivery, hasFormalAlertScore, isRiskExitAction } from "@/lib/alert-delivery-policy.mjs";
 import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intraday-chart-model.mjs";
 import { intradayTooltipLayout } from "@/lib/intraday-layout.mjs";
 import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
@@ -1884,7 +1884,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     try{
       const response=await fetch('/api/control/alerts',{
         method:'POST',credentials:'include',cache:'no-store',headers:{'content-type':'application/json'},
-        body:JSON.stringify({code,marketDate:normalizedDate,action:{time:action.time,price:action.price,side:action.side,direction,reason:action.reason,confirmationScore:action.confirmationScore}}),
+        body:JSON.stringify({code,marketDate:normalizedDate,action:{time:action.time,price:action.price,side:action.side,direction,reason:action.reason,confirmationScore:action.confirmationScore,meta:{phase:action.meta?.phase,stop:action.meta?.stop,timeExit:action.meta?.timeExit,forceExit:action.meta?.forceExit}}}),
       });
       let payload:unknown=null;
       try{payload=await response.json()}catch{}
@@ -5574,8 +5574,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // A formal alert for the active chart must be visible on that chart first.
       // Other monitored stocks keep their background-alert behavior.
       const formalCharted=!active||Boolean(latest&&intradayMarkerLayout.actions.some(marker=>marker.action===latest));
-      const formalFresh=Boolean(latest&&formalCharted&&isRecentCausalEvent(lastTime,latest.time,3));
-      const riskMessage=active&&autoDecision.status==="locked"
+      const actionFresh=Boolean(latest&&formalCharted&&isRecentCausalEvent(lastTime,latest.time,3));
+      const riskExitFresh=actionFresh&&isRiskExitAction(latest);
+      const formalFresh=actionFresh&&!riskExitFresh&&hasFormalAlertScore(latest);
+      const riskMessage=riskExitFresh ? latest?.reason ?? "持仓风险退出提醒" : active&&autoDecision.status==="locked"
         ? autoDecision.reason
         : eventsByCode[item.code]?.gate.hardLock
           ? `事件雷达：${eventsByCode[item.code].gate.label}，${eventsByCode[item.code].gate.reason}。`
@@ -5666,10 +5668,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             : selectedAgent
               ? `${selectedAgent.reasons[0]}；紫金研究模型观察，不是买卖指令。`
               : `${selectedEngineCandidate!.reason}；${selectedEngineCandidate!.blockers.join("；")||"等待正式过滤确认"}`;
-      const alertTime=formalFresh?latest!.time:candidateTime;
-      const alertPrice=formalFresh?latest!.price:selectedExperimental?.price??selectedDisplacement?.price??selectedEngineCandidate?.price??points.find(point=>point.time===alertTime)?.price;
+      const alertTime=formalFresh||riskExitFresh?latest!.time:candidateTime;
+      const alertPrice=formalFresh||riskExitFresh?latest!.price:selectedExperimental?.price??selectedDisplacement?.price??selectedEngineCandidate?.price??points.find(point=>point.time===alertTime)?.price;
       const queued=queueAlert({code:item.code,eventKey:key,source:isRisk?"risk":formalFresh?"client-v4":"client-candidate",marketDate:eventDate,marketTime:alertTime,price:alertPrice,level:isRisk?"risk":formalFresh?"signal":"candidate",rabbit,title,message});
-      if(queued&&formalFresh&&latest)void uploadClientFormalAction({code:item.code,marketDate:eventDate,action:latest});
+      if(queued&&(formalFresh||riskExitFresh)&&latest)void uploadClientFormalAction({code:item.code,marketDate:eventDate,action:latest});
       if(queued&&formalFresh&&formalSideKey)lastFormalAlertAtBySide.current[formalSideKey]=Date.now();
       if(queued&&isZijinCandidate&&candidateSideKey)lastCandidateAlertBySide.current[candidateSideKey]={at:now,rank:candidateStageRank,time:candidateTime};
       const candidateSpeech=selectedExperimental

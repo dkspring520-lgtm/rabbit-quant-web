@@ -5,6 +5,19 @@ import { normalizeClientFormalAlert } from "../lib/client-formal-alert.mjs";
 const monitors = [{ code: "601899", name: "紫金矿业" }];
 const now = new Date("2026-08-28T12:00:00Z");
 
+test('risk exits synchronize without inventing a formal score', () => {
+  for (const flag of ['stop', 'timeExit', 'forceExit']) {
+    for (const [direction, side] of [['正T', '卖出'], ['反T', '买入']]) {
+      const input = { code: '601899', marketDate: '20260828', action: { time: '1035', price: 34, direction, side, meta: { phase: 'exit', [flag]: true } } };
+      const alert = normalizeClientFormalAlert(input, { monitors, now });
+      assert.equal(alert.level, 'risk');
+      assert.equal(alert.payload.action.confirmationScore, undefined);
+      assert.match(alert.eventKey, /risk-exit/);
+      assert.throws(() => normalizeClientFormalAlert({ ...input, action: { ...input.action, meta: { phase: 'entry', [flag]: true } } }, { monitors, now }), /60-100/);
+    }
+  }
+});
+
 test("formal score boundaries apply to both buy and sell signals", () => {
   for (const [direction, side] of [["正T", "买入"], ["反T", "卖出"]]) {
     const normalize = confirmationScore => normalizeClientFormalAlert({
