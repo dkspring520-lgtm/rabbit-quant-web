@@ -3565,6 +3565,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       profileOverrides:{...(profitOptions.profileOverrides??{}),...liveStrategyExperiment.profileOverrides},
       positionSizeMode:liveStrategyExperiment.positionSizeMode,
       strategyVersion:"closure-first",
+      lateReverseCutoff:isZijinStock?"1330":undefined,
       directionPermission:isZijinStock?{
         enabled:true,
         mode:"shadow-only",
@@ -4337,6 +4338,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         positionSizeMode:itemExperiment.positionSizeMode,
         volatilityMode:itemExperiment.volatilityMode,
         strategyVersion:itemExperiment.label,
+        lateReverseCutoff:item.code==="601899"?"1330":undefined,
       });
       const observations=item.code===stock?.code
         ? currentObservations
@@ -5553,6 +5555,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         positionSizeMode:itemExperiment.positionSizeMode,
         volatilityMode:itemExperiment.volatilityMode,
         strategyVersion:itemExperiment.label,
+        lateReverseCutoff:item.code==="601899"?"1330":undefined,
       });
       const observations=(replay.observations??[]) as ReplayObservation[];
       const latest=replay.actions.at(-1);
@@ -8773,6 +8776,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       positionSizeMode:experiment.positionSizeMode,
       volatilityMode:experiment.volatilityMode,
       strategyVersion:"closure-first",
+      lateReverseCutoff:code==="601899"?"1330":undefined,
     });
   };
   const replay=(data:MarketData,account?:{capital:number;baseShares:number;sellable:number}):BacktestResult=>replayWithEngine(data,account,replayEngine);
