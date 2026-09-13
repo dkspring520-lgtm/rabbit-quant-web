@@ -18,3 +18,4 @@ export type MarketDataQuality = {
 };
 export function assessMarketDataQuality(options?:Record<string,unknown>):MarketDataQuality;
 export function marketPhase(parts:Record<string,string>):string;
+export function shouldPreferL2Quote(options?:Record<string,unknown>):boolean;

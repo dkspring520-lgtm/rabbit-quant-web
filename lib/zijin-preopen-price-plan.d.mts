@@ -30,3 +30,4 @@ export function buildZijinPreopenPricePlan(input?:{
   l2Connected?:boolean;
   l2Stale?:boolean;
 }):ZijinPreopenPricePlan;
+export function evaluateZijinPreopenGate(input?:{plan?:ZijinPreopenPricePlan|null; minutes?:Array<Record<string,unknown>>}):Record<string,unknown>;
