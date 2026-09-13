@@ -6,7 +6,7 @@ export type ZijinOrderFlowRadarUnavailable = {
   asOfTime?: string | null;
   footprint?: Array<Record<string, unknown>>;
   reference?: Record<string, unknown>;
-  scores?: { lowBuy: number; takeProfit: number };
+  scores?: { lowBuy: number; takeProfit: number; stance?: string };
   efficiency?: Record<string, unknown>;
   observedMinutes?: number;
   delta?: number;
@@ -21,7 +21,7 @@ export type ZijinOrderFlowRadar = {
   delta: number;
   footprint: Array<Record<string, unknown>>;
   reference: Record<string, unknown>;
-  scores: { lowBuy: number; takeProfit: number };
+  scores: { lowBuy: number; takeProfit: number; stance: string };
   efficiency: Record<string, unknown>;
   [key: string]: unknown;
 };
