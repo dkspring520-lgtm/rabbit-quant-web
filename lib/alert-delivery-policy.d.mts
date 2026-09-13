@@ -1,5 +1,6 @@
 export type AlertDirection = "buy" | "sell" | null;
 export function hasFormalAlertScore(action: unknown): boolean;
+export function isRiskExitAction(action: unknown): boolean;
 
 export type DeliveryAlert = {
   id?: string;
