@@ -990,12 +990,15 @@ function pivotPresentation(observation:ReplayObservation,minutes:ReplayMinute[],
 
 type HistoricalSimilarityRow={
   date?:string;
-  direction?:string;
-  timeBucket?:string;
-  deviation?:number;
-  momentum3?:number;
-  volumeRatio?:number;
-  sessionMove?:number;
+  direction:"BUY_FIRST"|"SELL_FIRST";
+  timeBucket:string;
+  deviation:number;
+  momentum3:number;
+  volumeRatio:number;
+  sessionMove:number;
+  favorablePct:number;
+  adversePct:number;
+  hitTarget:boolean;
 };
 type PivotProbabilityCalibration={
   samples:number;
