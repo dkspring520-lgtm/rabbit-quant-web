@@ -85,4 +85,5 @@ export function evaluateStockAgent(options?:{
   previousClose?:number|null;
   historicalBars?:{date:string;open:number;high:number;low:number;close:number;volume?:number;amount?:number}[];
   sameTimeMedianNotional?:number|null;
+  preopenGate?:Record<string, unknown>|null;
 }):StockAgentEvaluation|null;
