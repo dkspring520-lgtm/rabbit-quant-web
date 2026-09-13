@@ -22,4 +22,5 @@ for(const session of sessions){
     else findings.push({date:session.date,time:action.time,price:action.price,positionInRange:Number(level.toFixed(3)),forwardPct:forward,reason:action.reason});
   }
 }
-console.log(JSON.stringify({kind:'formal-sell-audit',sessions:sessions.length,formalSells,cycles,suspiciousLowOrFallingSells:blockedLowSells,findings:findings.slice(0,100)},null,2));
+const forwardSummary=Object.fromEntries([5,10,20].map(h=>{const values=findings.map(row=>row.forwardPct?.[String(h)]).filter(Number.isFinite);return [String(h),{samples:values.length,averagePct:values.length?Number((values.reduce((sum,value)=>sum+value,0)/values.length).toFixed(3)):null,continuedAbove03Pct:values.length?Number((values.filter(value=>value>0.3).length/values.length*100).toFixed(2)):null}]}));
+console.log(JSON.stringify({kind:'formal-sell-audit',sessions:sessions.length,formalSells,cycles,suspiciousLowOrFallingSells:blockedLowSells,forwardSummary,findings:findings.slice(0,100)},null,2));
