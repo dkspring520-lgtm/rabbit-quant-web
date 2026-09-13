@@ -13,6 +13,7 @@ const lot = n => Math.floor(Math.max(0, n) / 100) * 100;
 const buyFee = (p,q) => Math.max(5, p*q*.025/100);
 const sellFee = (p,q) => Math.max(5, p*q*.025/100) + p*q*.05/100;
 let cash = 200000, total = 0, sellable = 0, costs = 0, rejected = 0, trades = 0;
+const rejectReasons = {};
 let initialCash = 200000, initialShares = 0, initialRef = 0;
 const daily = [];
 for (const s of sessions) {
@@ -26,7 +27,10 @@ for (const s of sessions) {
   for (const a of replay.actions ?? []) {
     const i = rows.findIndex(x => String(x.time) === String(a.time));
     const fill = i >= 0 ? rows[i + 1] ?? null : null;
-    if (!fill) { rejected++; continue; }
+    if (!fill) { rejected++; rejectReasons.noNextMinute = (rejectReasons.noNextMinute ?? 0) + 1; continue; }
+    if (fill.suspended || fill.trading === false || Number(fill.volume) === 0 || !Number.isFinite(Number(fill.price))) {
+      rejected++; rejectReasons.untradableNextMinute = (rejectReasons.untradableNextMinute ?? 0) + 1; continue;
+    }
     const rawPrice = Number(fill.price); const q = lot(a.quantity); if (!q || !Number.isFinite(rawPrice)) continue;
     const price = rawPrice * (a.side === '买入' ? 1.0002 : 0.9998);
     if (a.side === '卖出') {
@@ -44,4 +48,4 @@ for (const s of sessions) {
 }
 const first = initialCash, last = daily.at(-1)?.equity ?? initialCash;
 const holdLast = daily.at(-1) ? (initialCash - initialShares*initialRef) + initialShares*Number(sessions.at(-1).minutes.at(-1).price) : initialCash;
-console.log(JSON.stringify({kind:'zijin-crossday-t1',year,lateReverseCutoff,execution:{signalToNextMinute:true,slippagePct:0.02,t1:true,feesIncluded:true,holdBenchmark:true},sessions:daily.length,trades,rejected,costs:Number(costs.toFixed(2)),startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),holdEndEquity:Number(holdLast.toFixed(2)),excessVsHold:Number((last-holdLast).toFixed(2)),daily},null,2));
+console.log(JSON.stringify({kind:'zijin-crossday-t1',year,lateReverseCutoff,execution:{signalToNextMinute:true,slippagePct:0.02,t1:true,feesIncluded:true,holdBenchmark:true,untradableSkipped:true},sessions:daily.length,trades,rejected,rejectReasons,costs:Number(costs.toFixed(2)),startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),holdEndEquity:Number(holdLast.toFixed(2)),excessVsHold:Number((last-holdLast).toFixed(2)),daily},null,2));
