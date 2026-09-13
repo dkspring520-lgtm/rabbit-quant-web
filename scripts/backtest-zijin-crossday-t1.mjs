@@ -45,8 +45,8 @@ for (const s of sessions) {
       if (cash < cost) { rejected++; continue; }
       cash -= cost; costs += buyFee(price,q); total += q;
     }
-    if (!openLeg) openLeg = { direction: a.side === '买入' ? '正T' : '反T', price, quantity:q, fee:a.side === '买入' ? buyFee(price,q) : sellFee(price,q) };
-    else { const gross = openLeg.direction === '正T' ? (price-openLeg.price)*q : (openLeg.price-price)*q; const closeFee = a.side === '买入' ? buyFee(price,q) : sellFee(price,q); completedCycles.push({ direction:openLeg.direction, gross:Number(gross.toFixed(2)), fees:Number((openLeg.fee+closeFee).toFixed(2)), net:Number((gross-openLeg.fee-closeFee).toFixed(2)) }); openLeg=null; }
+    if (!openLeg) openLeg = { direction: a.side === '买入' ? '正T' : '反T', price, quantity:q, time:a.time, date:s.date, fee:a.side === '买入' ? buyFee(price,q) : sellFee(price,q) };
+    else { const gross = openLeg.direction === '正T' ? (price-openLeg.price)*q : (openLeg.price-price)*q; const closeFee = a.side === '买入' ? buyFee(price,q) : sellFee(price,q); completedCycles.push({ direction:openLeg.direction, entryTime:openLeg.time, exitTime:a.time, entryDate:openLeg.date, exitReason:a.reason ?? null, gross:Number(gross.toFixed(2)), fees:Number((openLeg.fee+closeFee).toFixed(2)), net:Number((gross-openLeg.fee-closeFee).toFixed(2)) }); openLeg=null; }
     dayActions++; trades++;
   }
   const last = Number(rows.at(-1).price);
