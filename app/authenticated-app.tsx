@@ -8979,7 +8979,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         losingRounds:dayNets.filter(value=>value<0).length,profitFactor,
         maxDrawdown:Math.max(0,...results.map(item=>item.result.maxDrawdown)),
         l2Required:requiresHistoricalL2,l2AvailableDays,l2MissingDays,l2MinuteCount,
-        recentDays:recentResults.length,recentCompleted:recentCycleNets.length,recentWins:recentCycleNets.filter(value=>value>0).length,recentNet,recentProfitFactor,healthStatus,approvalStatus,
+        recentDays:recentResults.length,recentCompleted:recentCycleNets.length,recentWins:recentCycleNets.filter(value=>value>0).length,recentNet,recentProfitFactor,healthStatus,healthReason:healthStatus==="近期稳定"?"近期样本扣费后为正且盈亏因子达标":"近期样本仍需继续积累或已转弱",riskBudgetStatus:"证据不足",riskBudgetReason:"当前多日回放尚未完成风险预算压力测试",approvalStatus,approvalBlockers:[],
         outcomes:results.map(item=>({date:item.date,trades:item.result.trades,wins:item.result.wins,net:item.result.net,candidates:item.result.diagnostics?.candidates??0})),cycles,
       };
       setMultiDay(report);
