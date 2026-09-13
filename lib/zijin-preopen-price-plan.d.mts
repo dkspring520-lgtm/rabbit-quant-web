@@ -32,7 +32,7 @@ export function buildZijinPreopenPricePlan(input?:{
 }):ZijinPreopenPricePlan;
 export function evaluateZijinPreopenGate(input?:{plan?:ZijinPreopenPricePlan|null; minutes?:Array<Record<string,unknown>>}): {
   mode: "shadow-only"; predictedDirection: string|null; anchorDirection: string|null;
-  anchorSource: string|null; allowedDirections: string[]; confirmationCount: number;
+  anchorSource: string|null; allowedDirections: Array<"正T"|"反T">; confirmationCount: number;
   requiredConfirmations: number; asOfTime: string|null; expiresAt: string;
   executable: boolean; affectsV4: boolean; phase: string; status: string; reason: string;
   [key: string]: unknown;
