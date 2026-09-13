@@ -9417,6 +9417,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
           <div className="result-primary"><span>{batch?"批次样本净收益":"净收益"}</span><strong className={result?pnlClass(result.net):""}>{result ? money(result.net) : "—"}</strong><em className={result?pnlClass(result.net):""}>{result ? `${(result.net/capital*100).toFixed(3)}%` : "运行后显示"}</em></div>
           <div><span>理论毛收益</span><b className={result?pnlClass(result.gross):""}>{result ? money(result.gross) : "—"}</b><small>未扣费用与滑点</small></div><div><span>费用与滑点</span><b className={result?"pnl-loss":""}>{result ? money(-(result.fees+result.executionCost)) : "—"}</b><small>佣金、印花税及双向滑点</small></div><div><span>最大回撤</span><b className={result&&result.maxDrawdown>0?"pnl-loss":""}>{result ? `-${(result.maxDrawdown*100).toFixed(3)}%` : "—"}</b><small>{source ? "费用进入逐点资金曲线" : "运行后显示"}</small></div>
         </div>
+        {multiDay&&multiDay.requestedDays>0&&multiDay.completed/multiDay.requestedDays<0.25&&<p className="candidate-audit-foot" role="status">样本覆盖不足：当前仅形成 {multiDay.completed}/{multiDay.requestedDays} 个正式闭环，结果只作研究参考，不代表稳定策略表现。</p>}
         {result&&<div className="equity-panel capital-curve-panel">
           <div className="panel-heading">
             <div><h2>历史资金曲线</h2><span>{multiDay?`${multiDay.scopeLabel} · 各交易日独立复位后累计研究盈亏`:`${formatDate(source?.sampleDate)} · 每个完整闭环后更新`} · 做T扣费后累计权益</span></div>
