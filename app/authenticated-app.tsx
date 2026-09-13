@@ -5790,9 +5790,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         if(monitorResponse.ok){
           const remote=await monitorResponse.json();
           if(Array.isArray(remote.monitors)&&remote.monitors.length){
-            const allowedMonitors=enforceWatchlistLimit(remote.monitors,accountRole,accountMembership?.active===true,accountMembership?.planId);
+            const monitorEntries=remote.monitors as Array<{code:string;name:string;position?:StockPosition}>;
+            const allowedMonitors=enforceWatchlistLimit(monitorEntries,accountRole,accountMembership?.active===true,accountMembership?.planId);
             const list=enforceWatchlistLimit(prepareWatchlistForCurrentEntry(allowedMonitors.map((item:{code:string;name:string})=>({code:item.code,name:item.name,price:'--',change:'0.00%'}))),accountRole,accountMembership?.active===true,accountMembership?.planId);
-            const positions=Object.fromEntries(allowedMonitors.map((item:{code:string;position:StockPosition})=>[item.code,normalizeStockPosition(item.position??{},item.code)]));
+            const positions=Object.fromEntries(allowedMonitors.map(item=>[item.code,normalizeStockPosition(item.position??{},item.code)]));
             setStockList(list);setStockPositions(positions);
             localStorage.setItem(`rabbit-watchlist:${accountName.toLowerCase()}`,JSON.stringify(list));
             for(const item of allowedMonitors)saveStockPosition(localStorage,accountName,normalizeStockPosition(item.position??{},item.code));
