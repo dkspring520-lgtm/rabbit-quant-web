@@ -6532,8 +6532,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             const quotePrice=Number(quote?.price);
             const quoteAvailable=Number.isFinite(quotePrice)&&quotePrice>0;
             const displayedPrice=quoteAvailable?quotePrice.toFixed(2):item.price;
-            const change=quoteAvailable&&Number.isFinite(quote?.changePercent)
-              ? `${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`
+            const changePercent=Number(quote?.changePercent);
+            const change=quoteAvailable&&Number.isFinite(changePercent)
+              ? `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`
               : displayedPrice==="--"?"--":item.change;
             const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>
               :radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>
