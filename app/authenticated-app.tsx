@@ -6107,7 +6107,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       })),
     ].flatMap(signal=>{
       const minute=minutePoints.find(point=>point.time===signal.time);
-      const price=Number.isFinite(signal.price)&&signal.price>0?signal.price:minute?.price;
+      const signalPrice=Number(signal.price);
+      const price=Number.isFinite(signalPrice)&&signalPrice>0?signalPrice:minute?.price;
       const key=`${signal.time}:${signal.isSell?"sell":"buy"}:${signal.label}`;
       if(!/^\d{4}$/.test(signal.time)||!Number.isFinite(price)||seen.has(key))return [];
       seen.add(key);
