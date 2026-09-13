@@ -9,6 +9,8 @@ const endDate = process.argv[5] ?? '';
 const lateReverseCutoff = process.argv[6] ?? null;
 const sessions = fs.readFileSync(file, 'utf8').trim().split(/\r?\n/).map(JSON.parse)
   .filter(x => x.symbol === '601899' && (year === 'all' || String(x.date).startsWith(year)) && (!startDate || String(x.date) >= startDate) && (!endDate || String(x.date) <= endDate)).sort((a,b) => String(a.date).localeCompare(String(b.date)));
+if (!sessions.length) throw new Error(`no 601899 sessions matched window: ${year} ${startDate}-${endDate}`);
+if (startDate && endDate && startDate > endDate) throw new Error('startDate must not be after endDate');
 const lot = n => Math.floor(Math.max(0, n) / 100) * 100;
 const buyFee = (p,q) => Math.max(5, p*q*.025/100);
 const sellFee = (p,q) => Math.max(5, p*q*.025/100) + p*q*.05/100;
