@@ -4803,7 +4803,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(change==null||!Number.isFinite(change))return {value:"待数据",detail:item?.label??"数据源待接入",tone:"waiting",ready:false};
       return {
         value:`${change>0?"+":""}${change.toFixed(2)}%`,
-        detail:item.label,
+        detail:item?.label??"数据源待接入",
         tone:change>.1?"positive":change<-.1?"negative":"neutral",
         ready:true,
       };
