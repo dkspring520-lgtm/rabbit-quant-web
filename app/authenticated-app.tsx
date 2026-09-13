@@ -1712,7 +1712,7 @@ function ReleaseVersion() {
   useEffect(()=>{
     let active=true;
     const load=()=>void fetch("/api/control/version",{cache:"no-store"})
-      .then(response=>response.ok?response.json():Promise.reject(new Error("version unavailable")))
+      .then((response:Response)=>response.ok?response.json():Promise.reject(new Error("version unavailable")))
       .then((payload:{shortCommit?:string;buildTime?:string|null;releaseShortCommit?:string;releaseBuildTime?:string|null})=>{if(active)setRelease(payload)})
       .catch(()=>{});
     load();
@@ -2026,7 +2026,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     validatedWatchlistSignature.current=signature;
     let cancelled=false;
     void fetch('/api/stock-identity',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({stocks:stockList.map(({code,name})=>({code,name}))})})
-      .then(async response=>{
+      .then(async (response:Response)=>{
         if(!response.ok)throw new Error('证券身份校验暂不可用');
         return response.json() as Promise<{stocks:StockIdentityResult[]}>;
       })
