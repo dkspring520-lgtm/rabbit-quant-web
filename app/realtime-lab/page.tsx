@@ -1528,6 +1528,8 @@ export default function RealtimeLabPage() {
   const alertCursor = useRef(0);
   const marketInFlight = useRef(false);
 
+  // URL hydration is an external input; initialize the controlled fields once.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     try {
       const stored = new URLSearchParams(window.location.search).get("code");
@@ -1538,6 +1540,8 @@ export default function RealtimeLabPage() {
     } catch {}
   }, []);
 
+  // Reset the realtime snapshot when the selected instrument changes.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setMarket({});
     setDesk({});
@@ -1552,6 +1556,8 @@ export default function RealtimeLabPage() {
     } catch {}
   }, [code]);
 
+  // Start and maintain the external market polling subscription.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== alertStorageKey(code)) return;
