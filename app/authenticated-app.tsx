@@ -786,7 +786,7 @@ type StockBatchFeedback = { code:string; name:string; date:string; sessions:numb
 type BatchBacktestResult = BatchMetrics & { seed:string; rounds:number; stocks:number; attemptedStocks:number; replacementStocks:number; overlapWithPrevious:number; uniqueSessions:number; noTrade:number; referenceStocks:number; candidateStocks:number; candidateDecisions:number; keyObservations:number; averageNet:number; medianNet:number; providers:string[]; universeSize:number; universeProvider:string; fallbackUniverse:boolean; industries:number; engineLabel:string; comparisonLabel:string; legacy:BatchMetrics; stockFeedback:StockBatchFeedback[] };
 type MultiDayRunKind = "recent"|"random-10"|"since-2025";
 type ZijinMonitorStrategy = "closure"|"v29"|"v1";
-type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; scopeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; l2Required:boolean; l2AvailableDays:number; l2MissingDays:number; l2MinuteCount:number; recentDays:number; recentCompleted:number; recentWins:number; recentNet:number; recentProfitFactor:number|null; healthStatus:"样本积累中"|"近期稳定"|"近期转弱"; healthReason:string; riskBudgetStatus:"证据不足"|"预算内"|"收紧"|"冻结"; riskBudgetReason:string; approvalStatus:"继续影子"|"待5bp压力测试"; approvalBlockers:string[]; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[] };
+type MultiDayBacktestResult = BatchMetrics & { code:string; name:string; modeLabel:string; scopeLabel:string; requestedDays:number; testedDays:number; firstDate:string; lastDate:string; noTrade:number; averageNet:number; l2Required:boolean; l2AvailableDays:number; l2MissingDays:number; l2MinuteCount:number; recentDays:number; recentCompleted:number; recentWins:number; recentNet:number; recentProfitFactor:number|null; healthStatus:"样本积累中"|"近期稳定"|"近期转弱"; healthReason:string; riskBudgetStatus:"证据不足"|"预算内"|"收紧"|"冻结"; riskBudgetReason:string; approvalStatus:"继续影子"|"待5bp压力测试"; approvalBlockers:string[]; outcomes:{date:string;trades:number;wins:number;net:number;candidates:number}[]; cycles:StockBatchCycle[] };
 
 type ZijinV29ReviewSnapshot={
   schemaVersion:1;
@@ -8966,6 +8966,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
       const l2MissingDays=requiresHistoricalL2?Math.max(0,sessions.length-preparedSessions.length):0;
       const winRate=cycleNets.length?cycleNets.filter(value=>value>0).length/cycleNets.length:0;
       const profitFactor=negative?positive/negative:positive>0?Number.POSITIVE_INFINITY:null;
+      const cycles=results.flatMap(item=>buildBatchCycles(item.result,{feeRate,slippage,minCommission,slippageMode}));
       const healthStatus=recentCycleNets.length<20?"样本积累中":recentNet>0&&(recentProfitFactor??0)>=1?"近期稳定":"近期转弱";
       const approvalStatus=results.length>=60&&cycleNets.length>=100&&winRate>=0.52&&(profitFactor??0)>=1.2&&net>0?"待5bp压力测试":"继续影子";
       const report:MultiDayBacktestResult={
@@ -8979,7 +8980,7 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         maxDrawdown:Math.max(0,...results.map(item=>item.result.maxDrawdown)),
         l2Required:requiresHistoricalL2,l2AvailableDays,l2MissingDays,l2MinuteCount,
         recentDays:recentResults.length,recentCompleted:recentCycleNets.length,recentWins:recentCycleNets.filter(value=>value>0).length,recentNet,recentProfitFactor,healthStatus,approvalStatus,
-        outcomes:results.map(item=>({date:item.date,trades:item.result.trades,wins:item.result.wins,net:item.result.net,candidates:item.result.diagnostics?.candidates??0})),
+        outcomes:results.map(item=>({date:item.date,trades:item.result.trades,wins:item.result.wins,net:item.result.net,candidates:item.result.diagnostics?.candidates??0})),cycles,
       };
       setMultiDay(report);
       setRunStatus(`${scopeLabel}完成：${report.completed} 个闭环，扣费后胜率 ${report.completed?(report.wins/report.completed*100).toFixed(1):"0.0"}%`);
