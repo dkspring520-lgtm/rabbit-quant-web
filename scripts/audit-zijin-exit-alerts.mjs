@@ -17,8 +17,11 @@ for (const session of sessions) {
     const reason = phase === 'entry' ? 'entry' : action.meta?.forceExit ? 'forceExit' : action.meta?.stop ? 'stop' : action.meta?.takeProfit ? 'takeProfit' : action.meta?.trailingProfit ? 'trailingProfit' : 'timeOrStructureExit';
     const group = groups[reason] ??= { actions: 0, eligibleForFormalSync: 0, eligibleForRiskSync: 0, unresolved: 0 };
     group.actions++;
-    group.eligibleForFormalSync += Number(hasFormalAlertScore(action));
-    group.eligibleForRiskSync += Number(isRiskExitAction(action));
+    // Match product precedence: a risk exit is never a formal buy/sell alert,
+    // even if it happens to carry a valid score.
+    const riskExit = isRiskExitAction(action);
+    group.eligibleForFormalSync += Number(!riskExit && hasFormalAlertScore(action));
+    group.eligibleForRiskSync += Number(riskExit);
     if (!hasFormalAlertScore(action) && !isRiskExitAction(action)) {
       group.unresolved++;
       missing.push({ date: session.date, time: action.time, side: action.side, phase, reason, confirmationScore: action.confirmationScore ?? null });
