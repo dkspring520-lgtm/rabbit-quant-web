@@ -219,8 +219,7 @@ function mergeMarketDataSnapshot(current:MarketData|null|undefined,incoming:Mark
   return {
     ...incoming,
     bars:incoming.bars?.length?incoming.bars:current.bars,
-    minutes:current.minutes,
-    intradaySessions:incoming.intradaySessions?.length?incoming.intradaySessions:current.intradaySessions,
+    minutes:current.minutes, bars:current.bars, intradaySessions:current.intradaySessions,
   };
 }
 type StockState = { label:string; level:"up"|"flat"|"down"|"risk"; score:number; summary:string; action:string; details:string[] };
@@ -2326,7 +2325,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         return;
       }
       try{
-        const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"});
+        const response=await fetch(`/api/research/zijin-l2-orderflow?t=${Date.now()}`,{cache:"no-store"},{timeoutMs:1_500,key:"zijin-l2-orderflow-poll"});
         const payload=await response.json() as ZijinL2State;
         applyPayload(payload);
       }catch{
@@ -6017,7 +6016,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const load = async () => {
       if (!shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       try {
-        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-quote`, { cache: "no-store" });
+        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-quote`, { cache: "no-store" }, {timeoutMs:1_800,key:`trading-desk-quote:${stock.code}`});
         if (!response.ok) throw new Error("trial quote unavailable");
         const data = await response.json() as MarketData;
         if (!cancelled) {
