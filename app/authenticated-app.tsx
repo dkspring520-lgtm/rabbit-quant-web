@@ -2030,7 +2030,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         if(!response.ok)throw new Error('证券身份校验暂不可用');
         return response.json() as Promise<{stocks:StockIdentityResult[]}>;
       })
-      .then(payload=>{
+      .then((payload:{stocks:StockIdentityResult[]})=>{
         if(cancelled||!Array.isArray(payload.stocks))return;
         const resolvedByInput=new Map(payload.stocks.filter(item=>item.status!=='unknown').map(item=>[item.inputCode,item]));
         const correctedCodes=new Map<string,string>();
