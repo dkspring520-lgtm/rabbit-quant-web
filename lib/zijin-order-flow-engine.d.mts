@@ -1,17 +1,34 @@
+export type ZijinOrderFlowDelta = {
+  oneMinute: number|null;
+  threeMinute: number|null;
+  fiveMinute: number|null;
+  oneMinuteVolume?: number|null;
+  threeMinuteVolume?: number|null;
+  fiveMinuteVolume?: number|null;
+  activeBuyRatio?: number|null;
+};
+export type ZijinOrderFlowFootprintRow = {
+  price: number;
+  buyVolume: number;
+  sellVolume: number;
+  deltaVolume: number;
+  trades?: number;
+};
+export type ZijinOrderFlowEvidence = { label: string; reason: string };
 export type ZijinOrderFlowRadarUnavailable = {
   available: false;
   reason: string;
   researchOnly: true;
   canCreateSignal: false;
   asOfTime?: string | null;
-  footprint?: Array<Record<string, unknown>>;
+  footprint?: ZijinOrderFlowFootprintRow[];
   reference?: Record<string, unknown>;
   scores?: { lowBuy: number; takeProfit: number; stance?: string };
   efficiency?: Record<string, unknown>;
   observedMinutes?: number;
-  delta?: number;
-  absorption?: Record<string, unknown>;
-  divergence?: Record<string, unknown>;
+  delta?: ZijinOrderFlowDelta;
+  absorption?: ZijinOrderFlowEvidence;
+  divergence?: ZijinOrderFlowEvidence;
 };
 export type ZijinOrderFlowRadar = {
   available: true;
@@ -19,11 +36,13 @@ export type ZijinOrderFlowRadar = {
   researchOnly: true;
   canCreateSignal: false;
   observedMinutes: number;
-  delta: { oneMinute: number|null; threeMinute: number|null; fiveMinute: number|null; oneMinuteVolume?: number|null; threeMinuteVolume?: number|null; fiveMinuteVolume?: number|null };
-  footprint: Array<Record<string, unknown>>;
+  delta: ZijinOrderFlowDelta;
+  footprint: ZijinOrderFlowFootprintRow[];
   reference: Record<string, unknown>;
   scores: { lowBuy: number; takeProfit: number; stance: string };
-  efficiency: Record<string, unknown>;
+  efficiency: ZijinOrderFlowEvidence;
+  absorption: ZijinOrderFlowEvidence;
+  divergence: ZijinOrderFlowEvidence;
   [key: string]: unknown;
 };
 export function evaluateZijinOrderFlowRadar(input?: {
