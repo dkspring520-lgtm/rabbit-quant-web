@@ -5,6 +5,16 @@ import { normalizeClientFormalAlert } from "../lib/client-formal-alert.mjs";
 const monitors = [{ code: "601899", name: "紫金矿业" }];
 const now = new Date("2026-08-28T12:00:00Z");
 
+test('a scored reverse-T buyback accepts the engine buy side without changing direction', () => {
+  const input = { code: '601899', marketDate: '20260828', action: { time: '1035', price: 34, direction: '反T', side: '买入', confirmationScore: 76 } };
+  const alert = normalizeClientFormalAlert(input, { monitors, now });
+  assert.equal(alert.level, 'formal');
+  assert.equal(alert.payload.action.side, '买入');
+  assert.equal(alert.payload.action.direction, '反T');
+  assert.match(alert.title, /买回/);
+  assert.throws(() => normalizeClientFormalAlert({ ...input, action: { ...input.action, confirmationScore: 59 } }, { monitors, now }), /60-100/);
+});
+
 test('risk exits synchronize without inventing a formal score', () => {
   for (const flag of ['stop', 'timeExit', 'forceExit']) {
     for (const [direction, side] of [['正T', '卖出'], ['反T', '买入']]) {
