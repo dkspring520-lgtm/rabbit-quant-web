@@ -4,10 +4,10 @@ import { observationConfirmationScore, signalStrengthPresentation } from "../lib
 
 test("scores are displayed in points, never as percentages or win rates", () => {
   const result = signalStrengthPresentation({ score: 70 });
-  assert.equal(result.label, "确认分 70");
+  assert.equal(result.label, "评分 70");
   assert.match(result.detail, /不代表历史命中率/);
   assert.doesNotMatch(result.label, /%/);
-  assert.equal(signalStrengthPresentation({ score: 0 }).label, "确认分 0");
+  assert.equal(signalStrengthPresentation({ score: 0 }).label, "评分 0");
 });
 
 test("invalid and missing scores never turn into zero", () => {
@@ -20,7 +20,7 @@ test("the existing calibrated price-path statistic is explicitly a hit rate", ()
   const result = signalStrengthPresentation({ score: 85, historicalProbability: 70 });
   assert.equal(result.label, "历史命中率 70%");
   assert.match(result.detail, /不是扣费后的交易胜率/);
-  assert.equal(signalStrengthPresentation({ score: 85, historicalProbability: NaN }).label, "确认分 85");
+  assert.equal(signalStrengthPresentation({ score: 85, historicalProbability: NaN }).label, "评分 85");
 });
 
 test("each strategy keeps its own scoring scale, not its entry threshold", () => {
