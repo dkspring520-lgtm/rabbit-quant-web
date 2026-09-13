@@ -14,6 +14,8 @@ const buyFee = (p,q) => Math.max(5, p*q*.025/100);
 const sellFee = (p,q) => Math.max(5, p*q*.025/100) + p*q*.05/100;
 let cash = 200000, total = 0, sellable = 0, costs = 0, rejected = 0, trades = 0;
 const rejectReasons = {};
+const completedCycles = [];
+let openLeg = null;
 let initialCash = 200000, initialShares = 0, initialRef = 0;
 const daily = [];
 for (const s of sessions) {
@@ -41,12 +43,16 @@ for (const s of sessions) {
       if (cash < cost) { rejected++; continue; }
       cash -= cost; costs += buyFee(price,q); total += q;
     }
+    if (!openLeg) openLeg = { direction: a.side === '买入' ? '正T' : '反T', price, quantity:q, fee:a.side === '买入' ? buyFee(price,q) : sellFee(price,q) };
+    else { const gross = openLeg.direction === '正T' ? (price-openLeg.price)*q : (openLeg.price-price)*q; const closeFee = a.side === '买入' ? buyFee(price,q) : sellFee(price,q); completedCycles.push({ direction:openLeg.direction, gross:Number(gross.toFixed(2)), fees:Number((openLeg.fee+closeFee).toFixed(2)), net:Number((gross-openLeg.fee-closeFee).toFixed(2)) }); openLeg=null; }
     dayActions++; trades++;
   }
   const last = Number(rows.at(-1).price);
   daily.push({date:s.date, actions:dayActions, cash:Number(cash.toFixed(2)), total, sellable, equity:Number((cash+total*last).toFixed(2))});
 }
 const first = initialCash, last = daily.at(-1)?.equity ?? initialCash;
+const wins = completedCycles.filter(c => c.net > 0), losses = completedCycles.filter(c => c.net < 0);
+const grossProfit = wins.reduce((n,c)=>n+c.net,0), grossLoss = Math.abs(losses.reduce((n,c)=>n+c.net,0));
 const holdLast = daily.at(-1) ? (initialCash - initialShares*initialRef) + initialShares*Number(sessions.at(-1).minutes.at(-1).price) : initialCash;
 let peak=first,maxDrawdown=0,maxDrawdownPct=0; for(const d of daily){peak=Math.max(peak,d.equity); maxDrawdown=Math.max(maxDrawdown,peak-d.equity); if(peak>0) maxDrawdownPct=Math.max(maxDrawdownPct,(peak-d.equity)/peak*100);}
-console.log(JSON.stringify({kind:'zijin-crossday-t1',year,lateReverseCutoff,execution:{signalToNextMinute:true,slippagePct:0.02,t1:true,feesIncluded:true,holdBenchmark:true,untradableSkipped:true},sessions:daily.length,trades,rejected,rejectReasons,costs:Number(costs.toFixed(2)),startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),holdEndEquity:Number(holdLast.toFixed(2)),excessVsHold:Number((last-holdLast).toFixed(2)),maxDrawdown:Number(maxDrawdown.toFixed(2)),maxDrawdownPct:Number(maxDrawdownPct.toFixed(2)),daily},null,2));
+console.log(JSON.stringify({kind:'zijin-crossday-t1',year,lateReverseCutoff,execution:{signalToNextMinute:true,slippagePct:0.02,t1:true,feesIncluded:true,holdBenchmark:true,untradableSkipped:true},sessions:daily.length,trades,rejected,rejectReasons,costs:Number(costs.toFixed(2)),cycles:completedCycles.length,wins:wins.length,losses:losses.length,winRatePct:completedCycles.length?Number((wins.length/completedCycles.length*100).toFixed(2)):0,profitFactor:grossLoss?Number((grossProfit/grossLoss).toFixed(3)):null,averageNet:completedCycles.length?Number((completedCycles.reduce((n,c)=>n+c.net,0)/completedCycles.length).toFixed(2)):0,startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),holdEndEquity:Number(holdLast.toFixed(2)),excessVsHold:Number((last-holdLast).toFixed(2)),maxDrawdown:Number(maxDrawdown.toFixed(2)),maxDrawdownPct:Number(maxDrawdownPct.toFixed(2)),daily},null,2));
