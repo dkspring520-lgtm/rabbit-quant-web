@@ -7051,7 +7051,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               </div>
               {"riskPlan" in displayedZijinPricePlan&&displayedZijinPricePlan.riskPlan&&<details className="zijin-risk-plan">
                 <summary>风控价位 <span>按需查看</span></summary>
-                {"bufferPct" in displayedZijinPricePlan.riskPlan&&<small className="zijin-risk-buffer">波动缓冲 {displayedZijinPricePlan.riskPlan.bufferPct.toFixed(2)}% · ¥{displayedZijinPricePlan.riskPlan.buffer.toFixed(2)}</small>}
+                {"bufferPct" in displayedZijinPricePlan.riskPlan&&<small className="zijin-risk-buffer">波动缓冲 {Number(displayedZijinPricePlan.riskPlan.bufferPct).toFixed(2)}% · ¥{"buffer" in displayedZijinPricePlan.riskPlan?Number(displayedZijinPricePlan.riskPlan.buffer).toFixed(2):"--"}</small>}
                 <div className="buy"><span>正T风控</span><b>止损 ¥{displayedZijinPricePlan.riskPlan.positiveT.hardStop.toFixed(2)}</b><small>止盈一 ¥{displayedZijinPricePlan.riskPlan.positiveT.takeProfit1.toFixed(2)} · 止盈二 ¥{displayedZijinPricePlan.riskPlan.positiveT.takeProfit2.toFixed(2)}</small></div>
                 <div className="sell"><span>反T风控</span><b>止损 ¥{displayedZijinPricePlan.riskPlan.reverseT.hardStop.toFixed(2)}</b><small>买回一 ¥{displayedZijinPricePlan.riskPlan.reverseT.takeProfit1.toFixed(2)} · 买回二 ¥{displayedZijinPricePlan.riskPlan.reverseT.takeProfit2.toFixed(2)}</small></div>
               </details>}
