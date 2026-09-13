@@ -11,7 +11,7 @@ test("formal score boundaries apply to both buy and sell signals", () => {
       code: "601899", marketDate: "2026-08-28",
       action: { time: "1035", price: 34.42, direction, side, confirmationScore },
     }, { monitors, now });
-    for (const score of [undefined, null, "", 0, 59, 59.99, 101, NaN, Infinity, -Infinity]) {
+    for (const score of [undefined, null, "", "76", [76], {}, true, 0, 59, 59.99, 101, NaN, Infinity, -Infinity]) {
       assert.throws(() => normalize(score), /60-100分/, `must reject ${String(score)} for ${side}`);
     }
     for (const score of [60, 76, 100]) {
