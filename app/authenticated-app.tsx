@@ -5707,8 +5707,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           const serverMessage=payload&&typeof payload==="object"&&"error" in payload&&typeof payload.error==="string"?payload.error:"";
           throw new Error(formalSyncErrorMessage(response.status,serverMessage));
         }
-        if(!payload||typeof payload!=="object"||!Array.isArray(payload.alerts))throw new Error("同步数据格式异常，将自动重试");
-        const alerts=payload.alerts as ServerControlAlert[];
+        const alertsPayload=payload&&typeof payload==="object"?payload as {alerts?: unknown}:null;
+        if(!alertsPayload||!Array.isArray(alertsPayload.alerts))throw new Error("同步数据格式异常，将自动重试");
+        const alerts=alertsPayload.alerts as ServerControlAlert[];
         if(alerts.length)serverAlertCursor.current=Math.max(serverAlertCursor.current,...alerts.map(item=>Number(item.id)||0));
         if(cancelled)return;
         recordServerFormalAlerts(alerts);
