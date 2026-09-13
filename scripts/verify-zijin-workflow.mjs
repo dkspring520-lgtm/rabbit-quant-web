@@ -13,9 +13,10 @@ const checks = {
   t1Included: crossday.execution?.t1 === true,
   l2HasMinutes: l2.quality.minutes > 0,
   l2NoTimeOrderErrors: l2.quality.badTimeOrder === 0,
-  formalScoreUnchanged: true,
+  formalScoreAtLeast60: crossday.formalScoreAudit?.actions > 0
+    && crossday.formalScoreAudit.invalid === 0,
 };
 const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
-const result = { kind: 'zijin-workflow-verification', checks, failed, status: failed.length ? 'FAIL' : 'PASS', evidence: { sessions: crossday.sessions, trades: crossday.trades, rejected: crossday.rejected, excessVsHold: crossday.excessVsHold, l2Minutes: l2.quality.minutes, l2StaleQuotes: l2.quality.staleQuotes } };
+const result = { kind: 'zijin-workflow-verification', checks, failed, status: failed.length ? 'FAIL' : 'PASS', evidence: { sessions: crossday.sessions, trades: crossday.trades, rejected: crossday.rejected, excessVsHold: crossday.excessVsHold, formalScoreAudit: crossday.formalScoreAudit, l2Minutes: l2.quality.minutes, l2StaleQuotes: l2.quality.staleQuotes } };
 console.log(JSON.stringify(result, null, 2));
 if (failed.length) process.exitCode = 1;
