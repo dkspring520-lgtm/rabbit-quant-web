@@ -4598,7 +4598,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const openingChartScores=useMemo(()=>openingScoreEvents(minutePoints.slice(0,-1),activeQuote?.previousClose),[minutePoints,activeQuote?.previousClose]);
   const sliceChartEvents=useMemo(()=>{
     const rows=liveL2Status?.recentMinutes??[];
-    let state:any={};
+    let state:{available?:boolean;episodeId?:string;levels?:Record<string,number>;events?:{id:string;time:string;price:number;side:string;score:number}[]}={};
     for(let index=0;index<rows.length-1;index++){
       const row=rows[index];
       if(row.time<'0935'||row.time>'1456'||(row.time>'1129'&&row.time<'1300'))continue;
