@@ -140,7 +140,7 @@ function mergeCurrentRun(payload: JsonRecord, automation: JsonRecord | null | un
     stage: run.stage || payload.stage,
     progress: Number.isFinite(run.progress) ? run.progress : payload.progress,
     message: run.currentTask || scheduler.reason || payload.message,
-    updatedAt: automation.updatedAt || payload.updatedAt,
+    updatedAt: automation?.updatedAt || payload.updatedAt,
   };
 }
 
