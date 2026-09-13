@@ -155,7 +155,7 @@ export default function FortunePage(){
     const rsi=losses?100-100/(1+gains/losses):gains?72:50;
     const recentVolume=avg(volumes.slice(-5)),baseVolume=avg(volumes.slice(-20));
     const volumeBoost=baseVolume&&momentum>0?Math.min(6,(recentVolume/baseVolume-1)*8):0;
-    const fractals=values.slice(1,-1).flatMap((value,index)=>{
+    const fractals=values.slice(1,-1).flatMap<{type:"顶"|"底";index:number;value:number}>((value,index)=>{
       const i=index+1;
       if(value>values[i-1]&&value>values[i+1])return[{type:"顶" as const,index:i,value}];
       if(value<values[i-1]&&value<values[i+1])return[{type:"底" as const,index:i,value}];
@@ -236,7 +236,7 @@ export default function FortunePage(){
       if(projectionBand.length){ctx.beginPath();projectionBand.forEach((band,index)=>{const x=x0+(history.length+index+.5)*step,py=y(band.high);if(index===0)ctx.moveTo(x,py);else ctx.lineTo(x,py)});[...projectionBand].reverse().forEach((band,index)=>{const reverseIndex=projectionBand.length-index-1,x=x0+(history.length+reverseIndex+.5)*step;ctx.lineTo(x,y(band.low))});ctx.closePath();ctx.fillStyle="rgba(199,163,92,.12)";ctx.fill();ctx.strokeStyle="rgba(218,184,104,.42)";ctx.setLineDash([3,5]);ctx.stroke();ctx.setLineDash([])}
       if(analysis.hasCenter&&analysis.centerHigh>=min&&analysis.centerLow<=max){const top=y(Math.min(max,analysis.centerHigh)),bottom=y(Math.max(min,analysis.centerLow));ctx.fillStyle="rgba(199,158,76,.09)";ctx.fillRect(x0,top,plotW,bottom-top);ctx.strokeStyle="rgba(206,168,88,.34)";ctx.setLineDash([7,5]);ctx.strokeRect(x0,top,plotW,bottom-top);ctx.setLineDash([]);ctx.fillStyle="#a98a4f";ctx.font='10px "Songti SC",serif';ctx.fillText("中枢",x0+8,top+13)}
       all.forEach((bar,index)=>{const predicted=index>=history.length,x=x0+(index+.5)*step,y=(value:number)=>pad.t+(max-value)/range*plotH,up=bar.close>=bar.open,color=up?"#bd5c46":"#4e9c83";ctx.strokeStyle=color;ctx.globalAlpha=predicted?.62:1;ctx.beginPath();ctx.moveTo(x,y(bar.high));ctx.lineTo(x,y(bar.low));ctx.stroke();ctx.fillStyle=up?color:"transparent";ctx.strokeStyle=color;const top=Math.min(y(bar.open),y(bar.close)),body=Math.max(1,Math.abs(y(bar.open)-y(bar.close)));ctx.fillRect(x-candleW/2,top,candleW,body);if(!up)ctx.strokeRect(x-candleW/2,top,candleW,body);ctx.globalAlpha=1});
-      const rawPivots=all.slice(1,-1).flatMap((bar,index)=>{const i=index+1;if(bar.high>all[i-1].high&&bar.high>=all[i+1].high)return[{index:i,value:bar.high,type:"顶" as const}];if(bar.low<all[i-1].low&&bar.low<=all[i+1].low)return[{index:i,value:bar.low,type:"底" as const}];return[]});
+      const rawPivots=all.slice(1,-1).flatMap<{type:"顶"|"底";index:number;value:number}>((bar,index)=>{const i=index+1;if(bar.high>all[i-1].high&&bar.high>=all[i+1].high)return[{index:i,value:bar.high,type:"顶" as const}];if(bar.low<all[i-1].low&&bar.low<=all[i+1].low)return[{index:i,value:bar.low,type:"底" as const}];return[]});
       const pivots=rawPivots.reduce<typeof rawPivots>((list,pivot)=>{const last=list.at(-1);if(!last||last.type!==pivot.type)return[...list,pivot];const moreExtreme=pivot.type==="顶"?pivot.value>last.value:pivot.value<last.value;return moreExtreme?[...list.slice(0,-1),pivot]:list},[]);
       if(pivots.length>1){ctx.lineWidth=1.6;ctx.beginPath();pivots.forEach((pivot,index)=>{const x=x0+(pivot.index+.5)*step,py=y(pivot.value);if(index===0)ctx.moveTo(x,py);else{const previous=pivots[index-1];ctx.setLineDash(previous.index<history.length&&pivot.index>=history.length?[6,5]:[]);ctx.strokeStyle=pivot.index>=history.length?"rgba(220,180,94,.78)":"rgba(205,191,150,.72)";ctx.lineTo(x,py);ctx.stroke();ctx.beginPath();ctx.moveTo(x,py)}ctx.setLineDash([]);ctx.fillStyle=pivot.index>=history.length?"#c5a052":"#829b90";ctx.beginPath();ctx.arc(x,py,3,0,Math.PI*2);ctx.fill();if(index>=pivots.length-6){ctx.font='9px "Songti SC",serif';ctx.fillText(pivot.type,x+5,py+(pivot.type==="顶"?-7:8))}})}
       ctx.textAlign="left";ctx.fillStyle="#82988e";ctx.fillText("历史日线",x0,pad.t-20);ctx.fillStyle="#c2a35f";ctx.fillText(`推演区 · ${horizon}日`,forecastX+12,pad.t-20);
@@ -281,7 +281,7 @@ export default function FortunePage(){
     setShareBusy(true);setShareMessage("");
     const shareUrl=`${window.location.origin}/fortune?stock=${encodeURIComponent(code)}&from=share`;
     const qrSource=await QRCode.toDataURL(shareUrl,{width:400,margin:3,errorCorrectionLevel:"H",color:{dark:"#10231d",light:"#fffdf5"}});
-    const qrImage=await new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=qrSource});
+    const qrImage=await new Promise<HTMLImageElement>((resolve,reject)=>{const image=new window.Image();image.onload=()=>resolve(image);image.onerror=reject;image.src=qrSource});
     const canvas=document.createElement("canvas");canvas.width=1080;canvas.height=1440;
     const ctx=canvas.getContext("2d");if(!ctx){setShareBusy(false);return}
     const wrap=(text:string,x:number,y:number,maxWidth:number,lineHeight:number,maxLines=3)=>{let line="",lineNo=0;for(const char of text){const test=line+char;if(ctx.measureText(test).width>maxWidth&&line){ctx.fillText(line,x,y+lineNo*lineHeight);line=char;lineNo++;if(lineNo>=maxLines)return}else line=test}if(lineNo<maxLines)ctx.fillText(line,x,y+lineNo*lineHeight)};
