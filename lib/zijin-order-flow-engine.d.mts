@@ -14,7 +14,7 @@ export type ZijinOrderFlowFootprintRow = {
   deltaVolume: number;
   trades?: number;
 };
-export type ZijinOrderFlowEvidence = { label: string; reason: string };
+export type ZijinOrderFlowEvidence = { label: string; reason: string; value?: number|null };
 export type ZijinOrderFlowRadarUnavailable = {
   available: false;
   reason: string;
