@@ -47,6 +47,11 @@ for (const session of sessions) {
       if (reconstructed !== score) problems.push("score-breakdown-mismatch");
       if (meta.phase !== "entry") problems.push("missing-action-phase");
       if (!Number.isFinite(Number(meta.deviation)) || !Number.isFinite(Number(meta.ratio))) problems.push("missing-vwap-volume-evidence");
+      const deviation = Number(meta.deviation);
+      const buyInWrongVwapSide = action.direction === "正T" && deviation > 0.15 && meta.crossedVwap !== true;
+      const sellInWrongVwapSide = action.direction === "反T" && deviation < -0.15 && meta.crossedVwap !== true;
+      if (buyInWrongVwapSide || sellInWrongVwapSide) problems.push("direction-vwap-conflict");
+      if (meta.triggerScoreConfirmed !== true) problems.push("trigger-not-confirmed");
     }
     if (duplicate) problems.push("duplicate-formal-event");
     if (problems.length) {
