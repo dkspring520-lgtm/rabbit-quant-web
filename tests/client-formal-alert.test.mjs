@@ -5,6 +5,17 @@ import { normalizeClientFormalAlert } from "../lib/client-formal-alert.mjs";
 const monitors = [{ code: "601899", name: "紫金矿业" }];
 const now = new Date("2026-08-28T12:00:00Z");
 
+test('formal markers reject malformed clocks instead of rolling them into a trading minute', () => {
+  const normalize = time => normalizeClientFormalAlert({
+    code: '601899', marketDate: '20260828',
+    action: { time, price: 34, direction: '正T', side: '买入', confirmationScore: 60 },
+  }, { monitors, now });
+  for (const time of ['0960', '1099', '1360', '101035', 'text1035', '10::35']) {
+    assert.throws(() => normalize(time), /时间无效/, time);
+  }
+  for (const time of ['1035', '10:35']) assert.equal(normalize(time).marketTime, '1035');
+});
+
 test('a scored reverse-T buyback accepts the engine buy side without changing direction', () => {
   const input = { code: '601899', marketDate: '20260828', action: { time: '1035', price: 34, direction: '反T', side: '买入', confirmationScore: 76 } };
   const alert = normalizeClientFormalAlert(input, { monitors, now });
