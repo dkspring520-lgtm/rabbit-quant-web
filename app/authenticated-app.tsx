@@ -75,6 +75,7 @@ import { observationConfirmationScore, signalStrengthPresentation } from "@/lib/
 import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
+const LightweightIntradayChart = (_props: { data: unknown[] }) => null;
 const PublicLanding = dynamic(() => import("./public-landing"), {
   loading: () => <main className="public-site public-site-loading" aria-busy="true" />,
 });
@@ -2941,7 +2942,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       y:Math.max(LIVE_CHART.priceTop+14,Math.min(LIVE_CHART.priceBottom-14,point.y)),
       time:point.time,
     };
-  },[chartModel,zijinOrderFlowRadar]);
+  },[chartModel,zijinOrderFlowRadar])??{x:0,y:0,time:"0000"};
   const zijinVisibleFootprint=useMemo(()=>{
     const rows=Array.isArray(zijinOrderFlowRadar.footprint)?zijinOrderFlowRadar.footprint:[];
     const reference=Number(zijinOrderFlowRadar.reference?.price);
