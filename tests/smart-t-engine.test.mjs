@@ -17,6 +17,7 @@ import {
   causalRangeEvidence,
   causalVolatilityScale,
   calculateFormalClosureRate,
+  calculateFormalConfirmationScore,
   confirmsRapidRiseSellReversal,
   consolidateTrendRiskVotes,
   confirmCandidateDirectionFlip,
@@ -37,6 +38,12 @@ import {
   runSmartTReplay,
   summarizeHistoricalSimilarity,
 } from "../lib/smart-t-engine.mjs";
+
+test("formal action score requires the configured 60-point floor", () => {
+  assert.equal(calculateFormalConfirmationScore({ direction: 60, location: 60, trigger: 60 }), 60);
+  assert.equal(calculateFormalConfirmationScore({ direction: 59, location: 60, trigger: 60 }), 60);
+  assert.ok(calculateFormalConfirmationScore({ direction: 59, location: 59, trigger: 59 }) < 60);
+});
 
 test("pre-open direction permission stays shadow-only until an explicit formal guard is requested", () => {
   const shadow = evaluateDirectionPermissionGate({
