@@ -69,6 +69,7 @@ import { executePersonalTrainingOrder, scorePersonalTrainingActions, summarizePe
 import { runZijinV29ShadowReplay, runZuoTV1ContextShadowReplay, runZuoTV1ReconstructedReplay } from "@/lib/factor-research/zuot-v2-shadow.mjs";
 import { evaluateZijinShadowExperiments } from "@/lib/zijin-shadow-experiments.mjs";
 import { evaluateZijinOrderFlowRadar } from "@/lib/zijin-order-flow-engine.mjs";
+import type { ZijinOrderFlowRadar, ZijinOrderFlowRadarUnavailable } from "@/lib/zijin-order-flow-engine.mjs";
 import { relateOrderFlowShadowToFormalSignal } from "@/lib/order-flow-formal-link.mjs";
 import { observationConfirmationScore, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
 import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
@@ -2895,7 +2896,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ()=>buildZijinMainForceTrack(isZijinStock?(liveL2Status?.recentMinutes??[]):[]),
     [isZijinStock,liveL2Status?.recentMinutes],
   );
-  const zijinOrderFlowRadar=useMemo(
+  const zijinOrderFlowRadar: ZijinOrderFlowRadar | ZijinOrderFlowRadarUnavailable=useMemo(
     ()=>evaluateZijinOrderFlowRadar({minutes:isZijinStock?(liveL2Status?.recentMinutes??[]):[],stale:marketSession.live&&liveL2Stale}),
     [isZijinStock,liveL2Status?.recentMinutes,marketSession.live,liveL2Stale],
   );
