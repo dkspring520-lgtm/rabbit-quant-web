@@ -3859,7 +3859,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const key=`${action.time}:${action.side}:${action.direction??"正T"}`;
       if(seen.has(key))return;
       seen.add(key);
-      if(action.side!=="买回")void uploadClientFormalAction({code:stock.code,marketDate:activeChartDate,action});
+      const formalAction=action as ReplayAction;
+      if(formalAction.side==="买入"||formalAction.side==="卖出")void uploadClientFormalAction({code:stock.code,marketDate:activeChartDate,action:formalAction});
     });
   },[activeChartDate,chartFormalStorageKey,liveEngine.actions,persistedChartFormalActions,stock.code,uploadClientFormalAction]);
   const rabbitTrackerSignal=useMemo(()=>{
