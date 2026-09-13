@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scoreProfitExit } from '../lib/exit-confirmation-score.mjs';
+import { hasFormalAlertScore } from '../lib/alert-delivery-policy.mjs';
+
+test('partial exit evidence never becomes a formal score even with 75 percent coverage', () => {
+  const complete = { holdingConfirmed: true, netProfit: 12, protectionArmed: true, reversalConfirmed: true };
+  assert.equal(hasFormalAlertScore(scoreProfitExit(complete)), true);
+  for (const missing of [{holdingConfirmed:false}, {netProfit:0}, {protectionArmed:false}, {reversalConfirmed:false}]) {
+    const result = scoreProfitExit({...complete, ...missing});
+    assert.equal(result.score, 75);
+    assert.equal(result.confirmationScore, null);
+    assert.equal(hasFormalAlertScore(result), false);
+  }
+});
 
 test('trailing profit needs current net profit and an observed exit trigger', () => {
   const input = { holdingConfirmed: true, netProfit: 12, protectionArmed: true, reversalConfirmed: true };
