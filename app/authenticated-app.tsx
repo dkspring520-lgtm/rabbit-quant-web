@@ -48,7 +48,7 @@ import { normalizeWatchlistEntries } from "@/lib/watchlist-normalization.mjs";
 import { REFERENCE_DATA_BOOTSTRAP_DELAY_MS, clientPollingInterval, isFastMarketDataPhase, passiveWatchlistItems, shouldRunClientPolling, shouldRunTradingDeskPolling } from "@/lib/client-polling-policy.mjs";
 import { evaluateZijinSchedulerHealth } from "@/lib/zijin-scheduler-health.mjs";
 import { evaluateZijinExperimentalReminder } from "@/lib/zijin-experimental-reminder.mjs";
-import { conciseAlertSpeech, resolveAlertDelivery } from "@/lib/alert-delivery-policy.mjs";
+import { conciseAlertSpeech, resolveAlertDelivery, hasFormalAlertScore } from "@/lib/alert-delivery-policy.mjs";
 import { cumulativeIntradayAverage, symmetricIntradayScale } from "@/lib/intraday-chart-model.mjs";
 import { intradayTooltipLayout } from "@/lib/intraday-layout.mjs";
 import { buildZijinPricePlan } from "@/lib/zijin-price-plan.mjs";
@@ -5419,9 +5419,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(item.level!=="formal"||!item.code||!action)return [];
       const time=String(item.marketTime??action.time??"").replace(/\D/g,"").slice(-4);
       const price=Number(action.price);
-      const rawAction=action as typeof action & { confirmationScore?: number; meta?: { confirmationScore?: number } };
-      const confirmationScore=Number(rawAction.confirmationScore ?? rawAction.meta?.confirmationScore);
-      if(!Number.isFinite(confirmationScore)||confirmationScore<60)return [];
+      if(!hasFormalAlertScore(action))return [];
       if(!/^\d{4}$/.test(time)||!Number.isFinite(price))return [];
       const side=formalActionSide(action.side??item.title);
       const direction:ReplayAction["direction"]=action.direction==="反T"||String(item.title??"").includes("反T")?"反T":"正T";
@@ -5723,6 +5721,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const recent=alerts.filter(item=>Date.now()-new Date(item.createdAt).getTime()<5*60_000).reverse();
         for(const item of recent){
           const action=item.payload?.action;const observation=item.payload?.observation;
+          if(item.level==='formal'&&!hasFormalAlertScore(action))continue;
           const actionSide=action?.side?formalActionSide(action.side):null;
           const sell=actionSide?actionSide==="sell":String(observation?.direction??item.title).includes('卖');
           const actionDirection=(action?.direction??observation?.direction??(sell?"反T":"正T")) as "正T"|"反T";
