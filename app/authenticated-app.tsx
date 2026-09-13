@@ -3840,7 +3840,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     });
   },[activeChartDate,alertHistory,minutePoints,stock.code]);
   const chartFormalActions=useMemo<ReplayAction[]>(()=>{
-    const actions=[...liveEngine.actions];
+    const actions:ReplayAction[]=[...(liveEngine.actions as ReplayAction[])];
     const keys=new Set(actions.map(action=>`${action.time}:${action.side}:${action.direction??"正T"}`));
     const append=(items:ReplayAction[])=>items.forEach(action=>{
       const key=`${action.time}:${action.side}:${action.direction??"正T"}`;
@@ -3852,7 +3852,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[chartFormalStorageKey,liveEngine.actions,persistedChartFormalActions,recordedFormalActions]);
   useEffect(()=>{
     if(!activeChartDate||!chartFormalStorageKey)return;
-    const clientActions=[...liveEngine.actions];
+    const clientActions:ReplayAction[]=[...(liveEngine.actions as ReplayAction[])];
     if(persistedChartFormalActions.key===chartFormalStorageKey)clientActions.push(...persistedChartFormalActions.actions);
     const seen=new Set<string>();
     clientActions.forEach(action=>{
