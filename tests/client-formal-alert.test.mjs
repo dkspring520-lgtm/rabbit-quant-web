@@ -5,6 +5,21 @@ import { normalizeClientFormalAlert } from "../lib/client-formal-alert.mjs";
 const monitors = [{ code: "601899", name: "紫金矿业" }];
 const now = new Date("2026-08-28T12:00:00Z");
 
+test("formal score boundaries apply to both buy and sell signals", () => {
+  for (const [direction, side] of [["正T", "买入"], ["反T", "卖出"]]) {
+    const normalize = confirmationScore => normalizeClientFormalAlert({
+      code: "601899", marketDate: "2026-08-28",
+      action: { time: "1035", price: 34.42, direction, side, confirmationScore },
+    }, { monitors, now });
+    for (const score of [undefined, null, "", 0, 59, 59.99, 101, NaN, Infinity, -Infinity]) {
+      assert.throws(() => normalize(score), /60-100分/, `must reject ${String(score)} for ${side}`);
+    }
+    for (const score of [60, 76, 100]) {
+      assert.equal(normalize(score).payload.action.confirmationScore, score);
+    }
+  }
+});
+
 test("normalizes a client formal action into a server alert", () => {
   const alert = normalizeClientFormalAlert({
     code: "601899",
