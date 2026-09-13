@@ -25,4 +25,6 @@ export function buildZijinPricePlan(input?:{
   open?:number|null;
   vwap?:number|null;
   l2Coverage?:number;
+  atrPct?:number|null;
+  preopenGate?:Record<string, unknown>|null;
 }):ZijinPricePlan;
