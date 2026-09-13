@@ -3860,7 +3860,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(seen.has(key))return;
       seen.add(key);
       const formalAction=action as ReplayAction;
-      if(formalAction.side==="买入"||formalAction.side==="卖出")void uploadClientFormalAction({code:stock.code,marketDate:activeChartDate,action:formalAction});
+      if(formalAction.side==="买入"||formalAction.side==="卖出")void uploadClientFormalAction({code:stock.code,marketDate:activeChartDate,action:formalAction as FormalAction});
     });
   },[activeChartDate,chartFormalStorageKey,liveEngine.actions,persistedChartFormalActions,stock.code,uploadClientFormalAction]);
   const rabbitTrackerSignal=useMemo(()=>{
