@@ -31,9 +31,7 @@ for (const s of sessions) {
   const replay = runSmartTReplay(rows, { capital: cash + total*ref, baseShares: total, sellable, feeRate:.025, slippage:.02, minCommission:true, slippageMode:'percent', forceCloseTime:'1450', previousClose:s.previousClose, profile:'平衡档', lateReverseCutoff, randomValue:0 });
   let dayActions = 0;
   for (const a of replay.actions ?? []) {
-    if (a.meta?.phase === 'entry') {
-      formalActions.push({ date: s.date, time: a.time, side: a.side, confirmationScore: Number(a.confirmationScore) });
-    }
+    if (a.meta?.phase === 'entry') formalActions.push({ date: s.date, time: a.time, side: a.side, confirmationScore: a.confirmationScore ?? null });
     const i = rows.findIndex(x => String(x.time) === String(a.time));
     const fill = i >= 0 ? rows[i + 1] ?? null : null;
     if (!fill) { rejected++; rejectReasons.noNextMinute = (rejectReasons.noNextMinute ?? 0) + 1; continue; }
@@ -63,5 +61,5 @@ const grossProfit = wins.reduce((n,c)=>n+c.net,0), grossLoss = Math.abs(losses.r
 const holdLast = daily.at(-1) ? (initialCash - initialShares*initialRef) + initialShares*Number(sessions.at(-1).minutes.at(-1).price) : initialCash;
 const cycleGroups = groupCyclePerformance(completedCycles);
 let peak=first,maxDrawdown=0,maxDrawdownPct=0; for(const d of daily){peak=Math.max(peak,d.equity); maxDrawdown=Math.max(maxDrawdown,peak-d.equity); if(peak>0) maxDrawdownPct=Math.max(maxDrawdownPct,(peak-d.equity)/peak*100);}
-const invalidFormalActions = formalActions.filter(action => !Number.isFinite(action.confirmationScore) || action.confirmationScore < 60);
+const invalidFormalActions = formalActions.filter(action => !Number.isFinite(action.confirmationScore) || action.confirmationScore < 60 || action.confirmationScore > 100);
 console.log(JSON.stringify({kind:'zijin-crossday-t1',year,lateReverseCutoff,execution:{signalToNextMinute:true,slippagePct:0.02,t1:true,feesIncluded:true,holdBenchmark:true,untradableSkipped:true},sessions:daily.length,trades,rejected,rejectReasons,costs:Number(costs.toFixed(2)),cycles:completedCycles.length,incompleteCycle:openLeg?{direction:openLeg.direction,quantity:openLeg.quantity,entryPrice:openLeg.price}:null,formalScoreAudit:{actions:formalActions.length,minimum:formalActions.length?Math.min(...formalActions.map(action=>action.confirmationScore)):null,invalid:invalidFormalActions.length,invalidActions:invalidFormalActions.slice(0,20)},cycleGroups,wins:wins.length,losses:losses.length,winRatePct:completedCycles.length?Number((wins.length/completedCycles.length*100).toFixed(2)):0,profitFactor:grossLoss?Number((grossProfit/grossLoss).toFixed(3)):null,averageNet:completedCycles.length?Number((completedCycles.reduce((n,c)=>n+c.net,0)/completedCycles.length).toFixed(2)):0,startEquity:first,endEquity:last,change:Number((last-first).toFixed(2)),holdEndEquity:Number(holdLast.toFixed(2)),excessVsHold:Number((last-holdLast).toFixed(2)),maxDrawdown:Number(maxDrawdown.toFixed(2)),maxDrawdownPct:Number(maxDrawdownPct.toFixed(2)),daily},null,2));
