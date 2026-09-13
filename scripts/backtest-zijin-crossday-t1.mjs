@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { runSmartTReplay } from '../lib/smart-t-engine.mjs';
 import { groupCyclePerformance } from '../lib/cycle-performance.mjs';
+import { isRiskExitAction } from '../lib/alert-delivery-policy.mjs';
 
 const file = process.argv[2];
 if (!file) throw new Error('usage: node scripts/backtest-zijin-crossday-t1.mjs <jsonl>');
@@ -31,7 +32,7 @@ for (const s of sessions) {
   const replay = runSmartTReplay(rows, { capital: cash + total*ref, baseShares: total, sellable, feeRate:.025, slippage:.02, minCommission:true, slippageMode:'percent', forceCloseTime:'1450', previousClose:s.previousClose, profile:'平衡档', lateReverseCutoff, randomValue:0 });
   let dayActions = 0;
   for (const a of replay.actions ?? []) {
-    if (a.meta?.phase === 'entry') formalActions.push({ date: s.date, time: a.time, side: a.side, confirmationScore: a.confirmationScore ?? null });
+    if (!isRiskExitAction(a)) formalActions.push({ date: s.date, time: a.time, side: a.side, phase: a.meta?.phase ?? 'unknown', confirmationScore: a.confirmationScore ?? a.meta?.confirmationScore ?? null });
     const i = rows.findIndex(x => String(x.time) === String(a.time));
     const fill = i >= 0 ? rows[i + 1] ?? null : null;
     if (!fill) { rejected++; rejectReasons.noNextMinute = (rejectReasons.noNextMinute ?? 0) + 1; continue; }
