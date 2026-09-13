@@ -6978,7 +6978,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               </article>
               <article className={zijinShadowExperiments.experiments.firstProbeResponse.status}>
                 <header><span>首次探底承接</span><b>{zijinShadowExperiments.experiments.firstProbeResponse.score}/{zijinShadowExperiments.experiments.firstProbeResponse.maxScore}</b></header>
-                <strong>{zijinShadowExperiments.experiments.firstProbeResponse.decision??'等待首次探底'}</strong>
+                <strong>{"decision" in zijinShadowExperiments.experiments.firstProbeResponse&&typeof zijinShadowExperiments.experiments.firstProbeResponse.decision==="string"?zijinShadowExperiments.experiments.firstProbeResponse.decision:'等待首次探底'}</strong>
                 <small>承接强弱决定半仓或二探</small>
                 <em>{zijinShadowExperiments.experiments.firstProbeResponse.reason}</em>
               </article>
