@@ -6002,7 +6002,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const load = async () => {
       if (!shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       try {
-        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-quote`, { cache: "no-store" }, { timeoutMs:1_800,key:`trading-desk-quote:${stock.code}` });
+        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&mode=trial-quote`, { cache: "no-store" });
         if (!response.ok) throw new Error("trial quote unavailable");
         const data = await response.json() as MarketData;
         if (!cancelled) {
