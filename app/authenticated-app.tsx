@@ -1884,7 +1884,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     try{
       const response=await fetch('/api/control/alerts',{
         method:'POST',credentials:'include',cache:'no-store',headers:{'content-type':'application/json'},
-        body:JSON.stringify({code,marketDate:normalizedDate,action:{time:action.time,price:action.price,side:action.side,direction,reason:action.reason}}),
+        body:JSON.stringify({code,marketDate:normalizedDate,action:{time:action.time,price:action.price,side:action.side,direction,reason:action.reason,confirmationScore:action.confirmationScore}}),
       });
       let payload:unknown=null;
       try{payload=await response.json()}catch{}
