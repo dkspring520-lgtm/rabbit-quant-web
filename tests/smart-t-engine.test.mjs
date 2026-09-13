@@ -1473,6 +1473,15 @@ test("the afternoon candidate scanner remains active after 13:30", () => {
   assert.ok(afternoon.some((item) => item.stage === "candidate"), "the late move should progress beyond a raw watch marker");
   assert.equal(result.diagnostics.morningObservations, 3);
   assert.equal(result.diagnostics.afternoonObservations, 3);
+  const restricted = runSmartTReplay(rows, { ...options, lateReverseCutoff: "1330" });
+  const blocked = restricted.observations.filter(item => item.time >= "1330" && item.direction === "反T");
+  assert.ok(blocked.length > 0, "the cutoff must retain observable reverse-T candidates");
+  assert.ok(blocked.some(item => item.stage === "candidate"), "exercise the scored candidate branch as well as raw watches");
+  for (const item of blocked) {
+    assert.equal(item.executable, false);
+    if (item.stage === "candidate") assert.ok(item.blockers.some(reason => reason.includes("反T开仓截止时间")));
+  }
+  assert.ok(!restricted.actions.some(action => action.meta?.phase === "entry" && action.direction === "反T" && action.time >= "1330"));
 });
 
 test("zero simulated inventory still exposes a few candidates without creating orders", () => {
