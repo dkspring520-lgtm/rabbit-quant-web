@@ -15,6 +15,7 @@ export type ZijinOrderFlowRadarUnavailable = {
 };
 export type ZijinOrderFlowRadar = {
   available: true;
+  asOfTime: string|null;
   researchOnly: true;
   canCreateSignal: false;
   observedMinutes: number;
