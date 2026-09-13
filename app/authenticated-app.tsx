@@ -6960,7 +6960,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </section>}
           {isZijinStock&&zijinShadowExperiments&&<details className="zijin-shadow-experiments research-fold" aria-label="紫金矿业三套影子实验">
             <summary>
-              <div><span>三套影子实验</span><b>只观察 · 不下单</b><small>{zijinShadowExperiments.asOfTime?`${formatTime(zijinShadowExperiments.asOfTime)} 已更新`:'等待分钟数据'}</small></div>
+              <div><span>三套影子实验</span><b>只观察 · 不下单</b><small>{zijinShadowExperiments.asOfTime?`${formatTime(String(zijinShadowExperiments.asOfTime))} 已更新`:'等待分钟数据'}</small></div>
               <strong>{zijinShadowExperiments.counts.fiveMinuteExhaustion+zijinShadowExperiments.counts.l2OrderLifecycle+zijinShadowExperiments.counts.firstProbeResponse}<small>次确认</small></strong>
             </summary>
             <div className="zijin-shadow-experiment-grid">
