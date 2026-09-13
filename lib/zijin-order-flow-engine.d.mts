@@ -18,7 +18,7 @@ export type ZijinOrderFlowRadar = {
   researchOnly: true;
   canCreateSignal: false;
   observedMinutes: number;
-  delta: number;
+  delta: { oneMinute: number|null; threeMinute: number|null; fiveMinute: number|null; oneMinuteVolume?: number|null; threeMinuteVolume?: number|null; fiveMinuteVolume?: number|null };
   footprint: Array<Record<string, unknown>>;
   reference: Record<string, unknown>;
   scores: { lowBuy: number; takeProfit: number; stance: string };
