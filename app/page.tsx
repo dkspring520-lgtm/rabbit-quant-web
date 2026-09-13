@@ -9,6 +9,7 @@ import PublicLanding from "./public-landing";
 type UiTheme = "dark" | "light";
 type Membership = {
   active: boolean;
+  planId: "day" | "monthly" | "yearly" | null;
   expiresAt: string | null;
   referralCode: string | null;
   referralCredits: number;

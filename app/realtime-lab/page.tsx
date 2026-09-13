@@ -1195,8 +1195,8 @@ function buildTurningPointAlerts(
         if (!bottomReasons.length) bottomReasons.push(currentEstimate.bottomReason);
       }
     }
-    const topEligible = topProbability >= 60 && (topStructure || topReject || topVwap || (isLast && currentEstimate?.topStage > 0));
-    const bottomEligible = bottomProbability >= 60 && (bottomStructure || bottomReject || bottomVwap || (isLast && currentEstimate?.bottomStage > 0));
+    const topEligible = topProbability >= 60 && (topStructure || topReject || topVwap || (isLast && (currentEstimate?.topStage ?? 0) > 0));
+    const bottomEligible = bottomProbability >= 60 && (bottomStructure || bottomReject || bottomVwap || (isLast && (currentEstimate?.bottomStage ?? 0) > 0));
     const day = pointDateKey(point);
     const stamp = point.timestamp !== undefined ? String(point.timestamp) : `${day}-${point.time.replace(/\D/g, "")}-${index}`;
     if (topEligible && topProbability >= bottomProbability) {
