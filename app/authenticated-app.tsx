@@ -5134,7 +5134,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       },
     orderFlowRadar:orderFlowCurrentAvailable
       ?zijinOrderFlowRadar
-      :{available:false,reason:web4Microstructure.stale?"L2数据延迟，当前订单流不作判断":zijinOrderFlowRadar.reason},
+      :{available:false,reason:String(web4Microstructure.stale?"L2数据延迟，当前订单流不作判断":zijinOrderFlowRadar.reason??"等待订单流数据")},
   }),[decisionActionDirection,decisionActionSide,decisionExecutionLabel,decisionModel.status,executionSnapshot?.confidence,latestFormalAction?.time,orderFlowCurrentAvailable,web4Microstructure.stale,zijinOrderFlowRadar]);
   const orderFlowFormalLabel=decisionActionSide!==null
     ?`正式 ${decisionExecutionLabel}`
