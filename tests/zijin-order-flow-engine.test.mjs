@@ -106,7 +106,7 @@ test("collector and cockpit expose price-level footprint without promoting it to
   assert.match(collector,/"1300" <= clock <= "1500"/);
   assert.match(page,/evaluateZijinOrderFlowRadar/);
   assert.match(page,/双兔订单流/);
-  assert.match(page,/影子行为评分，不是胜率、命中率或买卖概率/);
+  assert.match(page,/观察评分不是胜率或买卖概率/);
   assert.match(page,/relateOrderFlowShadowToFormalSignal/);
   assert.match(page,/orderFlowCurrentAvailable/);
   assert.match(page,/order-flow-formal-link/);
