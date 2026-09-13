@@ -7610,7 +7610,7 @@ function ReferralCenter({canInvite,demoMode,referralCode,referralCredits,referra
   useEffect(()=>{
     let active=true;
     fetch('/api/control/referrals/leaderboard?limit=5',{cache:'no-store'})
-      .then(response=>response.ok?response.json():Promise.reject(new Error('leaderboard unavailable')))
+      .then((response:Response)=>response.ok?response.json():Promise.reject(new Error('leaderboard unavailable')))
       .then((payload:{leaderboard?:{rank:number;displayName:string;credits:number}[]})=>{
         if(active)setLeaders(Array.isArray(payload.leaderboard)?payload.leaderboard:[]);
       })
@@ -7748,7 +7748,7 @@ type ZijinDailyAssignment={
   findings:string[];
   candidateRules:Array<{title:string;direction:string;status:string;source:string;rule:string}>;
   evidence:{status:string;sampleCount:number;supportSamples:number;failedSamples:number;postFeeReturnPct:number|null;profitFactor:number|null;maxDrawdownPct:number|null;note:string};
-  researchOutlook:{summary:string;coreThesis:string;horizons:Array<{id:string;label:string;period:string;state:string;direction:string;confidence:number|null;evidenceStatus:string;summary:string}>;risks:string[];invalidationConditions:string[]};
+  researchOutlook:{summary:string;plainSummary?:string;coreThesis:string;horizons:Array<{id:string;label:string;period:string;state:string;direction:string;confidence:number|null;evidenceStatus:string;summary:string}>;risks:string[];invalidationConditions:string[]};
   sourceDigest:{groups:Array<{id:string;label:string;tier:string;state:string;count:number;note:string}>;highlights:Array<{title:string;source:string;status:string}>;note:string};
   onlineLearning?:{status:string;readySources:number;totalSources:number;officialEvents:number;leadEvents:number;affectsFormalStrategy:boolean;canTrade:boolean};
   promotion:{state:string;nextAction:string;affectsFormalStrategy:boolean;canTrade:boolean};
