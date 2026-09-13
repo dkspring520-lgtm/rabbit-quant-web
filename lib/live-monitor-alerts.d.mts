@@ -5,4 +5,4 @@ export function compactChartObservations<T = Record<string, unknown>>(observatio
 export function compactCandidateAlertHistory<T = Record<string, unknown>>(alerts?: T[], options?: { episodeMinutes?: number; ignoreBefore?: string|null }): T[];
 export function compactShadowChartActions<T = Record<string, unknown>>(entries?: T[], episodeMinutes?: number): T[];
 export function compactRepairChartMarkers<T = Record<string, unknown>>(observations?: T[], episodeMinutes?: number): T[];
-export function fulfilledWatchlistSnapshots<T = Record<string, unknown>>(results?: T[]): T[];
+export function fulfilledWatchlistSnapshots<T = Record<string, unknown>>(results?: PromiseSettledResult<T>[]): T[];
