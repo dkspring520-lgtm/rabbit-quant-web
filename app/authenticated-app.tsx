@@ -5419,7 +5419,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(item.level!=="formal"||!item.code||!action)return [];
       const time=String(item.marketTime??action.time??"").replace(/\D/g,"").slice(-4);
       const price=Number(action.price);
-      const confirmationScore=Number(action.confirmationScore ?? action.meta?.confirmationScore);
+      const rawAction=action as typeof action & { confirmationScore?: number; meta?: { confirmationScore?: number } };
+      const confirmationScore=Number(rawAction.confirmationScore ?? rawAction.meta?.confirmationScore);
       if(!Number.isFinite(confirmationScore)||confirmationScore<60)return [];
       if(!/^\d{4}$/.test(time)||!Number.isFinite(price))return [];
       const side=formalActionSide(action.side??item.title);
