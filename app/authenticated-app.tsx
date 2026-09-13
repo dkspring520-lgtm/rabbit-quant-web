@@ -1308,18 +1308,20 @@ function buildPivotAndMacdObservations(
     macdDiffHistory[index]=diff;
     signal=signal===undefined?diff:signal+(diff-signal)*alpha9;
     const histogram=diff-signal;
+    const previousHistogramValue=previousHistogram;
+    const previousPreviousHistogramValue=previousPreviousHistogram;
     const [rsi6,rsi12,rsi24]=rsiStates.map(state=>state.value);
-    const enough=index>=25&&previousHistogram!==undefined&&previousPreviousHistogram!==undefined
+    const enough=index>=25&&previousHistogramValue!==undefined&&previousPreviousHistogramValue!==undefined
       &&rsi6!==undefined&&rsi12!==undefined&&rsi24!==undefined;
     if(enough&&index-lastMacdIndex>=20){
-      const golden=previousHistogram<=0&&histogram>0;
-      const death=previousHistogram>=0&&histogram<0;
+      const golden=previousHistogramValue<=0&&histogram>0;
+      const death=previousHistogramValue>=0&&histogram<0;
       const macdState=golden?"golden-cross":death?"death-cross":undefined;
       if(macdState){
         const direction=macdState==="death-cross"?"反T":"正T";
         const label=direction==="反T"?"MACD↓":"MACD↑";
         const bullishDivergence=golden&&diff<0&&signal<0&&confirmsBullishDivergence(index);
-        const redBarsContracting=death&&diff>0&&signal>0&&previousHistogram>0&&previousPreviousHistogram>previousHistogram;
+        const redBarsContracting=death&&diff>0&&signal>0&&previousHistogramValue>0&&previousPreviousHistogramValue>previousHistogramValue;
         const rsiConfirmed=golden?rsi6<=30&&rsi12<=35&&rsi24<=45:rsi6>=70&&rsi12>=65&&rsi24>=55;
         const kdjConfirmed=golden?kdjK<=25&&kdjD<=30&&kdjJ<=20:kdjK>=80&&kdjD>=75&&kdjJ>=85;
         const indicatorConfirmed=rsiConfirmed&&kdjConfirmed&&(golden?bullishDivergence:redBarsContracting);
