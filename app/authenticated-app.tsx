@@ -3412,9 +3412,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
     event.preventDefault();
-    const currentIndex=Math.max(0,chartModel.points.findIndex(point=>point.time===intradayCursorTime));
-    const nextIndex=Math.max(0,Math.min(chartModel.points.length-1,currentIndex+(event.key==="ArrowRight"?1:-1)));
-    setIntradayCursorTime(chartModel.points[nextIndex].time);
+    const visiblePoints=chartModel.points.filter(point=>point.x>=LIVE_CHART.plotLeft&&point.x<=LIVE_CHART.plotRight);
+    if(!visiblePoints.length)return;
+    const currentIndex=visiblePoints.findIndex(point=>point.time===intradayCursorTime);
+    const nextIndex=currentIndex<0
+      ?(event.key==="ArrowRight"?0:visiblePoints.length-1)
+      :Math.max(0,Math.min(visiblePoints.length-1,currentIndex+(event.key==="ArrowRight"?1:-1)));
+    setIntradayCursorTime(visiblePoints[nextIndex].time);
   };
   const handleDecisionPanelResizeStart=(event:ReactPointerEvent<HTMLDivElement>)=>{
     if((event.target as HTMLElement).closest("button")||decisionPanelCollapsed)return;
