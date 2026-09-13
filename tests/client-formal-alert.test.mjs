@@ -9,20 +9,20 @@ test("normalizes a client formal action into a server alert", () => {
   const alert = normalizeClientFormalAlert({
     code: "601899",
     marketDate: "2026-08-28",
-    action: { time: "1035", price: 34.42, side: "买入", direction: "正T", reason: "量价确认" },
+    action: { time: "1035", price: 34.42, side: "买入", direction: "正T", reason: "量价确认", confirmationScore: 76 },
   }, { monitors, now });
   assert.equal(alert.level, "formal");
   assert.equal(alert.marketDate, "2026-08-28");
   assert.equal(alert.eventKey, "20260828:601899:formal:client-v4:正T:买入:1035");
-  assert.deepEqual(alert.payload.action, { time: "1035", price: 34.42, side: "买入", direction: "正T", reason: "量价确认" });
+  assert.deepEqual(alert.payload.action, { time: "1035", price: 34.42, side: "买入", direction: "正T", reason: "量价确认", confirmationScore: 76 });
 });
 
 test("rejects unmonitored stocks and invalid action pairs", () => {
   assert.throws(() => normalizeClientFormalAlert({
-    code: "601012", marketDate: "2026-08-28", action: { time: "1035", price: 12.4, side: "买入", direction: "正T" },
+    code: "601012", marketDate: "2026-08-28", action: { time: "1035", price: 12.4, side: "买入", direction: "正T", confirmationScore: 60 },
   }, { monitors, now }), /当前账户监控股票/);
   assert.throws(() => normalizeClientFormalAlert({
-    code: "601899", marketDate: "2026-08-28", action: { time: "1035", price: 34.42, side: "买回", direction: "正T" },
+    code: "601899", marketDate: "2026-08-28", action: { time: "1035", price: 34.42, side: "买回", direction: "正T", confirmationScore: 60 },
   }, { monitors, now }), /方向与动作不一致/);
 });
 
