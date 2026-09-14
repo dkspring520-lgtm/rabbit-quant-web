@@ -107,6 +107,7 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /const nearbyBaselines=\[0,1,-1,2,-2,3,-3,4,-4,5,-5\]/);
   assert.doesNotMatch(source, /preferredAbove\?34:38/);
   assert.match(source, /const occupied:LabelBox\[\]=\[\]/);
+  assert.match(source, /markerAnchorBoxes\.some\(anchor=>overlaps\(box,anchor,0\)\)/);
   assert.match(source, /intradayMarkerLayout\.actions/);
   assert.match(source, /marker-label-leader/);
   assert.match(source, /marker\.labelRendered\?"with-label":"dot-only"/);

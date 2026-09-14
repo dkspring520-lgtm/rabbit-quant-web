@@ -4005,8 +4005,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         top:baseline-height+1,
         bottom:baseline+6,
       });
-      const overlaps=(box:LabelBox,other:LabelBox)=>box.left<other.right+8&&box.right>other.left-8&&box.top<other.bottom+8&&box.bottom>other.top-8;
-      const collides=(box:LabelBox)=>occupied.some(other=>overlaps(box,other))||markerAnchorBoxes.some(anchor=>overlaps(box,anchor));
+      const overlaps=(box:LabelBox,other:LabelBox,padding=8)=>box.left<other.right+padding&&box.right>other.left-padding&&box.top<other.bottom+padding&&box.bottom>other.top-padding;
+      // Label lanes need breathing room from one another, while anchor boxes
+      // only block a badge when the badge actually covers the point. Using
+      // the same padded test for both made a formal badge collide with its own
+      // anchor and fall back to a distant fixed row.
+      const collides=(box:LabelBox)=>occupied.some(other=>overlaps(box,other))||markerAnchorBoxes.some(anchor=>overlaps(box,anchor,0));
       let best:{labelX:number;labelY:number;box:LabelBox;overlap:number;distance:number}|null=null;
       for(const labelX of labelXs){
         for(const baseline of orderedBaselines){
