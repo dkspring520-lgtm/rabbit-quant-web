@@ -103,6 +103,9 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /pointPosition\(observation\.time,markerPrice\)/);
   assert.doesNotMatch(source, /pointPosition\(observation\.pivotTime/);
   assert.match(source, /const reserveDirectionalMarkerLabel=/);
+  assert.match(source, /const preferredGap=preferredAbove\?Math\.max\(22,height\+5\):Math\.max\(24,height\+7\)/);
+  assert.match(source, /const nearbyBaselines=\[0,1,-1,2,-2,3,-3,4,-4,5,-5\]/);
+  assert.doesNotMatch(source, /preferredAbove\?34:38/);
   assert.match(source, /const occupied:LabelBox\[\]=\[\]/);
   assert.match(source, /intradayMarkerLayout\.actions/);
   assert.match(source, /marker-label-leader/);
