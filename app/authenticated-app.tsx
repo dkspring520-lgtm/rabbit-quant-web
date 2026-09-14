@@ -3988,14 +3988,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       for(let baseline=baselineMin;baseline<=baselineMax+0.5;baseline+=rowStep)rows.push(baseline);
       if(rows.length===0||Math.abs((rows.at(-1)??0)-baselineMax)>4)rows.push(baselineMax);
       const direction=preferredAbove?-1:1;
-      const preferredTarget=pointY+direction*(preferredAbove?34:38);
-      const orderedBaselines=[...rows].sort((left,right)=>{
-        const leftSide=left<pointY;
-        const rightSide=right<pointY;
-        const leftPenalty=leftSide===preferredAbove?0:1;
-        const rightPenalty=rightSide===preferredAbove?0:1;
-        return leftPenalty-rightPenalty||Math.abs(left-preferredTarget)-Math.abs(right-preferredTarget);
-      });
+      // Keep the badge close to its anchor in the normal case. Fixed rows are
+      // still used as a fallback when nearby badges or chart edges leave no
+      // room, but they must not be the first placement candidates.
+      const preferredGap=preferredAbove?Math.max(22,height+5):Math.max(24,height+7);
+      const preferredTarget=pointY+direction*preferredGap;
+      const clampBaseline=(value:number)=>Math.max(baselineMin,Math.min(baselineMax,value));
+      const nearbyBaselines=[0,1,-1,2,-2,3,-3,4,-4,5,-5]
+        .map(step=>clampBaseline(preferredTarget+step*rowStep));
+      const orderedBaselines=[...new Set([...nearbyBaselines,...rows])];
       const horizontalStep=width+14;
       const labelXs=[...new Set([0,-1,1,-2,2,-3,3,-4,4].map(step=>clampLabelX(preferredLabelX+step*horizontalStep)))];
       const makeBox=(labelX:number,baseline:number):LabelBox=>({
