@@ -109,6 +109,7 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /const occupied:LabelBox\[\]=\[\]/);
   assert.match(source, /markerAnchorBoxes\.some\(anchor=>overlaps\(box,anchor,0\)\)/);
   assert.match(source, /intradayMarkerLayout\.actions/);
+  assert.match(source, /pointPosition\(action\.time,undefined,true\)/);
   assert.match(source, /marker-label-leader/);
   assert.match(source, /marker\.labelRendered\?"with-label":"dot-only"/);
   assert.match(source, /className=\{`chart-rabbit-tracker/);

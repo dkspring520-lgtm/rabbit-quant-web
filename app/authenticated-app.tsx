@@ -4077,7 +4077,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // A live minute can be updated more than once by the public quote feed.
       // Anchor the marker to the price captured by the causal decision instead
       // of the first point sharing the same HHmm timestamp.
-      const point=pointPosition(action.time,action.price,true);
+      // In candle mode the visible bar is keyed by its minute close. Anchor
+      // the marker to that rendered candle coordinate so it cannot float
+      // outside the bar when the recorded decision price differs slightly.
+      const point=pointPosition(action.time,undefined,true);
       if(!point)return [];
       const isSell=action.side==="卖出";
       const label=formalExecutionLabel(action.direction,isSell?"sell":"buy");
@@ -4103,7 +4106,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       .filter(marker=>marker.labelRendered)
       .map(marker=>({time:marker.action.time,isSell:marker.isSell}));
     const shadowActions=selectedShadowActions.flatMap(({action,strategy},index)=>{
-      const point=pointPosition(action.time,action.price,true);
+      const point=pointPosition(action.time,undefined,true);
       if(!point)return [];
       const isSell=action.side==="卖出";
       const strength=signalStrengthPresentation({score:action.confirmationScore});
