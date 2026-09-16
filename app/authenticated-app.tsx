@@ -73,6 +73,7 @@ import { evaluateZijinOrderFlowRadar } from "@/lib/zijin-order-flow-engine.mjs";
 import type { ZijinOrderFlowRadar, ZijinOrderFlowRadarUnavailable } from "@/lib/zijin-order-flow-engine.mjs";
 import { relateOrderFlowShadowToFormalSignal } from "@/lib/order-flow-formal-link.mjs";
 import { observationConfirmationScore, scoreGrade, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
+import { fuseSignals } from "@/lib/signal-fusion.mjs";
 import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
@@ -5019,6 +5020,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
   },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,signalMode]);
   const decisionConditionsConfirmed=decisionConditions.reduce((count,item)=>count+(item.met?1:0),0);
+  const fusedSignal=useMemo(()=>fuseSignals([
+    {direction:decisionModel.referenceConfirmed===decisionModel.trendConfirmed?(decisionModel.referenceConfirmed?"buy":"sell"):"buy",weight:30,independent:false},
+    {direction:decisionModel.trendConfirmed?"buy":"sell",weight:25,independent:true},
+    {direction:orderFlowCurrentAvailable?(zijinOrderFlowRadar.scores?.lowBuy??0)>=(zijinOrderFlowRadar.scores?.takeProfit??0)?"buy":"sell":"buy",weight:25,independent:true},
+    ...(web4Microstructure.state==="risk"?[{direction:"sell",weight:20,independent:true}]:[]),
+  ]),[decisionModel.referenceConfirmed,decisionModel.trendConfirmed,orderFlowCurrentAvailable,zijinOrderFlowRadar.scores?.lowBuy,zijinOrderFlowRadar.scores?.takeProfit,web4Microstructure.state]);
   const liveSignalLifecycle=useMemo(()=>buildLiveSignalLifecycle({
     minutes:minutePoints,
     // Only markers whose timestamp is in the current observed prefix are
@@ -6900,6 +6907,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <span>实时反T</span>
               <b>{reverseTSignalLabel}</b>
               <small>{reverseTSignalDetail}</small>
+            </div>
+            <div className={`signal-fusion-summary ${fusedSignal.direction}`} aria-label="超级信号融合摘要">
+              <span>超级信号 <small>辅助聚合</small></span>
+              <b>{fusedSignal.direction==="buy"?"正T候选":fusedSignal.direction==="sell"?"反T候选":"等待确认"} · {fusedSignal.score}分 · {fusedSignal.grade}</b>
+              <small>支持 {fusedSignal.support} · 反对 {fusedSignal.oppose} · 独立证据 {fusedSignal.independent} · 冲突 {fusedSignal.conflict}；不改变正式信号</small>
             </div>
             <div
               className={`global-decision-live-signal lifecycle-signal ${["candidate","shadow-upgraded","confirmed","waiting-close"].includes(liveSignalLifecycle.phase)?"active":"idle"}`}

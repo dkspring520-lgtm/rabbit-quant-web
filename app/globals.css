@@ -1654,6 +1654,7 @@
   box-shadow:0 0 0 1px rgba(255,107,130,.08),0 0 18px rgba(255,107,130,.08);
 }
 .global-decision-live-signal.idle{opacity:.82}
+.signal-fusion-summary{display:grid;gap:3px;margin-top:7px;padding:8px;border:1px solid var(--line-soft);background:rgba(255,255,255,.018)}.signal-fusion-summary span{color:var(--dim);font-size:8px}.signal-fusion-summary span small{margin-left:5px;color:var(--amber)}.signal-fusion-summary b{color:var(--text);font-size:11px}.signal-fusion-summary>small{color:var(--muted);font-size:8px}.signal-fusion-summary.buy b{color:var(--teal)}.signal-fusion-summary.sell b{color:var(--coral)}.signal-fusion-summary.wait b{color:var(--amber)}
 .global-decision-live-signal span{color:var(--dim);font:700 8px var(--font-geist-mono);letter-spacing:.08em}
 .global-decision-live-signal .lifecycle-source{display:inline-block;margin-left:3px;padding:1px 3px;border:1px solid var(--line);border-radius:3px;color:var(--muted);font:700 7px/1 var(--font-geist-mono);font-style:normal;letter-spacing:0;vertical-align:1px}
 .global-decision-live-signal .lifecycle-source.正式{border-color:color-mix(in srgb,var(--teal) 45%,var(--line));color:var(--teal)}
