@@ -72,7 +72,7 @@ import { evaluateZijinShadowExperiments } from "@/lib/zijin-shadow-experiments.m
 import { evaluateZijinOrderFlowRadar } from "@/lib/zijin-order-flow-engine.mjs";
 import type { ZijinOrderFlowRadar, ZijinOrderFlowRadarUnavailable } from "@/lib/zijin-order-flow-engine.mjs";
 import { relateOrderFlowShadowToFormalSignal } from "@/lib/order-flow-formal-link.mjs";
-import { observationConfirmationScore, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
+import { observationConfirmationScore, scoreGrade, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
 import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
@@ -4316,8 +4316,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(!point)return [];
       const buyRisk=/下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text);
       const score=Number(observation.score);
-      const tier=score>=80?"确认买点":score>=70?"谨慎买点":"观察买点";
-      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?`买入风险 · ${tier}${Number.isFinite(score)?` ${score}分`:""}`:"T飞风险：先别卖",index}];
+      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?`买入风险${Number.isFinite(score)?` · ${score}分 · ${scoreGrade(score)}`:"：先别接"}`:"T飞风险：先别卖",index}];
     });
     return {
       observations: chartAnnotationMode==="compact"
