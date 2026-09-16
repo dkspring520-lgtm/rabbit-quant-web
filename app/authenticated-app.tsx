@@ -4315,7 +4315,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const point=pointPosition(observation.time,observation.price);
       if(!point)return [];
       const buyRisk=/下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text);
-      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?"买入风险：先别接":"T飞风险：先别卖",index}];
+      const score=Number(observation.score);
+      const tier=score>=80?"确认买点":score>=70?"谨慎买点":"观察买点";
+      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?`买入风险 · ${tier}${Number.isFinite(score)?` ${score}分`:""}`:"T飞风险：先别卖",index}];
     });
     return {
       observations: chartAnnotationMode==="compact"
