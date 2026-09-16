@@ -26,6 +26,7 @@ import "./brand-cute.css";
 import "./position-setup.css";
 import "./referral.css";
 import { buildHistoricalSimilarityArchive, runSmartTReplay, summarizeHistoricalSimilarity } from "@/lib/smart-t-engine.mjs";
+import { summarizeTFlyRiskEvidence } from "@/lib/t-feature-risk-evidence.mjs";
 import { A_SHARE_INTRADAY_AXIS, aShareMinuteSlot, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareClosingAuctionMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
 import { confirmStockPosition, loadStockPosition, migrateLegacyPosition, normalizeStockPosition, saveStockPosition } from "@/lib/stock-position.mjs";
 import type { StockPosition } from "@/lib/stock-position.mjs";
@@ -1776,7 +1777,7 @@ function DailyClosedLoopReview({review,tradingDate}:{review:StrategyClosedLoopRe
           <span className="daily-review-time start">{chart.firstTime.slice(0,5)}</span>
           <span className="daily-review-time end">{chart.lastTime.slice(0,5)}</span>
         </div>:<div className="daily-review-chart-empty"><b>价格线待生成</b><span>收到今日分钟行情后自动绘制</span></div>}
-        <div className="daily-review-legend"><span className="candidate"><i/>候选</span><span className="simulation"><i/>模拟</span><span className="actual-buy"><i/>实买</span><span className="actual-sell"><i/>实卖</span></div>
+        <div className="daily-review-legend"><span className="candidate"><i/>候选</span><span className="simulation"><i/>模拟</span><span className="actual-buy"><i/>实买</span><span className="actual-sell"><i/>实卖</span><span className="t-fly-risk"><i/>T飞风险</span><span className="buy-risk"><i/>买入风险</span></div>
       </figure>
       <div className="daily-review-ledger">
         <div className="daily-review-ledger-head"><span>闭环账本</span><small>胜率 {summary.winRate===null?"—":`${summary.winRate.toFixed(1)}%`} · PF {profitFactor}</small></div>
@@ -3913,7 +3914,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ? `${chartModel.peakVolume.abnormal&&chartModel.peakVolume.ratio?`成交爆量 ${chartModel.peakVolume.ratio.toFixed(1)}×`:"峰值放量"} ${chartModel.peakVolume.time.slice(0,2)}:${chartModel.peakVolume.time.slice(2)}`
     : "";
   const intradayMarkerLayout=useMemo(()=>{
-    if(!chartModel)return {observations:[],tooltipObservations:[],actions:[],shadowActions:[],rabbitCandidates:[],manualTrades:[]};
+    if(!chartModel)return {observations:[],tooltipObservations:[],actions:[],shadowActions:[],rabbitCandidates:[],manualTrades:[],riskMarkers:[]};
     type LabelBox={left:number;right:number;top:number;bottom:number};
     const occupied:LabelBox[]=[];
     const peakVolumeLabelX=Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4);
@@ -4308,6 +4309,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...zijinV1ChartObservations,
       ...causalObservationLayer,
     ].filter(observation=>strategyLayerVisible(("strategy" in observation?observation.strategy:"observation") as ChartObservation["strategy"]));
+    const riskMarkers=durableVisibleChartObservations.flatMap((observation,index)=>{
+      const text=`${observation.reason??""} ${(observation.blockers??[]).join(" ")}`;
+      if(!/卖飞|T飞|冲高回落|下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text))return [];
+      const point=pointPosition(observation.time,observation.price);
+      if(!point)return [];
+      const buyRisk=/下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text);
+      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?"买入风险：先别接":"T飞风险：先别卖",index}];
+    });
     return {
       observations: chartAnnotationMode==="compact"
         ?selectCompactChartLabels(observations,marker=>observationConfirmationScore(marker.observation,marker.strategy))
@@ -4319,6 +4328,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       shadowActions,
       rabbitCandidates:[...recordedCandidates,...rabbitCandidates],
       manualTrades,
+      riskMarkers,
     };
   },[activeChartDate,activeQuote?.open,alertHistory,causalObservationLayer,chartAnnotationMode,chartFormalActions,chartModel,chartViewport,currentObservations,durableVisibleChartObservations,formalSignalVisible,isZijinStock,minutePoints,peakVolumeLabel,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,v1SignalVisible,v29SignalVisible,viewportChartX,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
   const intradayCursorSignal=useMemo(()=>{
@@ -6663,6 +6673,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <text x="0" y="-1" textAnchor="middle">OF 影子</text>
                 <text x="0" y="8" textAnchor="middle" className="scores">正T {orderFlowBuyStrength.label} · 反T {orderFlowSellStrength.label}</text>
               </g>}
+              {intradayMarkerLayout.riskMarkers.map(marker=><g key={`risk-${marker.kind}-${marker.time}-${marker.index}`} className={`intraday-risk-marker ${marker.kind}`}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.label}`}</title><circle cx={marker.x} cy={marker.y} r="5"/><text x={marker.x+8} y={marker.y-7}>{marker.label}</text></g>)}
               {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="macd"?<rect className="observation-anchor" x={marker.x-4} y={marker.y-4} width="8" height="8" rx="1"/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-top"?<polygon className="observation-anchor" points={`${marker.x-4},${marker.y-2} ${marker.x+4},${marker.y-2} ${marker.x},${marker.y+4}`}/>:marker.strategy==="observation"&&marker.observation.observationKind==="pivot-bottom"?<polygon className="observation-anchor" points={`${marker.x-4},${marker.y+2} ${marker.x+4},${marker.y+2} ${marker.x},${marker.y-4}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>})}
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · ${marker.action.reason??"影子参考，不可执行"}`}</title><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text>{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
               {/* Recorded candidate reminders remain available to the
@@ -9543,8 +9554,10 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         {result&&<details className="candidate-audit" key={`candidate-audit-${singleRunDate}`} open={result.trades===0 || undefined}>
           <summary><span><b>候选信号过滤审计</b><small>{result.trades===0?"没有正式闭环时自动展开，展示关键拦截样本":"展开查看关键候选及过滤原因"}</small></span><em>候选判定 {result.diagnostics?.candidates ?? 0} 次 · {result.trades} 个正式闭环</em></summary>
           <div className="candidate-audit-metrics">
-            {result.diagnostics?.normalizedFeatures&&<span><small>归一化特征</small><b>VWAP {Number(result.diagnostics.normalizedFeatures.vwapBiasZ??0).toFixed(2)}σ · 量 {Number(result.diagnostics.normalizedFeatures.volumeZ??0).toFixed(2)}σ</b></span>}
-            {result.diagnostics?.tFlyRisk&&<span><small>T飞风险</small><b>{result.diagnostics.tFlyRisk.level==='high'?'高':result.diagnostics.tFlyRisk.level==='medium'?'中':'低'} · {result.diagnostics.tFlyRisk.score}分</b></span>}
+            <span><small>操盘建议</small><b>{result.trades>0?'已完成交易闭环':(result.diagnostics?.candidates??0)>0?'等待正式信号确认':'暂不操作'}</b></span>
+            <span><small>正式信号</small><b>{result.trades>0?'已触发':'未触发'}（唯一执行依据）</b></span>
+            {result.diagnostics?.normalizedFeatures&&<span><small>辅助判断 · 量价</small><b>VWAP {Number(result.diagnostics.normalizedFeatures.vwapBiasZ??0).toFixed(2)}σ · 量 {Number(result.diagnostics.normalizedFeatures.volumeZ??0).toFixed(2)}σ</b></span>}
+            {result.diagnostics?.tFlyRisk&&<span><small>辅助判断 · T飞风险</small><b>{(()=>{const level=result.diagnostics.tFlyRisk.level; return level==='high'?'高：先别卖，容易卖飞':level==='medium'?'中：想卖先等回落':'低：可以观察卖点'})()} · {result.diagnostics.tFlyRisk.score}分</b>{(()=>{const e=summarizeTFlyRiskEvidence(result.diagnostics.tFlyRisk.score); return e?<small>历史参考：{e.samples}次，30分钟后接回约{(e.recoverRate30*100).toFixed(0)}%</small>:<small>历史样本不足，仅作参考</small>})()}</span>}
             <span><small>候选判定次数</small><b>{result.diagnostics?.candidates ?? 0}</b></span>
             <span><small>候补观察点</small><b>{visibleBacktestObservations.length}</b></span>
             <span><small>趋势拦截（强趋势 {result.diagnostics?.strongTrendBlocked ?? 0}）</small><b>{result.diagnostics?.regimeBlocked ?? 0}</b></span>
