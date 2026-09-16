@@ -9543,6 +9543,8 @@ function BacktestView({ profile, setProfile, profitMode, setProfitMode, position
         {result&&<details className="candidate-audit" key={`candidate-audit-${singleRunDate}`} open={result.trades===0 || undefined}>
           <summary><span><b>候选信号过滤审计</b><small>{result.trades===0?"没有正式闭环时自动展开，展示关键拦截样本":"展开查看关键候选及过滤原因"}</small></span><em>候选判定 {result.diagnostics?.candidates ?? 0} 次 · {result.trades} 个正式闭环</em></summary>
           <div className="candidate-audit-metrics">
+            {result.diagnostics?.normalizedFeatures&&<span><small>归一化特征</small><b>VWAP {Number(result.diagnostics.normalizedFeatures.vwapBiasZ??0).toFixed(2)}σ · 量 {Number(result.diagnostics.normalizedFeatures.volumeZ??0).toFixed(2)}σ</b></span>}
+            {result.diagnostics?.tFlyRisk&&<span><small>T飞风险</small><b>{result.diagnostics.tFlyRisk.level==='high'?'高':result.diagnostics.tFlyRisk.level==='medium'?'中':'低'} · {result.diagnostics.tFlyRisk.score}分</b></span>}
             <span><small>候选判定次数</small><b>{result.diagnostics?.candidates ?? 0}</b></span>
             <span><small>候补观察点</small><b>{visibleBacktestObservations.length}</b></span>
             <span><small>趋势拦截（强趋势 {result.diagnostics?.strongTrendBlocked ?? 0}）</small><b>{result.diagnostics?.regimeBlocked ?? 0}</b></span>
