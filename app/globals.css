@@ -4294,3 +4294,14 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .order-flow-top-card .order-flow-top-head button {font-size:12px;background:transparent;border:0;color:var(--muted);cursor:pointer}
 .app-shell.minimal-ui .order-flow-top-card > .order-flow-scope {margin:0;font-size:11px;line-height:1.5}
 .app-shell.minimal-ui .order-flow-top-card > button {font-size:12px}
+/* 日内图辅助风险标记：仅作提醒，不改变正式信号 */
+.daily-review-marker.t-fly-risk{background:#e9827e;border-radius:1px;transform:translate(-50%,-50%) rotate(45deg)}
+.daily-review-marker.buy-risk{background:#f0bd4f;border-radius:1px;transform:translate(-50%,-50%) rotate(45deg)}
+.daily-review-legend .t-fly-risk i{background:#e9827e;transform:rotate(45deg)}
+.daily-review-legend .buy-risk i{background:#f0bd4f;transform:rotate(45deg)}
+.intraday-risk-marker circle{stroke:var(--surface);stroke-width:1.2}
+.intraday-risk-marker text{font-size:10px;font-weight:800;paint-order:stroke;stroke:var(--surface);stroke-width:3}
+.intraday-risk-marker.t-fly-risk circle{fill:#e9827e}
+.intraday-risk-marker.t-fly-risk text{fill:#e9827e}
+.intraday-risk-marker.buy-risk circle{fill:#f0bd4f}
+.intraday-risk-marker.buy-risk text{fill:#f0bd4f}
