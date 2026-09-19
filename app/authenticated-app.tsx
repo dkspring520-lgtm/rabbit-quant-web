@@ -4326,7 +4326,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const point=pointPosition(time,items[0].observation.price);
       if(!point)return [];
       const label=fused.direction==="buy"?"正T候选":fused.direction==="sell"?"反T候选":"等确认";
-      return [{...point,time,label:`◆ ${label} · ${fused.score===null?"待评分":`${fused.score}分 · ${fused.grade}`}`,side:fused.direction==="wait"?"watch":fused.direction,detail:`冲突 ${fused.conflict}；仅辅助。${items.map(item=>item.observation.reason??item.currentLabel).join("；")}`}];
+      return [{...point,time,fused,label:`◆ ${label} · ${fused.score===null?"待评分":`${fused.score}分 · ${fused.grade}`}`,side:fused.direction==="wait"?"watch":fused.direction,detail:`冲突 ${fused.conflict}；仅辅助。${items.map(item=>item.observation.reason??item.currentLabel).join("；")}`}];
     });
     return {
       fusionMarkers,
@@ -5042,9 +5042,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     ];
   },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,signalMode]);
   const decisionConditionsConfirmed=decisionConditions.reduce((count,item)=>count+(item.met?1:0),0);
-  const fusedSignal=useMemo(()=>fuseSignals([
-    ...(orderFlowCurrentAvailable&&marketSession.live?[{direction:(zijinOrderFlowRadar.scores?.lowBuy??0)>(zijinOrderFlowRadar.scores?.takeProfit??0)?"buy":"sell",score:Math.max(zijinOrderFlowRadar.scores?.lowBuy??0,zijinOrderFlowRadar.scores?.takeProfit??0),independent:true}].filter(item=>item.score>=60&&zijinOrderFlowRadar.scores?.lowBuy!==zijinOrderFlowRadar.scores?.takeProfit):[]),
-  ]),[marketSession.live,orderFlowCurrentAvailable,zijinOrderFlowRadar.scores?.lowBuy,zijinOrderFlowRadar.scores?.takeProfit]);
+  const fusedSignal=useMemo(()=>{
+    const lastTime=minutePoints.at(-1)?.time;
+    const latest=intradayMarkerLayout.fusionMarkers.filter(marker=>lastTime&&isRecentCausalEvent(lastTime,marker.time,3)).at(-1);
+    return marketSession.live&&latest?latest.fused:fuseSignals([]);
+  },[intradayMarkerLayout.fusionMarkers,minutePoints,marketSession.live]);
   const liveSignalLifecycle=useMemo(()=>buildLiveSignalLifecycle({
     minutes:minutePoints,
     // Only markers whose timestamp is in the current observed prefix are
@@ -6931,7 +6933,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className={`signal-fusion-summary ${fusedSignal.direction}`} aria-label="超级信号融合摘要">
               <span>超级信号 <small>辅助聚合</small></span>
               <b>{fusedSignal.direction==="buy"?"正T候选":fusedSignal.direction==="sell"?"反T候选":"等待确认"} · {fusedSignal.score===null?"待评分":`${fusedSignal.score}分 · ${fusedSignal.grade}`}</b>
-              <small>支持 {fusedSignal.support} · 反对 {fusedSignal.oppose} · 独立证据 {fusedSignal.independent} · 冲突 {fusedSignal.conflict}；不改变正式信号</small>
+              <small>支持 {fusedSignal.support} · 反对 {fusedSignal.oppose} · 冲突 {fusedSignal.conflict}；与图上近3分钟融合一致，未作胜率校准</small>
             </div>
             <div
               className={`global-decision-live-signal lifecycle-signal ${["candidate","shadow-upgraded","confirmed","waiting-close"].includes(liveSignalLifecycle.phase)?"active":"idle"}`}
