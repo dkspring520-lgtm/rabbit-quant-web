@@ -1,0 +1,1 @@
+export function openingAuctionWarning(input: {phase?:string;exchangeTime?:string|null;date?:string;time?:string;connected?:boolean;stale?:boolean;imbalance?:number|null;open?:number|null;previousClose?:number|null}): {label:string;gapText:string;session:string}|null;

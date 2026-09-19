@@ -72,8 +72,9 @@ import { evaluateZijinShadowExperiments } from "@/lib/zijin-shadow-experiments.m
 import { evaluateZijinOrderFlowRadar } from "@/lib/zijin-order-flow-engine.mjs";
 import type { ZijinOrderFlowRadar, ZijinOrderFlowRadarUnavailable } from "@/lib/zijin-order-flow-engine.mjs";
 import { relateOrderFlowShadowToFormalSignal } from "@/lib/order-flow-formal-link.mjs";
-import { observationConfirmationScore, scoreGrade, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
+import { buyRiskPresentation, observationConfirmationScore, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
 import { fuseSignals } from "@/lib/signal-fusion.mjs";
+import { openingAuctionWarning } from "@/lib/opening-auction-warning.mjs";
 import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
@@ -4316,25 +4317,22 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const point=pointPosition(observation.time,observation.price);
       if(!point)return [];
       const buyRisk=/下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text);
-      const score=Number(observation.score);
-      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?`买入风险${Number.isFinite(score)?` · ${score}分 · ${scoreGrade(score)}`:"：先别接"}`:"T飞风险：先别卖",index}];
+      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?buyRiskPresentation(observation,observation.strategy??"closure"):"T飞风险：先别卖",index}];
     });
     const fusionMarkers=[...new Set(observations.map(item=>item.observation.time))].flatMap(time=>{
       const items=observations.filter(item=>item.observation.time===time);
       if(items.length<2)return [];
-      const buys=items.filter(item=>item.observation.direction!=="反T").length;
-      const sells=items.length-buys;
+      const fused=fuseSignals(items.map(item=>({direction:item.observation.direction==="正T"?"buy":item.observation.direction==="反T"?"sell":null,score:observationConfirmationScore(item.observation,item.strategy)})));
       const point=pointPosition(time,items[0].observation.price);
       if(!point)return [];
-      const score=Math.round(50+(buys-sells)*18);
-      const grade=score>=80?"超好":score>=70?"OK":score>=60?"及格":score>=40?"偏弱":"很差";
-      return [{...point,time,label:buys>sells?`◆ 正T候选 · ${score}分 · ${grade}`:sells>buys?`◆ 反T候选 · ${score}分 · ${grade}`:`◆ 等确认 · ${score}分 · ${grade}`,side:buys>sells?"buy":sells>buys?"sell":"watch",detail:`支持 ${buys} · 反对 ${sells} · 同分钟信号已合并`}];
+      const label=fused.direction==="buy"?"正T候选":fused.direction==="sell"?"反T候选":"等确认";
+      return [{...point,time,label:`◆ ${label} · ${fused.score===null?"待评分":`${fused.score}分 · ${fused.grade}`}`,side:fused.direction==="wait"?"watch":fused.direction,detail:`冲突 ${fused.conflict}；仅辅助。${items.map(item=>item.observation.reason??item.currentLabel).join("；")}`}];
     });
     return {
       fusionMarkers,
       observations: chartAnnotationMode==="compact"
-        ?selectCompactChartLabels(observations,marker=>observationConfirmationScore(marker.observation,marker.strategy))
-        :observations,
+        ?selectCompactChartLabels(observations.filter(item=>!fusionMarkers.some(marker=>marker.time===item.observation.time)),marker=>observationConfirmationScore(marker.observation,marker.strategy))
+        :observations.filter(item=>!fusionMarkers.some(marker=>marker.time===item.observation.time)),
       // Keep every causal observation available to the crosshair without
       // rendering every label on the chart. Compaction is visual-only.
       tooltipObservations:tooltipEligible,
@@ -4439,6 +4437,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   })),[personalStrategyStats]);
   const localEvidenceCoverage=Math.min(100,Math.min(personalStrategyStats.sessions/20*100,personalStrategyStats.cycles/20*100));
   const openingAssessment = useMemo(() => {
+    const auctionWarning=openingAuctionWarning({
+      phase:marketSession.phase,
+      exchangeTime:isZijinStock?liveL2Status?.lastExchangeTime:null,
+      date:preopenPlanDate.replaceAll("-",""),
+      time:clockNow?.toLocaleTimeString("en-GB",{timeZone:"Asia/Shanghai",hour:"2-digit",minute:"2-digit",hour12:false}).replace(":",""),
+      connected:liveL2Status?.status?.connected===true,
+      stale:liveL2Status?.status?.stale!==false,
+      imbalance:liveL2Status?.book?.nearTouchImbalance,
+      open:liveL2Status?.session?.open,
+      previousClose:liveL2Status?.session?.previousClose,
+    });
+    if(auctionWarning)return {session:auctionWarning.session,gapText:auctionWarning.gapText,auction:auctionWarning.label,confirmation:"0/4 条件确认",suggested:"反T",positiveTitle:auctionWarning.label,negativeTitle:auctionWarning.label,positiveCopy:"竞价仅作预警，等待连续竞价价格与 VWAP 确认，不是买卖点。",negativeCopy:"竞价仅作预警，等待连续竞价价格与 VWAP 确认，不是买卖点。"};
     const price=activeQuote?.price;
     const quotedOpen=activeQuote?.open;
     const open=marketSession.phase==="auction-result" ? (quotedOpen&&quotedOpen>0?quotedOpen:price) : quotedOpen;
@@ -4449,12 +4459,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         : null);
     if(!price || !open || !previousClose) return {session:"等待昨收",gapText:"开盘方向待确认",auction:"开盘方向待确认",confirmation:"0/4 条件确认",suggested:"反T",positiveTitle:"正T条件待确认",positiveCopy:"昨收、今开或实时价格不完整，暂不判断高低开。",negativeTitle:"反T条件待确认",negativeCopy:"昨收、今开或实时价格不完整，暂不判断高低开。"};
     const gap=(open-previousClose)/previousClose; const vwap=chartModel?.lastVwap ?? open;
-    const aboveReference=price>=open && price>=vwap; const belowReference=price<=open && price<=vwap;
+    const aboveReference=Boolean(chartModel?.lastVwap)&&price>open && price>vwap; const belowReference=Boolean(chartModel?.lastVwap)&&price<open && price<vwap;
     const gapText=`${gap>=0?"高":"低"}开 ${gap>=0?"+":""}${(gap*100).toFixed(2)}%`;
     if(gap<=-.001) return {session:"低开",gapText,auction:aboveReference?"低开转强 · 正T观察":"低开承压 · 等待修复",confirmation:aboveReference?"3/4 条件确认":"2/4 条件确认",suggested:"正T",positiveTitle:aboveReference?"低开转强":"低开修复观察",positiveCopy:aboveReference?"价格已回到开盘价与 VWAP 上方，仍需二次确认。":"价格尚未同时站回开盘价与 VWAP，不急于补仓。",negativeTitle:"低开反弹观察",negativeCopy:"低开股票不能套用高开转弱逻辑；只有反弹到压力位并确认滞涨后才考虑反 T。"};
     if(gap>=.001) return {session:"高开",gapText,auction:belowReference?"高开转弱 · 反T观察":"高开偏强 · 等待回落",confirmation:belowReference?"3/4 条件确认":"2/4 条件确认",suggested:"反T",positiveTitle:"高开回踩观察",positiveCopy:"高开股票需等待回踩企稳，不能把高开直接当成正 T 买点。",negativeTitle:belowReference?"高开转弱":"高开滞涨观察",negativeCopy:belowReference?"价格跌回开盘价与 VWAP 下方，仍需回抽失败确认。":"价格尚未同时跌破开盘价与 VWAP，不急于卖出。"};
     return {session:"平开",gapText:`平开 ${(gap*100).toFixed(2)}%`,auction:"平开震荡 · 区间观察",confirmation:"2/4 条件确认",suggested:"正T",positiveTitle:"平开正T观察",positiveCopy:"等待价格回踩后重新站上 VWAP，再判断正 T。",negativeTitle:"平开反T观察",negativeCopy:"等待价格冲高后跌回 VWAP，再判断反 T。"};
-  },[activeQuote,chartModel?.lastVwap,marketSession.phase]);
+  },[activeQuote,chartModel?.lastVwap,marketSession.phase,isZijinStock,liveL2Status,preopenPlanDate,clockNow]);
   const openingStageCard=(()=>{
     const opened=marketSession.live||["lunch","closing"].includes(marketSession.phase);
     const postclose=!opened&&(["afterhours","closed"].includes(marketSession.phase)||marketSession.tone==="closed"||marketSession.tone==="postclose");
@@ -5033,11 +5043,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[decisionModel.inDecisionWindow,decisionModel.referenceConfirmed,decisionModel.status,decisionModel.trendConfirmed,signalMode]);
   const decisionConditionsConfirmed=decisionConditions.reduce((count,item)=>count+(item.met?1:0),0);
   const fusedSignal=useMemo(()=>fuseSignals([
-    {direction:decisionModel.referenceConfirmed===decisionModel.trendConfirmed?(decisionModel.referenceConfirmed?"buy":"sell"):"buy",weight:30,independent:false},
-    {direction:decisionModel.trendConfirmed?"buy":"sell",weight:25,independent:true},
-    {direction:orderFlowCurrentAvailable?(zijinOrderFlowRadar.scores?.lowBuy??0)>=(zijinOrderFlowRadar.scores?.takeProfit??0)?"buy":"sell":"buy",weight:25,independent:true},
-    ...(web4Microstructure.state==="risk"?[{direction:"sell",weight:20,independent:true}]:[]),
-  ]),[decisionModel.referenceConfirmed,decisionModel.trendConfirmed,orderFlowCurrentAvailable,zijinOrderFlowRadar.scores?.lowBuy,zijinOrderFlowRadar.scores?.takeProfit,web4Microstructure.state]);
+    ...(orderFlowCurrentAvailable&&marketSession.live?[{direction:(zijinOrderFlowRadar.scores?.lowBuy??0)>(zijinOrderFlowRadar.scores?.takeProfit??0)?"buy":"sell",score:Math.max(zijinOrderFlowRadar.scores?.lowBuy??0,zijinOrderFlowRadar.scores?.takeProfit??0),independent:true}].filter(item=>item.score>=60&&zijinOrderFlowRadar.scores?.lowBuy!==zijinOrderFlowRadar.scores?.takeProfit):[]),
+  ]),[marketSession.live,orderFlowCurrentAvailable,zijinOrderFlowRadar.scores?.lowBuy,zijinOrderFlowRadar.scores?.takeProfit]);
   const liveSignalLifecycle=useMemo(()=>buildLiveSignalLifecycle({
     minutes:minutePoints,
     // Only markers whose timestamp is in the current observed prefix are
@@ -6923,7 +6930,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             <div className={`signal-fusion-summary ${fusedSignal.direction}`} aria-label="超级信号融合摘要">
               <span>超级信号 <small>辅助聚合</small></span>
-              <b>{fusedSignal.direction==="buy"?"正T候选":fusedSignal.direction==="sell"?"反T候选":"等待确认"} · {fusedSignal.score}分 · {fusedSignal.grade}</b>
+              <b>{fusedSignal.direction==="buy"?"正T候选":fusedSignal.direction==="sell"?"反T候选":"等待确认"} · {fusedSignal.score===null?"待评分":`${fusedSignal.score}分 · ${fusedSignal.grade}`}</b>
               <small>支持 {fusedSignal.support} · 反对 {fusedSignal.oppose} · 独立证据 {fusedSignal.independent} · 冲突 {fusedSignal.conflict}；不改变正式信号</small>
             </div>
             <div
