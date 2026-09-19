@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { observationConfirmationScore, signalStrengthPresentation } from "../lib/signal-strength.mjs";
+import { buyRiskPresentation, scoreGrade, observationConfirmationScore, signalStrengthPresentation } from "../lib/signal-strength.mjs";
 
 test("scores are displayed in points, never as percentages or win rates", () => {
   const result = signalStrengthPresentation({ score: 70 });
-  assert.equal(result.label, "评分 70");
+  assert.equal(result.label, "70分 · OK");
   assert.match(result.detail, /不代表历史命中率/);
   assert.doesNotMatch(result.label, /%/);
-  assert.equal(signalStrengthPresentation({ score: 0 }).label, "评分 0");
+  assert.equal(signalStrengthPresentation({ score: 0 }).label, "0分 · 极差");
 });
 
 test("invalid and missing scores never turn into zero", () => {
@@ -20,7 +20,18 @@ test("the existing calibrated price-path statistic is explicitly a hit rate", ()
   const result = signalStrengthPresentation({ score: 85, historicalProbability: 70 });
   assert.equal(result.label, "历史命中率 70%");
   assert.match(result.detail, /不是扣费后的交易胜率/);
-  assert.equal(signalStrengthPresentation({ score: 85, historicalProbability: NaN }).label, "评分 85");
+  assert.equal(signalStrengthPresentation({ score: 85, historicalProbability: NaN }).label, "85分 · 超好");
+});
+
+test("risk labels use confirmation scores, never raw condition counts", () => {
+  assert.equal(buyRiskPresentation({score:5, scoreBreakdown:{direction:90,location:60,trigger:75}}), "买入风险提示 · 买入确认 75分 · OK");
+  assert.equal(buyRiskPresentation({score:5}), "买入风险提示 · 买入确认 待评分");
+  assert.equal(buyRiskPresentation({score:5,confirmationScore:5}), "买入风险提示 · 买入确认 5分 · 极差");
+  assert.equal(buyRiskPresentation({score:3}, "v29"), "买入风险提示 · 买入确认 75分 · OK");
+});
+
+test("grade boundaries match rounded display scores", () => {
+  for (const [score, grade] of [[0,"极差"],[20,"很差"],[40,"偏弱"],[60,"及格"],[70,"OK"],[80,"超好"],[100,"超好"],[69.6,"OK"]]) assert.equal(scoreGrade(score),grade);
 });
 
 test("each strategy keeps its own scoring scale, not its entry threshold", () => {

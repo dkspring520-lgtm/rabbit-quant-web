@@ -4238,8 +4238,8 @@
 .order-flow-score-row>span{grid-column:1/-1;min-width:0;color:var(--muted);font-size:10px}
 .order-flow-score-row small{color:var(--dim);font-size:7px}
 .order-flow-score-row>b{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px;border-radius:8px;background:var(--line-soft);min-width:0;text-align:center}
-.order-flow-score-row>b>span{font-size:15px;line-height:1.4;font-weight:600}
-.order-flow-score-row>b>strong{font:800 clamp(24px,2.5vw,34px)/1.2 var(--font-geist-mono),monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.order-flow-score-row>b>span{font-size:11px;line-height:1.4;font-weight:600}
+.order-flow-score-row>b>strong{min-width:0;max-width:100%;font:700 14px/1.5 var(--font-geist-mono),monospace;letter-spacing:0;font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
 .order-flow-score-row>b.buy{color:var(--teal)}
 .order-flow-score-row>b.sell{color:var(--coral)}
 .order-flow-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0;padding-top:1px}
