@@ -20,7 +20,7 @@ test("the existing calibrated price-path statistic is explicitly a hit rate", ()
   const result = signalStrengthPresentation({ score: 85, historicalProbability: 70 });
   assert.equal(result.label, "历史命中率 70%");
   assert.match(result.detail, /不是扣费后的交易胜率/);
-  assert.equal(signalStrengthPresentation({ score: 85, historicalProbability: NaN }).label, "85分 · 超好");
+  assert.equal(signalStrengthPresentation({ score: 85, historicalProbability: NaN }).label, "85分 · 确认较强");
 });
 
 test("risk labels use confirmation scores, never raw condition counts", () => {
@@ -31,7 +31,7 @@ test("risk labels use confirmation scores, never raw condition counts", () => {
 });
 
 test("grade boundaries match rounded display scores", () => {
-  for (const [score, grade] of [[0,"极差"],[20,"很差"],[40,"偏弱"],[60,"及格"],[70,"OK"],[80,"超好"],[100,"超好"],[69.6,"OK"]]) assert.equal(scoreGrade(score),grade);
+  for (const [score, grade] of [[0,"极差"],[20,"很差"],[40,"偏弱"],[60,"及格"],[70,"OK"],[80,"确认较强"],[100,"确认较强"],[69.6,"OK"]]) assert.equal(scoreGrade(score),grade);
 });
 
 test("each strategy keeps its own scoring scale, not its entry threshold", () => {
