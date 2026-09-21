@@ -808,6 +808,11 @@
   background:var(--surface);
   padding:12px
 }
+.interactive-intraday-chart .fusion-marker{pointer-events:bounding-box;z-index:2}
+.interactive-intraday-chart .fusion-marker>rect{fill:rgba(20,16,7,.97);stroke:#e2ac3d;stroke-width:1.1}
+.interactive-intraday-chart .fusion-marker>text{fill:#f5cf79;font-size:8px;font-weight:760;paint-order:stroke;stroke:rgba(7,19,18,.94);stroke-width:1.5px}
+.interactive-intraday-chart .fusion-marker.buy>rect{fill:rgba(4,35,32,.97);stroke:rgba(74,240,220,.98)}.interactive-intraday-chart .fusion-marker.buy>text{fill:#63efdd}
+.interactive-intraday-chart .fusion-marker.sell>rect{fill:rgba(41,10,10,.97);stroke:rgba(255,132,127,.98)}.interactive-intraday-chart .fusion-marker.sell>text{fill:#ff938e}
 
 /* Causal probability/MACD observation layer: visible, distinct from orders,
    and intentionally quiet enough to sit beside the three strategy tiers. */
