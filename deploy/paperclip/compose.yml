@@ -23,7 +23,7 @@ services:
     volumes:
       - paperclip-home:/paperclip
     networks:
-      - research-control-host
+      - research-control
     labels:
       rabbit-quant.research.commit: ${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
     security_opt:
@@ -60,7 +60,7 @@ services:
       - bridge-artifacts:/artifacts
       - bridge-state:/state
     networks:
-      - research-control-host
+      - research-control
     labels:
       rabbit-quant.research.commit: ${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
     read_only: true
@@ -78,8 +78,8 @@ services:
       start_period: 10s
 
 networks:
-  research-control-host:
-    internal: false
+  research-control:
+    internal: true
 
 volumes:
   paperclip-home:

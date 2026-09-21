@@ -4096,7 +4096,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       // In candle mode the visible bar is keyed by its minute close. Anchor
       // the marker to that rendered candle coordinate so it cannot float
       // outside the bar when the recorded decision price differs slightly.
-      const point=pointPosition(action.time,undefined,true);
+      const point=pointPosition(action.time,action.price,true);
       if(!point)return [];
       const isSell=action.side==="卖出";
       const label=formalExecutionLabel(action.direction,isSell?"sell":"buy");
