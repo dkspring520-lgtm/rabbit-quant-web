@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { clientFetch as fetch } from "@/lib/client-polling.mjs";
 import PublicLanding from "./public-landing";
+import AuthenticatedHome from "./authenticated-app";
 
 type UiTheme = "dark" | "light";
 type Membership = {
@@ -58,11 +59,6 @@ type AuthenticatedHomeProps = {
 
 const AuthView = dynamic<AuthViewProps>(
   () => import("./auth-view").then(module => module.AuthView),
-  { loading: () => <RabbitLoading /> },
-);
-
-const AuthenticatedHome = dynamic<AuthenticatedHomeProps>(
-  () => import("./authenticated-app").then(module => module.default),
   { loading: () => <RabbitLoading /> },
 );
 
