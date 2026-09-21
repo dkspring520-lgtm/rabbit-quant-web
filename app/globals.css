@@ -883,6 +883,11 @@
 }
 .decision-primary-card>.decision-primary-meta span{color:var(--muted);font-size:11px}
 .decision-primary-card>.decision-primary-meta strong{color:var(--amber);font-size:10px}
+.decision-primary-reason,.decision-primary-invalidation{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:start;gap:7px;margin:0 0 6px;padding:6px 8px;border-left:2px solid color-mix(in srgb,var(--amber) 52%,var(--line));background:color-mix(in srgb,var(--amber) 5%,transparent)}
+.decision-primary-reason span,.decision-primary-invalidation span{color:var(--dim);font:700 8px/1.45 var(--font-geist-mono),monospace;letter-spacing:.04em}
+.decision-primary-reason b,.decision-primary-invalidation b{min-width:0;overflow:hidden;color:var(--muted);font-size:9px;font-weight:550;line-height:1.45;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.decision-primary-invalidation{margin-bottom:8px;border-left-color:color-mix(in srgb,var(--coral) 45%,var(--line));background:color-mix(in srgb,var(--coral) 4%,transparent)}
+.decision-primary-invalidation.locked b{color:var(--coral)}
 .decision-primary-card.ready{border-color:rgba(40,215,196,.42)}
 .decision-primary-card.ready>.decision-primary-meta strong{color:var(--teal)}
 .decision-primary-card.locked{border-color:rgba(255,101,95,.42)}
@@ -4317,3 +4322,17 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .chart-signal-hover span{font-size:10px;line-height:1.45;color:#c1d0c9;white-space:normal}
 /* Research sidecar stays visually secondary to the formal radar. */
 .shadow-research-summary{display:grid;grid-template-columns:auto auto;gap:4px 8px;margin-top:7px;padding:7px 8px;border:1px dashed rgba(40,215,196,.25);background:rgba(40,215,196,.018)}.shadow-research-summary>span{font-size:8px;color:var(--dim);letter-spacing:.05em}.shadow-research-summary>b{justify-self:end;font:650 9px var(--font-geist-mono);color:var(--teal)}.shadow-research-summary>small{grid-column:1/-1;color:var(--muted);font-size:8px;line-height:1.35}
+/* Focus mode keeps one readable decision rail; detail remains available in research mode or tooltips. */
+.app-shell.minimal-ui .decision-zone.focus-mode .decision-primary-card>.global-decision-live-signal.idle:not(.lifecycle-signal),
+.app-shell.minimal-ui .decision-zone.focus-mode .decision-primary-card>.ai-l2-review.waiting,
+.app-shell.minimal-ui .decision-zone.focus-mode .decision-primary-card>.decision-primary-meta,
+.app-shell.minimal-ui .decision-zone.focus-mode .decision-primary-card>.decision-market-pulse{display:none!important}
+.app-shell.minimal-ui .decision-zone.focus-mode .signal-fusion-summary{margin-top:6px;padding:7px 8px;gap:2px}
+.app-shell.minimal-ui .decision-zone.focus-mode .signal-fusion-summary>b{font-size:12px}
+.app-shell.minimal-ui .decision-zone.focus-mode .signal-fusion-summary>small{font-size:8px;color:var(--dim)}
+.app-shell.minimal-ui .decision-zone.focus-mode .decision-execution-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:7px}
+.app-shell.minimal-ui .decision-zone.focus-mode .decision-execution-grid p{padding:6px 7px;gap:3px}
+.app-shell.minimal-ui .decision-zone.focus-mode .decision-execution-grid b{font-size:12px}
+@media(max-width:820px){
+  .app-shell.minimal-ui .decision-zone.focus-mode .decision-execution-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

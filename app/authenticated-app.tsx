@@ -6944,6 +6944,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                       :freshReverseTObservation
                         ?`🟠 反T${freshReverseTObservation.stage==="candidate"?"候补":"观察"}`
                         :"🟡 等待信号"}</b>
+            <div className="decision-primary-reason" aria-label="当前建议原因">
+              <span>原因</span>
+              <b title={decisionModel.reason}>{decisionModel.reason}</b>
+            </div>
+            <div className={`decision-primary-invalidation ${decisionModel.status==="locked"?"locked":""}`} aria-label="当前建议失效条件">
+              <span>失效</span>
+              <b title={decisionModel.status==="locked"?"风控解除并重新满足条件后才恢复判断":chartHud.risk}>
+                {decisionModel.status==="locked"?"风控解除并重新确认":chartHud.risk}
+              </b>
+            </div>
             {isZijinStock&&<div className={`decision-execution-grid ${executionSnapshot?"ready":"pending"}`} aria-label="正T与反T预设参考价位">
               {executionSnapshot?<>
                 <p className="positive"><span>拟买 · 正T</span><b>¥{executionSnapshot.buyReference.toFixed(2)} <small>{executionSnapshot.buyDistancePct===null?"距现价待更新":`距现价 ${executionSnapshot.buyDistancePct>=0?"+":""}${executionSnapshot.buyDistancePct.toFixed(2)}%`}</small></b></p>
@@ -6957,10 +6967,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <b>{reverseTSignalLabel}</b>
               <small>{reverseTSignalDetail}</small>
             </div>
-            <div className={`signal-fusion-summary ${fusedSignal.direction}`} aria-label="超级信号融合摘要">
+            <div className={`signal-fusion-summary ${fusedSignal.direction}`} aria-label="超级信号融合摘要" title={`支持 ${fusedSignal.support}，反对 ${fusedSignal.oppose}，冲突 ${fusedSignal.conflict}；与图上近3分钟融合一致，未作胜率校准`}>
               <span>超级信号 <small>辅助聚合</small></span>
               <b>{fusedSignal.direction==="buy"?"正T候选":fusedSignal.direction==="sell"?"反T候选":"等待确认"} · {fusedSignal.score===null?"待评分":`${fusedSignal.score}分 · ${fusedSignal.grade}`}</b>
-              <small>支持 {fusedSignal.support} · 反对 {fusedSignal.oppose} · 冲突 {fusedSignal.conflict}；与图上近3分钟融合一致，未作胜率校准</small>
+              <small>支持 {fusedSignal.support} · 反对 {fusedSignal.oppose} · 冲突 {fusedSignal.conflict}</small>
             </div>
             <div
               className={`global-decision-live-signal lifecycle-signal ${["candidate","shadow-upgraded","confirmed","waiting-close"].includes(liveSignalLifecycle.phase)?"active":"idle"}`}
