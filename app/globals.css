@@ -4306,7 +4306,7 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .daily-review-legend .t-fly-risk i{background:#e9827e;transform:rotate(45deg)}
 .daily-review-legend .buy-risk i{background:#f0bd4f;transform:rotate(45deg)}
 .intraday-risk-marker circle{stroke:var(--surface);stroke-width:1.2}
-.intraday-risk-marker text{font-size:10px;font-weight:800;paint-order:stroke;stroke:var(--surface);stroke-width:3}
+.intraday-risk-marker text{font-size:9px;font-weight:700;paint-order:stroke;stroke:var(--surface);stroke-width:2.5}
 .intraday-risk-marker.t-fly-risk circle{fill:#e9827e}
 .intraday-risk-marker.t-fly-risk text{fill:#e9827e}
 .intraday-risk-marker.buy-risk circle{fill:#f0bd4f}
