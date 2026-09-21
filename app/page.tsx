@@ -106,6 +106,24 @@ export default function Home() {
   const theme = useSyncExternalStore(subscribeTheme, readTheme, getServerTheme);
   const [initialAuth, setInitialAuth] = useState<InitialAuth | null>(null);
   const [authScreen, setAuthScreen] = useState<"landing" | "account">("landing");
+  const [moduleLoadError, setModuleLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onError = (event: ErrorEvent) => {
+      if (event.message || event.filename) setModuleLoadError(event.message || "脚本加载失败");
+    };
+    const onRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      const message = reason instanceof Error ? reason.message : String(reason || "脚本加载失败");
+      if (/chunk|import|module|fetch|load/i.test(message)) setModuleLoadError(message);
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -150,6 +168,9 @@ export default function Home() {
   };
 
   if (initialAuth) {
+    if (moduleLoadError) {
+      return <main className="auth-loading" role="alert"><div style={{ display: "grid", justifyItems: "center", gap: 14, maxWidth: 420, padding: 24, textAlign: "center" }}><Image src="/rabbit-logo-loading.webp" alt="双兔助手" width={48} height={48} unoptimized /><strong style={{ color: "var(--text)" }}>操盘台脚本加载失败</strong><span style={{ color: "var(--muted)", fontSize: 12 }}>请刷新页面重试。{moduleLoadError ? ` (${moduleLoadError})` : ""}</span><button type="button" onClick={() => window.location.reload()} style={{ border: "1px solid var(--line)", background: "transparent", color: "var(--teal)", padding: "8px 14px", cursor: "pointer" }}>刷新页面</button></div></main>;
+    }
     return <AuthenticatedErrorBoundary><AuthenticatedHome initialAuth={initialAuth} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { setInitialAuth(null); setAuthScreen("account"); }} /></AuthenticatedErrorBoundary>;
   }
   if (authScreen === "landing") {
