@@ -131,5 +131,5 @@ export default function Home() {
 }
 const AuthenticatedHome = dynamic<AuthenticatedHomeProps>(
   () => import("./authenticated-app").then(module => module.default),
-  { loading: () => <RabbitLoading />, ssr: false },
+  { loading: () => <RabbitLoading /> },
 );
