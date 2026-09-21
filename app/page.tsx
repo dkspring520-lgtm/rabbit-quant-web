@@ -5,7 +5,6 @@ import Image from "next/image";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { clientFetch as fetch } from "@/lib/client-polling.mjs";
 import PublicLanding from "./public-landing";
-import AuthenticatedHome from "./authenticated-app";
 
 type UiTheme = "dark" | "light";
 type Membership = {
@@ -130,3 +129,7 @@ export default function Home() {
   }
   return <AuthView theme={theme} onToggleTheme={toggleTheme} onBack={() => setAuthScreen("landing")} onDemo={enterDemo} onAuthenticated={handleAuthenticated} />;
 }
+const AuthenticatedHome = dynamic<AuthenticatedHomeProps>(
+  () => import("./authenticated-app").then(module => module.default),
+  { loading: () => <RabbitLoading />, ssr: false },
+);
