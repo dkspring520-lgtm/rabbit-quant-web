@@ -2,6 +2,7 @@ import { GET as getEventRadar } from "@/app/api/event-radar/route";
 import { GET as getMarketContext } from "@/app/api/market-context/route";
 import { GET as getMarketData } from "@/app/api/market-data/route";
 import { GET as getZijinHkMinute } from "@/app/api/zijin-hk-minute/route";
+import { buildShadowResearchLayer } from "@/lib/shadow-research-layer.mjs";
 
 async function readPayload(response: Response) {
   const payload = await response.json().catch(() => null);
@@ -53,12 +54,22 @@ export async function GET(request: Request) {
     hkResult.error && `港股紫金：${hkResult.error}`,
   ].filter(Boolean);
 
+  const shadowResearch = buildShadowResearchLayer({
+    code,
+    market: marketResult.payload,
+    context: contextResult.payload,
+    events: radarResult.payload?.stocks?.find((item: { code?: string }) => item.code === code),
+    minutes: marketResult.payload?.minutes,
+    marketDate: marketResult.payload?.marketDate ?? marketResult.payload?.date,
+  });
+
   return Response.json({
     fetchedAt: new Date().toISOString(),
     market: marketResult.payload,
     context: contextResult.payload,
     eventRadar: radarResult.payload,
     zijinHk: hkResult.payload,
+    shadowResearch,
     errors,
   }, {
     status: marketResult.payload || contextResult.payload || radarResult.payload ? 200 : 502,
