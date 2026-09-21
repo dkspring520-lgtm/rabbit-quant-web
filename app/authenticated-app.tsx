@@ -10,7 +10,6 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import type { ZijinFactorLifecycle } from "./zijin-factor-lifecycle-panel";
-import { AuthView } from "./auth-view";
 import "./globals.css";
 import "./backtest.css";
 import "./holdings.css";
@@ -80,9 +79,6 @@ import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-labe
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 const LightweightIntradayChart = (_props: { data: unknown[] }) => null;
-const PublicLanding = dynamic(() => import("./public-landing"), {
-  loading: () => <main className="public-site public-site-loading" aria-busy="true" />,
-});
 const ZijinFactorLifecyclePanel = dynamic(
   () => import("./zijin-factor-lifecycle-panel").then(module => module.ZijinFactorLifecyclePanel),
   { ssr:false },
@@ -1798,7 +1794,6 @@ function DailyClosedLoopReview({review,tradingDate}:{review:StrategyClosedLoopRe
 export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:toggleUiTheme}:{initialAuth?:InitialAuth;onLogout?:()=>void;theme:UiTheme;onToggleTheme:()=>void}) {
   const [authReady, setAuthReady] = useState(Boolean(initialAuth));
   const [localAuth, setLocalAuth] = useState(Boolean(initialAuth?.localAuth));
-  const [authScreen,setAuthScreen]=useState<'landing'|'account'>('landing');
   const [demoMode,setDemoMode]=useState(Boolean(initialAuth?.demoMode));
   const [accountName, setAccountName] = useState(initialAuth?.accountName ?? "jay cc");
   const [accountRole, setAccountRole] = useState(initialAuth?.accountRole ?? "member");
@@ -2166,7 +2161,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(requested!=="membership")return;
     const timer=window.setTimeout(()=>{
       if(localAuth)setAccountOpen(true);
-      else setAuthScreen("account");
     },0);
     return()=>window.clearTimeout(timer);
   },[authReady,localAuth]);
@@ -6561,17 +6555,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     window.setTimeout(()=>setInviteMessage(''),2600);
   };
   if(!authReady) return <main className="auth-loading"><Image src="/rabbit-logo-compact.png" alt="双兔助手 做T神器" width={48} height={48} priority/></main>;
-  if(!localAuth){
-    const enterDemo=()=>{setDemoMode(true);setAccountName('演示访客');setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setProfile(DEFAULT_PREFERENCES.strategyProfile);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true)};
-    if(authScreen==='landing')return <PublicLanding onDemo={enterDemo} onAccount={()=>setAuthScreen('account')} theme={uiTheme} onToggleTheme={toggleUiTheme}/>;
-    return <AuthView theme={uiTheme} onToggleTheme={toggleUiTheme} onBack={()=>setAuthScreen('landing')} onDemo={enterDemo} onAuthenticated={(name,isNew,remember,membership)=>{setDemoMode(false);setAccountName(name);setAccountRole(localStorage.getItem('rabbit-account-role')||'member');setAccountMembership(membership);remoteSyncReady.current=false;setStockPositions({});setPreferences(DEFAULT_PREFERENCES);setProfile(DEFAULT_PREFERENCES.strategyProfile);setHasPersistedPreferences(false);const prepared=prepareWatchlistForCurrentEntry(initialStocks);setStockList(prepared);setActiveStock(isZijinExperimentDeepLink()?prepared.findIndex(item=>item.code==='601899'):0);setActiveView(isZijinExperimentDeepLink()?'单股智研':'首页');setLocalAuth(true);try{const persistent=isNew||remember;(persistent?localStorage:sessionStorage).setItem('rabbit-auth-session',name);(persistent?sessionStorage:localStorage).removeItem('rabbit-auth-session');const saved=localStorage.getItem(`rabbit-prefs:${name.toLowerCase()}`);if(saved){const restored=normalizeAccountPreferences(JSON.parse(saved));setPreferences(restored);setProfile(restored.strategyProfile);setHasPersistedPreferences(true)}else setOnboardingOpen(true);const watchlist=localStorage.getItem(`rabbit-watchlist:${name.toLowerCase()}`);if(watchlist){const list=JSON.parse(watchlist);if(Array.isArray(list)&&list.length){const normalized=prepareWatchlistForCurrentEntry(list);setStockList(normalized);localStorage.setItem(`rabbit-watchlist:${name.toLowerCase()}`,JSON.stringify(normalized));}}const savedStrategy=localStorage.getItem(`rabbit-custom-strategy:${name.toLowerCase()}`)||localStorage.getItem('rabbit-custom-strategy');if(savedStrategy)setCustomStrategy(savedStrategy)}catch{} if(isNew)setOnboardingOpen(true)}}/>;
-  }
+  if(!localAuth) return <main className="auth-loading" role="status"><span>请返回登录页重新进入操盘台</span></main>;
 
   return (
     <main className={`app-shell minimal-ui session-${marketSession.tone} ${activeView === "操盘台" ? "tv-console" : ""}`}>
       <header className="topbar">
         <div className="brand brand-lockup" aria-label="双兔助手 做T神器 Rabbit Smart-T">
-          <Image className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志" width={280} height={72} priority/>
+          <img className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志" width={280} height={72} />
           <span className="brand-type brand-type-fallback"><strong aria-hidden="true"><span>双兔助手</span></strong><small>做<span className="brand-ascii-t">T</span>神器 · SMART-T</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
@@ -6593,7 +6583,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <button className="icon-button" onClick={()=>setOnboardingOpen(true)} aria-label="打开账户与监控设置" title="账户与监控设置">⚙</button>
         </div>
       </header>
-      {demoMode&&<div className="demo-ribbon" role="status"><b>免注册演示</b><span>当前为本机临时体验，不代表正式账户；下单接口关闭，演示操作不会同步到其他设备。</span><button onClick={()=>{setDemoMode(false);setLocalAuth(false);setAuthScreen('account');onLogout?.()}}>创建测试账户</button></div>}
+      {demoMode&&<div className="demo-ribbon" role="status"><b>免注册演示</b><span>当前为本机临时体验，不代表正式账户；下单接口关闭，演示操作不会同步到其他设备。</span><button onClick={()=>{setDemoMode(false);setLocalAuth(false);onLogout?.()}}>创建测试账户</button></div>}
 
       {activeView === "首页" ? <HomeView onNavigate={setActiveView} onOpenZijin={openZijinExperiment} stockCount={stockList.length} canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} referralCredits={accountMembership?.referralCredits??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} /> : activeView === "邀请中心" ? <ReferralCenter canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} demoMode={demoMode} referralCode={accountMembership?.referralCode??null} referralCredits={accountMembership?.referralCredits??0} referralReviews={accountMembership?.referralReviews??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} onOpenAccount={()=>setAccountOpen(true)} /> : activeView === "量化工具" ? <QuantToolsView onNavigate={setActiveView} /> : activeView === "操盘台" ? <>
       <section className="ticker" aria-label="股票监控列表">
@@ -7311,7 +7301,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className="account-settings"><h3>账户偏好</h3><label><span>默认股票<small>进入操盘台后优先显示</small></span><b>{preferences.stock.split(' ')[0]}</b></label><label><span>当前股票计划底仓<small>{stock.code} · 用于当日闭环校验</small></span><b>{activePosition.plannedBase.toLocaleString()} 股</b></label><label><span>风险偏好<small>影响提醒强度，不绕过硬风控</small></span><b>{preferences.risk}</b></label><label><span>自动交易<small>券商接口尚未连接</small></span><b className="account-off">关闭</b></label></div>
         <details className="account-notification-help"><summary>通知与手机后台帮助</summary><div><p><b>安卓 Chrome</b><span>菜单 → 添加到主屏幕 → 从桌面打开，再允许通知。</span></p><p><b>苹果 Safari</b><span>分享 → 添加到主屏幕 → 从桌面打开，再允许通知。</span></p><small>锁屏通知音由手机系统控制；提醒开关可在操盘台顶部设置。</small></div></details>
         <div className="account-security"><i>✓</i><p><b>{demoMode?'演示边界':'密码与会话安全'}</b><span>{demoMode?'演示不连接券商、不执行下单，也不会冒充正式账户。':'密码使用 scrypt 加盐哈希保存；登录会话使用 HttpOnly Cookie，前端不会读取密码或会话令牌。'}</span></p></div>
-        <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button>{accountRole==='admin'&&!demoMode&&<button onClick={()=>{setAccountOpen(false);setMemberAdminOpen(true)}}>会员后台</button>}<button onClick={()=>{void fetch('/api/control/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});try{localStorage.removeItem('rabbit-auth-session');localStorage.removeItem('rabbit-account-role');sessionStorage.removeItem('rabbit-auth-session')}catch{} remoteSyncReady.current=false;setAccountOpen(false);setDemoMode(false);setAuthScreen('landing');setLocalAuth(false);onLogout?.()}}>{demoMode?'退出演示':'退出登录'}</button></div>
+        <div className="account-footer-actions"><button onClick={()=>setAccountOpen(false)}>完成</button><button onClick={()=>{setAccountOpen(false);setOnboardingOpen(true)}}>修改偏好</button>{accountRole==='admin'&&!demoMode&&<button onClick={()=>{setAccountOpen(false);setMemberAdminOpen(true)}}>会员后台</button>}<button onClick={()=>{void fetch('/api/control/auth/logout',{method:'POST',credentials:'include'}).catch(()=>{});try{localStorage.removeItem('rabbit-auth-session');localStorage.removeItem('rabbit-account-role');sessionStorage.removeItem('rabbit-auth-session')}catch{} remoteSyncReady.current=false;setAccountOpen(false);setDemoMode(false);setLocalAuth(false);onLogout?.()}}>{demoMode?'退出演示':'退出登录'}</button></div>
       </div></div>}
       {memberAdminOpen&&<MemberAdminView onClose={()=>setMemberAdminOpen(false)}/>}
       {alertLogOpen&&premiumEnabled&&<AlertLogView stocks={stockList} activeCode={stock.code} localHistory={alertHistory} onClose={()=>setAlertLogOpen(false)}/>}
