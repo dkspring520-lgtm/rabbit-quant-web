@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { Component, type ErrorInfo, type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { clientFetch as fetch } from "@/lib/client-polling.mjs";
-import PublicLanding from "./public-landing";
 
 type UiTheme = "dark" | "light";
 type Membership = {
@@ -87,6 +86,10 @@ type AuthenticatedHomeProps = {
 const AuthView = dynamic<AuthViewProps>(
   () => import("./auth-view").then(module => module.AuthView),
   { loading: () => <RabbitLoading /> },
+);
+const PublicLanding = dynamic(
+  () => import("./public-landing").then(module => module.default),
+  { loading: () => <main className="public-site public-site-loading" aria-busy="true" /> },
 );
 
 function readTheme(): UiTheme {
