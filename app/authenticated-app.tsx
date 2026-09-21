@@ -1798,6 +1798,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [accountName, setAccountName] = useState(initialAuth?.accountName ?? "jay cc");
   const [accountRole, setAccountRole] = useState(initialAuth?.accountRole ?? "member");
   const [accountMembership,setAccountMembership]=useState<Membership|null>(initialAuth?.accountMembership ?? null);
+  const [clockNow, setClockNow] = useState<Date|null>(null);
   const [inviteMessage,setInviteMessage]=useState("");
   const monitorLimit=watchlistLimitForRole(accountRole,accountMembership?.active===true,accountMembership?.planId);
   const remoteSyncReady = useRef(false);
@@ -1809,6 +1810,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [stockPositions, setStockPositions] = useState<StockPositionMap>({});
   const [activeStock, setActiveStock] = useState(0);
   const [stockList, setStockList] = useState(initialStocks);
+  const stock = stockList[activeStock] || stockList[0];
   const validatedWatchlistSignature = useRef("");
   const [profile, setProfile] = useState<StrategyProfile>(DEFAULT_PREFERENCES.strategyProfile);
   const [panel, setPanel] = useState("今日T循环");
@@ -1913,7 +1915,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [marketError, setMarketError] = useState("");
   const [marketQuotes, setMarketQuotes] = useState<Record<string, MarketData["quote"]>>({});
   const [marketSnapshots, setMarketSnapshots] = useState<Record<string, MarketData>>({});
-  const [clockNow, setClockNow] = useState<Date|null>(null);
   const [liveSecondPoints, setLiveSecondPoints] = useState<LiveSecondPoint[]>([]);
   const liveSecondQuoteRef = useRef<{price:number|null;fresh:boolean}>({price:null,fresh:false});
   // Guard the local simulator against pointer/click bursts. A repeated click
@@ -2012,7 +2013,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   useEffect(()=>{
     try{localStorage.setItem("rabbit-cockpit-ui-state",JSON.stringify(cockpitLayoutSnapshot))}catch{}
   },[cockpitLayoutSnapshot]);
-  const stock = stockList[activeStock] || stockList[0];
   const activeProfitMode=preferences.profitMode;
   const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
   const setProfitMode=(value:ProfitMode)=>setPreferences(current=>{
