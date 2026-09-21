@@ -75,6 +75,7 @@ import { relateOrderFlowShadowToFormalSignal } from "@/lib/order-flow-formal-lin
 import { buyRiskPresentation, observationConfirmationScore, signalStrengthPresentation } from "@/lib/signal-strength.mjs";
 import { fuseSignals } from "@/lib/signal-fusion.mjs";
 import { openingAuctionWarning } from "@/lib/opening-auction-warning.mjs";
+import { isPreopenResetWindow, resetIntradayCaches } from "@/lib/intraday-cache-reset.mjs";
 import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
@@ -1837,6 +1838,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [backgroundPushTesting,setBackgroundPushTesting]=useState(false);
   const [alertQueue, setAlertQueue] = useState<TradeAlertToast[]>([]);
   const [alertHistory,setAlertHistory]=useState<TradeAlertToast[]>([]);
+  const intradayCacheResetKey=clockNow&&stock?.code&&accountName
+    ?`${accountName.toLowerCase()}:${stock.code}:${tradingDate}:${marketSession.phase}:${clockNow.toLocaleTimeString("en-GB",{timeZone:"Asia/Shanghai",hour12:false}).replace(/:/g,"").slice(0,4)}`
+    :"";
+  useEffect(()=>{
+    if(!intradayCacheResetKey||!stock?.code||!isPreopenResetWindow({phase:marketSession.phase,time:intradayCacheResetKey.slice(-4)}))return;
+    const marker=`rabbit-intraday-cache-reset:${accountName.toLowerCase()}:${stock.code}:${tradingDate}`;
+    try{if(localStorage.getItem(marker)==="1")return;}catch{return;}
+    const removed=resetIntradayCaches({storage:localStorage,accountName,code:stock.code,date:tradingDate});
+    setAlertHistory([]);
+    setPersistedChartObservations({key:null,observations:[]});
+    setPersistedChartFormalActions({key:null,actions:[]});
+    try{localStorage.setItem(marker,"1");}catch{}
+    if(removed.length) setAlertQueue(current=>[...current,{id:`cache-reset-${Date.now()}`,level:"info",title:"已清理昨日盘中缓存",message:"9:25 竞价结果后已清理当日旧图表和提醒，历史复盘数据保留。",createdAt:new Date().toISOString(),rabbit:"buy"} as TradeAlertToast]);
+  },[accountName,clockNow,intradayCacheResetKey,marketSession.phase,stock?.code,tradingDate]);
   const [formalSyncState,setFormalSyncState]=useState<FormalSyncState>({status:"idle",message:"等待正式信号",at:null});
   const alertToast=alertQueue[0]??null;
   const alertSequence=useRef(0);
