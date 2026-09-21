@@ -25,11 +25,17 @@ type InitialAuth = {
 };
 
 function RabbitLoading() {
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setTimedOut(true), 12_000);
+    return () => window.clearTimeout(timer);
+  }, []);
   return (
     <main className="auth-loading" aria-busy="true" aria-live="polite" role="status">
       <div style={{ display: "grid", justifyItems: "center", gap: 14 }}>
         <Image src="/rabbit-logo-loading.webp" alt="双兔助手 做T神器" width={48} height={48} priority unoptimized />
-        <span style={{ color: "var(--muted)", fontSize: 11 }}>正在进入双兔助手…</span>
+        <span style={{ color: "var(--muted)", fontSize: 11 }}>{timedOut ? "加载超时，可能是页面缓存或网络阻塞" : "正在进入双兔助手…"}</span>
+        {timedOut && <button type="button" onClick={() => window.location.reload()} style={{ border: "1px solid var(--line)", background: "transparent", color: "var(--teal)", padding: "8px 14px", cursor: "pointer" }}>刷新并重试</button>}
       </div>
     </main>
   );
