@@ -4320,14 +4320,28 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...zijinV1ChartObservations,
       ...causalObservationLayer,
     ].filter(observation=>strategyLayerVisible(("strategy" in observation?observation.strategy:"observation") as ChartObservation["strategy"]));
-    const riskMarkers=durableVisibleChartObservations.flatMap((observation,index)=>{
+    const riskCandidates=durableVisibleChartObservations.flatMap((observation,index)=>{
       const text=`${observation.reason??""} ${(observation.blockers??[]).join(" ")}`;
       if(!/卖飞|T飞|冲高回落|下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text))return [];
       const point=pointPosition(observation.time,observation.price);
       if(!point)return [];
       const buyRisk=/下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text);
-      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?buyRiskPresentation(observation,observation.strategy??"closure"):"T飞风险：先别卖",index}];
+      const score=buyRisk?observationConfirmationScore(observation,observation.strategy??"closure"):null;
+      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?(score===null?"买入风险":"买入风险 · "+Math.round(score)+"分"):"T飞风险",detail:buyRisk?buyRiskPresentation(observation,observation.strategy??"closure"):"T飞风险：先别卖",score,index}];
     });
+    const riskMarkers=riskCandidates.reduce<typeof riskCandidates>((kept,candidate)=>{
+      const existingIndex=kept.findIndex(item=>item.kind===candidate.kind&&(isRecentCausalEvent(item.time,candidate.time,20)||isRecentCausalEvent(candidate.time,item.time,20)));
+      if(existingIndex<0)return [...kept,candidate];
+      const existing=kept[existingIndex];
+      const candidateScore=candidate.score??-1;
+      const existingScore=existing.score??-1;
+      if(candidateScore>existingScore||(candidateScore===existingScore&&candidate.time>existing.time)){
+        const next=kept.slice();
+        next[existingIndex]=candidate;
+        return next;
+      }
+      return kept;
+    },[]);
     const fusionMarkers=[...new Set(observations.map(item=>item.observation.time))].flatMap(time=>{
       const items=observations.filter(item=>item.observation.time===time);
       if(items.length<2)return [];
@@ -6709,7 +6723,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <text x="0" y="-1" textAnchor="middle">OF 影子</text>
                 <text x="0" y="8" textAnchor="middle" className="scores">正T {orderFlowBuyStrength.label} · 反T {orderFlowSellStrength.label}</text>
               </g>}
-              {intradayMarkerLayout.riskMarkers.map(marker=><g key={`risk-${marker.kind}-${marker.time}-${marker.index}`} className={`intraday-risk-marker ${marker.kind}`}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.label}`}</title><circle cx={marker.x} cy={marker.y} r="5"/><text x={marker.x+8} y={marker.y-7}>{marker.label}</text></g>)}
+              {intradayMarkerLayout.riskMarkers.map(marker=><g key={`risk-${marker.kind}-${marker.time}-${marker.index}`} className={`intraday-risk-marker ${marker.kind}`}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.detail}`}</title><circle cx={marker.x} cy={marker.y} r="5"/><text x={marker.x+8} y={marker.y-7}>{marker.label}</text></g>)}
               {intradayMarkerLayout.fusionMarkers.map(marker=><g key={`fusion-${marker.time}`} className={`candidate-signal-marker fusion-marker ${marker.side} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.label} · ${marker.detail}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text></>}<circle cx={marker.x} cy={marker.y} r="6"/></g>)}
               {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";return <g key={`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>})}
               {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · ${marker.action.reason??"影子参考，不可执行"}`}</title><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text>{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
