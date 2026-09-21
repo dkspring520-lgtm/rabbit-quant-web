@@ -74,8 +74,8 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(source, /function observationConfirmationLabel/);
   assert.match(source, /function observationDirectionNote/);
   assert.match(source, /候补\$\{observation\.direction\}方向 · 不可执行/);
-  assert.match(source, /const label=observationConfirmationLabel\(observation\)/);
-  assert.match(source, /formatTime\(observation\.time\)\} · \{observationConfirmationLabel\(observation\)\}/);
+  assert.match(source, /const label=observationConfirmationLabel\(observation(?:,[^)]+)?\)/);
+  assert.match(source, /formatTime\(observation\.time\)\} · \{observationConfirmationLabel\(observation(?:,[^)]+)?\)\}/);
   assert.doesNotMatch(source, /observation\.direction==="正T"\?"候买":"候卖"/);
   assert.doesNotMatch(source, /\$\{observation\.stage==="candidate"\?"候选":"观察"\}\$\{observation\.direction\}/);
   assert.match(source, /selectLatestAlertableObservation\(observations\)/);
@@ -90,11 +90,10 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.doesNotMatch(source, /pivot-reference-marker/);
   assert.doesNotMatch(source, /pivot-confirmation-link/);
   assert.match(source, /visibleChartObservations/);
-  // Compaction moved into the `compactTagged` helper, so the Zijin-aware window
-  // and the repair-phase merging are now asserted separately: the helper passes
-  // mergeRepairPhases through, and the closure leg drives it from isZijinStock.
+  // Compaction is shared by live and persisted chart observations. The closure
+  // leg keeps the wider Zijin window and repair-phase merging enabled.
   assert.match(source, /compactChartObservations\(observations,isZijinStock\?45:30,\{mergeRepairPhases\}\)/);
-  assert.match(source, /compactTagged\(closureEligible,"closure",isZijinStock\)/);
+  assert.match(source, /compactTagged\(currentObservations,"closure",isZijinStock\)/);
   assert.match(source, /compactChartObservations\(buildReplayChartObservations/);
   assert.match(source, /\{visibleBacktestObservations\.map\(\(observation,index\)=>\{/);
   assert.doesNotMatch(source, /result\?\.trades===0&&visibleBacktestObservations\.map/);
@@ -118,10 +117,10 @@ test("all-watchlist alerts use branded rabbits while candidates stay non-executa
   assert.match(styles, /@keyframes rabbit-signal-hop/);
   assert.match(source, /"低位参考":"支撑观察"/);
   assert.match(styles, /candidate-signal-marker\.with-label>text,[\s\S]*?opacity:1/);
-  assert.match(source, /const formalFresh=Boolean/);
+  assert.match(source, /const formalCharted=!active\|\|Boolean\(latest&&intradayMarkerLayout\.actions\.some/);
   assert.match(source, /isRecentCausalEvent\(lastTime,latest\.time,3\)/);
   assert.match(source, /for\(const \[index,item\] of stockList\.entries\(\)\)/);
-  assert.match(source, /const formalFresh=Boolean\(latest&&formalCharted&&isRecentCausalEvent\(lastTime,latest\.time,3\)\)/);
+  assert.match(source, /const actionFresh=Boolean\(latest&&formalCharted&&isRecentCausalEvent\(lastTime,latest\.time,3\)\)/);
   assert.match(source, /const \[zijinResearchEnabled,setZijinResearchEnabled\]=useState\(false\)/);
   assert.match(source, /本股正式闭环/);
   assert.match(source, /正式 V4/);
@@ -215,7 +214,7 @@ test("mobile layout keeps core product flows usable on phones", async () => {
   assert.match(mobile, /\.backtest-grid/);
   assert.match(mobile, /\.research-grid/);
   assert.match(mobile, /\.zijin-external-sources/);
-  assert.match(source, /const labelVisible=true/);
+  assert.match(source, /const labelVisible=persistentChartLabel\(observation\.strategy,rawLabel,chartAnnotationMode\)/);
   assert.match(source, /marker\.labelVisible&&/);
 });
 

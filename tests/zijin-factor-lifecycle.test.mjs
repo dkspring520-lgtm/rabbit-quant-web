@@ -12,6 +12,7 @@ const compose = await readFile(new URL("../compose.web.yml", import.meta.url), "
 const dailyScript = await readFile(new URL("../scripts/zijin-factor-daily.mjs", import.meta.url), "utf8");
 const route = await readFile(new URL("../app/api/research/zijin-factor-lifecycle/route.ts", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.url), "utf8");
+const lifecyclePanel = await readFile(new URL("../app/zijin-factor-lifecycle-panel.tsx", import.meta.url), "utf8");
 
 test("registry keeps the two current factor combinations shadow-only", () => {
   const registry = createZijinFactorRegistry({ generatedAt: "2026-08-04T00:00:00.000Z" });
@@ -68,5 +69,5 @@ test("daily scheduler and main-site read-only display are wired", () => {
   assert.match(route, /Cache-Control.*no-store/);
   assert.match(page, /\/api\/research\/zijin-factor-lifecycle/);
   assert.match(page, /ZijinFactorLifecyclePanel/);
-  assert.match(page, /不自动进入 V4/);
+  assert.match(lifecyclePanel, /不自动进入 V4/);
 });
