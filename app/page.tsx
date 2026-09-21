@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { Component, type ErrorInfo, type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { clientFetch as fetch } from "@/lib/client-polling.mjs";
 import PublicLanding from "./public-landing";
 
@@ -39,6 +39,34 @@ function RabbitLoading({ retry }: { retry?: () => void }) {
       </div>
     </main>
   );
+}
+
+class AuthenticatedErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[rabbit] authenticated app failed to render", error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <main className="auth-loading" role="alert">
+          <div style={{ display: "grid", justifyItems: "center", gap: 14, maxWidth: 420, padding: 24, textAlign: "center" }}>
+            <Image src="/rabbit-logo-loading.webp" alt="双兔助手" width={48} height={48} unoptimized />
+            <strong style={{ color: "var(--text)" }}>操盘台加载失败</strong>
+            <span style={{ color: "var(--muted)", fontSize: 12 }}>页面脚本出现异常，请刷新重试。{this.state.error.message ? ` (${this.state.error.message})` : ""}</span>
+            <button type="button" onClick={() => window.location.reload()} style={{ border: "1px solid var(--line)", background: "transparent", color: "var(--teal)", padding: "8px 14px", cursor: "pointer" }}>刷新页面</button>
+          </div>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 type AuthViewProps = {
@@ -122,7 +150,7 @@ export default function Home() {
   };
 
   if (initialAuth) {
-    return <AuthenticatedHome initialAuth={initialAuth} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { setInitialAuth(null); setAuthScreen("account"); }} />;
+    return <AuthenticatedErrorBoundary><AuthenticatedHome initialAuth={initialAuth} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { setInitialAuth(null); setAuthScreen("account"); }} /></AuthenticatedErrorBoundary>;
   }
   if (authScreen === "landing") {
     return <PublicLanding onDemo={enterDemo} onAccount={() => setAuthScreen("account")} theme={theme} onToggleTheme={toggleTheme} />;
