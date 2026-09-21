@@ -251,8 +251,10 @@ function marketContextDirectionalChange(item:MarketContextItem|null){
 type EventRadarItem = { id:string; code:string; title:string; summary:string; url:string; source:string; sources?:string[]; relatedCount?:number; provider:string; official:boolean; sourceTier:1|2|3; sourceTierLabel:"一级可靠"|"二级专业"|"三级线索"; verificationStatus:"verified"|"licensed-required"|"unverified"; strategyImpact:"risk-gate"|"shadow-only"; impactHorizon:string; publishedAt:string; sentiment:"positive"|"negative"|"neutral"; severity:"critical"|"warning"|"info"; reason:string; ageHours:number };
 type EventRadarStock = { code:string; name:string; items:EventRadarItem[]; counts:{ positive:number; negative:number; neutral:number }; gate:{ level:"normal"|"caution"|"restricted"|"locked"; hardLock:boolean; score:number; label:string; action:string; reason:string } };
 type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; pollSeconds:number; sources:string[]; stocks:EventRadarStock[]; errors:string[] };
+type ShadowResearchEvidence = { id:string; title:string; detail:string; sentiment:"positive"|"negative"|"neutral"; source:string; observedAt:string; freshnessMinutes:number; taskRoute:string; strategyImpact:"shadow-only" };
+type ShadowResearch = { version:string; policy:{ mode:string; researchOnly:boolean; affectsFormalSignal:boolean; affectsRiskGate:boolean; canExecute:boolean }; code:string; phase:"preopen"|"intraday"|"postclose"; generatedAt:string; counts:{ total:number; positive:number; negative:number; neutral:number }; evidence:ShadowResearchEvidence[]; top:ShadowResearchEvidence[]; summary:string; formalSignalInputChanged:boolean; formalRiskGateChanged:boolean };
 type ZijinHkMarket = { symbol:string; name:string; provider:string; fetchedAt:string; sourceTimestamp:string|null; quote:{price:number;previousClose:number;changePercent:number}; minutes:{time:string;price:number}[] };
-type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; zijinHk:ZijinHkMarket|null; errors:string[] };
+type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; shadowResearch:ShadowResearch|null; zijinHk:ZijinHkMarket|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type FormalSyncState = { status:"idle"|"syncing"|"ok"|"error"; message:string; at:number|null };
 type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; marketDate?:string; marketTime?:string; price?:number; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
@@ -1928,6 +1930,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [marketContextError, setMarketContextError] = useState("");
   const [eventRadar, setEventRadar] = useState<EventRadarResponse | null>(null);
   const [eventRadarError, setEventRadarError] = useState("");
+  const [shadowResearch, setShadowResearch] = useState<ShadowResearch | null>(null);
   const [starredRevision, setStarredRevision] = useState(0);
   const [initialCockpitUi] = useState<Partial<CockpitLayoutSnapshot>>(()=>{
     try{
@@ -6035,6 +6038,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           setMarketContext(data.context);
           setZijinHkMarket(data.zijinHk);
           setEventRadar(data.eventRadar);
+          setShadowResearch(data.shadowResearch ?? null);
           setMarketContextError(data.context ? "" : "外部环境暂不可用，已降为个股保守模式");
           setEventRadarError(data.eventRadar ? "" : "事件雷达暂不可用，不使用旧消息改变信号");
         }
@@ -6043,6 +6047,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           setMarketContext(null);
           setZijinHkMarket(null);
           setEventRadar(null);
+          setShadowResearch(null);
           setMarketContextError("外部环境暂不可用，已降为个股保守模式");
           setEventRadarError("事件雷达暂不可用，不使用旧消息改变信号");
         }
@@ -7206,6 +7211,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <strong>{(currentContext?.gate.action ?? marketContextError) || "15 秒级异步风控，不阻塞 1 秒个股监控"}</strong>
             {Boolean(currentContext?.items.length)&&<div className="context-radar-grid">{currentContext!.items.slice(0,6).map(item=><span key={item.id}><small>{item.label}</small><b className={(item.changePercent??0)>0?"up":(item.changePercent??0)<0?"down":""}>{item.changePercent==null?"--":`${item.changePercent>0?"+":""}${item.changePercent.toFixed(2)}%`}</b></span>)}</div>}
             <div className="event-radar-summary"><span>事件雷达 · {eventRadar?.scanned ?? 0}/{Math.min(stockList.length,10)} 股</span><b className={currentEvents?.gate.level ?? "loading"}>{currentEvents?.gate.label ?? "正在扫描公告与公开资讯"}</b><small>{currentEvents?.gate.action ?? (eventRadarError || "盘中每 60 秒更新；来源发布时间可能存在延迟")}</small></div>
+            <div className="shadow-research-summary" title="Jev/PanWatch 研究影子，仅整理已出现证据，不改变正式信号或风控门槛">
+              <span>研究影子 · {shadowResearch?.phase === "preopen" ? "盘前" : shadowResearch?.phase === "postclose" ? "盘后" : "盘中"}</span>
+              <b>{shadowResearch?.counts.total ?? 0} 条证据</b>
+              <small>{shadowResearch?.summary ?? "研究证据同步中；不参与正式买卖评分"}</small>
+            </div>
             <div className="context-radar-foot"><span>{currentContext?.gate.reasons.join(" · ") || "公开行情仅供人工研判"}</span><em>{isZijinStock?"事件详情见新闻兔":eventRadar?.sources.join(" + ") || eventRadarError || "多源事件扫描加载中"}</em></div>
           </div>
           <div className="opening-causal"><span>09:30 起实时扫描</span><b>仅使用已出现数据 · 无需手动切换</b><small>最早 09:33 显示候选，09:36–09:44 经连续走势与 VWAP 确认后才允许小仓正式信号；09:45 后恢复完整过滤。</small></div>

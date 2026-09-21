@@ -4315,3 +4315,5 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .chart-signal-hover>div{display:grid;gap:5px;width:224px;padding:9px 11px;border:1px solid rgba(242,184,75,.72);border-radius:7px;background:rgba(8,16,15,.78);box-shadow:0 10px 28px rgba(0,0,0,.36);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#edf4ef;font-family:var(--font-geist-sans),"Microsoft YaHei",sans-serif}
 .chart-signal-hover strong{font-size:11px;color:#f4cd7a;font-weight:800}
 .chart-signal-hover span{font-size:10px;line-height:1.45;color:#c1d0c9;white-space:normal}
+/* Research sidecar stays visually secondary to the formal radar. */
+.shadow-research-summary{display:grid;grid-template-columns:auto auto;gap:4px 8px;margin-top:7px;padding:7px 8px;border:1px dashed rgba(40,215,196,.25);background:rgba(40,215,196,.018)}.shadow-research-summary>span{font-size:8px;color:var(--dim);letter-spacing:.05em}.shadow-research-summary>b{justify-self:end;font:650 9px var(--font-geist-mono);color:var(--teal)}.shadow-research-summary>small{grid-column:1/-1;color:var(--muted);font-size:8px;line-height:1.35}
