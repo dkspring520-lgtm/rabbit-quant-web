@@ -24,10 +24,10 @@ test("the existing calibrated price-path statistic is explicitly a hit rate", ()
 });
 
 test("risk labels use confirmation scores, never raw condition counts", () => {
-  assert.equal(buyRiskPresentation({score:5, scoreBreakdown:{direction:90,location:60,trigger:75}}), "买入风险提示 · 买入确认 75分 · OK");
-  assert.equal(buyRiskPresentation({score:5}), "买入风险提示 · 买入确认 待评分");
-  assert.equal(buyRiskPresentation({score:5,confirmationScore:5}), "买入风险提示 · 买入确认 5分 · 极差");
-  assert.equal(buyRiskPresentation({score:3}, "v29"), "买入风险提示 · 买入确认 75分 · OK");
+  assert.equal(buyRiskPresentation({score:5, scoreBreakdown:{direction:90,location:60,trigger:75}}), "买入谨慎提示 · 买入确认 75分 · OK");
+  assert.equal(buyRiskPresentation({score:5}), "买入谨慎提示 · 买入确认 待评分");
+  assert.equal(buyRiskPresentation({score:5,confirmationScore:5}), "买入谨慎提示 · 买入确认 5分 · 极差");
+  assert.equal(buyRiskPresentation({score:3}, "v29"), "买入谨慎提示 · 买入确认 75分 · OK");
 });
 
 test("grade boundaries match rounded display scores", () => {

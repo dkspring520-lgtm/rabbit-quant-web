@@ -4333,7 +4333,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(!point)return [];
       const buyRisk=/下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text);
       const score=buyRisk?observationConfirmationScore(observation,observation.strategy??"closure"):null;
-      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?(score===null?"买入风险":"买入风险 · "+Math.round(score)+"分"):"T飞风险",detail:buyRisk?buyRiskPresentation(observation,observation.strategy??"closure"):"T飞风险：先别卖",score,index}];
+      return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?(score===null?"买入确认 · 待评分":"买入确认 · "+Math.round(score)+"分"):"T飞风险",detail:buyRisk?buyRiskPresentation(observation,observation.strategy??"closure"):"T飞风险：先别卖",score,index}];
       }),
       ...(liveDisplacement?.stage==="opening-surge-watch"||liveDisplacement?.stage==="displacement-progress"||liveDisplacement?.stage==="displacement-l2-confirmation"
         ?(()=>{
