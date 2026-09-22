@@ -3901,7 +3901,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       };
     }
     const displacement=isZijinStock?evaluateZijinDisplacementWatch(minutePoints):null;
-    if(displacement?.stage==="displacement-candidate"&&isRecentCausalEvent(latestTime,displacement.time,2)){
+    if((displacement?.stage==="displacement-candidate"||displacement?.stage==="opening-surge-watch"||displacement?.stage==="displacement-progress"||displacement?.stage==="displacement-l2-confirmation")&&isRecentCausalEvent(latestTime,displacement.time,2)){
       return {
         key:`displacement-${displacement.id}`,
         label:compactIntradayPrompt(displacement.label),
@@ -4324,7 +4324,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       ...zijinV1ChartObservations,
       ...causalObservationLayer,
     ].filter(observation=>strategyLayerVisible(("strategy" in observation?observation.strategy:"observation") as ChartObservation["strategy"]));
-    const riskCandidates=durableVisibleChartObservations.flatMap((observation,index)=>{
+    const liveDisplacement=isZijinStock?evaluateZijinDisplacementWatch(minutePoints):null;
+    const riskCandidates=[
+      ...durableVisibleChartObservations.flatMap((observation,index)=>{
       const text=`${observation.reason??""} ${(observation.blockers??[]).join(" ")}`;
       if(!/卖飞|T飞|冲高回落|下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text))return [];
       const point=pointPosition(observation.time,observation.price);
@@ -4332,7 +4334,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const buyRisk=/下跌未止|下降途中|跌破 VWAP|VWAP 下方/i.test(text);
       const score=buyRisk?observationConfirmationScore(observation,observation.strategy??"closure"):null;
       return [{...point,time:observation.time,kind:buyRisk?"buy-risk":"t-fly-risk",label:buyRisk?(score===null?"买入风险":"买入风险 · "+Math.round(score)+"分"):"T飞风险",detail:buyRisk?buyRiskPresentation(observation,observation.strategy??"closure"):"T飞风险：先别卖",score,index}];
-    });
+      }),
+      ...(liveDisplacement?.stage==="opening-surge-watch"||liveDisplacement?.stage==="displacement-progress"||liveDisplacement?.stage==="displacement-l2-confirmation"
+        ?(()=>{
+            const point=pointPosition(liveDisplacement.time,liveDisplacement.price);
+            if(!point)return [];
+            return [{...point,time:liveDisplacement.time,kind:liveDisplacement.stage==="opening-surge-watch"?"opening-surge-watch":"displacement-watch",label:liveDisplacement.label,detail:liveDisplacement.reason,score:null,index:0}];
+          })()
+        :[]),
+    ];
     const riskMarkers=riskCandidates.reduce<typeof riskCandidates>((kept,candidate)=>{
       const existingIndex=kept.findIndex(item=>item.kind===candidate.kind&&(isRecentCausalEvent(item.time,candidate.time,20)||isRecentCausalEvent(candidate.time,item.time,20)));
       if(existingIndex<0)return [...kept,candidate];

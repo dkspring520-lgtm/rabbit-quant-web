@@ -27,6 +27,18 @@ test("does not alert for ordinary movement near VWAP", () => {
   assert.equal(result, null);
 });
 
+test("surfaces a fast opening surge as observation before VWAP displacement confirms", () => {
+  const result = evaluateZijinDisplacementWatch(
+    buildPoints([31.30, 31.24, 31.26, 31.30, 31.38, 31.56, 31.47]),
+    { minimumBiasPct: 1.5 },
+  );
+  assert.equal(result?.stage, "opening-surge-watch");
+  assert.equal(result?.direction, "反T");
+  assert.equal(result?.executable, false);
+  assert.match(result?.label ?? "", /冲高回落观察/);
+  assert.match(result?.reason ?? "", /不是正式卖点/);
+});
+
 test("stable tier id supports one reminder per displacement episode", () => {
   const first = evaluateZijinDisplacementWatch(
     buildPoints([31.2, 31.2, 31.2, 31.2, 31.2, 31.5]),
