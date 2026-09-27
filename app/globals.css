@@ -3894,6 +3894,86 @@
   .app-shell.tv-console .chart-tools{height:auto;min-height:48px;flex-basis:auto}
 }
 
+/* The five desktop quote columns cannot fit at tablet widths. Reflow the
+   quote header before the global overflow clip can hide the health/status
+   fields; the mobile layout then gives the quote and execution context a
+   predictable reading order. */
+@media(max-width:1100px) and (min-width:821px){
+  .app-shell.tv-console .stock-head{
+    height:auto;
+    min-height:112px;
+    padding:9px 16px;
+    gap:8px 12px;
+    align-items:center;
+    overflow:visible;
+    grid-template-columns:minmax(150px, .7fr) minmax(0, 1fr) minmax(170px, .78fr);
+    grid-template-rows:minmax(0,1fr) minmax(0,1fr);
+  }
+  .app-shell.tv-console .stock-identity{grid-column:1;grid-row:1;min-width:0}
+  .app-shell.tv-console .stock-identity h1{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:17px}
+  .app-shell.tv-console .quote-focus{
+    grid-column:2;
+    grid-row:1;
+    width:100%;
+    display:grid;
+    grid-template-columns:max-content minmax(0,1fr);
+    align-items:center;
+    gap:10px;
+  }
+  .app-shell.tv-console .quote-focus .opening-assessment{min-width:0;margin-left:0;padding-left:9px}
+  .app-shell.tv-console .quote-focus .opening-assessment small{max-width:none}
+  .app-shell.tv-console .quote-metrics{display:flex;grid-column:1 / 3;grid-row:2;min-width:0;overflow-x:auto;scrollbar-width:none}
+  .app-shell.tv-console .quote-metrics::-webkit-scrollbar{display:none}
+  .app-shell.tv-console .next-session-header{grid-column:3;grid-row:2;min-width:0;width:100%}
+  .app-shell.tv-console .l2-console-status{grid-column:3;grid-row:1;min-width:0;width:100%;max-width:none}
+}
+
+@media(max-width:820px){
+  .app-shell.tv-console .stock-head{
+    height:auto;
+    min-height:156px;
+    padding:9px 12px;
+    gap:7px 10px;
+    align-items:center;
+    overflow:visible;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-rows:auto auto minmax(0,1fr) minmax(0,1fr);
+    grid-template-areas:
+      "identity identity"
+      "quote quote"
+      "metrics next"
+      "metrics status";
+  }
+  .app-shell.tv-console .stock-identity{grid-area:identity;min-width:0}
+  .app-shell.tv-console .stock-identity h1{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:16px}
+  .app-shell.tv-console .quote-focus{
+    grid-area:quote;
+    width:100%;
+    display:flex;
+    margin-left:0;
+    min-width:0;
+    gap:10px;
+  }
+  .app-shell.tv-console .quote-focus .opening-assessment{display:none}
+  .app-shell.tv-console .quote{padding-left:11px;gap:7px}
+  .app-shell.tv-console .quote strong{font-size:25px}
+  .app-shell.tv-console .quote span{font-size:12px}
+  .app-shell.tv-console .quote-metrics{display:flex!important;grid-area:metrics;min-width:0;width:100%;overflow-x:auto;gap:10px;scrollbar-width:none}
+  .app-shell.tv-console .quote-metrics::-webkit-scrollbar{display:none}
+  .app-shell.tv-console .next-session-header{grid-area:next;min-width:0;width:100%;padding:5px 7px}
+  .app-shell.tv-console .l2-console-status{grid-area:status;min-width:0;width:100%;max-width:none;padding:5px 7px}
+  .app-shell.tv-console .quote-metrics span{flex:0 0 auto}
+}
+
+/* Gold is the cockpit navigation accent; red/green remain reserved for price
+   and action semantics. */
+.app-shell.tv-console .main-nav button.active,
+.app-shell.tv-console .decision-zone-tabs button.active{box-shadow:inset 0 -2px var(--amber)}
+.app-shell.tv-console .main-nav button.active:after{background:var(--amber)}
+@media(max-width:820px){
+  .app-shell.tv-console .main-nav button.active:after{background:var(--amber)}
+}
+
 /* TradingView-grade cockpit variants.  The desk keeps one layout and swaps
    only its visual tokens, so signals and chart geometry remain identical in
    day and black-gold modes. */
@@ -3945,7 +4025,7 @@
 }
 :root[data-theme="light"] .app-shell.tv-console .main-nav button.active,
 :root[data-theme="light"] .app-shell.tv-console .decision-zone-tabs button.active{
-  box-shadow:inset 0 -2px #2962ff;
+  box-shadow:inset 0 -2px var(--amber);
 }
 :root[data-theme="light"] .app-shell.tv-console .stock-head,
 :root[data-theme="light"] .app-shell.tv-console .chart-zone,
@@ -4403,3 +4483,348 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 @media(max-width:820px){
   .app-shell.minimal-ui .decision-zone.focus-mode .decision-execution-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* Cockpit polish: keep A-share red/green semantics while giving the chart and
+   quick actions enough contrast to scan without making secondary controls loud. */
+.app-shell.minimal-ui .quote strong,
+.app-shell.minimal-ui .quote span,
+.app-shell.minimal-ui .ticker em{
+  color:#ff4d4f;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-price-flag rect{
+  fill:#ff4d4f;
+}
+.app-shell.minimal-ui .quote.down strong,
+.app-shell.minimal-ui .quote.down span,
+.app-shell.minimal-ui .ticker em.down{
+  color:#00b578;
+}
+.app-shell.minimal-ui .quote.up strong,
+.app-shell.minimal-ui .quote.up span,
+.app-shell.minimal-ui .ticker em.up{
+  color:#ff4d4f;
+}
+.app-shell.minimal-ui .quote.flat strong,
+.app-shell.minimal-ui .quote.flat span,
+.app-shell.minimal-ui .ticker em.flat{
+  color:var(--muted);
+}
+.app-shell.minimal-ui .interactive-intraday-chart .grid-line:not(.previous-close-line){
+  stroke:color-mix(in srgb,var(--text) 18%,var(--line));
+  opacity:.62;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .grid-line.vertical{
+  opacity:.48;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-axis-label{
+  fill:color-mix(in srgb,var(--muted) 78%,var(--text));
+}
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-percent-label.up{
+  fill:#ff4d4f;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-percent-label.down{
+  fill:#00b578;
+}
+.app-shell.minimal-ui .quick-sim-order-actions button{
+  transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease;
+}
+.app-shell.minimal-ui .quick-sim-order-actions .buy{
+  border-color:rgba(255,77,79,.62);
+  background:rgba(255,77,79,.12);
+  color:#ff7778;
+}
+.app-shell.minimal-ui .quick-sim-order-actions .sell{
+  border-color:rgba(0,181,120,.62);
+  background:rgba(0,181,120,.12);
+  color:#4ddba9;
+}
+.app-shell.minimal-ui .quick-sim-order-actions button:hover:not(:disabled),
+.app-shell.minimal-ui .quick-sim-order-actions button:focus-visible{
+  filter:none;
+  box-shadow:0 0 0 2px color-mix(in srgb,currentColor 18%,transparent);
+}
+.app-shell.minimal-ui .decision-primary-card.global-decision-card.ready,
+.app-shell.minimal-ui .decision-primary-card.global-decision-card.locked{
+  box-shadow:0 10px 24px rgba(0,0,0,.2),inset 0 0 0 1px rgba(255,255,255,.035);
+}
+.app-shell.minimal-ui .decision-primary-card.global-decision-card.ready.positive{
+  box-shadow:0 10px 24px rgba(0,0,0,.2),inset 0 0 0 1px rgba(255,77,79,.1);
+}
+.app-shell.minimal-ui .decision-primary-card.global-decision-card.ready.reverse{
+  box-shadow:0 10px 24px rgba(0,0,0,.2),inset 0 0 0 1px rgba(0,181,120,.1);
+}
+
+/* 2026 cockpit signal hierarchy: short chart badges, full reasons on hover. */
+.app-shell.minimal-ui .interactive-intraday-chart .marker-label-main,
+.app-shell.minimal-ui .interactive-intraday-chart .marker-label-score{
+  font-family:var(--font-geist-sans),"Microsoft YaHei",sans-serif;
+  paint-order:stroke;
+  stroke:rgba(7,13,15,.94);
+  stroke-width:1.35px;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .marker-label-main{
+  font-size:7.5px;
+  font-weight:620;
+  letter-spacing:0;
+  opacity:.86;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .marker-label-score{
+  font-family:var(--font-geist-mono),ui-monospace,monospace;
+  font-size:10px;
+  font-weight:850;
+  letter-spacing:0;
+  font-variant-numeric:tabular-nums;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .live-signal-marker .marker-label-main,
+.app-shell.minimal-ui .interactive-intraday-chart .fusion-marker .marker-label-main{
+  font-size:8px;
+  font-weight:700;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .live-signal-marker .marker-label-score,
+.app-shell.minimal-ui .interactive-intraday-chart .fusion-marker .marker-label-score{
+  font-size:11px;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .fusion-marker>rect,
+.app-shell.minimal-ui .interactive-intraday-chart .live-signal-marker>rect,
+.app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.with-label>rect{
+  rx:6px;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.28));
+}
+.app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker,
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker{
+  opacity:.76;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker .marker-label-main,
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker .marker-label-main{
+  font-size:7px;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker .marker-label-score,
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker .marker-label-score{
+  font-size:9px;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-risk-marker text{
+  font-family:var(--font-geist-sans),"Microsoft YaHei",sans-serif;
+  font-size:8px;
+  font-weight:720;
+}
+
+/* Right rail: consistent framing keeps the decision, price plan and execution
+   controls readable without turning every section into a competing card. */
+.app-shell.minimal-ui .decision-zone > section,
+.app-shell.minimal-ui .decision-zone > article,
+.app-shell.minimal-ui .decision-zone > .quick-sim-order,
+.app-shell.minimal-ui .decision-zone > .zijin-price-plan{
+  border-radius:8px;
+}
+.app-shell.minimal-ui .decision-zone .zijin-price-plan{
+  border-color:color-mix(in srgb,var(--amber) 24%,var(--line));
+  background:color-mix(in srgb,var(--surface) 96%,var(--amber) 4%);
+}
+.app-shell.minimal-ui .decision-zone .quick-sim-order{
+  border-color:var(--line);
+  background:var(--surface);
+}
+.app-shell.minimal-ui .quick-sim-order-actions button b{
+  font-size:14px;
+  line-height:1;
+}
+.app-shell.minimal-ui .quick-sim-order-actions button{
+  font-size:11px;
+  letter-spacing:0;
+}
+.app-shell.minimal-ui .quick-sim-order-status{
+  color:var(--dim);
+  opacity:.82;
+}
+.app-shell.minimal-ui .chart-tools .layer-switches{
+  padding:2px;
+  border:1px solid var(--line-soft);
+  border-radius:6px;
+  background:color-mix(in srgb,var(--surface) 80%,transparent);
+}
+.app-shell.minimal-ui .chart-tools .layer-switches button{
+  min-height:25px;
+  border-radius:4px;
+}
+.app-shell.minimal-ui .chart-tools .layer-switches button.chart-mode{
+  color:var(--text-soft);
+  background:color-mix(in srgb,var(--surface-2) 82%,transparent);
+}
+.app-shell.minimal-ui .chart-tools .layer-switches button.formal.active{
+  color:#ff7778;
+  border-color:rgba(255,77,79,.45);
+  background:rgba(255,77,79,.1);
+}
+.app-shell.minimal-ui .chart-tools .layer-switches button.v29.active,
+.app-shell.minimal-ui .chart-tools .layer-switches button.v1.active{
+  color:var(--amber);
+  border-color:rgba(216,169,58,.38);
+  background:rgba(216,169,58,.08);
+}
+@media(max-width:820px){
+  .app-shell.minimal-ui .chart-tools .layer-switches{border-radius:5px}
+  .app-shell.minimal-ui .interactive-intraday-chart .marker-label-score{font-size:9px}
+  .app-shell.minimal-ui .interactive-intraday-chart .marker-label-main{font-size:7px}
+}
+
+/* Desktop quote header: three quiet groups (identity/quote, metrics, status)
+   make the scan order visible without turning the header into a stack of loud
+   cards. The compact breakpoints above keep this treatment out of phone rows. */
+@media(min-width:1101px){
+  .app-shell.minimal-ui.tv-console .stock-head > .stock-identity{
+    padding-right:10px;
+  }
+  .app-shell.minimal-ui.tv-console .stock-head > .quote-focus,
+  .app-shell.minimal-ui.tv-console .stock-head > .quote-metrics{
+    min-height:48px;
+    padding:5px 9px;
+    border:1px solid color-mix(in srgb,var(--tv-border) 82%,transparent);
+    border-radius:5px;
+    background:color-mix(in srgb,var(--tv-panel) 62%,transparent);
+  }
+  .app-shell.minimal-ui.tv-console .stock-head > .quote-focus{gap:10px}
+  .app-shell.minimal-ui.tv-console .stock-head > .quote-metrics{
+    align-items:center;
+  }
+  .app-shell.minimal-ui.tv-console .stock-head > .next-session-header,
+  .app-shell.minimal-ui.tv-console .stock-head > .l2-console-status{
+    min-height:48px;
+  }
+}
+
+/* Final cockpit scan order: the formal decision stays above research-only
+   context, while order flow remains available as a secondary explanation. */
+.app-shell.minimal-ui .decision-zone > .decision-zone-tabs{order:0!important}
+.app-shell.minimal-ui .decision-zone > .decision-primary-card{order:1!important}
+.app-shell.minimal-ui .decision-zone > .zijin-price-plan{order:2!important}
+.app-shell.minimal-ui .decision-zone > .decision-position-card{order:3!important}
+.app-shell.minimal-ui .decision-zone > .trade-alert-stack{order:4!important}
+.app-shell.minimal-ui .decision-zone > .primary-action{order:5!important}
+.app-shell.minimal-ui .decision-zone > .alert-channel{order:6!important}
+.app-shell.minimal-ui .decision-zone > .order-flow-top-card{order:7!important}
+.app-shell.minimal-ui .decision-zone > *:not(.decision-zone-tabs):not(.decision-primary-card):not(.zijin-price-plan):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel):not(.order-flow-top-card){order:8!important}
+
+/* The chart toolbar is grouped by task so the signal layers do not compete
+   with the period switch or utility actions. Indicators can scroll on narrow
+   rails without changing the chart's height. */
+.app-shell.minimal-ui .chart-control-groups{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  min-width:0;
+  margin-left:auto;
+}
+.app-shell.minimal-ui .chart-control-group{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  min-width:0;
+}
+.app-shell.minimal-ui .chart-control-group-label{
+  flex:0 0 auto;
+  color:var(--dim);
+  font-size:8px;
+  letter-spacing:.05em;
+  line-height:1;
+}
+.app-shell.minimal-ui .chart-control-group .layer-switches,
+.app-shell.minimal-ui .chart-tool-actions{
+  display:flex;
+  align-items:center;
+  gap:3px;
+  min-width:0;
+}
+.app-shell.minimal-ui .chart-indicators-group .layer-switches{
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.app-shell.minimal-ui .chart-indicators-group .layer-switches::-webkit-scrollbar{display:none}
+.app-shell.minimal-ui .chart-tool-actions{flex:0 0 auto}
+.app-shell.minimal-ui .chart-tool-actions .layer-switches{overflow:visible}
+.app-shell.minimal-ui .chart-tool-actions .tool-button{flex:0 0 auto;white-space:nowrap}
+
+@media(max-width:1180px){
+  .app-shell.minimal-ui .chart-control-groups{gap:5px}
+  .app-shell.minimal-ui .chart-control-group-label{display:none}
+  .app-shell.minimal-ui .chart-control-group .layer-switches button,
+  .app-shell.minimal-ui .chart-tool-actions .tool-button{padding-inline:6px}
+}
+
+@media(max-width:820px){
+  .app-shell.minimal-ui .chart-tools{
+    align-items:flex-start;
+    flex-wrap:wrap;
+    min-height:64px;
+    height:auto;
+    padding-block:7px;
+  }
+  .app-shell.minimal-ui .chart-control-groups{
+    width:100%;
+    margin-left:0;
+    justify-content:flex-start;
+    align-items:flex-start;
+    gap:5px;
+    overflow-x:auto;
+    flex-wrap:wrap;
+  }
+  .app-shell.minimal-ui .chart-control-group{flex:0 0 auto}
+  .app-shell.minimal-ui .chart-indicators-group{flex:1 1 100%;order:3}
+  .app-shell.minimal-ui .chart-indicators-group .layer-switches{flex:1 1 auto}
+  .app-shell.minimal-ui .chart-tools .chart-control-group .layer-switches button,
+  .app-shell.minimal-ui .chart-tools .chart-tool-actions .tool-button{min-height:24px}
+}
+
+/* Make shadow strategies discoverable without making them look executable. */
+.app-shell.minimal-ui .layer-switches button.v29{color:#d7ae54}
+.app-shell.minimal-ui .layer-switches button.v1{color:#8db5ff}
+.app-shell.minimal-ui .layer-switches button.v29.active{
+  color:#ffd36f;
+  border-color:rgba(255,211,111,.72);
+  background:rgba(255,190,64,.15);
+  box-shadow:inset 0 0 0 1px rgba(255,211,111,.12);
+}
+.app-shell.minimal-ui .layer-switches button.v1.active{
+  color:#a9c7ff;
+  border-color:rgba(141,181,255,.74);
+  background:rgba(75,126,224,.17);
+  box-shadow:inset 0 0 0 1px rgba(141,181,255,.12);
+}
+.app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker,
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker{opacity:1!important}
+.app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker.with-label>rect{
+  fill:rgba(30,23,9,.98);
+  stroke:rgba(255,211,111,.95);
+  stroke-dasharray:3 2;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker.with-label>rect{
+  fill:rgba(12,22,39,.98);
+  stroke:rgba(141,181,255,.95);
+  stroke-dasharray:1 2;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker .marker-label-version{fill:#ffd36f}
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker .marker-label-version{fill:#a9c7ff}
+.app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker.buy text,
+.app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.v1-context-marker.buy text{fill:#52d6a0}
+.app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.v29-shadow-marker.sell text,
+.app-shell.minimal-ui .interactive-intraday-chart .candidate-signal-marker.v1-context-marker.sell text{fill:#ff7f79}
+.app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker.buy.with-label>rect{stroke:#52d6a0}
+.app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker.sell.with-label>rect{stroke:#ff7f79}
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker.buy.with-label>rect{stroke:#52d6a0}
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker.sell.with-label>rect{stroke:#ff7f79}
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker polygon{
+  fill:rgba(12,22,39,.98);
+  stroke:#a9c7ff;
+  stroke-width:1.7;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker.buy polygon{stroke:#52d6a0}
+.app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker.sell polygon{stroke:#ff7f79}
+.app-shell.minimal-ui .interactive-intraday-chart .marker-label-version{
+  font-family:var(--font-geist-mono),ui-monospace,monospace;
+  font-size:7px;
+  font-weight:850;
+  letter-spacing:0;
+}
+
+:root[data-theme="light"] .app-shell.minimal-ui .interactive-intraday-chart .v29-shadow-marker.with-label>rect{fill:rgba(255,248,225,.98)}
+:root[data-theme="light"] .app-shell.minimal-ui .interactive-intraday-chart .v1-context-marker.with-label>rect{fill:rgba(237,244,255,.98)}
