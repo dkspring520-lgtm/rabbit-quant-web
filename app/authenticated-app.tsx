@@ -79,6 +79,7 @@ import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-labe
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 import { diagnoseAiMonitorSnapshot, mergeAiMonitorDiagnosis, normalizeAiMonitorRemoteCheck } from "@/lib/ai-monitor-diagnostics.mjs";
+import { buildMultiTimeframeContext } from "@/lib/multi-timeframe-context.mjs";
 import AiMonitorDiagnosticsPanel, { type AiMonitorDiagnosis } from "./ai-monitor-diagnostics-panel";
 const LightweightIntradayChart = (_props: { data: unknown[] }) => null;
 const ZijinFactorLifecyclePanel = dynamic(
@@ -2942,6 +2943,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return {path,last:zijinAhLinkage.points.at(-1)!};
   },[chartModel,zijinAhLinkage,activeQuote,viewportChartX]);
   const stockState = useMemo(() => recognizeStockState(currentMarket?.bars ?? [], activeQuote, minutePoints), [currentMarket?.bars, activeQuote, minutePoints]);
+  const multiTimeframeContext = useMemo(
+    () => buildMultiTimeframeContext(currentMarket?.bars ?? []),
+    [currentMarket?.bars],
+  );
   // Market providers may append an exchange suffix (601899.SH/SSE). Keep
   // the 紫金-specific cockpit panels visible for those canonical variants.
   const isZijinStock=String(stock?.code??"").split(/[.\s_-]/,1)[0]===STOCK_AGENTS.zijin.code;
@@ -7353,6 +7358,29 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             <label className="t-calculator-fee"><input type="checkbox" checked={tUseConservativeFee} onChange={event=>setTUseConservativeFee(event.target.checked)}/><span>保守综合费率</span><b>0.10%</b><small>已覆盖佣金、卖出印花税与过户费</small></label>
             <div className="t-calculator-result"><span>预估净收益 <b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"待输入"}</b></span><span>摊薄成本 <b>{tCalculator?`${tCalculator.costChange>=0?"-":"+"}¥${Math.abs(tCalculator.costChange).toFixed(3)}/股`:"--"}</b></span><small>{tCalculator?`毛收益 ${money(tCalculator.gross)} · ${tCalculator.feeLabel} ¥${tCalculator.estimatedFees.toFixed(2)} · ${tCalculator.quantity.toLocaleString()} 股`:"输入计划买卖价与整手数量后自动计算"}</small></div>
+            </div>
+          </details>
+          <details className={`multi-timeframe-context ${multiTimeframeContext.available ? "ready" : "pending"}`}>
+            <summary>
+              <span>大周期背景 <small>日线 {multiTimeframeContext.daily.label} · 周线 {multiTimeframeContext.weekly.label} · 本周 {multiTimeframeContext.weekly.observedSessions ?? 0} 个交易日</small></span>
+              <b>{multiTimeframeContext.available ? `截至 ${multiTimeframeContext.asOfDate ?? "--"}` : "数据准备中"}</b>
+              <i aria-hidden="true">⌄</i>
+            </summary>
+            <div className="multi-timeframe-body">
+              <div className="multi-timeframe-trends">
+                <div className={`multi-timeframe-trend ${multiTimeframeContext.daily.key}`}>
+                  <span>日线</span><strong>{multiTimeframeContext.daily.label}</strong><small>{multiTimeframeContext.daily.reason}</small>
+                </div>
+                <div className={`multi-timeframe-trend ${multiTimeframeContext.weekly.key}`}>
+                  <span>周线 · 本周 {multiTimeframeContext.weekly.observedSessions ?? 0} 个交易日</span><strong>{multiTimeframeContext.weekly.label}</strong><small>{multiTimeframeContext.weekly.reason}</small>
+                </div>
+              </div>
+              <div className="multi-timeframe-levels">
+                <span>支撑 <b>{multiTimeframeContext.supportResistance.support ? `¥${multiTimeframeContext.supportResistance.support.price.toFixed(2)}` : "--"}</b></span>
+                <span>压力 <b>{multiTimeframeContext.supportResistance.resistance ? `¥${multiTimeframeContext.supportResistance.resistance.price.toFixed(2)}` : "--"}</b></span>
+                <span>失效 <b>{multiTimeframeContext.invalidation.price ? `¥${multiTimeframeContext.invalidation.price.toFixed(2)}` : "条件变化"}</b></span>
+              </div>
+              <p>{multiTimeframeContext.invalidation.label}。{multiTimeframeContext.note}</p>
             </div>
           </details>
           <details className={`stock-state stock-state-collapsible ${stockState.level}`}>
