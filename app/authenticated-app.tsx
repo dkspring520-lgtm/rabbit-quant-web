@@ -78,6 +78,8 @@ import { isPreopenResetWindow, resetIntradayCaches } from "@/lib/intraday-cache-
 import { persistentChartLabel, selectCompactChartLabels } from "@/lib/chart-label-policy.mjs";
 import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.mjs";
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
+import { diagnoseAiMonitorSnapshot, mergeAiMonitorDiagnosis, normalizeAiMonitorRemoteCheck } from "@/lib/ai-monitor-diagnostics.mjs";
+import AiMonitorDiagnosticsPanel, { type AiMonitorDiagnosis } from "./ai-monitor-diagnostics-panel";
 const LightweightIntradayChart = (_props: { data: unknown[] }) => null;
 const ZijinFactorLifecyclePanel = dynamic(
   () => import("./zijin-factor-lifecycle-panel").then(module => module.ZijinFactorLifecyclePanel),
@@ -187,7 +189,23 @@ type IntradayMinute = {time:string;price:number;volume:number;open?:number|null;
 type LiveSecondPoint = { date:string; time:string; timestamp:number; price:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:IntradayMinute[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
-type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
+type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quality?:{status?:string;signalEligible?:boolean;reasons?:string[];failures?:string[];lastMinute?:string|null;minuteCount?:number;expectedMinuteCount?:number;missingMinutes?:number;minuteLag?:number|null;quoteAgeSeconds?:number|null}; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
+type AiMonitorRemotePayload = {
+  error?:string;
+  errors?:string[];
+  ok?:boolean;
+  tradingWindow?:boolean;
+  provider?:string;
+  fetchedAt?:string;
+  minutes?:IntradayMinute[];
+  quote?:MarketData["quote"];
+  quality?:MarketData["quality"];
+  scanner?:{monitored?:number;lastCompletedAt?:string|null;error?:string|null;health?:{healthy?:boolean;reason?:string}};
+  status?:{connected?:boolean;stale?:boolean;heartbeatAgeSeconds?:number|null};
+  meta?:{stale?:boolean;servedAt?:string};
+  lastExchangeTime?:string|null;
+  shadowResearch?:ShadowResearch|null;
+};
 function normalizeMarketDate(value:unknown):string|null{
   const raw=String(value??"").trim();
   if(!raw)return null;
@@ -766,7 +784,21 @@ type CandidateObservationCycle = { id:number; direction:"正T"|"反T"; entryTime
 type CandidateOutcome = { direction:"正T"|"反T"; time:string; price:number; outcomeMode:"post-replay-fixed-horizon"; horizons:{minutes:number;complete:boolean;endTime?:string;returnPct?:number;mfePct?:number;maePct?:number;bestTime?:string;worstTime?:string}[] };
 type OpenCandidateObservation = { direction:"正T"|"反T"; time:string; price:number; label:string; status:"候补未闭环" };
 type DeskHistoryRow = { time:string; direction:string; price:string; quantity:string; spread:string; status:string; tone?:"buy"|"sell"|"candidate" };
-type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; candidateCycles?:CandidateObservationCycle[]; candidateOutcomes?:CandidateOutcome[]; openCandidate?:OpenCandidateObservation|null; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:Record<string,any> };
+type BacktestDiagnostics = {
+  candidates?:number;
+  regimeBlocked?:number;
+  costBlocked?:number;
+  scoreBlocked?:number;
+  structureBlocked?:number;
+  strongTrendBlocked?:number;
+  strongSellTrendBlocked?:number;
+  strongBuyTrendBlocked?:number;
+  cashBlocked?:number;
+  normalizedFeatures?:{vwapBiasZ?:number|null;volumeZ?:number|null};
+  tFlyRisk?:{level?:string;score:number};
+  [key:string]:unknown;
+};
+type BacktestResult = { net:number; gross:number; fees:number; executionCost:number; maxDrawdown:number; trades:number; wins:number; days:number; curve:number[]; curveTimes:string[]; cycleNets:number[]; candidateCycles?:CandidateObservationCycle[]; candidateOutcomes?:CandidateOutcome[]; openCandidate?:OpenCandidateObservation|null; startTime:string; status:string; actions:ReplayAction[]; observations?:ReplayObservation[]; diagnostics?:BacktestDiagnostics };
 type BatchMetrics = { samples:number; completed:number; wins:number; gross:number; fees:number; executionCost:number; net:number; tradingRounds:number; profitableRounds:number; losingRounds:number; profitFactor:number|null; maxDrawdown:number };
 type BacktestReplayEngine = "closure-first"|"zuot-v1-reconstructed-shadow"|"zijin-v29-shadow";
 type ReplayExitTarget = 0.5|1|2|2.5;
@@ -2268,6 +2300,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [liveL2Transport,setLiveL2Transport]=useState<"connecting"|"stream"|"polling">("connecting");
   const [liveL2PushLatencyMs,setLiveL2PushLatencyMs]=useState<number|null>(null);
   const [aiL2Review,setAiL2Review]=useState<AiL2Review|null>(null);
+  const [aiMonitorOpen,setAiMonitorOpen]=useState(false);
+  const [aiMonitorLoading,setAiMonitorLoading]=useState(false);
+  const [aiMonitorDiagnosis,setAiMonitorDiagnosis]=useState<AiMonitorDiagnosis|null>(null);
+  const [aiMonitorError,setAiMonitorError]=useState("");
+  const aiMonitorRunRef=useRef(false);
   const aiL2ReviewKeyRef=useRef("");
   const aiL2ReviewAtRef=useRef(0);
   useEffect(()=>{
@@ -5131,6 +5168,125 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     zijinV29ChartObservations,
     zijinV1ChartObservations,
   ]);
+  const runAiMonitorDiagnosis=useCallback(async()=>{
+    const code=stock?.code;
+    if(!code||aiMonitorRunRef.current)return;
+    aiMonitorRunRef.current=true;
+    setAiMonitorLoading(true);
+    setAiMonitorError("");
+    try{
+      const localSnapshot={
+      minutes:minutePoints,
+      quote:activeQuote,
+      vwap:chartModel?.lastVwap,
+      asOfTime:minutePoints.at(-1)?.time??null,
+      marketLive:marketSession.live,
+      requiresL2:isZijinStock,
+      l2:liveL2Status,
+      l2Stale:liveL2Stale,
+      shadowResearch,
+      formalActions:chartFormalActions,
+      observations:[...(liveEngine.observations??[]),...durableVisibleChartObservations],
+      shadowSignals:[
+        ...(zijinRepairHistory??[]),
+        ...(zijinV29ChartObservations??[]),
+        ...(zijinV1ChartObservations??[]),
+      ],
+      };
+      const probe=async(id:string,label:string,url:string)=>{
+      const started=typeof performance!=="undefined"?performance.now():Date.now();
+      try{
+        const response=await fetch(url,{cache:"no-store"});
+        const payload=await response.json().catch(()=>null);
+        return {id,label,url,response,payload,error:null,latencyMs:(typeof performance!=="undefined"?performance.now():Date.now())-started};
+      }catch(error){
+        return {id,label,url,response:null,payload:null,error,latencyMs:(typeof performance!=="undefined"?performance.now():Date.now())-started};
+      }
+      };
+      const requests=[
+      probe("version","版本接口","/api/control/version"),
+      probe("control-health","控制面与后台扫描","/api/control/health"),
+      probe("market-data","行情与分钟线","/api/market-data?code="+encodeURIComponent(code)+"&mode=trial-realtime"),
+      probe("trading-desk","交易台聚合链路","/api/trading-desk-snapshot?code="+encodeURIComponent(code)+"&market=0"),
+      ...(isZijinStock?[probe("l2","L2 / 订单流","/api/research/zijin-l2-orderflow")]:[]),
+      ];
+      const results=await Promise.all(requests);
+      const remoteChecks=results.map(item=>{
+      const check=normalizeAiMonitorRemoteCheck(item as never) as {
+        id:string;label:string;status:"healthy"|"warning"|"blocked"|"insufficient";detail:string;evidence?:string[];layer?:"fast"|"research";latencyMs?:number|null;httpStatus?:number|null;asOf?:string|null;
+      };
+      const payload=item.payload as AiMonitorRemotePayload|null;
+      if(item.id==="control-health"&&payload){
+        const scanner=payload.scanner;
+        const unhealthy=payload.ok===false||scanner?.health?.healthy===false;
+        if(unhealthy){
+          check.status="warning";
+          check.detail="后台扫描需要核查："+(scanner?.health?.reason??scanner?.error??"控制面未报告健康");
+          check.evidence=["控制面可访问",scanner?.lastCompletedAt?"最近完成 "+scanner.lastCompletedAt:"尚无完成记录"];
+        }else{
+          check.detail="控制面正常"+(scanner?.monitored==null?"":" · 监控 "+scanner.monitored+" 只");
+          check.evidence=["健康检查通过",payload.tradingWindow?"交易时段":"非交易时段"];
+        }
+      }
+      if(item.id==="market-data"&&payload){
+        const quality=payload.quality;
+        if(!quality){
+          check.status="insufficient";
+          check.detail="行情返回成功，但没有质量门禁字段。";
+        }else if(quality.signalEligible===false){
+          check.status="blocked";
+          const qualityReasons=[...(quality.reasons??[]),...(quality.failures??[])].join("；");
+          check.detail="行情质量门禁未通过："+(qualityReasons||"当前数据不适合信号判断");
+        }else if(quality.status==="degraded"){
+          check.status="warning";
+          check.detail="行情可用但处于降级状态："+((quality.reasons??[]).join("；")||"来源或时效需要核查");
+        }else{
+          check.detail="行情质量正常 · "+(quality.minuteCount??payload.minutes?.length??0)+" 个分钟点";
+        }
+        check.evidence=[
+          payload.provider?"来源 "+payload.provider:"来源未知",
+          quality?.lastMinute?"最新 "+quality.lastMinute:"最新分钟未知",
+          quality?.minuteLag!=null?"滞后 "+quality.minuteLag+" 分钟":"时效待确认",
+        ];
+        check.asOf=payload.fetchedAt??null;
+      }
+      if(item.id==="trading-desk"&&payload?.errors?.length){
+        check.status="warning";
+        check.detail="聚合链路有子服务异常："+payload.errors.join("；");
+        check.evidence=["主接口有响应","子服务错误已保留"];
+      }
+      if(item.id==="l2"&&payload){
+        const stale=payload.status?.stale===true||payload.meta?.stale===true;
+        const connected=payload.status?.connected===true;
+        check.status=stale?"warning":connected?"healthy":"insufficient";
+        check.detail=stale?"L2 已过期；普通行情仍可独立检查，订单流观察暂停。":connected?"L2 连接与心跳正常。":"L2 尚未连接，不能把订单流当作当前证据。";
+        check.evidence=[connected?"连接":"未连接",payload.status?.heartbeatAgeSeconds!=null?"心跳 "+Math.round(payload.status.heartbeatAgeSeconds)+" 秒前":"心跳未知"];
+        check.asOf=payload.lastExchangeTime??payload.meta?.servedAt??null;
+      }
+      return check;
+      });
+      const marketResult=results.find(item=>item.id==="market-data")?.payload as AiMonitorRemotePayload|null;
+      const deskResult=results.find(item=>item.id==="trading-desk")?.payload as AiMonitorRemotePayload|null;
+      const remoteMinutes=Array.isArray(marketResult?.minutes)&&marketResult.minutes.length?marketResult.minutes:null;
+      const base=diagnoseAiMonitorSnapshot({
+      ...localSnapshot,
+      minutes:remoteMinutes??minutePoints,
+      quote:marketResult?.quote??activeQuote,
+      shadowResearch:deskResult?.shadowResearch??shadowResearch,
+      asOfTime:remoteMinutes
+        ? (marketResult?.quality?.lastMinute??remoteMinutes.at(-1)?.time??localSnapshot.asOfTime)
+        : localSnapshot.asOfTime,
+      asOf:marketResult?.fetchedAt??new Date().toISOString(),
+      });
+      setAiMonitorDiagnosis(mergeAiMonitorDiagnosis(base,remoteChecks));
+      if(results.every(item=>item.error))setAiMonitorError("所有诊断请求均未完成，请检查当前登录会话和服务连接。");
+    }catch(error){
+      setAiMonitorError(error instanceof Error?error.message:"诊断过程未完成，请重新运行。");
+    }finally{
+      aiMonitorRunRef.current=false;
+      setAiMonitorLoading(false);
+    }
+  },[activeQuote,chartFormalActions,chartModel?.lastVwap,durableVisibleChartObservations,isZijinStock,liveEngine.observations,liveL2Stale,liveL2Status,marketSession.live,minutePoints,shadowResearch,stock?.code,zijinRepairHistory,zijinV1ChartObservations,zijinV29ChartObservations]);
   const rabbitTrackerMode=rabbitTrackerSignal
     ?"signal"
     :marketSession.phase==="lunch"
@@ -7379,11 +7535,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         </section>
       </div>}
 
-      {isZijinStock&&<aside className={`ai-watch-bunny ${aiL2Review?.decision??"waiting"} ${((decisionModel.mode??(secondLevelSignal?.direction==="buy"?"正T":secondLevelSignal?.direction==="sell"?"反T":null))==="反T")?"sell":"buy"}`} aria-label="紫金矿业 AI L2 盯盘状态" title={aiL2Review?.reason??"等待 L2 候选信号"}>
+      <button type="button" className={"ai-watch-bunny "+(aiL2Review?.decision??"waiting")+" "+(((decisionModel.mode??(secondLevelSignal?.direction==="buy"?"正T":secondLevelSignal?.direction==="sell"?"反T":null))==="反T")?"sell":"buy")+" "+(aiMonitorOpen?"open":"")} aria-label="打开 AI 盯盘链路诊断" aria-expanded={aiMonitorOpen} aria-controls="ai-monitor-diagnosis-dialog" title={aiL2Review?.reason??"点击检查网站链路、行情和日内图"} onClick={()=>{setAiMonitorOpen(true);void runAiMonitorDiagnosis();}}>
         <span className="ai-watch-bunny-mark"><Image src="/rabbits-gold.png?v=6667ce5e7e7c" alt="AI盯盘小兔" width={64} height={64} priority unoptimized/></span>
-        <span><b>AI 盯盘</b><small>{marketSession.live?(aiL2Review?.decision==="execute"?"建议确认":aiL2Review?.decision==="reject"?"暂缓执行":"持续观察"):"休市待命"}</small></span>
+        <span><b>AI 盯盘</b><small>{aiMonitorLoading?"检查中":marketSession.live?(aiL2Review?.decision==="execute"?"建议确认":aiL2Review?.decision==="reject"?"暂缓执行":"点我诊断"):"点击复盘链路"}</small></span>
         <i aria-hidden="true"/>
-      </aside>}
+      </button>
+      <AiMonitorDiagnosticsPanel
+        open={aiMonitorOpen}
+        loading={aiMonitorLoading}
+        diagnosis={aiMonitorDiagnosis}
+        error={aiMonitorError}
+        stockLabel={stock.code+" "+stock.name}
+        onClose={()=>setAiMonitorOpen(false)}
+        onRun={()=>void runAiMonitorDiagnosis()}
+      />
 
       <footer className="trade-footer"><span><i className="online"/>策略研究工具 · 非交易级</span><ReleaseVersion/></footer>
     </main>
