@@ -501,6 +501,28 @@ const formalExecutionLabel=(direction:"正T"|"反T"|undefined,side:"buy"|"sell")
   direction==="反T"
     ? side==="sell"?"反T先卖":"反T买回"
     : side==="sell"?"正T卖出":"正T买入";
+
+type SignalBadgeParts={main:string;score:string;version?:string};
+const splitSignalLabel=(label:string):SignalBadgeParts=>{
+  const normalized=String(label??"").trim().replace(/^◆\s*/,"");
+  const versionMatch=normalized.match(/^(V1|V2\.9)\s+/);
+  const version=versionMatch?.[1];
+  const body=version?normalized.slice(versionMatch[0].length):normalized;
+  const match=body.match(/^(.*?)\s*(?:·\s*|\s+)(?:(?:历史命中率|条件分|确认分|综合分|评分|概率)\s*)?(\d{1,3})(分|%)(?:\s*·.*)?$/);
+  if(!match)return {main:body,score:"",version};
+  return {main:match[1].replace(/[·\s]+$/g,"").trim(),score:`${match[2]}${match[3]}`,version};
+};
+const signalBadgeWidth=(label:string,base=16)=>{
+  const parts=splitSignalLabel(label);
+  const width=parts.main.length*7+(parts.version?parts.version.length*7+7:0)+(parts.score?parts.score.length*8+5:0)+base;
+  return Math.max(38,width);
+};
+const SignalBadgeText=({label}:{label:string})=>{
+  const parts=splitSignalLabel(label);
+  return parts.score
+    ?<><tspan className={`marker-label-version ${parts.version?`version-${parts.version.toLowerCase().replace(".","-")}`:""}`}>{parts.version}</tspan>{parts.main&&<tspan className="marker-label-main" dx={parts.version?"4":undefined}>{parts.main}</tspan>}<tspan className="marker-label-score" dx="4">{parts.score}</tspan></>
+    :<><tspan className={`marker-label-version ${parts.version?`version-${parts.version.toLowerCase().replace(".","-")}`:""}`}>{parts.version}</tspan><tspan className="marker-label-main" dx={parts.version?"4":undefined}>{parts.main}</tspan></>;
+};
 const v29ShadowActionLabel=(action:ReplayAction)=>action.direction==="反T"
   ? action.side==="卖出"?"V2.9 反T":"V2.9 买回"
   : action.side==="买入"?"V2.9 正T":"V2.9 止盈";
@@ -1968,9 +1990,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [initialCockpitUi] = useState<Partial<CockpitLayoutSnapshot>>(()=>{
     try{
       const saved=JSON.parse(localStorage.getItem("rabbit-cockpit-ui-state")??"{}") as Partial<CockpitLayoutSnapshot>;
-      if(localStorage.getItem("rabbit-cockpit-ui-version")!=="2"){
-        localStorage.setItem("rabbit-cockpit-ui-version","2");
-        return {...saved,annotation:"compact",signals:true,formalSignals:true,v29Signals:false,v1Signals:false};
+      if(localStorage.getItem("rabbit-cockpit-ui-version")!=="3"){
+        localStorage.setItem("rabbit-cockpit-ui-version","3");
+        return {...saved,annotation:"compact",signals:true,formalSignals:true,v29Signals:true,v1Signals:true};
       }
       return saved;
     }catch{return {}}
@@ -1979,8 +2001,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [intradayChartType,setIntradayChartType]=useState<"line"|"candle">(initialCockpitUi.chartType??"candle");
   const [signalLayerVisible,setSignalLayerVisible]=useState(initialCockpitUi.signals??true);
   const [formalSignalVisible,setFormalSignalVisible]=useState(initialCockpitUi.formalSignals??true);
-  const [v29SignalVisible,setV29SignalVisible]=useState(initialCockpitUi.v29Signals??false);
-  const [v1SignalVisible,setV1SignalVisible]=useState(initialCockpitUi.v1Signals??false);
+  const [v29SignalVisible,setV29SignalVisible]=useState(initialCockpitUi.v29Signals??true);
+  const [v1SignalVisible,setV1SignalVisible]=useState(initialCockpitUi.v1Signals??true);
   const [chartAnnotationMode,setChartAnnotationMode]=useState<"full"|"compact">(()=>{
     if(initialCockpitUi.annotation)return initialCockpitUi.annotation;
     try{return localStorage.getItem("rabbit-chart-annotation-mode")==="full"?"full":"compact"}catch{return "compact"}
@@ -4142,7 +4164,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       if(!point)return [];
       const isSell=action.side==="卖出";
       const label=formalExecutionLabel(action.direction,isSell?"sell":"buy");
-      const labelWidth=label.length*9+16;
+      const score=typeof action.confirmationScore==="number"&&Number.isFinite(action.confirmationScore)
+        ?Math.round(action.confirmationScore)
+        :null;
+      const chartLabel=`${isSell?"卖":"买"}${score===null?"":` ${score}分`}`;
+      const labelWidth=signalBadgeWidth(chartLabel,18);
       const labelKey=action.side;
       const previousLabelTime=formalLabelLastTime.get(labelKey);
       const showLabel=!previousLabelTime||!isRecentCausalEvent(action.time,previousLabelTime,20);
@@ -4150,7 +4176,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const placed=showLabel
         ?reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,18,isSell,true)
         :{labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false};
-      return [{...point,...placed,index,isSell,label,labelWidth,action}];
+      return [{...point,...placed,index,isSell,label,chartLabel,labelWidth,action}];
     });
     const selectedShadowActions=compactShadowChartActions([
       ...(v29SignalVisible?(zijinV29Replay?.actions??[]).map(action=>({action,strategy:"v29" as const})):[]),
@@ -4169,10 +4195,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const isSell=action.side==="卖出";
       const strength=signalStrengthPresentation({score:action.confirmationScore});
       const label=`${strategy==="v1"?v1ContextActionLabel(action):v29ShadowActionLabel(action)} · ${strength.detail}`;
-      // The marker color and layer switch already identify V1/V2.9. Keep the
-      // permanent badge action-first; version detail remains in the hover title.
-      const chartLabel=`${shadowChartActionLabel(action)} ${strength.label}`;
-      const labelWidth=Math.max(38,chartLabel.length*8+14);
+      // Direction colors remain semantic; the short version tag and marker shape
+      // distinguish the two shadow strategies from formal signals.
+      const chartLabel=`${strategy==="v1"?"V1":"V2.9"} ${shadowChartActionLabel(action)} ${strength.label}`;
+      const labelWidth=signalBadgeWidth(chartLabel,16);
       const duplicatesHigherPriority=labeledSignalEpisodes.some(marker=>
         isRecentCausalEvent(action.time,marker.time,20)||isRecentCausalEvent(marker.time,action.time,20));
       const placed=duplicatesHigherPriority||suppressOpeningAuxiliaryLabel(action.time)
@@ -4254,7 +4280,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         :observation.strategy==="v1"||observation.strategy==="v29"
         ?`${isSell?"候卖":"候买"} ${displayStrengthLabel}`
         :calibratedLabel;
-      const labelWidth=Math.max(38,currentLabel.length*8+14);
+      const labelWidth=signalBadgeWidth(currentLabel,16);
       // Observation-layer text is detail-on-hover, not a permanent trading
       // instruction. Formal/V1/V2.9 labels keep their compact text badges.
       const labelVisible=persistentChartLabel(observation.strategy,rawLabel,chartAnnotationMode);
@@ -4405,9 +4431,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const point=pointPosition(time,items[0].observation.price);
       if(!point)return [];
       const label=fused.direction==="buy"?"正T候选":fused.direction==="sell"?"反T候选":"等确认";
-      const labelWidth=Math.max(64,(`◆ ${label} · ${fused.score===null?"待评分":`${fused.score}分 · ${fused.grade}`}`).length*8+16);
+      const fusionLabel=`◆ ${label} · ${fused.score===null?"待评分":`${fused.score}分 · ${fused.grade}`}`;
+      const chartLabel=fused.score===null?label:`${label} ${fused.score}分`;
+      const labelWidth=signalBadgeWidth(chartLabel,18);
       const placed=reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,fused.direction==="sell",true);
-      return [{...point,...placed,time,fused,label:`◆ ${label} · ${fused.score===null?"待评分":`${fused.score}分 · ${fused.grade}`}`,labelWidth,side:fused.direction==="wait"?"watch":fused.direction,detail:`冲突 ${fused.conflict}；仅辅助。${items.map(item=>item.observation.reason??item.currentLabel).join("；")}`}];
+      return [{...point,...placed,time,fused,label:fusionLabel,chartLabel,labelWidth,side:fused.direction==="wait"?"watch":fused.direction,detail:`冲突 ${fused.conflict}；仅辅助。${items.map(item=>item.observation.reason??item.currentLabel).join("；")}`}];
     });
     return {
       fusionMarkers,
@@ -6801,12 +6829,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             const change=quoteAvailable&&Number.isFinite(changePercent)
               ? `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`
               : displayedPrice==="--"?"--":item.change;
+            const changeTone=change==="--"||/^[+-]?0(?:\.0+)?%$/.test(change.trim())
+              ? "flat"
+              : change.startsWith("-") ? "down" : change.startsWith("+") ? "up" : "flat";
             const eventTag=radar?.counts.negative?<small className="ticker-event negative">利空 {radar.counts.negative}</small>
               :radar?.counts.positive?<small className="ticker-event positive">利好 {radar.counts.positive}</small>
               :radar?<small className="ticker-event quiet">暂无新增</small>
               :eventRadarError?<small className="ticker-event pending">雷达待更新</small>
               :<small className="ticker-event pending" title="资讯雷达尚未返回结果，不代表没有新闻或买卖信号">{marketSession.live?"资讯扫描中":"资讯待更新"}</small>;
-            return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>startStockDrag(event,item.code)} onDragEnd={finishStockDrag} title="按住手柄拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => selectActiveStock(index)} aria-pressed={activeStock===index}><span>{item.code} {quote?.name || item.name}</span><b>{displayedPrice}</b><em className={change.startsWith('-') ? 'down' : ''}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>;
+            return <><span className="ticker-drag-handle" draggable onDragStart={(event)=>startStockDrag(event,item.code)} onDragEnd={finishStockDrag} title="按住手柄拖动排序" aria-label={`拖动${item.name}调整顺序`}>⋮⋮</span><button className="ticker-stock-button" onClick={() => selectActiveStock(index)} aria-pressed={activeStock===index}><span>{item.code} {quote?.name || item.name}</span><b>{displayedPrice}</b><em className={changeTone}>{change}</em>{eventTag}</button><span className="ticker-order-controls"><button className="ticker-order-button" onClick={()=>moveStock(index,index-1)} disabled={index===0} aria-label={`${item.name}左移`}>‹</button><button className="ticker-order-button" onClick={()=>moveStock(index,index+1)} disabled={index===stockList.length-1} aria-label={`${item.name}右移`}>›</button></span><button className="ticker-remove" onClick={()=>removeStock(index)} disabled={stockList.length<=1} aria-label={`删除${item.name}`}>×</button></>;
           })()}</div>
         ))}
         <div className={`session-inline ${marketSession.tone}`} role="status" aria-live="polite" title={marketSession.detail}>
@@ -6826,7 +6857,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <span className="stock-code">{stock.code}</span><h1>{activeQuote?.name || stock.name}</h1><button className="star" onClick={toggleStar} aria-label={starred ? "取消收藏当前股票" : "收藏当前股票"} aria-pressed={starred}>{starred ? "★" : "☆"}</button>
         </div>
         <div className="quote-focus">
-          <div className={`quote ${activeQuote?.changePercent != null && activeQuote.changePercent < 0 ? "down" : activeQuote?.changePercent === 0 ? "flat" : ""}`}><strong>{activeQuote?.price?.toFixed(2) ?? "--"}</strong><span>{activeQuote?.changePercent == null ? "--" : `${activeQuote.changePercent >= 0 ? "+" : ""}${activeQuote.changePercent.toFixed(2)}%`}</span></div>
+          <div className={`quote ${activeQuote?.changePercent == null ? "flat" : activeQuote.changePercent < 0 ? "down" : activeQuote.changePercent === 0 ? "flat" : "up"}`}><strong>{activeQuote?.price?.toFixed(2) ?? "--"}</strong><span>{activeQuote?.changePercent == null ? "--" : `${activeQuote.changePercent >= 0 ? "+" : ""}${activeQuote.changePercent.toFixed(2)}%`}</span></div>
           <div className="opening-assessment"><span>开盘结构</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {decisionConditionsConfirmed}/4 条件确认</small></div>
         </div>
         <div className="quote-metrics">
@@ -6871,7 +6902,39 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="intraday-only" title="1分钟K使用真实开高低收；数据不完整时自动回退分时线">
               <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"} <small>{intradayChartType==="candle"&&chartModel?.candleReady?(chartModel.candleEstimated?"估算 OHLC":"真实 OHLC"):"分钟历史 · 秒级观察"}</small>
             </div>
-             <div className="layer-switches" aria-label="图表图层开关"><button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button><button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button><button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button><button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button><button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button><button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button><button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button><button title="保留候选及策略短标与评分；普通观察文字仅在详情中显示" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button><button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button><button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button><button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button></div>{(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}<button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button><button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
+             <div className="chart-control-groups" aria-label="图表控制">
+               <div className="chart-control-group">
+                 <span className="chart-control-group-label">周期</span>
+                 <div className="layer-switches" aria-label="图表周期">
+                   <button type="button" className={`chart-mode ${intradayChartType==="line"?"active":""}`} onClick={()=>setIntradayChartType("line")} title="切换到当日分时">分时</button>
+                   <button type="button" className={`chart-mode ${intradayChartType==="candle"?"active":""}`} onClick={()=>setIntradayChartType("candle")} title="切换到1分钟K线">1mK</button>
+                 </div>
+               </div>
+               <div className="chart-control-group chart-indicators-group">
+                 <span className="chart-control-group-label">指标</span>
+                 <div className="layer-switches" aria-label="图表指标与信号图层">
+                   <button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button>
+                   <button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button>
+                   <button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button>
+                   <button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button>
+                   <button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button>
+                   <button title="保留候选及策略短标与评分；普通观察文字仅在详情中显示" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button>
+                   <button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button>
+                   <button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button>
+                 </div>
+               </div>
+               <div className="chart-control-group chart-tools-group">
+                 <span className="chart-control-group-label">工具</span>
+                 <div className="chart-tool-actions">
+                   <div className="layer-switches" aria-label="图表辅助工具">
+                     <button title="显示或隐藏跟线兔兔与背景水印" className={rabbitTrackerVisible?"active":""} onClick={()=>setRabbitTrackerVisible(value=>!value)}>小兔</button>
+                   </div>
+                   {(chartViewport.start>0||chartViewport.span<COCKPIT_VIEWPORT_FULL_SPAN)&&<button className="tool-button" onClick={resetIntradayViewport} title="恢复完整交易日视图（也可双击图表或按 0）">全日</button>}
+                   <button className="tool-button t-share-trigger" onClick={openTShare} title="生成不含账户隐私的今日信号与做T记录">分享</button>
+                   <button className="tool-button" onClick={()=>void toggleWorkspaceFullscreen()} aria-pressed={workspaceFullscreen}>{workspaceFullscreen?"退出":"全屏"}</button>
+                 </div>
+               </div>
+             </div>
           </div>
 
           <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
@@ -6906,13 +6969,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <text x="0" y="8" textAnchor="middle" className="scores">正T {orderFlowBuyStrength.label} · 反T {orderFlowSellStrength.label}</text>
               </g>}
               {intradayMarkerLayout.riskMarkers.map(marker=>{const hoverKey=`risk-${marker.kind}-${marker.time}-${marker.index}`;return <g key={hoverKey} className={`intraday-risk-marker ${marker.kind}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.label,detail:marker.detail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.detail}`}</title><circle cx={marker.x} cy={marker.y} r="5"/><text x={marker.x+8} y={marker.y-7}>{marker.label}</text>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.label}</strong><span>{marker.detail}</span></div></foreignObject>}</g>})}
-              {intradayMarkerLayout.fusionMarkers.map(marker=><g key={`fusion-${marker.time}`} className={`candidate-signal-marker fusion-marker ${marker.side} ${marker.labelRendered?"with-label":"dot-only"}`}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.label} · ${marker.detail}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.label}</text></>}<circle cx={marker.x} cy={marker.y} r="6"/></g>)}
-              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";const hoverKey=`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`;const hoverTitle=marker.currentLabel;const hoverDetail=`${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`;return <g key={hoverKey} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${hoverDetail}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.currentLabel}</text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></div></foreignObject>}</g>})}
-              {intradayMarkerLayout.shadowActions.map(marker=><g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={`${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${marker.label} · ${marker.action.reason??"影子参考，不可执行"}`}</title><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle">{marker.chartLabel??marker.label}</text>{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}</g>)}
+              {intradayMarkerLayout.fusionMarkers.map(marker=>{const hoverKey=`fusion-${marker.time}`;return <g key={hoverKey} className={`candidate-signal-marker fusion-marker ${marker.side} ${marker.labelRendered?"with-label":"dot-only"}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.label,detail:marker.detail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.label} · ${marker.detail}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.chartLabel??marker.label}/></text></>}<circle cx={marker.x} cy={marker.y} r="6"/>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.label}</strong><span>{marker.detail}</span></div></foreignObject>}</g>})}
+              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";const hoverKey=`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`;const hoverTitle=marker.currentLabel;const hoverDetail=`${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`;return <g key={hoverKey} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${hoverDetail}`}</title>{marker.labelVisible&&marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.currentLabel}/></text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></div></foreignObject>}</g>})}
+              {intradayMarkerLayout.shadowActions.map(marker=>{const hoverKey=`shadow-${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`;const hoverTitle=marker.label;const hoverDetail=marker.action.reason??"影子参考，不可执行";return <g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={hoverKey} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${hoverTitle} · ${hoverDetail}`}</title><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.chartLabel??marker.label}/></text>{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></div></foreignObject>}</g>})}
               {/* Recorded candidate reminders remain available to the
                   crosshair/audit data, but their unlabeled anchor dots are
                   intentionally not painted on the trading chart. */}
-              {intradayMarkerLayout.actions.map(marker=><g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={`${marker.action.time}-${marker.action.side}-${marker.index}`}><title>{marker.action.reason??marker.label}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}>{marker.label}</text></>}<circle cx={marker.x} cy={marker.y} r="4.5" className={marker.isSell?'sell':'buy'}/></g>)}
+              {intradayMarkerLayout.actions.map(marker=>{const hoverKey=`formal-${marker.action.time}-${marker.action.side}-${marker.index}`;const hoverTitle=marker.label;const hoverDetail=marker.action.reason??marker.label;return <g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={hoverKey} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${hoverTitle} · ${hoverDetail}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}><SignalBadgeText label={marker.chartLabel??marker.label}/></text></>}<circle cx={marker.x} cy={marker.y} r="4.5" className={marker.isSell?'sell':'buy'}/>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></div></foreignObject>}</g>})}
               {intradayMarkerLayout.manualTrades.map(marker=><g className={`manual-trade-marker ${marker.isSell?"sell":"buy"}`} key={`manual-${marker.row.id}`}><title>{`${marker.row.time??marker.time} · ${marker.row.side}模拟成交 · ¥${marker.row.price.toFixed(2)} · ${marker.row.quantity.toLocaleString("zh-CN")}股`}</title><circle className="manual-trade-anchor" cx={marker.x} cy={marker.y} r="3"/><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+4:marker.labelY-12} className="marker-label-leader"/><circle className="manual-trade-badge" cx={marker.labelX} cy={marker.labelY-4} r="8"/><text x={marker.labelX} y={marker.labelY-1} textAnchor="middle">{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
                 <image className="rabbit-brand-reference" href="/rabbit-daylight-pair.webp" width="0" height="0" opacity="0" aria-hidden="true"/>
