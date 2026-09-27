@@ -5186,11 +5186,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       l2Stale:liveL2Stale,
       shadowResearch,
       formalActions:chartFormalActions,
-      observations:[...(liveEngine.observations??[]),...durableVisibleChartObservations],
+      // durableVisibleChartObservations already combines the live projection
+      // with persisted chart records. Appending liveEngine again made each
+      // live observation look like a duplicate during this diagnostic.
+      observations:durableVisibleChartObservations.map(observation=>({...observation,
+        sourceLabel:observation.strategy==="closure"?"日内闭环":observation.strategy==="observation"?"日内观察":"图表观察",
+      })),
       shadowSignals:[
-        ...(zijinRepairHistory??[]),
-        ...(zijinV29ChartObservations??[]),
-        ...(zijinV1ChartObservations??[]),
+        ...(zijinRepairHistory??[]).map(signal=>({...signal,sourceLabel:"修复观察"})),
+        ...(zijinV29ChartObservations??[]).map(signal=>({...signal,sourceLabel:"V2.9 影子观察"})),
+        ...(zijinV1ChartObservations??[]).map(signal=>({...signal,sourceLabel:"V1 影子观察"})),
       ],
       };
       const probe=async(id:string,label:string,url:string)=>{
@@ -5204,11 +5209,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       }
       };
       const requests=[
-      probe("version","版本接口","/api/control/version"),
-      probe("control-health","控制面与后台扫描","/api/control/health"),
-      probe("market-data","行情与分钟线","/api/market-data?code="+encodeURIComponent(code)+"&mode=trial-realtime"),
-      probe("trading-desk","交易台聚合链路","/api/trading-desk-snapshot?code="+encodeURIComponent(code)+"&market=0"),
-      ...(isZijinStock?[probe("l2","L2 / 订单流","/api/research/zijin-l2-orderflow")]:[]),
+      probe("version","版本信息","/api/control/version"),
+      probe("control-health","后台服务","/api/control/health"),
+      probe("market-data","行情更新","/api/market-data?code="+encodeURIComponent(code)+"&mode=trial-realtime"),
+      probe("trading-desk","操盘台数据","/api/trading-desk-snapshot?code="+encodeURIComponent(code)+"&market=0"),
+      ...(isZijinStock?[probe("l2","盘口数据","/api/research/zijin-l2-orderflow")]:[]),
       ];
       const results=await Promise.all(requests);
       const remoteChecks=results.map(item=>{
@@ -5221,10 +5226,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const unhealthy=payload.ok===false||scanner?.health?.healthy===false;
         if(unhealthy){
           check.status="warning";
-          check.detail="后台扫描需要核查："+(scanner?.health?.reason??scanner?.error??"控制面未报告健康");
+          check.detail="后台服务最近一次检查没有通过："+(scanner?.health?.reason??scanner?.error??"暂时无法确认服务状态");
           check.evidence=["控制面可访问",scanner?.lastCompletedAt?"最近完成 "+scanner.lastCompletedAt:"尚无完成记录"];
         }else{
-          check.detail="控制面正常"+(scanner?.monitored==null?"":" · 监控 "+scanner.monitored+" 只");
+          check.detail="后台服务正常"+(scanner?.monitored==null?"":" · 正在监控 "+scanner.monitored+" 只股票");
           check.evidence=["健康检查通过",payload.tradingWindow?"交易时段":"非交易时段"];
         }
       }
@@ -5232,16 +5237,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const quality=payload.quality;
         if(!quality){
           check.status="insufficient";
-          check.detail="行情返回成功，但没有质量门禁字段。";
+          check.detail="拿到了行情，但暂时无法确认数据是否完整、及时。";
         }else if(quality.signalEligible===false){
           check.status="blocked";
           const qualityReasons=[...(quality.reasons??[]),...(quality.failures??[])].join("；");
-          check.detail="行情质量门禁未通过："+(qualityReasons||"当前数据不适合信号判断");
+          check.detail="这份行情暂时不适合核对信号："+(qualityReasons||"数据来源或更新时间需要确认");
         }else if(quality.status==="degraded"){
           check.status="warning";
-          check.detail="行情可用但处于降级状态："+((quality.reasons??[]).join("；")||"来源或时效需要核查");
+          check.detail="行情可以查看，但数据质量有些下降："+((quality.reasons??[]).join("；")||"来源或更新时间需要确认");
         }else{
-          check.detail="行情质量正常 · "+(quality.minuteCount??payload.minutes?.length??0)+" 个分钟点";
+          check.detail="行情已更新，分时数据可用。";
         }
         check.evidence=[
           payload.provider?"来源 "+payload.provider:"来源未知",
@@ -5252,15 +5257,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       }
       if(item.id==="trading-desk"&&payload?.errors?.length){
         check.status="warning";
-        check.detail="聚合链路有子服务异常："+payload.errors.join("；");
+        check.detail="操盘台有一项数据服务异常："+payload.errors.join("；");
         check.evidence=["主接口有响应","子服务错误已保留"];
       }
       if(item.id==="l2"&&payload){
         const stale=payload.status?.stale===true||payload.meta?.stale===true;
         const connected=payload.status?.connected===true;
         check.status=stale?"warning":connected?"healthy":"insufficient";
-        check.detail=stale?"L2 已过期；普通行情仍可独立检查，订单流观察暂停。":connected?"L2 连接与心跳正常。":"L2 尚未连接，不能把订单流当作当前证据。";
-        check.evidence=[connected?"连接":"未连接",payload.status?.heartbeatAgeSeconds!=null?"心跳 "+Math.round(payload.status.heartbeatAgeSeconds)+" 秒前":"心跳未知"];
+        check.detail=stale?"盘口数据更新较慢，暂时不把它作为参考；普通行情仍可检查。":connected?"盘口数据已连接，可以查看。":"盘口数据还没连接；普通行情检查不受影响。";
+        check.evidence=[connected?"已连接":"未连接",payload.status?.heartbeatAgeSeconds!=null?"最近更新在 "+Math.round(payload.status.heartbeatAgeSeconds)+" 秒前":"更新时间未知"];
         check.asOf=payload.lastExchangeTime??payload.meta?.servedAt??null;
       }
       return check;
@@ -5286,7 +5291,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       aiMonitorRunRef.current=false;
       setAiMonitorLoading(false);
     }
-  },[activeQuote,chartFormalActions,chartModel?.lastVwap,durableVisibleChartObservations,isZijinStock,liveEngine.observations,liveL2Stale,liveL2Status,marketSession.live,minutePoints,shadowResearch,stock?.code,zijinRepairHistory,zijinV1ChartObservations,zijinV29ChartObservations]);
+  },[activeQuote,chartFormalActions,chartModel?.lastVwap,durableVisibleChartObservations,isZijinStock,liveL2Stale,liveL2Status,marketSession.live,minutePoints,shadowResearch,stock?.code,zijinRepairHistory,zijinV1ChartObservations,zijinV29ChartObservations]);
   const rabbitTrackerMode=rabbitTrackerSignal
     ?"signal"
     :marketSession.phase==="lunch"

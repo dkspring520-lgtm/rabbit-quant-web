@@ -6,6 +6,7 @@ const page = await readFile(new URL("../app/authenticated-app.tsx", import.meta.
 const server = await readFile(new URL("../server/control-plane.mjs", import.meta.url), "utf8");
 const desktopCss = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 const mobileCss = await readFile(new URL("../app/mobile.css", import.meta.url), "utf8");
+const aiMonitorPanel = await readFile(new URL("../app/ai-monitor-diagnostics-panel.tsx", import.meta.url), "utf8");
 
 test("trading desk merges actual server and local reminder history", () => {
   assert.match(page, /提醒历史记录/);
@@ -52,4 +53,12 @@ test("monitor audit remains readable on desktop and phone", () => {
   assert.match(desktopCss, /\.alert-log-health/);
   assert.match(mobileCss, /@media \(max-width:760px\)/);
   assert.match(mobileCss, /\.alert-log-summary\{grid-template-columns:repeat\(3,1fr\)\}/);
+});
+
+test("AI monitor explains its purpose in plain language without implying trade advice", () => {
+  assert.match(aiMonitorPanel, /今日数据体检/);
+  assert.match(aiMonitorPanel, /检查网站、行情、分时图和提醒记录/);
+  assert.match(aiMonitorPanel, /不判断该买还是该卖，也不会自动下单/);
+  assert.match(aiMonitorPanel, /查看检查范围/);
+  assert.doesNotMatch(aiMonitorPanel, /可信度/);
 });

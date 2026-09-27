@@ -1701,6 +1701,35 @@
 @keyframes ai-watch-pulse{0%,100%{opacity:.55;transform:scale(.9)}50%{opacity:1;transform:scale(1.12)}}
 @media(max-width:640px){.ai-watch-bunny{right:12px;bottom:14px;min-width:0;padding:7px 9px}.ai-watch-bunny>span:not(.ai-watch-bunny-mark){display:none}.ai-watch-bunny-mark{width:48px;height:48px}.ai-watch-bunny-mark img{width:48px!important;height:48px!important}}
 @media(max-width:640px){.ai-monitor-diagnosis-overlay{align-items:flex-end;padding:0}.ai-monitor-diagnosis-dialog{width:100%;max-width:none;max-height:86dvh;padding:14px 12px;border-radius:16px 16px 0 0}.ai-monitor-diagnosis-head{gap:10px}.ai-monitor-diagnosis-head h2{font-size:19px}.ai-monitor-diagnosis-head p{font-size:11px}.ai-monitor-diagnosis-summary{grid-template-columns:72px minmax(0,1fr);gap:10px;padding:11px}.ai-monitor-diagnosis-summary>em{grid-column:2;justify-self:start}.ai-monitor-diagnosis-quality{grid-template-columns:repeat(2,minmax(0,1fr))}.ai-monitor-diagnosis-quality span:nth-child(2){border-right:0}.ai-monitor-diagnosis-quality span:nth-child(-n+2){border-bottom:1px solid var(--line)}.ai-monitor-diagnosis-check{padding:10px}.ai-monitor-diagnosis-boundary{align-items:flex-start;flex-direction:column;gap:4px}}
+.ai-monitor-diagnosis-summary{display:block;padding:14px}
+.ai-monitor-diagnosis-intro{display:grid;gap:4px;margin-top:13px;padding:11px 12px;border:1px solid var(--line);background:rgba(255,255,255,.018)}
+.ai-monitor-diagnosis-intro>b{color:var(--cyan);font-size:11px}
+.ai-monitor-diagnosis-intro>span{color:var(--muted);font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+.ai-monitor-diagnosis-summary-main{display:grid;gap:8px;min-width:0}
+.ai-monitor-diagnosis-summary-main>em{justify-self:start;padding:4px 8px;border:1px solid var(--line);border-radius:999px;font-size:11px;font-style:normal;white-space:nowrap}
+.ai-monitor-diagnosis-summary-main>em.healthy{border-color:rgba(59,214,197,.45);color:var(--cyan)}
+.ai-monitor-diagnosis-summary-main>em.warning,.ai-monitor-diagnosis-summary-main>em.insufficient{border-color:rgba(240,189,79,.45);color:#f0bd4f}
+.ai-monitor-diagnosis-summary-main>em.blocked{border-color:rgba(255,94,94,.45);color:#ff8585}
+.ai-monitor-diagnosis-summary-main>b{font-size:14px;line-height:1.55;overflow-wrap:anywhere}
+.ai-monitor-diagnosis-summary-main>span{color:var(--muted);font-size:11px;line-height:1.5}
+.ai-monitor-diagnosis-all-clear{margin:0;padding:13px 14px;border:1px solid rgba(59,214,197,.3);background:rgba(59,214,197,.04);color:var(--text);font-size:12px;line-height:1.55}
+.ai-monitor-diagnosis-duplicates{display:grid;gap:7px;margin:8px 0 0;padding:0;list-style:none}
+.ai-monitor-diagnosis-duplicates li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 8px;padding:9px 10px;border:1px solid var(--line);background:rgba(0,0,0,.13);font-size:11px;min-width:0}
+.ai-monitor-diagnosis-duplicates li>b{color:#f0bd4f;font:600 11px var(--font-geist-mono)}
+.ai-monitor-diagnosis-duplicates li>span,.ai-monitor-diagnosis-duplicates li>small{min-width:0;overflow-wrap:anywhere}
+.ai-monitor-diagnosis-duplicates li>small{grid-column:2;color:var(--muted);font-size:10px;line-height:1.5}
+.ai-monitor-diagnosis-evidence{margin-top:7px;color:var(--muted);font-size:10px}
+.ai-monitor-diagnosis-evidence summary,.ai-monitor-diagnosis-healthy-list>summary{width:fit-content;cursor:pointer;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--muted) 45%,transparent);text-underline-offset:3px}
+.ai-monitor-diagnosis-evidence summary:focus-visible,.ai-monitor-diagnosis-healthy-list>summary:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.ai-monitor-diagnosis-evidence>small{display:block;margin-top:5px;line-height:1.5;overflow-wrap:anywhere}
+.ai-monitor-diagnosis-healthy-list{padding:10px 12px;border:1px solid var(--line);color:var(--muted);font-size:11px}
+.ai-monitor-diagnosis-healthy-list>div{display:grid;gap:8px;margin-top:9px}
+.ai-monitor-diagnosis-healthy-list article{display:grid;gap:3px;padding-top:8px;border-top:1px solid var(--line-soft)}
+.ai-monitor-diagnosis-healthy-list article b{color:var(--text);font-size:11px}
+.ai-monitor-diagnosis-healthy-list article span{line-height:1.45;overflow-wrap:anywhere}
+.ai-monitor-diagnosis-boundary{display:block;margin-top:12px;line-height:1.5}
+.ai-monitor-diagnosis-boundary small{font-size:10px}
+@media(max-width:640px){.ai-monitor-diagnosis-summary{padding:11px}.ai-monitor-diagnosis-intro{padding:10px}.ai-monitor-diagnosis-duplicates li{grid-template-columns:1fr}.ai-monitor-diagnosis-duplicates li>small{grid-column:1}}
 .history-collapse-toggle{
   display:inline-flex!important;
   align-items:center;
