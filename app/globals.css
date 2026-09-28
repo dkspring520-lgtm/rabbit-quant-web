@@ -4898,6 +4898,45 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 /* Keep the previous-close reference; remove the decorative chart grid. */
 .app-shell.minimal-ui .interactive-intraday-chart .grid-line:not(.previous-close-line){display:none}
 .app-shell.minimal-ui .interactive-intraday-chart .grid-line.previous-close-line{opacity:.38}
+
+/* The chart toolbar is an on-demand control surface. Its compact state keeps
+   price and feed status visible while returning space to the chart. */
+.app-shell.minimal-ui .chart-tools.collapsed{
+  height:34px;
+  min-height:34px;
+  flex:0 0 34px;
+  padding-block:3px;
+  align-items:center;
+  flex-wrap:nowrap;
+}
+.app-shell.minimal-ui .chart-tools.collapsed .primary-chart-legend{flex:0 1 auto;min-width:0;overflow:hidden}
+.app-shell.minimal-ui .chart-tools.collapsed .primary-chart-legend>:not(.latest-price-legend),
+.app-shell.minimal-ui .chart-tools.collapsed .intraday-only,
+.app-shell.minimal-ui .chart-tools.collapsed .chart-control-groups{display:none}
+.app-shell.minimal-ui .chart-tools.collapsed .latest-price-legend{white-space:nowrap}
+.app-shell.minimal-ui .chart-tools .chart-tools-toggle{
+  flex:0 0 auto;
+  order:5;
+  min-height:26px;
+  margin-left:auto;
+  padding:0 7px;
+  border:0;
+  border-radius:4px;
+  background:transparent;
+  color:#858b87;
+  font-size:11px;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.app-shell.minimal-ui .chart-tools .chart-tools-toggle span{margin-left:5px;color:#c9a45c}
+.app-shell.minimal-ui .chart-tools .chart-tools-toggle:hover,
+.app-shell.minimal-ui .chart-tools .chart-tools-toggle:focus-visible{background:rgba(201,164,92,.08);color:#d8d2c8;outline:1px solid rgba(201,164,92,.3)}
+.app-shell.minimal-ui .chart-tools.expanded{height:auto;min-height:44px;flex:0 0 auto;flex-wrap:wrap}
+@media(max-width:820px){
+  .app-shell.minimal-ui .chart-tools.collapsed{height:34px;min-height:34px;flex-basis:34px;flex-wrap:nowrap;padding-block:3px}
+  .app-shell.minimal-ui .chart-tools.collapsed .live-scan{margin-left:auto}
+  .app-shell.minimal-ui .chart-tools.collapsed .chart-tools-toggle{margin-left:0}
+}
 @media(max-width:1180px){.app-shell.minimal-ui .chart-tools .chart-control-groups{gap:5px}.app-shell.minimal-ui .chart-tools .chart-control-group-label{font-size:10px}.app-shell.minimal-ui .chart-tools .layer-switches button,.app-shell.minimal-ui .chart-tools .chart-tool-actions .tool-button{padding-inline:5px;font-size:10px}}
 .app-shell.minimal-ui .topbar{background:#090b0b;border-bottom-color:rgba(216,169,58,.18)}
 .app-shell.minimal-ui{--nav-bg:#101211;--nav-text:#777a78;--nav-text-hover:#c9c3b8;--nav-text-active:#f2ebdd;--nav-gold:#c9a45c;--nav-gold-light:#d0ad69;--nav-ai:#69cdbd;--nav-border:rgba(255,255,255,.06);--nav-hover-bg:rgba(255,255,255,.035);--nav-active-bg:rgba(201,164,92,.055)}
