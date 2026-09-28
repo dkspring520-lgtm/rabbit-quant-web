@@ -4857,6 +4857,39 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .today-t-opportunity.weak>b{color:var(--muted)}
 .app-shell.minimal-ui .today-t-opportunity.pending{border-left-color:var(--line)}
 .app-shell.minimal-ui .today-t-opportunity.pending>b{color:var(--dim)}
+.app-shell.minimal-ui .topbar{background:#090b0b;border-bottom-color:rgba(216,169,58,.18)}
+.app-shell.minimal-ui .brand{border-right-color:rgba(216,169,58,.18)}
+.app-shell.minimal-ui .main-nav{gap:2px;align-items:stretch}
+.app-shell.minimal-ui .main-nav button,
+.app-shell.minimal-ui .main-nav .nav-more>summary{
+  position:relative;
+  display:flex;
+  align-items:center;
+  height:100%;
+  border:0;
+  background:transparent;
+  color:#9d9990;
+  padding:0 13px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:560;
+  white-space:nowrap;
+  list-style:none;
+}
+.app-shell.minimal-ui .main-nav .nav-more>summary::-webkit-details-marker{display:none}
+.app-shell.minimal-ui .main-nav button:hover,
+.app-shell.minimal-ui .main-nav .nav-more>summary:hover{color:#f1eee6;background:transparent}
+.app-shell.minimal-ui .main-nav button.active,
+.app-shell.minimal-ui .main-nav .nav-more>summary.active{color:#f5f1e8;background:transparent;box-shadow:none}
+.app-shell.minimal-ui .main-nav button.active:after,
+.app-shell.minimal-ui .main-nav .nav-more>summary.active:after{content:"";position:absolute;left:13px;right:13px;bottom:-1px;height:2px;background:#d8a93a}
+.app-shell.minimal-ui .main-nav button:nth-child(4){color:#9fcfc7}
+.app-shell.minimal-ui .main-nav button:nth-child(4):hover{color:#f1eee6}
+.app-shell.minimal-ui .nav-more{position:relative;height:100%}
+.app-shell.minimal-ui .nav-more-menu{position:absolute;z-index:50;top:calc(100% + 7px);right:0;min-width:128px;padding:5px;border:1px solid rgba(216,169,58,.28);border-radius:7px;background:#101313;box-shadow:0 12px 28px rgba(0,0,0,.34)}
+.app-shell.minimal-ui .nav-more-menu button{width:100%;height:32px;justify-content:flex-start;padding:0 10px;color:#b4b0a6;font-size:12px}
+.app-shell.minimal-ui .nav-more-menu button.active{color:#f5f1e8}
+.app-shell.minimal-ui .nav-more-menu button.active:after{display:none}
 .app-shell.minimal-ui .compact-tooltip .tooltip-column text{font-size:8px}
 .app-shell.minimal-ui .compact-tooltip .tooltip-column.right text{font-family:var(--font-geist-mono),ui-monospace,monospace;font-size:9px;font-variant-numeric:tabular-nums}
 .app-shell.minimal-ui .compact-tooltip .tooltip-secondary{opacity:.82}

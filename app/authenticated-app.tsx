@@ -6789,12 +6789,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <span className="brand-type brand-type-fallback"><strong aria-hidden="true"><span>双兔助手</span></strong><small>做<span className="brand-ascii-t">T</span>神器 · SMART-T</small></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
-          {['首页','操盘台','单股智研','AI量化研究院','量化工具','模拟回测','邀请中心'].map((item) => {
+          {['首页','操盘台','单股智研','AI量化研究院','量化工具','模拟回测'].map((item) => {
             const groupedToolViews=['量化工具','多股监控','策略市场','持仓对账','智能训练'];
             const active=item==='量化工具' ? groupedToolViews.includes(activeView) : activeView===item;
             return <button onClick={() => setActiveView(item)} className={active ? 'active' : ''} key={item}>{item}</button>;
           })}
-          <button onClick={()=>window.location.assign('/fortune')}>股票占卜</button>
+          <details className="nav-more">
+            <summary className={activeView==='邀请中心'?'active':''}>更多</summary>
+            <div className="nav-more-menu">
+              <button onClick={()=>setActiveView('邀请中心')} className={activeView==='邀请中心'?'active':''}>邀请中心</button>
+              <button onClick={()=>window.location.assign('/fortune')}>股票占卜</button>
+            </div>
+          </details>
         </nav>
         <div className="top-actions">
           <span className={`market-open ${marketSession.tone}`} title={`${marketSession.label}：${marketSession.detail}；法定节假日以交易所公告为准`} aria-label={`${marketSession.label}：${marketSession.detail}`}><i /><span className="market-open-label">{marketSession.live?"监控中":marketSession.label}</span></span>
