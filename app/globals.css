@@ -4895,6 +4895,9 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .chart-tools .chart-tool-actions{gap:1px}
 .app-shell.minimal-ui .chart-tools .chart-tool-actions .t-share-trigger{color:#5eafa2}
 .app-shell.minimal-ui .chart-tools .intraday-only i{background:#c9a45c;opacity:.7}
+/* Keep the previous-close reference; remove the decorative chart grid. */
+.app-shell.minimal-ui .interactive-intraday-chart .grid-line:not(.previous-close-line){display:none}
+.app-shell.minimal-ui .interactive-intraday-chart .grid-line.previous-close-line{opacity:.38}
 @media(max-width:1180px){.app-shell.minimal-ui .chart-tools .chart-control-groups{gap:5px}.app-shell.minimal-ui .chart-tools .chart-control-group-label{font-size:10px}.app-shell.minimal-ui .chart-tools .layer-switches button,.app-shell.minimal-ui .chart-tools .chart-tool-actions .tool-button{padding-inline:5px;font-size:10px}}
 .app-shell.minimal-ui .topbar{background:#090b0b;border-bottom-color:rgba(216,169,58,.18)}
 .app-shell.minimal-ui{--nav-bg:#101211;--nav-text:#777a78;--nav-text-hover:#c9c3b8;--nav-text-active:#f2ebdd;--nav-gold:#c9a45c;--nav-gold-light:#d0ad69;--nav-ai:#69cdbd;--nav-border:rgba(255,255,255,.06);--nav-hover-bg:rgba(255,255,255,.035);--nav-active-bg:rgba(201,164,92,.055)}
