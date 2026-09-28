@@ -4867,6 +4867,35 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .today-t-opportunity.weak>b{color:var(--muted)}
 .app-shell.minimal-ui .today-t-opportunity.pending{border-left-color:var(--line)}
 .app-shell.minimal-ui .today-t-opportunity.pending>b{color:var(--dim)}
+/* Control bar V2.1: keep chart controls available while letting price and
+   decision content carry the visual weight. */
+.app-shell.minimal-ui .chart-tools{gap:8px;padding-block:5px;background:#0d100f;border-bottom-color:rgba(255,255,255,.045)}
+.app-shell.minimal-ui .chart-tools .primary-chart-legend{font-size:11px;opacity:.72}
+.app-shell.minimal-ui .chart-tools .primary-chart-legend .latest-price-legend b{font-size:15px;font-weight:650;color:#d8d2c8}
+.app-shell.minimal-ui .chart-tools .second-observation-legend,
+.app-shell.minimal-ui .chart-tools .order-flow-legend,
+.app-shell.minimal-ui .chart-tools .live-scan,
+.app-shell.minimal-ui .chart-tools .intraday-only{font-size:11px;color:#777b7a}
+.app-shell.minimal-ui .chart-tools .second-observation-legend i,
+.app-shell.minimal-ui .chart-tools .order-flow-legend i{background:#5eafa2;box-shadow:none;opacity:.8}
+.app-shell.minimal-ui .chart-tools .chart-control-groups{gap:12px}
+.app-shell.minimal-ui .chart-tools .chart-control-group{gap:5px}
+.app-shell.minimal-ui .chart-tools .chart-control-group-label{font-size:11px;color:#686d70;font-weight:500}
+.app-shell.minimal-ui .chart-tools .layer-switches{gap:1px;padding:0;border:0;background:transparent}
+.app-shell.minimal-ui .chart-tools .layer-switches button,
+.app-shell.minimal-ui .chart-tools .chart-tool-actions .tool-button{min-height:25px;padding:0 7px;border:0;border-radius:5px;background:transparent;color:#777b7a;font-size:11px;font-weight:500}
+.app-shell.minimal-ui .chart-tools .layer-switches button:hover,
+.app-shell.minimal-ui .chart-tools .chart-tool-actions .tool-button:hover{background:rgba(255,255,255,.04);color:#d8d2c8}
+.app-shell.minimal-ui .chart-tools .layer-switches button.active{background:rgba(201,164,92,.08);color:#d8d2c8;box-shadow:inset 0 -1px #c9a45c}
+.app-shell.minimal-ui .chart-tools .layer-switches button.formal.active{color:#c9a45c;border-color:transparent;background:rgba(201,164,92,.08)}
+.app-shell.minimal-ui .chart-tools .layer-switches button.v29.active,
+.app-shell.minimal-ui .chart-tools .layer-switches button.v1.active{color:#8d9994;border-color:transparent;background:rgba(255,255,255,.035);box-shadow:none}
+.app-shell.minimal-ui .chart-tools .chart-model-group .layer-switches{border-left:0;padding-left:0}
+.app-shell.minimal-ui .chart-tools .chart-model-group .layer-switches button{min-width:0}
+.app-shell.minimal-ui .chart-tools .chart-tool-actions{gap:1px}
+.app-shell.minimal-ui .chart-tools .chart-tool-actions .t-share-trigger{color:#5eafa2}
+.app-shell.minimal-ui .chart-tools .intraday-only i{background:#c9a45c;opacity:.7}
+@media(max-width:1180px){.app-shell.minimal-ui .chart-tools .chart-control-groups{gap:5px}.app-shell.minimal-ui .chart-tools .chart-control-group-label{font-size:10px}.app-shell.minimal-ui .chart-tools .layer-switches button,.app-shell.minimal-ui .chart-tools .chart-tool-actions .tool-button{padding-inline:5px;font-size:10px}}
 .app-shell.minimal-ui .topbar{background:#090b0b;border-bottom-color:rgba(216,169,58,.18)}
 .app-shell.minimal-ui{--nav-bg:#101211;--nav-text:#777a78;--nav-text-hover:#c9c3b8;--nav-text-active:#f2ebdd;--nav-gold:#c9a45c;--nav-gold-light:#d0ad69;--nav-ai:#69cdbd;--nav-border:rgba(255,255,255,.06);--nav-hover-bg:rgba(255,255,255,.035);--nav-active-bg:rgba(201,164,92,.055)}
 .app-shell.minimal-ui .topbar{background:var(--nav-bg);border-bottom-color:var(--nav-border)}
