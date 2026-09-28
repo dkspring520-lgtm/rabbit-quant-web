@@ -2010,6 +2010,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   });
   const [pricePlanLayerVisible,setPricePlanLayerVisible]=useState(initialCockpitUi.pricePlan??true);
   const [volumeLayerVisible,setVolumeLayerVisible]=useState(initialCockpitUi.volume??true);
+  const [chartToolsExpanded,setChartToolsExpanded]=useState(false);
   const [rabbitTrackerVisible,setRabbitTrackerVisible]=useState(()=>{
     if(initialCockpitUi.rabbit!==undefined)return initialCockpitUi.rabbit;
     try{return localStorage.getItem("rabbit-chart-tracker-visible")!=="false"}catch{return true}
@@ -6890,7 +6891,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
 
       <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionPanelCollapsed?'decision-panel-collapsed':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${chartAnnotationMode==="compact"?"compact-chart-labels":""} ${signalLayerVisible?'':'hide-signal-layer'} ${formalSignalVisible?'':'hide-formal-signal-layer'} ${v29SignalVisible?'':'hide-v29-signal-layer'} ${v1SignalVisible?'':'hide-v1-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'} ${rabbitTrackerVisible?'':'hide-rabbit-tracker'}`} ref={workspaceRef} style={{"--decision-panel-width":`${decisionPanelWidth}px`,"--order-flow-height":`${orderFlowHeight}px`} as CSSProperties}>
         <div className="chart-zone">
-          <div className="chart-tools">
+          <div className={`chart-tools ${chartToolsExpanded?"expanded":"collapsed"}`}>
             <div className="legend primary-chart-legend">
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
               {isZijinStock&&<span className="second-observation-legend" title="仅叠加当前交易日有效报价，不生成秒级 K 线"><i/>秒级观察{liveSecondPoints.length>0&&<b>{liveSecondPoints.length}</b>}</span>}
@@ -6910,7 +6911,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <div className="intraday-only" title="1分钟K使用真实开高低收；数据不完整时自动回退分时线">
               <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"} <small>{intradayChartType==="candle"&&chartModel?.candleReady?(chartModel.candleEstimated?"估算 OHLC":"真实 OHLC"):"分钟历史 · 秒级观察"}</small>
             </div>
-             <div className="chart-control-groups" aria-label="图表控制">
+             <div id="chart-tool-controls" className="chart-control-groups" aria-label="图表控制">
                <div className="chart-control-group">
                  <span className="chart-control-group-label">周期</span>
                  <div className="layer-switches" aria-label="图表周期">
@@ -6919,7 +6920,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                  </div>
                </div>
                <div className="chart-control-group chart-indicators-group">
-                 <span className="chart-control-group-label">指标</span>
                  <div className="layer-switches" aria-label="图表指标与信号图层">
                    <button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button>
                    <button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button>
@@ -6929,7 +6929,6 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                  </div>
                </div>
                <div className="chart-control-group chart-model-group">
-                 <span className="chart-control-group-label">模型</span>
                  <div className="layer-switches" aria-label="影子模型图层">
                    <button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button>
                    <button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button>
@@ -6948,6 +6947,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                  </div>
                </div>
              </div>
+             <button type="button" className="chart-tools-toggle" aria-expanded={chartToolsExpanded} aria-controls="chart-tool-controls" onClick={()=>setChartToolsExpanded(value=>!value)}>{chartToolsExpanded?"收起工具":"展开图表工具"}<span aria-hidden="true">{chartToolsExpanded?"⌃":"⌄"}</span></button>
           </div>
 
           <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
