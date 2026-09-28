@@ -7183,6 +7183,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                       :freshReverseTObservation
                         ?`🟠 反T${freshReverseTObservation.stage==="candidate"?"候补":"观察"}`
                         :"🟡 等待信号"}</b>
+            <div className={`today-t-opportunity ${fusedSignal.score===null?"pending":fusedSignal.score>=80?"strong":fusedSignal.score>=60?"watch":"weak"}`} aria-label="今日做T机会">
+              <div><span>今日做T机会</span><small>{fusedSignal.score===null?"等待融合评分":"基于当前融合评分 · 仅作观察"}</small></div>
+              <b>{fusedSignal.score===null?"--":fusedSignal.score}<small>{fusedSignal.score===null?"":"/100"}</small></b>
+              <em>{fusedSignal.score===null?"数据未齐":fusedSignal.score>=80?"空间与条件较强":fusedSignal.score>=60?"有空间，等待确认":"条件偏弱，先观察"}</em>
+            </div>
             <div className="decision-primary-reason" aria-label="当前建议原因">
               <span>原因</span>
               <b title={decisionModel.reason}>{decisionModel.reason}</b>
