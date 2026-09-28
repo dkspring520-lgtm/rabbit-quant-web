@@ -4857,6 +4857,15 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .today-t-opportunity.weak>b{color:var(--muted)}
 .app-shell.minimal-ui .today-t-opportunity.pending{border-left-color:var(--line)}
 .app-shell.minimal-ui .today-t-opportunity.pending>b{color:var(--dim)}
+.app-shell.minimal-ui .compact-tooltip .tooltip-column text{font-size:8px}
+.app-shell.minimal-ui .compact-tooltip .tooltip-column.right text{font-family:var(--font-geist-mono),ui-monospace,monospace;font-size:9px;font-variant-numeric:tabular-nums}
+.app-shell.minimal-ui .compact-tooltip .tooltip-secondary{opacity:.82}
+.app-shell.minimal-ui .compact-tooltip .tooltip-secondary text{font-size:8px}
+.app-shell.minimal-ui .chart-model-group .layer-switches{border-left:1px solid color-mix(in srgb,var(--amber) 35%,var(--line-soft));padding-left:4px}
+.app-shell.minimal-ui .chart-model-group .layer-switches button{min-width:31px}
+.app-shell.minimal-ui .main-force-track{position:relative;z-index:1;border-top-color:color-mix(in srgb,var(--amber) 28%,var(--line-soft));background:color-mix(in srgb,var(--surface) 94%,var(--amber) 6%)}
+.app-shell.minimal-ui .main-force-track-head strong{color:var(--amber)}
+@media(max-width:1180px){.app-shell.minimal-ui .chart-model-group .layer-switches button{padding-inline:5px}}
 .app-shell.minimal-ui .decision-primary-card .signal-fusion-summary,
 .app-shell.minimal-ui .decision-primary-card .lifecycle-signal,
 .app-shell.minimal-ui .decision-primary-card .ai-l2-review{border-color:var(--line-soft);background:transparent}
