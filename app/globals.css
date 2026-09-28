@@ -4927,8 +4927,11 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .main-nav .nav-more>button.active:after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:linear-gradient(90deg,#9c7840,var(--nav-gold-light),#9c7840)}
 .app-shell.minimal-ui .main-nav button:nth-child(4){color:var(--nav-ai)}
 .app-shell.minimal-ui .main-nav button:nth-child(4):hover{color:var(--nav-text-hover)}
-.app-shell.minimal-ui .nav-more{position:relative;height:100%}
-.app-shell.minimal-ui .nav-more-menu{position:absolute;z-index:50;top:calc(100% + 7px);right:0;min-width:128px;padding:5px;border:1px solid rgba(201,164,92,.2);border-radius:7px;background:#101211;box-shadow:0 12px 28px rgba(0,0,0,.34)}
+.app-shell.minimal-ui .topbar{position:relative;z-index:100}
+.app-shell.minimal-ui .main-nav{position:relative;z-index:101;overflow:visible}
+.app-shell.minimal-ui .nav-more{position:relative;height:100%;z-index:102}
+.app-shell.minimal-ui .nav-more>button{pointer-events:auto!important;z-index:103}
+.app-shell.minimal-ui .nav-more-menu{position:absolute;z-index:200;top:calc(100% + 7px);right:0;min-width:128px;padding:5px;border:1px solid rgba(201,164,92,.2);border-radius:7px;background:#101211;box-shadow:0 12px 28px rgba(0,0,0,.34);pointer-events:auto}
 .app-shell.minimal-ui .nav-more-menu button{width:100%;height:32px;justify-content:flex-start;padding:0 10px;color:#b4b0a6;font-size:12px}
 .app-shell.minimal-ui .nav-more-menu button.active{color:#f5f1e8}
 .app-shell.minimal-ui .nav-more-menu button.active:after{display:none}
