@@ -4902,7 +4902,7 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .brand{border-right-color:rgba(201,164,92,.1)}
 .app-shell.minimal-ui .main-nav{gap:clamp(12px,1.65vw,28px);align-items:stretch}
 .app-shell.minimal-ui .main-nav button,
-.app-shell.minimal-ui .main-nav .nav-more>summary{
+.app-shell.minimal-ui .main-nav .nav-more>button{
   position:relative;
   display:flex;
   align-items:center;
@@ -4917,14 +4917,14 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
   white-space:nowrap;
   list-style:none;
 }
-.app-shell.minimal-ui .main-nav .nav-more>summary::-webkit-details-marker{display:none}
+.app-shell.minimal-ui .main-nav .nav-more>button span{font-size:10px;margin-left:4px;color:#777b7a}
 .app-shell.minimal-ui .main-nav button:hover,
-.app-shell.minimal-ui .main-nav .nav-more>summary:hover{color:var(--nav-text-hover);background:var(--nav-hover-bg);border-radius:6px}
+.app-shell.minimal-ui .main-nav .nav-more>button:hover{color:var(--nav-text-hover);background:var(--nav-hover-bg);border-radius:6px}
 .app-shell.minimal-ui .main-nav button.active,
-.app-shell.minimal-ui .main-nav .nav-more>summary.active{color:var(--nav-text-active);background:transparent;box-shadow:none;font-weight:560}
+.app-shell.minimal-ui .main-nav .nav-more>button.active{color:var(--nav-text-active);background:transparent;box-shadow:none;font-weight:560}
 .app-shell.minimal-ui .main-nav button.active:after,
 .app-shell.minimal-ui .main-nav button.active:after,
-.app-shell.minimal-ui .main-nav .nav-more>summary.active:after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:linear-gradient(90deg,#9c7840,var(--nav-gold-light),#9c7840)}
+.app-shell.minimal-ui .main-nav .nav-more>button.active:after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:linear-gradient(90deg,#9c7840,var(--nav-gold-light),#9c7840)}
 .app-shell.minimal-ui .main-nav button:nth-child(4){color:var(--nav-ai)}
 .app-shell.minimal-ui .main-nav button:nth-child(4):hover{color:var(--nav-text-hover)}
 .app-shell.minimal-ui .nav-more{position:relative;height:100%}

@@ -1880,6 +1880,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [accountOpen, setAccountOpen] = useState(false);
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
   const [alertLogOpen,setAlertLogOpen]=useState(false);
+  const [navMoreOpen,setNavMoreOpen]=useState(false);
   const [zijinResearchEnabled,setZijinResearchEnabled]=useState(false);
   const [zijinMonitorStrategy,setZijinMonitorStrategy]=useState<ZijinMonitorStrategy>(()=>{
     try{
@@ -6794,13 +6795,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             const active=item==='量化工具' ? groupedToolViews.includes(activeView) : activeView===item;
             return <button onClick={() => setActiveView(item)} className={active ? 'active' : ''} key={item}>{item}</button>;
           })}
-          <details className="nav-more">
-            <summary className={activeView==='邀请中心'?'active':''}>更多</summary>
-            <div className="nav-more-menu">
-              <button onClick={()=>setActiveView('邀请中心')} className={activeView==='邀请中心'?'active':''}>邀请中心</button>
-              <button onClick={()=>window.location.assign('/fortune')}>股票占卜</button>
+          <div className="nav-more">
+            <button type="button" className={navMoreOpen||activeView==='邀请中心'?'active':''} aria-expanded={navMoreOpen} aria-haspopup="menu" onClick={()=>setNavMoreOpen(value=>!value)}>更多 <span aria-hidden="true">⌄</span></button>
+            {navMoreOpen&&<div className="nav-more-menu" role="menu">
+              <button role="menuitem" onClick={()=>{setActiveView('邀请中心');setNavMoreOpen(false)}} className={activeView==='邀请中心'?'active':''}>邀请中心</button>
+              <button role="menuitem" onClick={()=>window.location.assign('/fortune')}>股票占卜</button>
             </div>
-          </details>
+            }
+          </div>
         </nav>
         <div className="top-actions">
           <span className={`market-open ${marketSession.tone}`} title={`${marketSession.label}：${marketSession.detail}；法定节假日以交易所公告为准`} aria-label={`${marketSession.label}：${marketSession.detail}`}><i /><span className="market-open-label">{marketSession.live?"监控中":marketSession.label}</span></span>
