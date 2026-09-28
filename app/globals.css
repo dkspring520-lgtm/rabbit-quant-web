@@ -4858,8 +4858,10 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .today-t-opportunity.pending{border-left-color:var(--line)}
 .app-shell.minimal-ui .today-t-opportunity.pending>b{color:var(--dim)}
 .app-shell.minimal-ui .topbar{background:#090b0b;border-bottom-color:rgba(216,169,58,.18)}
-.app-shell.minimal-ui .brand{border-right-color:rgba(216,169,58,.18)}
-.app-shell.minimal-ui .main-nav{gap:2px;align-items:stretch}
+.app-shell.minimal-ui{--nav-bg:#101211;--nav-text:#777a78;--nav-text-hover:#c9c3b8;--nav-text-active:#f2ebdd;--nav-gold:#c9a45c;--nav-gold-light:#d0ad69;--nav-ai:#69cdbd;--nav-border:rgba(255,255,255,.06);--nav-hover-bg:rgba(255,255,255,.035);--nav-active-bg:rgba(201,164,92,.055)}
+.app-shell.minimal-ui .topbar{background:var(--nav-bg);border-bottom-color:var(--nav-border)}
+.app-shell.minimal-ui .brand{border-right-color:rgba(201,164,92,.1)}
+.app-shell.minimal-ui .main-nav{gap:clamp(12px,1.65vw,28px);align-items:stretch}
 .app-shell.minimal-ui .main-nav button,
 .app-shell.minimal-ui .main-nav .nav-more>summary{
   position:relative;
@@ -4868,28 +4870,38 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
   height:100%;
   border:0;
   background:transparent;
-  color:#9d9990;
+  color:var(--nav-text);
   padding:0 13px;
   cursor:pointer;
-  font-size:13px;
-  font-weight:560;
+  font-size:14px;
+  font-weight:460;
   white-space:nowrap;
   list-style:none;
 }
 .app-shell.minimal-ui .main-nav .nav-more>summary::-webkit-details-marker{display:none}
 .app-shell.minimal-ui .main-nav button:hover,
-.app-shell.minimal-ui .main-nav .nav-more>summary:hover{color:#f1eee6;background:transparent}
+.app-shell.minimal-ui .main-nav .nav-more>summary:hover{color:var(--nav-text-hover);background:var(--nav-hover-bg);border-radius:6px}
 .app-shell.minimal-ui .main-nav button.active,
-.app-shell.minimal-ui .main-nav .nav-more>summary.active{color:#f5f1e8;background:transparent;box-shadow:none}
+.app-shell.minimal-ui .main-nav .nav-more>summary.active{color:var(--nav-text-active);background:transparent;box-shadow:none;font-weight:560}
 .app-shell.minimal-ui .main-nav button.active:after,
-.app-shell.minimal-ui .main-nav .nav-more>summary.active:after{content:"";position:absolute;left:13px;right:13px;bottom:-1px;height:2px;background:#d8a93a}
-.app-shell.minimal-ui .main-nav button:nth-child(4){color:#9fcfc7}
-.app-shell.minimal-ui .main-nav button:nth-child(4):hover{color:#f1eee6}
+.app-shell.minimal-ui .main-nav button.active:after,
+.app-shell.minimal-ui .main-nav .nav-more>summary.active:after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:linear-gradient(90deg,#9c7840,var(--nav-gold-light),#9c7840)}
+.app-shell.minimal-ui .main-nav button:nth-child(4){color:var(--nav-ai)}
+.app-shell.minimal-ui .main-nav button:nth-child(4):hover{color:var(--nav-text-hover)}
 .app-shell.minimal-ui .nav-more{position:relative;height:100%}
-.app-shell.minimal-ui .nav-more-menu{position:absolute;z-index:50;top:calc(100% + 7px);right:0;min-width:128px;padding:5px;border:1px solid rgba(216,169,58,.28);border-radius:7px;background:#101313;box-shadow:0 12px 28px rgba(0,0,0,.34)}
+.app-shell.minimal-ui .nav-more-menu{position:absolute;z-index:50;top:calc(100% + 7px);right:0;min-width:128px;padding:5px;border:1px solid rgba(201,164,92,.2);border-radius:7px;background:#101211;box-shadow:0 12px 28px rgba(0,0,0,.34)}
 .app-shell.minimal-ui .nav-more-menu button{width:100%;height:32px;justify-content:flex-start;padding:0 10px;color:#b4b0a6;font-size:12px}
 .app-shell.minimal-ui .nav-more-menu button.active{color:#f5f1e8}
 .app-shell.minimal-ui .nav-more-menu button.active:after{display:none}
+.app-shell.minimal-ui .top-actions .icon-button,
+.app-shell.minimal-ui .top-actions .profile-cycle,
+.app-shell.minimal-ui .top-actions .strategy-help,
+.app-shell.minimal-ui .top-actions .account-button{border-color:transparent;background:transparent;box-shadow:none}
+.app-shell.minimal-ui .top-actions .icon-button:hover,
+.app-shell.minimal-ui .top-actions .profile-cycle:hover,
+.app-shell.minimal-ui .top-actions .strategy-help:hover,
+.app-shell.minimal-ui .top-actions .account-button:hover{background:rgba(255,255,255,.045);border-color:transparent;border-radius:8px;color:var(--nav-text-hover)}
+.app-shell.minimal-ui .top-actions .account-button>span{border-color:rgba(105,205,189,.28);background:rgba(105,205,189,.12);color:var(--nav-ai)}
 .app-shell.minimal-ui .compact-tooltip .tooltip-column text{font-size:8px}
 .app-shell.minimal-ui .compact-tooltip .tooltip-column.right text{font-family:var(--font-geist-mono),ui-monospace,monospace;font-size:9px;font-variant-numeric:tabular-nums}
 .app-shell.minimal-ui .compact-tooltip .tooltip-secondary{opacity:.82}
