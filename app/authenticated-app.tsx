@@ -6915,12 +6915,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                  <div className="layer-switches" aria-label="图表指标与信号图层">
                    <button title="显示或隐藏均价与偏离指标" className={indicatorsVisible?"active":""} onClick={()=>setIndicatorsVisible(value=>!value)}>均价</button>
                    <button title="显示或隐藏全部信号" className={signalLayerVisible?"active":""} onClick={()=>setSignalLayerVisible(value=>!value)}>信号</button>
-                   <button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button>
-                   <button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button>
-                   <button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button>
                    <button title="保留候选及策略短标与评分；普通观察文字仅在详情中显示" className={chartAnnotationMode==="compact"?"active":""} onClick={()=>setChartAnnotationMode(value=>value==="compact"?"full":"compact")} aria-pressed={chartAnnotationMode==="compact"}>短标</button>
                    <button title="显示或隐藏正T、反T区间" className={pricePlanLayerVisible?"active":""} onClick={()=>setPricePlanLayerVisible(value=>!value)}>区间</button>
                    <button title="显示或隐藏成交量" className={volumeLayerVisible?"active":""} onClick={()=>setVolumeLayerVisible(value=>!value)}>量</button>
+                 </div>
+               </div>
+               <div className="chart-control-group chart-model-group">
+                 <span className="chart-control-group-label">模型</span>
+                 <div className="layer-switches" aria-label="影子模型图层">
+                   <button title="正式闭环信号" className={formalSignalVisible?"active formal":"formal"} onClick={()=>setFormalSignalVisible(value=>!value)}>正式</button>
+                   <button title="V2.9 辅助信号" className={v29SignalVisible?"active v29":"v29"} onClick={()=>setV29SignalVisible(value=>!value)}>V2.9</button>
+                   <button title="V1 情境信号" className={v1SignalVisible?"active v1":"v1"} onClick={()=>setV1SignalVisible(value=>!value)}>V1</button>
                  </div>
                </div>
                <div className="chart-control-group chart-tools-group">
@@ -7013,8 +7018,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {indicatorsVisible&&chartModel&&<path d={chartModel.biasPath} className="bias-path"/>}
               {chartModel&&<g className={`peak-volume-marker ${chartModel.peakVolume.abnormal?"abnormal":""}`}><line x1={chartModel.peakVolume.x} y1={LIVE_CHART.volumeTop-3} x2={chartModel.peakVolume.x} y2={LIVE_CHART.volumeBottom}/><text x={Math.min(LIVE_CHART.plotRight-4,chartModel.peakVolume.x+4)} y={LIVE_CHART.volumeTop+14} textAnchor={chartModel.peakVolume.x>LIVE_CHART.plotRight-72?"end":"start"}>{peakVolumeLabel}</text></g>}
               {intradayCursor&&(()=>{
-                const tooltipWidth=176;
-                const tooltipHeight=isZijinStock?156:139;
+                const tooltipWidth=164;
+                const tooltipHeight=isZijinStock?128:111;
                 const tooltipX=intradayTooltipLayout({cursorX:intradayCursor.x,plotLeft:LIVE_CHART.plotLeft,plotRight:LIVE_CHART.plotRight,width:tooltipWidth,gutter:16});
                 const tooltipY=LIVE_CHART.priceTop+6;
                 const axisTimeX=Math.max(LIVE_CHART.plotLeft+24,Math.min(LIVE_CHART.plotRight-24,intradayCursor.x));
@@ -7033,17 +7038,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                     <rect x={axisTimeX-24} y={LIVE_CHART.volumeBottom+3} width="48" height="17" rx="3"/>
                     <text x={axisTimeX} y={LIVE_CHART.volumeBottom+15} textAnchor="middle">{intradayCursor.time.slice(0,2)}:{intradayCursor.time.slice(2)}</text>
                   </g>
-                  <g className="intraday-crosshair-card" transform={`translate(${tooltipX} ${tooltipY})`}>
+                  <g className="intraday-crosshair-card compact-tooltip" transform={`translate(${tooltipX} ${tooltipY})`}>
                     <rect width={tooltipWidth} height={tooltipHeight} rx="7"/>
                     <text x="11" y="18" className="title">{intradayCursor.time.slice(0,2)}:{intradayCursor.time.slice(2)}</text>
                     <line x1="10" y1="27" x2={tooltipWidth-10} y2="27" className="tooltip-divider"/>
-                    <text x="11" y="45">最新</text><text x={tooltipWidth-11} y="45" textAnchor="end" className={`primary ${directionClass}`}>{intradayCursor.price.toFixed(2)}</text>
-                    <text x="11" y="62">涨跌幅</text><text x={tooltipWidth-11} y="62" textAnchor="end" className={`primary ${directionClass}`}>{change==null?"--":`${change>=0?"+":""}${change.toFixed(2)}%`}</text>
-                    <text x="11" y="79">均价</text><text x={tooltipWidth-11} y="79" textAnchor="end">{intradayCursor.averagePrice.toFixed(2)}</text>
-                    <text x="11" y="96">BIAS</text><text x={tooltipWidth-11} y="96" textAnchor="end" className={intradayCursor.biasPercent>=0?"up":"down"}>{intradayCursor.biasPercent>=0?"+":""}{intradayCursor.biasPercent.toFixed(2)}%</text>
-                    <text x="11" y="113">成交量</text><text x={tooltipWidth-11} y="113" textAnchor="end">{formatIntradayVolume(intradayCursor.volume)}</text>
-                    {isZijinStock&&<><text x="11" y="130">主力净额</text><text x={tooltipWidth-11} y="130" textAnchor="end" className={(intradayCursor.mainForce?.netNotional??0)>=0?"force-buy":"force-sell"}>{intradayCursor.mainForce?formatMainForceAmount(intradayCursor.mainForce.netNotional):"无大额成交"}</text></>}
-                    <text x="11" y={isZijinStock?147:130}>信号依据</text><text x={tooltipWidth-11} y={isZijinStock?147:130} textAnchor="end">{intradayCursorSignal}</text>
+                    <g className="tooltip-column left"><text x="11" y="44">最新</text><text x="11" y="60">涨跌</text><text x="11" y="76">均价</text><text x="11" y="92">BIAS</text></g>
+                    <g className="tooltip-column right"><text x={tooltipWidth-11} y="44" textAnchor="end" className={`primary ${directionClass}`}>{intradayCursor.price.toFixed(2)}</text><text x={tooltipWidth-11} y="60" textAnchor="end" className={`primary ${directionClass}`}>{change==null?"--":`${change>=0?"+":""}${change.toFixed(2)}%`}</text><text x={tooltipWidth-11} y="76" textAnchor="end">{intradayCursor.averagePrice.toFixed(2)}</text><text x={tooltipWidth-11} y="92" textAnchor="end" className={intradayCursor.biasPercent>=0?"up":"down"}>{intradayCursor.biasPercent>=0?"+":""}{intradayCursor.biasPercent.toFixed(2)}%</text></g>
+                    <g className="tooltip-secondary"><text x="11" y="108">{isZijinStock?"主力净额":"成交量"}</text><text x={tooltipWidth-11} y="108" textAnchor="end" className={isZijinStock?(intradayCursor.mainForce?.netNotional??0)>=0?"force-buy":"force-sell":""}>{isZijinStock?(intradayCursor.mainForce?formatMainForceAmount(intradayCursor.mainForce.netNotional):"无大额成交"):formatIntradayVolume(intradayCursor.volume)}</text></g>
                   </g>
                 </g>;
               })()}
