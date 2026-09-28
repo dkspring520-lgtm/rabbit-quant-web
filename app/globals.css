@@ -4525,6 +4525,16 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .interactive-intraday-chart .intraday-percent-label.down{
   fill:#00b578;
 }
+/* Axis percentages are orientation aids; keep action colors for markers and
+   cards so the scale does not compete with the price path. */
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-percent-label.up{
+  fill:#d97978;
+  opacity:.78;
+}
+.app-shell.minimal-ui .interactive-intraday-chart .intraday-percent-label.down{
+  fill:#5fae91;
+  opacity:.78;
+}
 .app-shell.minimal-ui .quick-sim-order-actions button{
   transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease;
 }
