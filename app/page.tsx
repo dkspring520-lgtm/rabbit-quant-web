@@ -58,7 +58,7 @@ class AuthenticatedErrorBoundary extends Component<{ children: ReactNode }, { er
           <div style={{ display: "grid", justifyItems: "center", gap: 14, maxWidth: 420, padding: 24, textAlign: "center" }}>
             <Image src="/rabbit-logo-loading.webp" alt="双兔助手" width={48} height={48} unoptimized />
             <strong style={{ color: "var(--text)" }}>操盘台加载失败</strong>
-            <span style={{ color: "var(--muted)", fontSize: 12 }}>页面脚本出现异常，请刷新重试。{this.state.error.message ? ` (${this.state.error.message})` : ""}</span>
+            <span style={{ color: "var(--muted)", fontSize: 12 }}>页面脚本出现异常，请刷新页面重试。</span>
             <button type="button" onClick={() => window.location.reload()} style={{ border: "1px solid var(--line)", background: "transparent", color: "var(--teal)", padding: "8px 14px", cursor: "pointer" }}>刷新页面</button>
           </div>
         </main>
