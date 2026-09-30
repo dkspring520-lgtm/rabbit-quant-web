@@ -22,6 +22,9 @@ import {
   DEFAULT_COMPOSITE_RECIPES,
   applyCompositeSignalGates,
   auditMinuteDataSemantics,
+  buildCandidateSnapshot,
+  transitionCandidateLifecycle,
+  rollingClosureOutOfSample,
   simulateClosureTrade,
   stableStringify,
   writeImmutableJson,
@@ -415,6 +418,54 @@ test("Phase 1C locks the chronological test interval and cannot promote", () => 
   assert.equal(report.affectsProductionStrategy, false);
   assert.equal(report.canPromoteAutomatically, false);
   assert.equal(report.requiresHumanApproval, true);
+});
+
+test("rolling closure OOS applies each fold's fitted model behavior, not the outer model", () => {
+  const recipe = { recipeId: "test.recipe", version: "1", direction: "positiveT", components: [{ factorId: "x", weight: 1, sign: 1 }] };
+  const samples = [
+    ["20260101", 0.1], ["20260102", 0.2], ["20260103", 0.3],
+    ["20260104", 4], ["20260105", 5], ["20260106", 6],
+  ].map(([date, value], index) => ({ date, index, time: "1000", price: 10, atrRate: index + 1, factorValues: { x: value } }));
+  const seen = [];
+  const result = rollingClosureOutOfSample({
+    samples,
+    developmentDates: samples.map(item => item.date),
+    currentRecipe: recipe,
+    compositeConfig: { ...DEFAULT_COMPOSITE_CONFIG, thresholdQuantile: 0.5, horizons: [1], horizonMinutes: 1, rolling: { minimumTrainDays: 2, testDays: 1, stepDays: 2 } },
+    config: { rolling: { minimumTrainDays: 2, testDays: 1, stepDays: 2 } },
+    simulate: (testing, model, diagnostics) => {
+      seen.push({ testing: testing.map(item => item.date), threshold: model.scoreThreshold, center: model.scalers.x.center, diagnostics });
+      return [];
+    },
+  });
+  assert.equal(result.folds.length, 2);
+  assert.equal(seen.length, 2);
+  assert.notEqual(seen[0].center, seen[1].center);
+  assert.equal(seen[0].center, result.folds[0].model.scalers.x.center);
+  assert.equal(seen[1].center, result.folds[1].model.scalers.x.center);
+  assert.notEqual(seen[1].center, result.folds[0].model.scalers.x.center);
+  assert.notEqual(seen[0].diagnostics.atrHigh, seen[1].diagnostics.atrHigh);
+});
+
+test("candidate snapshots are deterministic and lifecycle transitions retain lineage", () => {
+  const input = {
+    expression: "zscore(volumeRatio)", recipeId: "alpha.volume.z", factorIds: ["volume.ratio", "volume.ratio"],
+    transform: "zscore", transformParameters: { window: 20 }, threshold: 1.25,
+    datasetVersion: "dataset-2026-09", modelVersion: "factor-combo-1", asOf: "2026-09-30T15:00:00+08:00",
+    createdAt: "2026-09-30T15:01:00+08:00", validationResult: { oosTrades: 42, passed: false },
+  };
+  const first = buildCandidateSnapshot(input);
+  const second = buildCandidateSnapshot({ ...input, factorIds: ["volume.ratio"] });
+  assert.deepEqual(first, second);
+  assert.equal(first.mode, "shadow-only");
+  assert.equal(first.affectsProduction, false);
+  const event = transitionCandidateLifecycle(first, "GENERATED", "VALIDATED", {
+    timestamp: "2026-09-30T15:02:00+08:00", reason: "完成样本外核验", evidence: { trades: 42 },
+  });
+  assert.equal(event.candidateId, first.candidateId);
+  assert.equal(event.datasetVersion, first.datasetVersion);
+  assert.equal(event.modelVersion, first.modelVersion);
+  assert.throws(() => transitionCandidateLifecycle(first, "GENERATED", "SHADOW"), /Invalid candidate lifecycle/);
 });
 
 test("Phase 1D rebuilds causal minute OHLC from ticks and preserves missing L2 as null", async () => {
