@@ -4551,15 +4551,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const net=results.reduce((sum,item)=>sum+item.net,0);
     const maxDrawdown=results.length?Math.max(...results.map(item=>item.maxDrawdown)):0;
     const confidence=cycles>=20?"高":cycles>=8?"中":"样本不足";
-    const samples=results.flatMap((result,sessionIndex)=>(result.actions??[]).map((action,index)=>({
-      signal:action.side==="买入"?"BUY":action.side==="卖出"?"SELL":"WAIT",
-      signalScore:action.confirmationScore??action.score??null,
-      source:"baseline",modelVersion:experiment.label??"V2.9",marketState:action.regime??"unknown",
-      time:action.time??sessions[sessionIndex]?.minutes[index]?.time,isWin:null,pnl:null,
-    })));
-    return {sessions:sessions.length,cycles,wins,net,maxDrawdown,confidence,winRate:cycles?wins/cycles:null,samples};
+    return {sessions:sessions.length,cycles,wins,net,maxDrawdown,confidence,winRate:cycles?wins/cycles:null};
   },[currentMarket?.intradaySessions,activePosition.plannedBase,activePosition.sellable,profile,stock?.code,preferences.profitMode]);
-  const researchObservationPoints=useMemo(()=>buildResearchObservationPoints(personalStrategyStats.samples,{minimumSamples:20}),[personalStrategyStats.samples]);
   const liveAgents=useMemo(()=>agents.map((agent)=>({
     ...agent,
     state:agent.id==="training"?`${personalStrategyStats.sessions}日已读取`:agent.id==="challenger"?`${personalStrategyStats.cycles}闭环已核对`:agent.id==="risk"?(personalStrategyStats.maxDrawdown<.03?"风控绿灯":"需要关注"):"正式版锁定",
@@ -6815,7 +6808,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       <header className="topbar">
         <div className="brand brand-lockup" aria-label="双兔助手 做T神器 Rabbit Smart-T">
           <img className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志" width={280} height={72} />
-          <span className="brand-type brand-type-fallback"><strong aria-hidden="true"><span>双兔助手</span></strong><small>做<span className="brand-ascii-t">T</span>神器 · SMART-T</small></span>
+          <span className="brand-type brand-type-fallback"><strong aria-hidden="true"><span>做T神器</span></strong><small>RABBIT QUANT · 双兔助手</small></span>
+          <span className="brand-legacy-label" aria-hidden="true"><span>双兔助手</span><span>做<span className="brand-ascii-t">T</span>神器 · SMART-T</span></span>
         </div>
         <nav className="main-nav" aria-label="主导航">
           {['首页','操盘台','单股智研','AI量化研究院','量化工具','模拟回测'].map((item) => {
