@@ -113,12 +113,22 @@ export default function Home() {
 
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
-      if (event.message || event.filename) setModuleLoadError(event.message || "脚本加载失败");
+      const message = event.message || "";
+      const source = event.filename || "";
+      // Do not surface arbitrary browser/runtime errors as a loading failure.
+      // Minified runtime messages can look like mojibake during first paint.
+      if (/(chunk|import|module|dynamic|failed to fetch|loading css)/i.test(message) || /\/assets\/.*\.js/i.test(source)) {
+        console.error("[rabbit] module load error", message, source);
+        setModuleLoadError("页面脚本加载失败");
+      }
     };
     const onRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
       const message = reason instanceof Error ? reason.message : String(reason || "脚本加载失败");
-      if (/chunk|import|module|fetch|load/i.test(message)) setModuleLoadError(message);
+      if (/chunk|import|module|failed to fetch|loading css|load failed/i.test(message)) {
+        console.error("[rabbit] module load rejection", message);
+        setModuleLoadError("页面脚本加载失败");
+      }
     };
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
@@ -179,7 +189,7 @@ export default function Home() {
 
   if (initialAuth) {
     if (moduleLoadError) {
-      return <main className="auth-loading" role="alert"><div style={{ display: "grid", justifyItems: "center", gap: 14, maxWidth: 420, padding: 24, textAlign: "center" }}><Image src="/rabbit-logo-loading.webp" alt="双兔助手" width={48} height={48} unoptimized /><strong style={{ color: "var(--text)" }}>操盘台脚本加载失败</strong><span style={{ color: "var(--muted)", fontSize: 12 }}>请刷新页面重试。{moduleLoadError ? ` (${moduleLoadError})` : ""}</span><button type="button" onClick={() => window.location.reload()} style={{ border: "1px solid var(--line)", background: "transparent", color: "var(--teal)", padding: "8px 14px", cursor: "pointer" }}>刷新页面</button></div></main>;
+      return <main className="auth-loading" role="alert"><div style={{ display: "grid", justifyItems: "center", gap: 14, maxWidth: 420, padding: 24, textAlign: "center" }}><Image src="/rabbit-logo-loading.webp" alt="双兔助手" width={48} height={48} unoptimized /><strong style={{ color: "var(--text)" }}>操盘台脚本加载失败</strong><span style={{ color: "var(--muted)", fontSize: 12 }}>页面资源没有完整加载，请刷新页面重试。</span><button type="button" onClick={() => window.location.reload()} style={{ border: "1px solid var(--line)", background: "transparent", color: "var(--teal)", padding: "8px 14px", cursor: "pointer" }}>刷新页面</button></div></main>;
     }
     return <AuthenticatedErrorBoundary><AuthenticatedHome initialAuth={initialAuth} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { try { sessionStorage.removeItem("rabbit-demo-session"); sessionStorage.removeItem("rabbit-active-view"); } catch {} setInitialAuth(null); setAuthScreen("account"); }} /></AuthenticatedErrorBoundary>;
   }
