@@ -1387,6 +1387,36 @@
 @media(max-width:720px){.chart-rabbit-tracker .rabbit-tracker-bubble text{font-size:7px}.chart-rabbit-tracker .rabbit-tracker-bubble{opacity:.94}}
 @media(prefers-reduced-motion:reduce){.chart-rabbit-tracker{transition:none}.chart-rabbit-tracker .rabbit-tracker-body,.chart-rabbit-tracker.signal .rabbit-tracker-body,.chart-rabbit-tracker.signal .rabbit-tracker-halo,.chart-rabbit-tracker .rabbit-tracker-bubble,.rabbit-signal-companion,.rabbit-rest-z{animation:none!important}}
 
+/* Cockpit visual cleanup: keep the chart readable when many observation points
+   are present, while leaving formal and shadow signal logic unchanged. */
+.minimal-ui .interactive-intraday-chart .candidate-signal-marker:not(.formal-signal-marker){opacity:.58}
+.minimal-ui .interactive-intraday-chart .candidate-signal-marker:not(.formal-signal-marker):hover,
+.minimal-ui .interactive-intraday-chart .candidate-signal-marker:not(.formal-signal-marker):focus-within{opacity:1}
+.minimal-ui .chart-tools.collapsed .chart-control-groups{opacity:0;pointer-events:none;transform:translateY(-3px)}
+.minimal-ui .chart-tools .chart-control-groups{transition:opacity .16s ease,transform .16s ease}
+.minimal-ui .chart-tools .chart-control-group-label{color:var(--dim);font-size:8px;letter-spacing:.06em}
+.minimal-ui .chart-tools .layer-switches button{padding-inline:8px}
+@media(min-width:1200px){
+  .app-shell.minimal-ui.tv-console .ai-watch-bunny{right:24px;bottom:92px}
+}
+@media(max-width:1199px){
+  .app-shell.minimal-ui.tv-console .ai-watch-bunny{right:18px;bottom:76px}
+}
+
+/* Red is reserved for the latest price and an actual sell/risk event. */
+.minimal-ui .chart-wrap .price-plan-band.sell rect{fill:rgba(255,101,95,.018)}
+.minimal-ui .chart-wrap .price-plan-band.sell text{opacity:.58}
+.minimal-ui .chart-wrap .price-plan-line.sell-stop line,
+.minimal-ui .chart-wrap .price-plan-line.sell-profit line{stroke:rgba(255,101,95,.34)}
+.minimal-ui .chart-wrap .candidate-signal-marker.v29-shadow-marker,
+.minimal-ui .chart-wrap .candidate-signal-marker.v1-context-marker{opacity:.42}
+.minimal-ui .chart-wrap .candidate-signal-marker.v29-shadow-marker:hover,
+.minimal-ui .chart-wrap .candidate-signal-marker.v1-context-marker:hover{opacity:1}
+.minimal-ui .chart-wrap .candidate-signal-marker.v29-shadow-marker rect,
+.minimal-ui .chart-wrap .candidate-signal-marker.v1-context-marker rect{fill:rgba(26,19,6,.42);stroke-dasharray:4 3}
+.minimal-ui .chart-wrap .candidate-signal-marker.v29-shadow-marker text,
+.minimal-ui .chart-wrap .candidate-signal-marker.v1-context-marker text{font-size:7px;font-weight:620}
+
 /* 2026-07 compact decision-first intraday view. */
 .minimal-ui .chart-tools{
   height:40px;
