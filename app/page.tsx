@@ -30,9 +30,9 @@ function RabbitLoading({ retry }: { retry?: () => void }) {
     return () => window.clearTimeout(timer);
   }, []);
   return (
-    <main className="auth-loading" aria-busy="true" aria-live="polite" role="status">
+    <main className="auth-loading" aria-busy="true" aria-label="页面加载中">
       <div style={{ display: "grid", justifyItems: "center", gap: 14 }}>
-        <Image src="/rabbit-logo-loading.webp" alt="双兔助手 做T神器" width={48} height={48} priority unoptimized />
+        <Image src="/rabbit-logo-loading.webp" alt="" width={48} height={48} priority unoptimized />
         {timedOut && <span style={{ color: "var(--muted)", fontSize: 11 }}>页面加载时间较长，请重试。</span>}
         {timedOut && <button type="button" onClick={() => { retry?.(); window.setTimeout(() => window.location.reload(), 3_000); }} style={{ border: "1px solid var(--line)", background: "transparent", color: "var(--teal)", padding: "8px 14px", cursor: "pointer" }}>重试并刷新</button>}
       </div>

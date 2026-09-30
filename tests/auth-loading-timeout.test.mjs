@@ -7,5 +7,7 @@ test("loading fallback exposes a recovery path instead of waiting forever", () =
   assert.match(source, /12_000/);
   assert.match(source, /页面加载时间较长，请重试/);
   assert.doesNotMatch(source, /正在进入双兔助手/);
+  assert.match(source, /aria-label=\"页面加载中\"/);
+  assert.match(source, /alt=\"\"/);
   assert.match(source, /location\.reload/);
 });
