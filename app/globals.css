@@ -1416,6 +1416,16 @@
 .minimal-ui .chart-wrap .candidate-signal-marker.v1-context-marker rect{fill:rgba(26,19,6,.42);stroke-dasharray:4 3}
 .minimal-ui .chart-wrap .candidate-signal-marker.v29-shadow-marker text,
 .minimal-ui .chart-wrap .candidate-signal-marker.v1-context-marker text{font-size:7px;font-weight:620}
+/* Keep the price fill as context, never as a full-chart risk wash. */
+.app-shell.minimal-ui.tv-console .interactive-intraday-chart .price-area-path{opacity:.42}
+.app-shell.minimal-ui.tv-console .interactive-intraday-chart .price-bias-alert.down{fill:rgba(255,77,79,.018)}
+.app-shell.minimal-ui.tv-console .interactive-intraday-chart .vwap-channel-band.lower{fill:rgba(255,77,79,.022)}
+.app-shell.minimal-ui.tv-console .interactive-intraday-chart .vwap-channel-line.lower{stroke:rgba(255,77,79,.36)}
+@media(min-width:1200px){
+  .app-shell.minimal-ui.tv-console .ai-watch-bunny{min-width:148px;padding:7px 10px 7px 7px;gap:7px}
+  .app-shell.minimal-ui.tv-console .ai-watch-bunny-mark{width:48px;height:48px}
+  .app-shell.minimal-ui.tv-console .ai-watch-bunny-mark img{width:48px!important;height:48px!important}
+}
 
 /* 2026-07 compact decision-first intraday view. */
 .minimal-ui .chart-tools{
