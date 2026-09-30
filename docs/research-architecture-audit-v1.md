@@ -96,4 +96,3 @@ Market Data
 - 新增：`docs/research-architecture-audit-v1.md`。
 - 测试增强：`tests/factor-research.test.mjs` 检查 fold 参数标记和 train-only diagnostics。
 - 未修改：Smart‑T、Zijin Shadow V2、生产信号、UI、真实交易。
-
