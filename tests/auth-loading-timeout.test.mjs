@@ -5,6 +5,7 @@ import fs from "node:fs";
 test("loading fallback exposes a recovery path instead of waiting forever", () => {
   const source = fs.readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
   assert.match(source, /12_000/);
-  assert.match(source, /加载超时/);
+  assert.match(source, /页面加载时间较长，请重试/);
+  assert.doesNotMatch(source, /正在进入双兔助手/);
   assert.match(source, /location\.reload/);
 });
