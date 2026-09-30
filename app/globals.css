@@ -1422,7 +1422,9 @@
 .app-shell.minimal-ui.tv-console .interactive-intraday-chart .vwap-channel-band.lower{fill:rgba(255,77,79,.022)}
 .app-shell.minimal-ui.tv-console .interactive-intraday-chart .vwap-channel-line.lower{stroke:rgba(255,77,79,.36)}
 @media(min-width:1200px){
-  .app-shell.minimal-ui.tv-console .ai-watch-bunny{min-width:148px;padding:7px 10px 7px 7px;gap:7px}
+  .app-shell.minimal-ui.tv-console .ai-watch-bunny{width:56px;min-width:56px;height:56px;padding:4px;right:24px;bottom:24px;gap:0}
+  .app-shell.minimal-ui.tv-console .ai-watch-bunny>span:not(.ai-watch-bunny-mark),
+  .app-shell.minimal-ui.tv-console .ai-watch-bunny>i{display:none}
   .app-shell.minimal-ui.tv-console .ai-watch-bunny-mark{width:48px;height:48px}
   .app-shell.minimal-ui.tv-console .ai-watch-bunny-mark img{width:48px!important;height:48px!important}
 }
