@@ -22,6 +22,12 @@
   gap: 11px;
 }
 
+/* Kept only as a non-rendered compatibility label for older snapshots/tests;
+   never allow the pre-CSS brand copy to flash during hydration. */
+.topbar .brand-legacy-label {
+  display: none !important;
+}
+
 .topbar .brand-primary-logo {
   width: 66px !important;
   height: 52px !important;
