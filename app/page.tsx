@@ -132,6 +132,12 @@ export default function Home() {
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
+          if (sessionStorage.getItem("rabbit-demo-session") === "1") {
+            setInitialAuth({ localAuth: true, demoMode: true, accountName: "演示访客", accountRole: "member", accountMembership: null });
+            return;
+          }
+        } catch {}
+        try {
           const response = await fetch("/api/control/auth/session", { credentials: "include", cache: "no-store" });
           if (response.ok) {
             const payload = await response.json() as { user?: { displayName?: string; username?: string; role?: string; membership?: Membership | null } };
@@ -157,6 +163,7 @@ export default function Home() {
   };
 
   const enterDemo = () => {
+    try { sessionStorage.setItem("rabbit-demo-session", "1"); } catch {}
     setInitialAuth({ localAuth: true, demoMode: true, accountName: "演示访客", accountRole: "member", accountMembership: null });
   };
 
@@ -174,7 +181,7 @@ export default function Home() {
     if (moduleLoadError) {
       return <main className="auth-loading" role="alert"><div style={{ display: "grid", justifyItems: "center", gap: 14, maxWidth: 420, padding: 24, textAlign: "center" }}><Image src="/rabbit-logo-loading.webp" alt="双兔助手" width={48} height={48} unoptimized /><strong style={{ color: "var(--text)" }}>操盘台脚本加载失败</strong><span style={{ color: "var(--muted)", fontSize: 12 }}>请刷新页面重试。{moduleLoadError ? ` (${moduleLoadError})` : ""}</span><button type="button" onClick={() => window.location.reload()} style={{ border: "1px solid var(--line)", background: "transparent", color: "var(--teal)", padding: "8px 14px", cursor: "pointer" }}>刷新页面</button></div></main>;
     }
-    return <AuthenticatedErrorBoundary><AuthenticatedHome initialAuth={initialAuth} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { setInitialAuth(null); setAuthScreen("account"); }} /></AuthenticatedErrorBoundary>;
+    return <AuthenticatedErrorBoundary><AuthenticatedHome initialAuth={initialAuth} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { try { sessionStorage.removeItem("rabbit-demo-session"); sessionStorage.removeItem("rabbit-active-view"); } catch {} setInitialAuth(null); setAuthScreen("account"); }} /></AuthenticatedErrorBoundary>;
   }
   if (authScreen === "landing") {
     return <PublicLanding onDemo={enterDemo} onAccount={() => setAuthScreen("account")} theme={theme} onToggleTheme={toggleTheme} />;

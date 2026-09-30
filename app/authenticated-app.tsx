@@ -1876,7 +1876,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [cycleStage, setCycleStage] = useState<'ready'|'opened'|'closed'>('ready');
   const [openedCycleSide,setOpenedCycleSide]=useState<"buy"|"sell"|null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
-  const [activeView, setActiveView] = useState("首页");
+  const [activeView, setActiveView] = useState(() => {
+    if (typeof window === "undefined") return "首页";
+    try {
+      const saved = sessionStorage.getItem("rabbit-active-view");
+      const allowed = ["首页", "操盘台", "单股智研", "AI量化研究院", "量化工具", "模拟回测", "邀请中心", "多股监控", "策略市场", "持仓对账", "智能训练"];
+      return saved && allowed.includes(saved) ? saved : "首页";
+    } catch { return "首页"; }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !localAuth) return;
+    try { sessionStorage.setItem("rabbit-active-view", activeView); } catch {}
+  }, [activeView, localAuth]);
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
@@ -6166,7 +6177,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const load = async () => {
       if (!shouldRunTradingDeskPolling(activeView,document.visibilityState)) return;
       try {
-        const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}`);
+      const response = await fetch(`/api/market-data?code=${encodeURIComponent(stock.code)}&refresh=${Date.now()}`, { cache: "no-store" });
         if (!response.ok) throw new Error("行情服务暂不可用");
         const data = await response.json() as MarketData;
         if (!cancelled) { setMarketData(current=>mergeMarketDataSnapshot(current,data)); setMarketError(""); }
@@ -6184,6 +6195,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         enabled: () => !cancelled && shouldRunTradingDeskPolling(activeView, document.visibilityState),
       });
     };
+    // On a restored tab, fetch once immediately so the chart never shows the
+    // previous in-memory snapshot while waiting for the normal bootstrap delay.
+    start();
     const bootstrapTimer=window.setTimeout(start,REFERENCE_DATA_BOOTSTRAP_DELAY_MS);
     const onVisibility=()=>{if(!started&&shouldRunTradingDeskPolling(activeView,document.visibilityState))start()};
     document.addEventListener("visibilitychange",onVisibility);
