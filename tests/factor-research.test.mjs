@@ -405,6 +405,8 @@ test("Phase 1C locks the chronological test interval and cannot promote", () => 
     for (const fold of item.rollingOutOfSample.folds) {
       assert.equal(fold.timeOrdered, true);
       assert.ok(fold.trainThrough < fold.testStart);
+      assert.equal(fold.model.fittedOn, "train-only");
+      assert.equal(fold.diagnosticThresholds.fittedOn, "train-only");
       assert.equal([...lockedDates].some(date => date >= fold.testStart && date <= fold.testEnd), false);
     }
   }
