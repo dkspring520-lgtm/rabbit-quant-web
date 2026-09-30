@@ -4717,6 +4717,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const decisionExecutionLabel=decisionActionSide
     ? formalExecutionLabel(decisionActionDirection,decisionActionSide)
     : `${signalMode}信号`;
+  const decisionMachineState=decisionModel.status==="locked"?"LOCK"
+    :cycleStage==="opened"?"HOLD"
+    :formalActionMarkerPending?"SYNC"
+    :decisionModel.status==="ready"&&decisionActionSide?"READY"
+    :freshReverseTObservation?"WATCH":"WAIT";
   const formalStrategyCompareStatus=decisionModel.status==="locked"
     ?"风控锁定"
     :cycleStage==="opened"
@@ -7182,17 +7187,18 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </div>
           <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="操盘决策与执行摘要">
             <header><span>操盘决策 <small className="decision-engine-badge">闭环策略</small></span><em>{executionSnapshot?`${executionSnapshot.direction} · 把握度 ${executionSnapshot.confidence}%`:`${decisionConditionsConfirmed}/4 条件`}</em></header>
+            <div className={`decision-machine-state ${decisionMachineState.toLowerCase()}`} aria-label={`系统状态 ${decisionMachineState}`}><i aria-hidden="true"/>{decisionMachineState}</div>
             <b className="global-decision-status">{decisionModel.status==="locked"
-              ?"🔴 风控已锁定"
+              ?"风控已锁定"
               :cycleStage==="opened"
-              ?`🟡 已记录${openedCycleSide==="buy"?"买入":"卖出"}，等待${expectedClosingSide==="sell"?"卖出":"买回"}`
+              ?`已记录${openedCycleSide==="buy"?"买入":"卖出"}，等待${expectedClosingSide==="sell"?"卖出":"买回"}`
                 :formalActionMarkerPending
-                    ?"🟡 正式信号写入分时图中"
+                    ?"正式信号写入分时图中"
                     :decisionModel.status==="ready"&&decisionActionSide
-                      ?`🟢 ${decisionExecutionLabel}已确认`
+                      ?`${decisionExecutionLabel}已确认`
                       :freshReverseTObservation
-                        ?`🟠 反T${freshReverseTObservation.stage==="candidate"?"候补":"观察"}`
-                        :"🟡 等待信号"}</b>
+                        ?`反T${freshReverseTObservation.stage==="candidate"?"候补":"观察"}`
+                        :"等待信号"}</b>
             <div className={`today-t-opportunity ${fusedSignal.score===null?"pending":fusedSignal.score>=80?"strong":fusedSignal.score>=60?"watch":"weak"}`} aria-label="今日做T机会">
               <div><span>今日做T机会</span><small>{fusedSignal.score===null?"等待融合评分":"基于当前融合评分 · 仅作观察"}</small></div>
               <b>{fusedSignal.score===null?"--":fusedSignal.score}<small>{fusedSignal.score===null?"":"/100"}</small></b>
@@ -7210,10 +7216,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>
             {isZijinStock&&<div className={`decision-execution-grid ${executionSnapshot?"ready":"pending"}`} aria-label="正T与反T预设参考价位">
               {executionSnapshot?<>
-                <p className="positive"><span>拟买 · 正T</span><b>¥{executionSnapshot.buyReference.toFixed(2)} <small>{executionSnapshot.buyDistancePct===null?"距现价待更新":`距现价 ${executionSnapshot.buyDistancePct>=0?"+":""}${executionSnapshot.buyDistancePct.toFixed(2)}%`}</small></b></p>
-                <p className="reverse"><span>拟卖 · 反T</span><b>¥{executionSnapshot.sellReference.toFixed(2)} <small>{executionSnapshot.sellDistancePct===null?"距现价待更新":`距现价 ${executionSnapshot.sellDistancePct>=0?"+":""}${executionSnapshot.sellDistancePct.toFixed(2)}%`}</small></b></p>
-                <p className="risk"><span>硬止损 · {executionSnapshot.direction}</span><b>¥{executionSnapshot.hardStop.toFixed(2)}</b></p>
-                <p className="space"><span>预期毛空间</span><b>¥{executionSnapshot.expectedGrossSpread.toFixed(2)} <small>+{executionSnapshot.expectedGrossSpreadPct.toFixed(2)}%</small></b></p>
+                <p className="positive"><span title="拟买 · 正T">正T买</span><b>¥{executionSnapshot.buyReference.toFixed(2)} <small>{executionSnapshot.buyDistancePct===null?"距现价待更新":`距现价 ${executionSnapshot.buyDistancePct>=0?"+":""}${executionSnapshot.buyDistancePct.toFixed(2)}%`}</small></b></p>
+                <p className="reverse"><span title="拟卖 · 反T">反T卖</span><b>¥{executionSnapshot.sellReference.toFixed(2)} <small>{executionSnapshot.sellDistancePct===null?"距现价待更新":`距现价 ${executionSnapshot.sellDistancePct>=0?"+":""}${executionSnapshot.sellDistancePct.toFixed(2)}%`}</small></b></p>
+                <p className="risk"><span title={`硬止损 · ${executionSnapshot.direction}`}>硬止损</span><b>¥{executionSnapshot.hardStop.toFixed(2)}</b></p>
+                <p className="space"><span title="预期毛空间（未扣费用）">预期空间</span><b>¥{executionSnapshot.expectedGrossSpread.toFixed(2)} <small>毛空间 +{executionSnapshot.expectedGrossSpreadPct.toFixed(2)}%</small></b></p>
               </>:<div className="decision-execution-pending"><span>参考价与风控</span><b>等待实时数据</b><small>数据到齐后自动展开</small></div>}
             </div>}
             <div className={`global-decision-live-signal ${freshReverseTAction||freshReverseTObservation?"active":"idle"}`} aria-label="实时反T信号">
