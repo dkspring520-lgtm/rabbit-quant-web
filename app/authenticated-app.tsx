@@ -4615,7 +4615,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       return {
         title,
         value:nextSessionOutlook.ready?nextSessionOutlook.direction:"待定",
-        suffix:nextSessionOutlook.ready?` · 研究证据 ${researchStrength} 条`:"",
+        suffix:nextSessionOutlook.ready?` · ${nextSessionOutlook.confidenceText}`:"",
         detail:externalWaiting?"外盘待更新 · 不计入盘前评分":nextSessionOutlook.ready?`¥${nextSessionOutlook.lower.toFixed(2)}–${nextSessionOutlook.upper.toFixed(2)}`:postclose?"收盘后生成":"等待盘前数据",
         tone:!nextSessionOutlook.ready?"pending":nextSessionOutlook.direction==="偏强"?"up":nextSessionOutlook.direction==="偏弱"?"down":"flat",
         ariaLabel:postclose?"下一交易日预判":"今日开盘预判",
