@@ -5007,6 +5007,23 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
   .app-shell.minimal-ui .today-t-opportunity>b{font-size:20px}
 }
 
+.app-shell.minimal-ui.tv-console .decision-machine-state{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:8px 0 4px;
+  color:var(--amber);
+  font:700 18px/1 var(--font-geist-mono),ui-monospace,monospace;
+}
+.app-shell.minimal-ui.tv-console .decision-machine-state i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:currentColor;
+}
+.app-shell.minimal-ui.tv-console .decision-machine-state.ready{color:var(--teal)}
+.app-shell.minimal-ui.tv-console .decision-machine-state.lock{color:var(--coral)}
+
 /* Premium terminal hierarchy, scoped to the dark trading cockpit. */
 :root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console{
   --cockpit-bg:#090c10;
@@ -5098,6 +5115,35 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 :root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .global-decision-card.ready.positive .global-decision-status,
 :root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .global-decision-card.locked .global-decision-status{color:var(--cockpit-buy)}
 :root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .global-decision-card.ready.reverse .global-decision-status{color:var(--cockpit-sell)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-machine-state{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:8px 0 4px;
+  color:var(--cockpit-gold);
+  font:700 18px/1 var(--cockpit-numbers);
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-machine-state i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:currentColor;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-machine-state.ready{color:var(--cockpit-sell)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-machine-state.lock{color:var(--cockpit-buy)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .global-decision-card .global-decision-status{
+  display:block;
+  min-height:0;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .global-decision-card.ready .global-decision-status,
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .global-decision-card.locked .global-decision-status{
+  min-height:0;
+  padding:0;
+  font-size:var(--cockpit-conclusion-size);
+}
 :root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .today-t-opportunity{
   border-color:var(--cockpit-border-soft);
   border-left-color:var(--cockpit-gold);
@@ -5121,7 +5167,33 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
   border-radius:var(--cockpit-radius);
   background:var(--cockpit-panel);
 }
-:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-execution-grid b{font-size:15px}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-execution-grid span{white-space:nowrap}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-execution-grid b{
+  display:grid;
+  gap:4px;
+  font-size:15px;
+  line-height:1.15;
+  overflow:visible;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-execution-grid b small{
+  font-family:var(--cockpit-font);
+  font-size:9px;
+  line-height:1.25;
+  white-space:normal;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .decision-execution-grid{gap:var(--cockpit-space)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .decision-execution-grid p{padding:8px;min-height:64px}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .decision-zone.focus-mode .decision-execution-grid b{font-size:14px}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .interactive-intraday-chart .candidate-signal-marker.observation-layer>rect,
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .interactive-intraday-chart .candidate-signal-marker.closure-signal-marker>rect{
+  fill:var(--cockpit-panel);
+  stroke:var(--cockpit-muted);
+  filter:none;
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .interactive-intraday-chart .candidate-signal-marker.observation-layer>text,
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .interactive-intraday-chart .candidate-signal-marker.closure-signal-marker>text{fill:var(--cockpit-muted)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .interactive-intraday-chart .candidate-signal-marker.observation-layer .marker-label-leader,
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .interactive-intraday-chart .candidate-signal-marker.closure-signal-marker .marker-label-leader{stroke:var(--cockpit-muted)}
 :root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .interactive-intraday-chart .live-signal-marker>rect{
   filter:none;
   stroke-width:1px;
