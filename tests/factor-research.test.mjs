@@ -23,6 +23,7 @@ import {
   applyCompositeSignalGates,
   auditMinuteDataSemantics,
   buildCandidateSnapshot,
+  CandidateLifecycleLedger,
   transitionCandidateLifecycle,
   rollingClosureOutOfSample,
   simulateClosureTrade,
@@ -466,6 +467,28 @@ test("candidate snapshots are deterministic and lifecycle transitions retain lin
   assert.equal(event.datasetVersion, first.datasetVersion);
   assert.equal(event.modelVersion, first.modelVersion);
   assert.throws(() => transitionCandidateLifecycle(first, "GENERATED", "SHADOW"), /Invalid candidate lifecycle/);
+});
+
+test("combination research emits a reproducible candidate snapshot", () => {
+  const report = new FactorCombinationBacktestEngine().run(sessions(36), {
+    horizons: [5], recipeIds: ["positiveT.pullback_recovery"], createdAt: "2026-09-30T15:00:00+08:00",
+  });
+  const snapshot = report.reports[0].candidateSnapshot;
+  assert.equal(snapshot.recipeId, "positiveT.pullback_recovery");
+  assert.ok(snapshot.factorIds.length > 0);
+  assert.equal(snapshot.datasetVersion, "factor-dataset-20250102-20250206");
+  assert.equal(snapshot.canPromoteAutomatically, false);
+});
+
+test("candidate lifecycle ledger appends immutable events and exposes current state", () => {
+  const ledger = new CandidateLifecycleLedger({ expression: "x", factorIds: ["f"], datasetVersion: "d1", modelVersion: "m1", asOf: "2026-09-30T15:00:00+08:00", createdAt: "2026-09-30T15:00:00+08:00" });
+  ledger.append({ to: "VALIDATED", timestamp: "2026-09-30T15:01:00+08:00", reason: "oos", evidence: { trades: 20 } });
+  ledger.append({ to: "CANDIDATE", timestamp: "2026-09-30T15:02:00+08:00", reason: "gate" });
+  ledger.append({ to: "SHADOW", timestamp: "2026-09-30T15:03:00+08:00", reason: "shadow" });
+  assert.equal(ledger.currentState(), "SHADOW");
+  assert.equal(ledger.history().length, 3);
+  assert.equal(ledger.export().affectsProduction, false);
+  assert.throws(() => ledger.append({ from: "GENERATED", to: "PROMOTED" }), /state mismatch|Invalid candidate/);
 });
 
 test("Phase 1D rebuilds causal minute OHLC from ticks and preserves missing L2 as null", async () => {
