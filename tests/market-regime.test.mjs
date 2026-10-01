@@ -1,0 +1,7 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { HistoricalReplayEngine, MarketRegimeEngine, PerformanceAnalyticsEngine } from "../lib/paper-trading/index.mjs";
+
+test("regime classification follows price and MA5/MA20", () => { const engine = new MarketRegimeEngine(); assert.equal(engine.classify({ price: 12, factors: { ma5: 11, ma20: 10 } }).trend, "UP"); assert.equal(engine.classify({ price: 8, factors: { ma5: 9, ma20: 10 } }).tradingMode, "REVERSE_T"); assert.equal(engine.classify({ price: 10, factors: { ma5: 11, ma20: 10 } }).trend, "SIDEWAYS"); });
+test("replay attaches regime to samples", () => { const dataset = { date: "2026-09-30", minutes: [{ time: "1000", price: 10, volume: 100 }] }; const replay = new HistoricalReplayEngine({ symbol: "x", dataset, initialCash: 1000, signalSource: ({ regime }) => ({ side: "WAIT", marketState: regime.marketRegime }) }); const sample = replay.run().samples[0]; assert.ok(sample.marketRegime); assert.ok(sample.tradingMode); });
+test("performance groups by regime trend and trading mode", () => { const base = { timestamp: "2026-09-30T1000", entryPrice: 10, candidateId: "c", factorSnapshot: { vwap: 1 }, signal: "BUY", pnl: .01, marketRegime: "UP", trend: "UP", tradingMode: "POSITIVE_T" }; const report = new PerformanceAnalyticsEngine().analyze([base]); assert.ok(report.breakdown.marketRegime.UP); assert.ok(report.breakdown.trend.UP); assert.ok(report.breakdown.tradingMode.POSITIVE_T); });
