@@ -5,6 +5,7 @@ export function GET() {
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>${siteUrl}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
   <url><loc>${siteUrl}/knowledge</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>${siteUrl}/market/xauusd</loc><changefreq>hourly</changefreq><priority>0.6</priority></url>
   <url><loc>${siteUrl}/pricing</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
 </urlset>`;
   return new Response(xml, { headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
