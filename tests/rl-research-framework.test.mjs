@@ -1,0 +1,8 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { RL_ACTIONS, RLShadowAgent, buildRLState, calculateRLReward, evaluateRLResults, normalizeRLAction, runRLShadowResearch } from "../lib/rl-research/index.mjs";
+test("state builder creates a serializable RL state", () => { const state = buildRLState({ symbol: "601899", timestamp: "10:00", price: 10, marketRegime: { trend: "UP" }, factorSnapshot: { vwap: 9.9 }, positionState: { total: 1000 } }); assert.equal(state.trend, "UP"); assert.doesNotThrow(() => JSON.stringify(state)); });
+test("action space stays limited to shadow actions", () => { assert.deepEqual(RL_ACTIONS, ["WAIT", "BUY_SMALL", "BUY", "SELL_PART", "SELL_ALL"]); assert.equal(normalizeRLAction("invalid"), "WAIT"); });
+test("reward subtracts costs risk and invalid penalty", () => { assert.equal(calculateRLReward({ tradeProfit: 10, fees: 1, slippage: 1, drawdown: 2, overtrade: 1, invalid: true, weights: { drawdownPenalty: 2, overtradePenalty: 1, invalidPenalty: 3 } }), 0); });
+test("shadow environment runner is reproducible and non-executable", () => { const rows = [{ symbol: "x", timestamp: "10:00", price: 10, marketRegime: { trend: "DOWN" }, factorSnapshot: { sellPressure: 1 }, tradeProfit: 1 }]; const first = runRLShadowResearch(rows); assert.deepEqual(first, runRLShadowResearch(rows)); assert.equal(first[0].action, "SELL_PART"); assert.equal(first[0].shadowOnly, true); });
+test("RL performance evaluates research rows", () => { const report = evaluateRLResults([{ action: "BUY", reward: 1 }, { action: "WAIT", reward: -0.5 }]); assert.equal(report.samples, 2); assert.equal(report.tradeCount, 1); assert.equal(report.winRate, .5); });
