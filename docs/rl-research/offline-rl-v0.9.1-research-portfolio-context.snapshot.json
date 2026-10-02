@@ -1,0 +1,34 @@
+{
+  "version": "OFFLINE_RL_V0.9.1",
+  "scenario": {
+    "accountScenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_C_10000_V0.1",
+    "initialCash": 10000,
+    "initialPosition": 0,
+    "initialSellablePosition": 0,
+    "positionSizingRule": "ResearchNotionalUnitV0.1",
+    "lotSize": 100,
+    "tPlusOneRule": "PaperExecutionEngine",
+    "executionRuleVersion": "PaperExecutionEngine",
+    "costModelVersion": "research-portfolio-cost-v0.1",
+    "accountType": "SYNTHETIC_RESEARCH_PORTFOLIO"
+  },
+  "scenarioHash": "f31ad816798f1eef092173e3f786cf0ec6c93bdfacdd8f7b6e22d34d634257b2",
+  "datasetHash": "f9190b68d92bfeac9615b98b65115002ca3440e83bed4c482585c40fd8f74e1f",
+  "executionHash": "81a292ae6ff068c30a20d1c717953e8e97682410fe7a8da4b2919adad7653e2a",
+  "rewardHash": "f45f31c13858a941f0e623f4b473e7147c516d0b7ad6fdb7cb1cbe4c523a7cff",
+  "trajectoryHash": "62ed36082d7364dd727f5409d238f455ed0c1a34c85faf6ed8d5b7d2782db086",
+  "counterfactualHash": "50ed027de3271ff8c900072b4ab01ee6741e43e04e7a85298417e72d59b12282",
+  "reproducibility": {
+    "runA": {
+      "trajectoryHash": "62ed36082d7364dd727f5409d238f455ed0c1a34c85faf6ed8d5b7d2782db086",
+      "counterfactualHash": "50ed027de3271ff8c900072b4ab01ee6741e43e04e7a85298417e72d59b12282",
+      "scenarioHash": "f31ad816798f1eef092173e3f786cf0ec6c93bdfacdd8f7b6e22d34d634257b2"
+    },
+    "runB": {
+      "trajectoryHash": "62ed36082d7364dd727f5409d238f455ed0c1a34c85faf6ed8d5b7d2782db086",
+      "counterfactualHash": "50ed027de3271ff8c900072b4ab01ee6741e43e04e7a85298417e72d59b12282",
+      "scenarioHash": "f31ad816798f1eef092173e3f786cf0ec6c93bdfacdd8f7b6e22d34d634257b2"
+    },
+    "identical": true
+  }
+}

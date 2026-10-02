@@ -1,0 +1,99 @@
+{
+  "title": "Offline RL V0.9.1 Deterministic Research Portfolio Context",
+  "loggedDataset": "OFFLINE_RL_LOGGED_TRAJECTORY_V0.9.1",
+  "counterfactualDataset": "OFFLINE_RL_COUNTERFACTUAL_V0.9.1",
+  "status": "PASS",
+  "gates": {
+    "syntheticScenarioDeclared": "PASS",
+    "loggedTrajectory": "PASS",
+    "counterfactualDataset": "PASS",
+    "tPlusOne": "PASS",
+    "invalidSemantics": "PASS",
+    "unresolvedSemantics": "PASS",
+    "leakage": "PASS",
+    "reproducibility": "PASS",
+    "productionIsolation": "PASS",
+    "trainingPerformed": false
+  },
+  "sourceHash": "ed2a01e126ff09cadd03b8a0a21c8f1dabdd72c9d1bcda4e421591bebf339472",
+  "sourceEvents": {},
+  "scenario": {
+    "accountScenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_C_10000_V0.1",
+    "initialCash": 10000,
+    "initialPosition": 0,
+    "initialSellablePosition": 0,
+    "positionSizingRule": "ResearchNotionalUnitV0.1",
+    "lotSize": 100,
+    "tPlusOneRule": "PaperExecutionEngine",
+    "executionRuleVersion": "PaperExecutionEngine",
+    "costModelVersion": "research-portfolio-cost-v0.1",
+    "accountType": "SYNTHETIC_RESEARCH_PORTFOLIO",
+    "realHistoricalAccount": false
+  },
+  "quality": {
+    "totalStates": 249917,
+    "totalTrajectoryRecords": 249917,
+    "totalCounterfactualGroups": 249917,
+    "totalCounterfactualTransitions": 1249585,
+    "validTrajectoryActions": 248882,
+    "invalidTrajectoryActions": 1035,
+    "unresolvedTrajectoryRewards": 1036,
+    "actionCounts": {
+      "WAIT": 248880,
+      "BUY_SMALL": 1037,
+      "BUY": 0,
+      "SELL_PART": 0,
+      "SELL_ALL": 0
+    }
+  },
+  "historicalCounterfactualAnalysis": {
+    "count": 248881,
+    "notPrediction": true
+  },
+  "snapshot": {
+    "version": "OFFLINE_RL_V0.9.1",
+    "scenario": {
+      "accountScenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_C_10000_V0.1",
+      "initialCash": 10000,
+      "initialPosition": 0,
+      "initialSellablePosition": 0,
+      "positionSizingRule": "ResearchNotionalUnitV0.1",
+      "lotSize": 100,
+      "tPlusOneRule": "PaperExecutionEngine",
+      "executionRuleVersion": "PaperExecutionEngine",
+      "costModelVersion": "research-portfolio-cost-v0.1",
+      "accountType": "SYNTHETIC_RESEARCH_PORTFOLIO"
+    },
+    "scenarioHash": "f31ad816798f1eef092173e3f786cf0ec6c93bdfacdd8f7b6e22d34d634257b2",
+    "datasetHash": "f9190b68d92bfeac9615b98b65115002ca3440e83bed4c482585c40fd8f74e1f",
+    "executionHash": "81a292ae6ff068c30a20d1c717953e8e97682410fe7a8da4b2919adad7653e2a",
+    "rewardHash": "f45f31c13858a941f0e623f4b473e7147c516d0b7ad6fdb7cb1cbe4c523a7cff",
+    "trajectoryHash": "62ed36082d7364dd727f5409d238f455ed0c1a34c85faf6ed8d5b7d2782db086",
+    "counterfactualHash": "50ed027de3271ff8c900072b4ab01ee6741e43e04e7a85298417e72d59b12282",
+    "reproducibility": {
+      "runA": {
+        "trajectoryHash": "62ed36082d7364dd727f5409d238f455ed0c1a34c85faf6ed8d5b7d2782db086",
+        "counterfactualHash": "50ed027de3271ff8c900072b4ab01ee6741e43e04e7a85298417e72d59b12282",
+        "scenarioHash": "f31ad816798f1eef092173e3f786cf0ec6c93bdfacdd8f7b6e22d34d634257b2"
+      },
+      "runB": {
+        "trajectoryHash": "62ed36082d7364dd727f5409d238f455ed0c1a34c85faf6ed8d5b7d2782db086",
+        "counterfactualHash": "50ed027de3271ff8c900072b4ab01ee6741e43e04e7a85298417e72d59b12282",
+        "scenarioHash": "f31ad816798f1eef092173e3f786cf0ec6c93bdfacdd8f7b6e22d34d634257b2"
+      },
+      "identical": true
+    }
+  },
+  "productionIsolation": {
+    "status": "PASS",
+    "affectsSmartT": false,
+    "affectsExpertStrategy": false,
+    "realTrading": false
+  },
+  "limitations": [
+    "Synthetic portfolio is not a real historical account and must not be interpreted as one.",
+    "DATA-07 execution flags are unavailable; executionContextVersion remains null and no market flag is guessed.",
+    "Fixed expert policy is a logged research policy, not the production Expert Strategy.",
+    "No RL model training was performed."
+  ]
+}
