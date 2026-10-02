@@ -1,0 +1,309 @@
+{
+  "title": "Offline RL V0.9.3.1 Expert Trajectory Lineage Closure",
+  "status": "PASS",
+  "trainingEligibility": "BLOCKED",
+  "sourceEvents": {},
+  "lineage": {
+    "sourceDatasetHash": "ed2a01e126ff09cadd03b8a0a21c8f1dabdd72c9d1bcda4e421591bebf339472",
+    "trajectoryDatasetHash": "f9190b68d92bfeac9615b98b65115002ca3440e83bed4c482585c40fd8f74e1f",
+    "stateDatasetHash": "6b935f9bcd9a3e190a090c61e6af21a7215942a5d257b1122af305a2bb65f19b",
+    "v091DatasetHashMeaning": "transformed source hash over DATA-07 sourceHash + V0.9.1 scenario/config; not a replacement for DATA-07 source hash"
+  },
+  "observedExpertActionSupport": {
+    "WAIT": 0,
+    "BUY_SMALL": 0,
+    "BUY": 0,
+    "SELL_PART": 0,
+    "SELL_ALL": 0
+  },
+  "gates": {
+    "syntheticBaselineSeparated": "PASS",
+    "existingExpertSourceAudited": "PASS",
+    "expertActionSource": "EXPERT_ACTION_SOURCE_UNAVAILABLE",
+    "noSyntheticExpertLabels": "PASS",
+    "marketAccountStateSchema": "PASS",
+    "counterfactualIsolation": "PASS",
+    "tPlusOne": "PASS",
+    "rewardSemantics": "PASS",
+    "reproducibility": "PASS",
+    "futureMutationAudit": "PASS",
+    "productionIsolation": "PASS",
+    "trainingPerformed": false
+  },
+  "scenarios": [
+    {
+      "scenario": {
+        "scenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_C_10000_V0.1",
+        "initialCash": 10000,
+        "initialPosition": 0,
+        "initialSellablePosition": 0,
+        "positionSizingRule": "ResearchNotionalUnitV0.1",
+        "lotSize": 100,
+        "tPlusOneRule": "PaperExecutionEngine",
+        "costModelVersion": "research-portfolio-cost-v0.1",
+        "accountType": "SYNTHETIC_RESEARCH_PORTFOLIO"
+      },
+      "sourceAudit": {
+        "status": "EXPERT_ACTION_SOURCE_UNAVAILABLE",
+        "source": {
+          "strategyId": "OHLCV_T_RESEARCH_V1",
+          "entryPoint": "runOHLCVTResearch",
+          "generator": "generateOHLCVResearchSignal",
+          "strategyVersion": "OHLCV_T_RESEARCH_V1"
+        },
+        "requiredFields": [
+          "open",
+          "high",
+          "low",
+          "amount"
+        ],
+        "missingCounts": {
+          "open": 1,
+          "high": 1,
+          "low": 1,
+          "amount": 1
+        },
+        "legacySignalCount": 0,
+        "reason": "DATA-07 does not provide complete causal OHLCV+amount fields required by the existing OHLCV Expert Strategy; no fallback values are allowed."
+      },
+      "baseline": {
+        "name": "SYNTHETIC_FIXED_SCHEDULE_BASELINE",
+        "hash": "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99",
+        "actionCounts": {
+          "WAIT": 248880,
+          "BUY_SMALL": 1037,
+          "BUY": 0,
+          "SELL_PART": 0,
+          "SELL_ALL": 0
+        }
+      },
+      "hashes": {
+        "expertTrajectoryHash": "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44",
+        "syntheticBaselineHash": "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99",
+        "counterfactualHash": "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063",
+        "transitionHash": "f08c4477a9604aab42ed32ecfcc2d73071ca2635031a5c0b8c332e973db364f3",
+        "rewardHash": "84f645e7d1d7e1ad53d156bf3879c3e6dcb7fa08b13311cbfddc41b24140f37e",
+        "nextStateHash": "89285c1a734b884842df89bc35af0c8b641755e5b8052c74e82f7b062db0c1c9",
+        "executionHash": "ef98d3cdb013dc402ff69f5e55030bdae263fbc0c9d078005b9679a62935ab3d",
+        "inheritedFrom": "OFFLINE_RL_V0.9.3",
+        "identical": true
+      },
+      "trainingEligibility": "BLOCKED",
+      "observedExpert": {
+        "status": "EXPERT_ACTION_SOURCE_UNAVAILABLE",
+        "hash": "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44",
+        "actionCounts": {
+          "WAIT": 0,
+          "BUY_SMALL": 0,
+          "BUY": 0,
+          "SELL_PART": 0,
+          "SELL_ALL": 0
+        }
+      },
+      "counterfactual": {
+        "groups": 249917,
+        "hash": "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063"
+      }
+    },
+    {
+      "scenario": {
+        "scenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_B_LONG_INVENTORY_V0.1",
+        "initialCash": 10000,
+        "initialPosition": 2000,
+        "initialSellablePosition": 2000,
+        "positionSizingRule": "ResearchNotionalUnitV0.1",
+        "lotSize": 100,
+        "tPlusOneRule": "PaperExecutionEngine",
+        "costModelVersion": "research-portfolio-cost-v0.1",
+        "accountType": "SYNTHETIC_RESEARCH_PORTFOLIO"
+      },
+      "sourceAudit": {
+        "status": "EXPERT_ACTION_SOURCE_UNAVAILABLE",
+        "source": {
+          "strategyId": "OHLCV_T_RESEARCH_V1",
+          "entryPoint": "runOHLCVTResearch",
+          "generator": "generateOHLCVResearchSignal",
+          "strategyVersion": "OHLCV_T_RESEARCH_V1"
+        },
+        "requiredFields": [
+          "open",
+          "high",
+          "low",
+          "amount"
+        ],
+        "missingCounts": {
+          "open": 1,
+          "high": 1,
+          "low": 1,
+          "amount": 1
+        },
+        "legacySignalCount": 0,
+        "reason": "DATA-07 does not provide complete causal OHLCV+amount fields required by the existing OHLCV Expert Strategy; no fallback values are allowed."
+      },
+      "baseline": {
+        "name": "SYNTHETIC_FIXED_SCHEDULE_BASELINE",
+        "hash": "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99",
+        "actionCounts": {
+          "WAIT": 248880,
+          "BUY_SMALL": 1037,
+          "BUY": 0,
+          "SELL_PART": 0,
+          "SELL_ALL": 0
+        }
+      },
+      "hashes": {
+        "expertTrajectoryHash": "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44",
+        "syntheticBaselineHash": "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99",
+        "counterfactualHash": "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063",
+        "transitionHash": "f08c4477a9604aab42ed32ecfcc2d73071ca2635031a5c0b8c332e973db364f3",
+        "rewardHash": "84f645e7d1d7e1ad53d156bf3879c3e6dcb7fa08b13311cbfddc41b24140f37e",
+        "nextStateHash": "89285c1a734b884842df89bc35af0c8b641755e5b8052c74e82f7b062db0c1c9",
+        "executionHash": "ef98d3cdb013dc402ff69f5e55030bdae263fbc0c9d078005b9679a62935ab3d",
+        "inheritedFrom": "OFFLINE_RL_V0.9.3",
+        "identical": true
+      },
+      "trainingEligibility": "BLOCKED",
+      "observedExpert": {
+        "status": "EXPERT_ACTION_SOURCE_UNAVAILABLE",
+        "hash": "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44",
+        "actionCounts": {
+          "WAIT": 0,
+          "BUY_SMALL": 0,
+          "BUY": 0,
+          "SELL_PART": 0,
+          "SELL_ALL": 0
+        }
+      },
+      "counterfactual": {
+        "groups": 249917,
+        "hash": "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063"
+      }
+    },
+    {
+      "scenario": {
+        "scenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_C_LARGER_INVENTORY_V0.1",
+        "initialCash": 10000,
+        "initialPosition": 10000,
+        "initialSellablePosition": 10000,
+        "positionSizingRule": "ResearchNotionalUnitV0.1",
+        "lotSize": 100,
+        "tPlusOneRule": "PaperExecutionEngine",
+        "costModelVersion": "research-portfolio-cost-v0.1",
+        "accountType": "SYNTHETIC_RESEARCH_PORTFOLIO"
+      },
+      "sourceAudit": {
+        "status": "EXPERT_ACTION_SOURCE_UNAVAILABLE",
+        "source": {
+          "strategyId": "OHLCV_T_RESEARCH_V1",
+          "entryPoint": "runOHLCVTResearch",
+          "generator": "generateOHLCVResearchSignal",
+          "strategyVersion": "OHLCV_T_RESEARCH_V1"
+        },
+        "requiredFields": [
+          "open",
+          "high",
+          "low",
+          "amount"
+        ],
+        "missingCounts": {
+          "open": 1,
+          "high": 1,
+          "low": 1,
+          "amount": 1
+        },
+        "legacySignalCount": 0,
+        "reason": "DATA-07 does not provide complete causal OHLCV+amount fields required by the existing OHLCV Expert Strategy; no fallback values are allowed."
+      },
+      "baseline": {
+        "name": "SYNTHETIC_FIXED_SCHEDULE_BASELINE",
+        "hash": "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99",
+        "actionCounts": {
+          "WAIT": 248880,
+          "BUY_SMALL": 1037,
+          "BUY": 0,
+          "SELL_PART": 0,
+          "SELL_ALL": 0
+        }
+      },
+      "hashes": {
+        "expertTrajectoryHash": "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44",
+        "syntheticBaselineHash": "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99",
+        "counterfactualHash": "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063",
+        "transitionHash": "f08c4477a9604aab42ed32ecfcc2d73071ca2635031a5c0b8c332e973db364f3",
+        "rewardHash": "84f645e7d1d7e1ad53d156bf3879c3e6dcb7fa08b13311cbfddc41b24140f37e",
+        "nextStateHash": "89285c1a734b884842df89bc35af0c8b641755e5b8052c74e82f7b062db0c1c9",
+        "executionHash": "ef98d3cdb013dc402ff69f5e55030bdae263fbc0c9d078005b9679a62935ab3d",
+        "inheritedFrom": "OFFLINE_RL_V0.9.3",
+        "identical": true
+      },
+      "trainingEligibility": "BLOCKED",
+      "observedExpert": {
+        "status": "EXPERT_ACTION_SOURCE_UNAVAILABLE",
+        "hash": "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44",
+        "actionCounts": {
+          "WAIT": 0,
+          "BUY_SMALL": 0,
+          "BUY": 0,
+          "SELL_PART": 0,
+          "SELL_ALL": 0
+        }
+      },
+      "counterfactual": {
+        "groups": 249917,
+        "hash": "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063"
+      }
+    }
+  ],
+  "definitions": {
+    "syntheticBaseline": "SYNTHETIC_FIXED_SCHEDULE_BASELINE; 10:00 BUY_SMALL otherwise WAIT; never observed Expert",
+    "observedExpert": "must come from existing OHLCV_T_RESEARCH_V1 source",
+    "unavailable": "EXPERT_ACTION_SOURCE_UNAVAILABLE",
+    "counterfactual": "independent action branches, never observed behavior"
+  },
+  "warnings": [
+    "Existing OHLCV_T_RESEARCH_V1 was audited but DATA-07 lacks open/high/low/amount, so Expert actions cannot be legally generated.",
+    "No fallback values or synthetic schedule labels were used for observed Expert.",
+    "Synthetic baseline remains a separate diagnostic source.",
+    "No RL training was performed."
+  ],
+  "snapshot": {
+    "version": "OFFLINE_RL_V0.9.3.1",
+    "sourceDatasetHash": "ed2a01e126ff09cadd03b8a0a21c8f1dabdd72c9d1bcda4e421591bebf339472",
+    "trajectoryDatasetHash": "f9190b68d92bfeac9615b98b65115002ca3440e83bed4c482585c40fd8f74e1f",
+    "stateDatasetHash": "6b935f9bcd9a3e190a090c61e6af21a7215942a5d257b1122af305a2bb65f19b",
+    "expertTrajectoryHash": [
+      "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44",
+      "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44",
+      "7c25fab7a230cf4e2e21d5bddbcbbc0e14a1e1404d7995a1b89bc55df9f57f44"
+    ],
+    "syntheticBaselineHash": [
+      "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99",
+      "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99",
+      "6f78131886bafc9834dae8a48bae86049f79f1ea7ca30dabd1e60ad12981be99"
+    ],
+    "counterfactualHash": [
+      "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063",
+      "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063",
+      "f73a4afce621bb8c51ebd658e62db094e920bcf2f3f8e3bb2697ccdabfabe063"
+    ],
+    "transitionHash": [
+      "f08c4477a9604aab42ed32ecfcc2d73071ca2635031a5c0b8c332e973db364f3",
+      "f08c4477a9604aab42ed32ecfcc2d73071ca2635031a5c0b8c332e973db364f3",
+      "f08c4477a9604aab42ed32ecfcc2d73071ca2635031a5c0b8c332e973db364f3"
+    ],
+    "rewardHash": [
+      "84f645e7d1d7e1ad53d156bf3879c3e6dcb7fa08b13311cbfddc41b24140f37e",
+      "84f645e7d1d7e1ad53d156bf3879c3e6dcb7fa08b13311cbfddc41b24140f37e",
+      "84f645e7d1d7e1ad53d156bf3879c3e6dcb7fa08b13311cbfddc41b24140f37e"
+    ],
+    "nextStateHash": [
+      "89285c1a734b884842df89bc35af0c8b641755e5b8052c74e82f7b062db0c1c9",
+      "89285c1a734b884842df89bc35af0c8b641755e5b8052c74e82f7b062db0c1c9",
+      "89285c1a734b884842df89bc35af0c8b641755e5b8052c74e82f7b062db0c1c9"
+    ],
+    "reproducibility": {
+      "identical": true
+    },
+    "trainingPerformed": false
+  }
+}
