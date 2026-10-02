@@ -1,0 +1,57 @@
+{
+  "type": "TransitionDatasetSnapshot",
+  "datasetHash": "ebc1b9bf960f659aa0560feee502beb90d147791a51ca5c6a5dc9adb136ec0d0",
+  "sourceHash": "ed2a01e126ff09cadd03b8a0a21c8f1dabdd72c9d1bcda4e421591bebf339472",
+  "ledgerHash": null,
+  "stateVersion": "ValidatedStatePriceOnlyV0.1",
+  "featureVersion": "price-only-features-v0.1",
+  "featureImplementationVersion": "price-only-streaming-v0.2",
+  "rewardVersion": "rate-v2",
+  "executionVersion": "PaperExecutionEngine:9dc0f520184d462475faeae8717a592e6f26f2fc4910640f008a5b41649599b3",
+  "transitionHash": "d26db39f9f447c8572e44f56077aba65dd63bf24fb81fb7cb7cdee57b8706a7a",
+  "counterfactualHash": "04e9010a7bf042f7a0fe8af74c48a56d1851d2b783ae37a95630502282c9ee6d",
+  "sourceFiles": {
+    "lib/rl-research/trainer/counterfactual-transitions.mjs": "9c8c7cd5e86cf881959c617b905233f3bc1c76b80ef41955cbd2998fcfceefa5",
+    "lib/rl-research/trainer/price-only-streaming-features.mjs": "a54a6cc66b39a8139fe91d864309bba274aab9658af091db3608ad9efec805d7",
+    "lib/rl-research/reward/reward-function.mjs": "53258f53265af0f9c1c651b0f9137e6fe8b05b26826895e80ccb8ce1f77a0b4c",
+    "lib/paper-trading/paper-execution-engine.mjs": "9dc0f520184d462475faeae8717a592e6f26f2fc4910640f008a5b41649599b3",
+    "lib/paper-trading/schema.mjs": "44f8e923c04c5611974f176c39c6cf774172ca18d79d7ae0517fc12aada29e28",
+    "lib/rl-research/trainer/research-portfolio-context.mjs": "bb1e346c4341764cc4479bbb9e36f308bf9833ea66bc268557fb257099935062",
+    "lib/rl-research/trainer/replay-adapter.mjs": "8ef410e27413555c2cc96c1a6b185ca5c21707d637f6ef2f433a72dbe87417a5",
+    "lib/rl-research/trainer/offline-dataset.mjs": "51a21daf15a0a22b3a69ea871c25d4c544bd86e8865f945a78a0306c1e5a5839",
+    "scripts/run-offline-rl-v0.9-counterfactual-transitions.mjs": "fdf277dd5c312d21d92c86d6161b1900b2112e31418c90196112cb392d24dc35",
+    "tests/offline-rl-transitions-v09.test.mjs": "1c6ff9e5ef16b0638471f8deab39c230716607c3b9557608ab1ac27969723bde"
+  },
+  "config": {
+    "version": "OFFLINE_RL_TRANSITIONS_V0.9",
+    "horizonBars": 1,
+    "episode": "intraday; session/split ends are truncated with unresolved outcomes",
+    "rewardVersion": "rate-v2",
+    "costs": {
+      "commission": 0.025,
+      "slippage": 0.02,
+      "minimumCommission": 0,
+      "stampDuty": 0
+    },
+    "ledgerHash": null,
+    "splits": {
+      "train": [
+        "2022-01-04",
+        "2024-12-31"
+      ],
+      "validation": [
+        "2025-01-01",
+        "2025-09-30"
+      ],
+      "test": [
+        "2025-10-01",
+        "2026-04-17"
+      ]
+    }
+  },
+  "reproducibility": {
+    "runA": "d26db39f9f447c8572e44f56077aba65dd63bf24fb81fb7cb7cdee57b8706a7a",
+    "runB": "d26db39f9f447c8572e44f56077aba65dd63bf24fb81fb7cb7cdee57b8706a7a",
+    "identical": true
+  }
+}
