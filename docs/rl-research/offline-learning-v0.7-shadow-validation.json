@@ -1,0 +1,1000 @@
+{
+  "title": "OFFLINE LEARNING V0.7 SHADOW TRADING VALIDATION",
+  "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+  "testRange": {
+    "start": "20251009T09:30:00",
+    "end": "20260417T15:00:00"
+  },
+  "decisionCount": 30848,
+  "decisionLogHash": "e303e1bdb1f7d77af0e2349f86e053aba26e8eed5a86028f9c94f160f691b5cc",
+  "shadowPortfolio": {
+    "initialCash": 1000000,
+    "endingCash": 565812.4405048821,
+    "position": 12100,
+    "fees": 30814.008769220814,
+    "maxDrawdown": 0.19524688119017414
+  },
+  "dailyMetrics": {
+    "20251009": {
+      "signalCount": 45,
+      "actions": {
+        "WAIT": 196,
+        "SELL_ALL": 2,
+        "BUY_SMALL": 43
+      }
+    },
+    "20251010": {
+      "signalCount": 32,
+      "actions": {
+        "WAIT": 209,
+        "BUY_SMALL": 32
+      }
+    },
+    "20251013": {
+      "signalCount": 44,
+      "actions": {
+        "WAIT": 197,
+        "BUY_SMALL": 44
+      }
+    },
+    "20251014": {
+      "signalCount": 39,
+      "actions": {
+        "WAIT": 202,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 38
+      }
+    },
+    "20251015": {
+      "signalCount": 57,
+      "actions": {
+        "WAIT": 184,
+        "BUY_SMALL": 57
+      }
+    },
+    "20251016": {
+      "signalCount": 43,
+      "actions": {
+        "WAIT": 198,
+        "BUY_SMALL": 43
+      }
+    },
+    "20251017": {
+      "signalCount": 42,
+      "actions": {
+        "WAIT": 199,
+        "BUY_SMALL": 42
+      }
+    },
+    "20251020": {
+      "signalCount": 42,
+      "actions": {
+        "WAIT": 199,
+        "BUY_SMALL": 42
+      }
+    },
+    "20251021": {
+      "signalCount": 43,
+      "actions": {
+        "WAIT": 198,
+        "BUY_SMALL": 43
+      }
+    },
+    "20251022": {
+      "signalCount": 57,
+      "actions": {
+        "WAIT": 184,
+        "BUY_SMALL": 57
+      }
+    },
+    "20251023": {
+      "signalCount": 43,
+      "actions": {
+        "WAIT": 198,
+        "BUY_SMALL": 43
+      }
+    },
+    "20251024": {
+      "signalCount": 50,
+      "actions": {
+        "WAIT": 191,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 47
+      }
+    },
+    "20251027": {
+      "signalCount": 47,
+      "actions": {
+        "WAIT": 194,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 44
+      }
+    },
+    "20251028": {
+      "signalCount": 49,
+      "actions": {
+        "WAIT": 192,
+        "BUY_SMALL": 49
+      }
+    },
+    "20251029": {
+      "signalCount": 53,
+      "actions": {
+        "WAIT": 188,
+        "BUY_SMALL": 53
+      }
+    },
+    "20251030": {
+      "signalCount": 49,
+      "actions": {
+        "WAIT": 192,
+        "BUY_SMALL": 49
+      }
+    },
+    "20251031": {
+      "signalCount": 35,
+      "actions": {
+        "WAIT": 206,
+        "BUY_SMALL": 35
+      }
+    },
+    "20251103": {
+      "signalCount": 39,
+      "actions": {
+        "WAIT": 202,
+        "BUY_SMALL": 39
+      }
+    },
+    "20251104": {
+      "signalCount": 28,
+      "actions": {
+        "WAIT": 213,
+        "BUY_SMALL": 28
+      }
+    },
+    "20251105": {
+      "signalCount": 55,
+      "actions": {
+        "WAIT": 186,
+        "BUY_SMALL": 55
+      }
+    },
+    "20251106": {
+      "signalCount": 52,
+      "actions": {
+        "WAIT": 189,
+        "BUY_SMALL": 52
+      }
+    },
+    "20251107": {
+      "signalCount": 46,
+      "actions": {
+        "BUY_SMALL": 46,
+        "WAIT": 195
+      }
+    },
+    "20251110": {
+      "signalCount": 45,
+      "actions": {
+        "WAIT": 196,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 42
+      }
+    },
+    "20251111": {
+      "signalCount": 34,
+      "actions": {
+        "WAIT": 207,
+        "BUY_SMALL": 34
+      }
+    },
+    "20251112": {
+      "signalCount": 43,
+      "actions": {
+        "WAIT": 198,
+        "BUY_SMALL": 43
+      }
+    },
+    "20251113": {
+      "signalCount": 50,
+      "actions": {
+        "WAIT": 191,
+        "SELL_ALL": 2,
+        "BUY_SMALL": 48
+      }
+    },
+    "20251114": {
+      "signalCount": 37,
+      "actions": {
+        "WAIT": 204,
+        "BUY_SMALL": 37
+      }
+    },
+    "20251117": {
+      "signalCount": 36,
+      "actions": {
+        "WAIT": 205,
+        "BUY_SMALL": 36
+      }
+    },
+    "20251118": {
+      "signalCount": 33,
+      "actions": {
+        "WAIT": 208,
+        "BUY_SMALL": 33
+      }
+    },
+    "20251119": {
+      "signalCount": 55,
+      "actions": {
+        "WAIT": 186,
+        "SELL_ALL": 4,
+        "BUY_SMALL": 51
+      }
+    },
+    "20251120": {
+      "signalCount": 36,
+      "actions": {
+        "WAIT": 205,
+        "BUY_SMALL": 36
+      }
+    },
+    "20251121": {
+      "signalCount": 41,
+      "actions": {
+        "WAIT": 200,
+        "BUY_SMALL": 41
+      }
+    },
+    "20251124": {
+      "signalCount": 44,
+      "actions": {
+        "WAIT": 197,
+        "BUY_SMALL": 44
+      }
+    },
+    "20251125": {
+      "signalCount": 44,
+      "actions": {
+        "WAIT": 197,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 41
+      }
+    },
+    "20251126": {
+      "signalCount": 46,
+      "actions": {
+        "WAIT": 195,
+        "BUY_SMALL": 46
+      }
+    },
+    "20251127": {
+      "signalCount": 31,
+      "actions": {
+        "WAIT": 210,
+        "BUY_SMALL": 31
+      }
+    },
+    "20251128": {
+      "signalCount": 41,
+      "actions": {
+        "WAIT": 200,
+        "BUY_SMALL": 41
+      }
+    },
+    "20251201": {
+      "signalCount": 45,
+      "actions": {
+        "WAIT": 196,
+        "SELL_ALL": 4,
+        "BUY_SMALL": 41
+      }
+    },
+    "20251202": {
+      "signalCount": 36,
+      "actions": {
+        "WAIT": 205,
+        "BUY_SMALL": 36
+      }
+    },
+    "20251203": {
+      "signalCount": 54,
+      "actions": {
+        "WAIT": 187,
+        "BUY_SMALL": 54
+      }
+    },
+    "20251204": {
+      "signalCount": 51,
+      "actions": {
+        "WAIT": 190,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 48
+      }
+    },
+    "20251205": {
+      "signalCount": 51,
+      "actions": {
+        "WAIT": 190,
+        "BUY_SMALL": 51
+      }
+    },
+    "20251208": {
+      "signalCount": 50,
+      "actions": {
+        "WAIT": 191,
+        "BUY_SMALL": 50
+      }
+    },
+    "20251209": {
+      "signalCount": 23,
+      "actions": {
+        "WAIT": 218,
+        "BUY_SMALL": 23
+      }
+    },
+    "20251210": {
+      "signalCount": 50,
+      "actions": {
+        "WAIT": 191,
+        "BUY_SMALL": 50
+      }
+    },
+    "20251211": {
+      "signalCount": 32,
+      "actions": {
+        "WAIT": 209,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 29
+      }
+    },
+    "20251212": {
+      "signalCount": 47,
+      "actions": {
+        "WAIT": 194,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 44
+      }
+    },
+    "20251215": {
+      "signalCount": 39,
+      "actions": {
+        "WAIT": 202,
+        "BUY_SMALL": 39
+      }
+    },
+    "20251216": {
+      "signalCount": 34,
+      "actions": {
+        "WAIT": 207,
+        "BUY_SMALL": 34
+      }
+    },
+    "20251217": {
+      "signalCount": 43,
+      "actions": {
+        "WAIT": 198,
+        "BUY_SMALL": 43
+      }
+    },
+    "20251218": {
+      "signalCount": 48,
+      "actions": {
+        "BUY_SMALL": 48,
+        "WAIT": 193
+      }
+    },
+    "20251219": {
+      "signalCount": 38,
+      "actions": {
+        "WAIT": 203,
+        "BUY_SMALL": 38
+      }
+    },
+    "20251222": {
+      "signalCount": 49,
+      "actions": {
+        "WAIT": 192,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 46
+      }
+    },
+    "20251223": {
+      "signalCount": 40,
+      "actions": {
+        "WAIT": 201,
+        "BUY_SMALL": 40
+      }
+    },
+    "20251224": {
+      "signalCount": 43,
+      "actions": {
+        "WAIT": 198,
+        "BUY_SMALL": 43
+      }
+    },
+    "20251225": {
+      "signalCount": 46,
+      "actions": {
+        "WAIT": 195,
+        "BUY_SMALL": 46
+      }
+    },
+    "20251226": {
+      "signalCount": 65,
+      "actions": {
+        "WAIT": 176,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 62
+      }
+    },
+    "20251229": {
+      "signalCount": 36,
+      "actions": {
+        "WAIT": 205,
+        "BUY_SMALL": 36
+      }
+    },
+    "20251230": {
+      "signalCount": 60,
+      "actions": {
+        "WAIT": 181,
+        "BUY_SMALL": 60
+      }
+    },
+    "20251231": {
+      "signalCount": 36,
+      "actions": {
+        "WAIT": 205,
+        "SELL_ALL": 2,
+        "BUY_SMALL": 34
+      }
+    },
+    "20260105": {
+      "signalCount": 59,
+      "actions": {
+        "WAIT": 182,
+        "BUY_SMALL": 59
+      }
+    },
+    "20260106": {
+      "signalCount": 46,
+      "actions": {
+        "WAIT": 195,
+        "SELL_ALL": 4,
+        "BUY_SMALL": 42
+      }
+    },
+    "20260107": {
+      "signalCount": 39,
+      "actions": {
+        "WAIT": 202,
+        "BUY_SMALL": 39
+      }
+    },
+    "20260108": {
+      "signalCount": 32,
+      "actions": {
+        "WAIT": 209,
+        "BUY_SMALL": 32
+      }
+    },
+    "20260109": {
+      "signalCount": 48,
+      "actions": {
+        "WAIT": 193,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 47
+      }
+    },
+    "20260112": {
+      "signalCount": 46,
+      "actions": {
+        "WAIT": 195,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 45
+      }
+    },
+    "20260113": {
+      "signalCount": 39,
+      "actions": {
+        "WAIT": 202,
+        "BUY_SMALL": 36,
+        "SELL_ALL": 3
+      }
+    },
+    "20260114": {
+      "signalCount": 49,
+      "actions": {
+        "WAIT": 192,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 46
+      }
+    },
+    "20260115": {
+      "signalCount": 60,
+      "actions": {
+        "WAIT": 181,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 59
+      }
+    },
+    "20260116": {
+      "signalCount": 37,
+      "actions": {
+        "WAIT": 204,
+        "BUY_SMALL": 37
+      }
+    },
+    "20260119": {
+      "signalCount": 46,
+      "actions": {
+        "WAIT": 195,
+        "BUY_SMALL": 46
+      }
+    },
+    "20260120": {
+      "signalCount": 41,
+      "actions": {
+        "BUY_SMALL": 41,
+        "WAIT": 200
+      }
+    },
+    "20260121": {
+      "signalCount": 53,
+      "actions": {
+        "WAIT": 188,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 52
+      }
+    },
+    "20260122": {
+      "signalCount": 46,
+      "actions": {
+        "WAIT": 195,
+        "BUY_SMALL": 46
+      }
+    },
+    "20260123": {
+      "signalCount": 46,
+      "actions": {
+        "WAIT": 195,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 45
+      }
+    },
+    "20260126": {
+      "signalCount": 49,
+      "actions": {
+        "WAIT": 192,
+        "SELL_ALL": 4,
+        "BUY_SMALL": 45
+      }
+    },
+    "20260127": {
+      "signalCount": 42,
+      "actions": {
+        "WAIT": 199,
+        "SELL_ALL": 4,
+        "BUY_SMALL": 38
+      }
+    },
+    "20260128": {
+      "signalCount": 54,
+      "actions": {
+        "WAIT": 187,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 53
+      }
+    },
+    "20260129": {
+      "signalCount": 55,
+      "actions": {
+        "WAIT": 186,
+        "SELL_ALL": 4,
+        "BUY_SMALL": 51
+      }
+    },
+    "20260130": {
+      "signalCount": 35,
+      "actions": {
+        "WAIT": 206,
+        "BUY_SMALL": 35
+      }
+    },
+    "20260202": {
+      "signalCount": 27,
+      "actions": {
+        "WAIT": 214,
+        "BUY_SMALL": 27
+      }
+    },
+    "20260203": {
+      "signalCount": 58,
+      "actions": {
+        "WAIT": 183,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 57
+      }
+    },
+    "20260204": {
+      "signalCount": 53,
+      "actions": {
+        "WAIT": 188,
+        "SELL_ALL": 2,
+        "BUY_SMALL": 51
+      }
+    },
+    "20260205": {
+      "signalCount": 34,
+      "actions": {
+        "WAIT": 207,
+        "BUY_SMALL": 34
+      }
+    },
+    "20260206": {
+      "signalCount": 53,
+      "actions": {
+        "WAIT": 188,
+        "BUY_SMALL": 53
+      }
+    },
+    "20260209": {
+      "signalCount": 56,
+      "actions": {
+        "WAIT": 185,
+        "SELL_ALL": 2,
+        "BUY_SMALL": 54
+      }
+    },
+    "20260210": {
+      "signalCount": 26,
+      "actions": {
+        "WAIT": 215,
+        "BUY_SMALL": 26
+      }
+    },
+    "20260211": {
+      "signalCount": 41,
+      "actions": {
+        "BUY_SMALL": 41,
+        "WAIT": 200
+      }
+    },
+    "20260212": {
+      "signalCount": 47,
+      "actions": {
+        "WAIT": 194,
+        "BUY_SMALL": 47
+      }
+    },
+    "20260213": {
+      "signalCount": 29,
+      "actions": {
+        "WAIT": 212,
+        "BUY_SMALL": 29
+      }
+    },
+    "20260224": {
+      "signalCount": 56,
+      "actions": {
+        "WAIT": 185,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 55
+      }
+    },
+    "20260225": {
+      "signalCount": 43,
+      "actions": {
+        "WAIT": 198,
+        "BUY_SMALL": 43
+      }
+    },
+    "20260226": {
+      "signalCount": 39,
+      "actions": {
+        "WAIT": 202,
+        "BUY_SMALL": 39
+      }
+    },
+    "20260227": {
+      "signalCount": 50,
+      "actions": {
+        "BUY_SMALL": 50,
+        "WAIT": 191
+      }
+    },
+    "20260302": {
+      "signalCount": 62,
+      "actions": {
+        "WAIT": 179,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 61
+      }
+    },
+    "20260303": {
+      "signalCount": 30,
+      "actions": {
+        "WAIT": 211,
+        "BUY_SMALL": 30
+      }
+    },
+    "20260304": {
+      "signalCount": 44,
+      "actions": {
+        "WAIT": 197,
+        "BUY_SMALL": 44
+      }
+    },
+    "20260305": {
+      "signalCount": 30,
+      "actions": {
+        "WAIT": 211,
+        "BUY_SMALL": 30
+      }
+    },
+    "20260306": {
+      "signalCount": 48,
+      "actions": {
+        "WAIT": 193,
+        "BUY_SMALL": 48
+      }
+    },
+    "20260309": {
+      "signalCount": 48,
+      "actions": {
+        "WAIT": 193,
+        "BUY_SMALL": 48
+      }
+    },
+    "20260310": {
+      "signalCount": 47,
+      "actions": {
+        "WAIT": 194,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 46
+      }
+    },
+    "20260311": {
+      "signalCount": 48,
+      "actions": {
+        "WAIT": 193,
+        "BUY_SMALL": 48
+      }
+    },
+    "20260312": {
+      "signalCount": 42,
+      "actions": {
+        "WAIT": 199,
+        "BUY_SMALL": 42
+      }
+    },
+    "20260313": {
+      "signalCount": 26,
+      "actions": {
+        "WAIT": 215,
+        "BUY_SMALL": 26
+      }
+    },
+    "20260316": {
+      "signalCount": 44,
+      "actions": {
+        "WAIT": 197,
+        "BUY_SMALL": 44
+      }
+    },
+    "20260317": {
+      "signalCount": 42,
+      "actions": {
+        "WAIT": 199,
+        "BUY_SMALL": 42
+      }
+    },
+    "20260318": {
+      "signalCount": 49,
+      "actions": {
+        "WAIT": 192,
+        "BUY_SMALL": 49
+      }
+    },
+    "20260319": {
+      "signalCount": 28,
+      "actions": {
+        "WAIT": 213,
+        "BUY_SMALL": 28
+      }
+    },
+    "20260320": {
+      "signalCount": 33,
+      "actions": {
+        "BUY_SMALL": 33,
+        "WAIT": 208
+      }
+    },
+    "20260323": {
+      "signalCount": 39,
+      "actions": {
+        "WAIT": 202,
+        "BUY_SMALL": 39
+      }
+    },
+    "20260324": {
+      "signalCount": 56,
+      "actions": {
+        "WAIT": 185,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 53
+      }
+    },
+    "20260325": {
+      "signalCount": 48,
+      "actions": {
+        "WAIT": 193,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 45
+      }
+    },
+    "20260326": {
+      "signalCount": 39,
+      "actions": {
+        "WAIT": 202,
+        "BUY_SMALL": 39
+      }
+    },
+    "20260327": {
+      "signalCount": 58,
+      "actions": {
+        "WAIT": 183,
+        "SELL_ALL": 1,
+        "BUY_SMALL": 57
+      }
+    },
+    "20260330": {
+      "signalCount": 56,
+      "actions": {
+        "WAIT": 185,
+        "BUY_SMALL": 56
+      }
+    },
+    "20260331": {
+      "signalCount": 44,
+      "actions": {
+        "WAIT": 197,
+        "BUY_SMALL": 44
+      }
+    },
+    "20260401": {
+      "signalCount": 49,
+      "actions": {
+        "WAIT": 192,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 46
+      }
+    },
+    "20260402": {
+      "signalCount": 34,
+      "actions": {
+        "WAIT": 207,
+        "BUY_SMALL": 34
+      }
+    },
+    "20260403": {
+      "signalCount": 47,
+      "actions": {
+        "WAIT": 194,
+        "BUY_SMALL": 47
+      }
+    },
+    "20260407": {
+      "signalCount": 29,
+      "actions": {
+        "WAIT": 212,
+        "BUY_SMALL": 29
+      }
+    },
+    "20260408": {
+      "signalCount": 55,
+      "actions": {
+        "WAIT": 186,
+        "SELL_ALL": 4,
+        "BUY_SMALL": 51
+      }
+    },
+    "20260409": {
+      "signalCount": 30,
+      "actions": {
+        "WAIT": 211,
+        "BUY_SMALL": 30
+      }
+    },
+    "20260410": {
+      "signalCount": 41,
+      "actions": {
+        "WAIT": 200,
+        "BUY_SMALL": 41
+      }
+    },
+    "20260413": {
+      "signalCount": 37,
+      "actions": {
+        "WAIT": 204,
+        "BUY_SMALL": 37
+      }
+    },
+    "20260414": {
+      "signalCount": 59,
+      "actions": {
+        "WAIT": 182,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 56
+      }
+    },
+    "20260415": {
+      "signalCount": 31,
+      "actions": {
+        "WAIT": 210,
+        "SELL_ALL": 3,
+        "BUY_SMALL": 28
+      }
+    },
+    "20260416": {
+      "signalCount": 52,
+      "actions": {
+        "WAIT": 189,
+        "BUY_SMALL": 52
+      }
+    },
+    "20260417": {
+      "signalCount": 41,
+      "actions": {
+        "WAIT": 200,
+        "BUY_SMALL": 41
+      }
+    }
+  },
+  "actionDistribution": {
+    "WAIT": {
+      "count": 25226,
+      "percentage": 0.8177515560165975
+    },
+    "BUY_SMALL": {
+      "count": 5524,
+      "percentage": 0.17907157676348548
+    },
+    "BUY": {
+      "count": 0,
+      "percentage": 0
+    },
+    "SELL_PART": {
+      "count": 0,
+      "percentage": 0
+    },
+    "SELL_ALL": {
+      "count": 98,
+      "percentage": 0.0031768672199170124
+    }
+  },
+  "stateConsistency": {
+    "historicalStateHash": "62d57c5a7ac0ead2223e110f12f245bd9bae9c64d8b94b3d5d3d9450ef9fe40f",
+    "shadowStateHash": "62d57c5a7ac0ead2223e110f12f245bd9bae9c64d8b94b3d5d3d9450ef9fe40f",
+    "identical": true
+  },
+  "modelStability": {
+    "predictionHash": "6db008ccc77acaab9b177c198ebbe8346643ff675307c4d93337e5acb8134f36",
+    "stable": true
+  },
+  "replayShadowConsistency": {
+    "actionSequenceIdentical": true
+  },
+  "dataDrift": {
+    "status": "PASS",
+    "featureNullRate": 0
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "realOrders": false,
+  "gate": "SHADOW_VALIDATION_READY"
+}

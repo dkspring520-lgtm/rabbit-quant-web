@@ -1,0 +1,168 @@
+{
+  "title": "OFFLINE LEARNING V0.5 COUNTERFACTUAL POLICY IMPROVEMENT",
+  "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+  "split": {
+    "train": 174966,
+    "validation": 44103,
+    "test": 30848
+  },
+  "actionRankingDataset": {
+    "train": {
+      "count": 174966,
+      "actionDistribution": {
+        "WAIT": 147693,
+        "BUY_SMALL": 27008,
+        "BUY": 0,
+        "SELL_PART": 0,
+        "SELL_ALL": 265
+      },
+      "rowsHash": "15f70b2364d8a9be4e6a0d92d41cacfe927c55e1a2f36d0a4a022a120fe0768d"
+    },
+    "validation": {
+      "count": 44103,
+      "actionDistribution": {
+        "WAIT": 36664,
+        "BUY_SMALL": 7360,
+        "BUY": 0,
+        "SELL_PART": 0,
+        "SELL_ALL": 79
+      },
+      "rowsHash": "c62a2af72608abc5e6457e0c2f71d6aa5b2af96baee6fb1d9b9156d5297aa9ae"
+    },
+    "test": {
+      "count": 30848,
+      "actionDistribution": {
+        "WAIT": 25226,
+        "BUY_SMALL": 5524,
+        "BUY": 0,
+        "SELL_PART": 0,
+        "SELL_ALL": 98
+      },
+      "rowsHash": "8f5b618c1617f1cebff6aff53fb8404f16abb6b370efc0c96d11bc800274b8e9"
+    }
+  },
+  "counterfactualEvaluation": {
+    "train": {
+      "count": 174966,
+      "summary": {
+        "WAIT": {
+          "meanActionValueDifference": -0.0001248662900843598,
+          "meanRegret": 0.0010641626381830563,
+          "meanImprovementPotential": 0.000939296348098694
+        },
+        "BUY_SMALL": {
+          "meanActionValueDifference": -9.294950135046186e-7,
+          "meanRegret": 0.0010087966932876894,
+          "meanImprovementPotential": 0.0010078671982741514
+        },
+        "BUY": {
+          "meanActionValueDifference": -7.860168444618747e-7,
+          "meanRegret": 0.0008530774044412054,
+          "meanImprovementPotential": 0.0008522913875967154
+        },
+        "SELL_PART": {
+          "meanActionValueDifference": -0.00003814129851361595,
+          "meanRegret": 0.001168480937227327,
+          "meanImprovementPotential": 0.0011303396387137335
+        },
+        "SELL_ALL": {
+          "meanActionValueDifference": -0.00003819915418763103,
+          "meanRegret": 0.001170253379562318,
+          "meanImprovementPotential": 0.0011320542253747093
+        }
+      }
+    },
+    "validation": {
+      "count": 44103,
+      "summary": {
+        "WAIT": {
+          "meanActionValueDifference": -0.00009715924954013578,
+          "meanRegret": 0.00109826515579063,
+          "meanImprovementPotential": 0.001001105906250491
+        },
+        "BUY_SMALL": {
+          "meanActionValueDifference": -0.0000412565503623263,
+          "meanRegret": 0.0010528497287588562,
+          "meanImprovementPotential": 0.0010115931783965465
+        },
+        "BUY": {
+          "meanActionValueDifference": -0.000034371571774322726,
+          "meanRegret": 0.0008771479850301941,
+          "meanImprovementPotential": 0.0008427764132558853
+        },
+        "SELL_PART": {
+          "meanActionValueDifference": 0.0000015952228942429733,
+          "meanRegret": 0.0011979579298290232,
+          "meanImprovementPotential": 0.0011995531527232467
+        },
+        "SELL_ALL": {
+          "meanActionValueDifference": 0.0000015980854830273907,
+          "meanRegret": 0.001200107636272247,
+          "meanImprovementPotential": 0.0012017057217552551
+        }
+      }
+    },
+    "test": {
+      "count": 30848,
+      "summary": {
+        "WAIT": {
+          "meanActionValueDifference": -0.000056753844365451036,
+          "meanRegret": 0.0011902036810872332,
+          "meanImprovementPotential": 0.0011334498367217844
+        },
+        "BUY_SMALL": {
+          "meanActionValueDifference": -0.000030753405357342495,
+          "meanRegret": 0.0011587265170007663,
+          "meanImprovementPotential": 0.0011279731116434204
+        },
+        "BUY": {
+          "meanActionValueDifference": -0.000025246344569156555,
+          "meanRegret": 0.0009512315325637774,
+          "meanImprovementPotential": 0.0009259851879946181
+        },
+        "SELL_PART": {
+          "meanActionValueDifference": 0.000004559744917796875,
+          "meanRegret": 0.0013204945134713997,
+          "meanImprovementPotential": 0.0013250542583891866
+        },
+        "SELL_ALL": {
+          "meanActionValueDifference": 0.000004574276787778796,
+          "meanRegret": 0.0013247029187501052,
+          "meanImprovementPotential": 0.0013292771955378739
+        }
+      }
+    }
+  },
+  "modelSnapshot": {
+    "modelHash": "8f253501513924a603dab2a3df5e4442fff121c9718559d21bdf5775b07f77f4",
+    "version": "action-ranking-v0.5",
+    "legalActions": [
+      "WAIT",
+      "BUY_SMALL",
+      "BUY",
+      "SELL_PART",
+      "SELL_ALL"
+    ]
+  },
+  "replaySnapshot": {
+    "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+    "modelHash": "8f253501513924a603dab2a3df5e4442fff121c9718559d21bdf5775b07f77f4",
+    "rankingHashes": {
+      "train": "15f70b2364d8a9be4e6a0d92d41cacfe927c55e1a2f36d0a4a022a120fe0768d",
+      "validation": "c62a2af72608abc5e6457e0c2f71d6aa5b2af96baee6fb1d9b9156d5297aa9ae",
+      "test": "8f5b618c1617f1cebff6aff53fb8404f16abb6b370efc0c96d11bc800274b8e9"
+    },
+    "counterfactualHash": "cf5a3806fcfa80ce26d67cd65f79dd3d6af742e16956848561d90de16e41c2d7"
+  },
+  "reproducibility": {
+    "runA": "bb5eb582f9bac2a6456cfee4925cde9b64bc0131439ec6ae8bc0d0d2be6e4199",
+    "runB": "bb5eb582f9bac2a6456cfee4925cde9b64bc0131439ec6ae8bc0d0d2be6e4199",
+    "identical": true
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "gate": "PASS"
+}

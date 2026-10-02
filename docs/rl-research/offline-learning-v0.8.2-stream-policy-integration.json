@@ -1,0 +1,81 @@
+{
+  "title": "OFFLINE LEARNING V0.8.2 STREAM POLICY INTEGRATION",
+  "sourceMode": "HISTORICAL_STREAM_SIMULATION",
+  "input": "C:/Users/dkspr/Documents/我的网站/.data-inspect/zijin-601899-2022-2026.jsonl",
+  "processedBars": 249917,
+  "policyEvaluatedBars": 249916,
+  "fallbackBars": 1,
+  "formalPolicyDecisions": 249916,
+  "fallbackDecisionCount": 1,
+  "policyCoverageRate": 0.999995998671559,
+  "fallbackRate": 0.0000040013284410424265,
+  "policyActionDistribution": {
+    "WAIT": {
+      "count": 210230,
+      "percentage": 0.8412026440884137
+    },
+    "BUY_SMALL": {
+      "count": 39686,
+      "percentage": 0.15879735591158628
+    },
+    "BUY": {
+      "count": 0,
+      "percentage": 0
+    },
+    "SELL_PART": {
+      "count": 0,
+      "percentage": 0
+    },
+    "SELL_ALL": {
+      "count": 0,
+      "percentage": 0
+    }
+  },
+  "fallbackActionDistribution": {
+    "WAIT": {
+      "count": 1,
+      "percentage": 1
+    },
+    "BUY_SMALL": {
+      "count": 0,
+      "percentage": 0
+    },
+    "BUY": {
+      "count": 0,
+      "percentage": 0
+    },
+    "SELL_PART": {
+      "count": 0,
+      "percentage": 0
+    },
+    "SELL_ALL": {
+      "count": 0,
+      "percentage": 0
+    }
+  },
+  "decisionLogHash": "9a0a0cbb6d76ffa590c6d5cf3c90dcb79b49aaf9823c9caef2f7b12e4efaad68",
+  "futureBlindAudit": {
+    "status": "PASS",
+    "mutationOffsets": [
+      1,
+      5,
+      10,
+      30
+    ],
+    "stateActionScoreConfidenceUnchanged": true
+  },
+  "replayConsistency": {
+    "actionSequenceIdentical": true,
+    "stateHashIdentical": true,
+    "scoreDeviation": 0,
+    "confidenceDeviation": 0,
+    "notes": "Historical Replay and stream use the same causal feature/state/policy path."
+  },
+  "fallbackReasons": [],
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "STREAM_POLICY_READY"
+}

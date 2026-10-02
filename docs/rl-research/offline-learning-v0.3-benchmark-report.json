@@ -1,0 +1,264 @@
+{
+  "title": "OFFLINE LEARNING V0.3 ACTION QUALITY ML BENCHMARK",
+  "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+  "split": {
+    "train": 174966,
+    "test": 30848
+  },
+  "benchmark": {
+    "logistic": {
+      "sampleCount": 30848,
+      "accuracy": 0.8797977178423236,
+      "macroPrecision": 0.29326590594744123,
+      "macroRecall": 0.3333333333333333,
+      "macroF1": 0.3120185785564829,
+      "good": {
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "confusionMatrix": {
+        "GOOD": {
+          "GOOD": 0,
+          "BAD": 0,
+          "NEUTRAL": 1839
+        },
+        "BAD": {
+          "GOOD": 0,
+          "BAD": 0,
+          "NEUTRAL": 1869
+        },
+        "NEUTRAL": {
+          "GOOD": 0,
+          "BAD": 0,
+          "NEUTRAL": 27140
+        }
+      },
+      "thresholds": [
+        {
+          "threshold": 0.5,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.6,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.7,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.8,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.9,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        }
+      ]
+    },
+    "tree": {
+      "sampleCount": 30848,
+      "accuracy": 0.8797977178423236,
+      "macroPrecision": 0.29326590594744123,
+      "macroRecall": 0.3333333333333333,
+      "macroF1": 0.3120185785564829,
+      "good": {
+        "precision": 0,
+        "recall": 0,
+        "f1": 0
+      },
+      "confusionMatrix": {
+        "GOOD": {
+          "GOOD": 0,
+          "BAD": 0,
+          "NEUTRAL": 1839
+        },
+        "BAD": {
+          "GOOD": 0,
+          "BAD": 0,
+          "NEUTRAL": 1869
+        },
+        "NEUTRAL": {
+          "GOOD": 0,
+          "BAD": 0,
+          "NEUTRAL": 27140
+        }
+      },
+      "thresholds": [
+        {
+          "threshold": 0.5,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.6,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.7,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.8,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.9,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        }
+      ]
+    },
+    "mlp": {
+      "sampleCount": 30848,
+      "accuracy": 0.8767181016597511,
+      "macroPrecision": 0.3319915900319031,
+      "macroRecall": 0.33299978577559647,
+      "macroF1": 0.31319956837374807,
+      "good": {
+        "precision": 0.07692307692307693,
+        "recall": 0.000543773790103317,
+        "f1": 0.0010799136069114472
+      },
+      "confusionMatrix": {
+        "GOOD": {
+          "GOOD": 1,
+          "BAD": 7,
+          "NEUTRAL": 1831
+        },
+        "BAD": {
+          "GOOD": 3,
+          "BAD": 4,
+          "NEUTRAL": 1862
+        },
+        "NEUTRAL": {
+          "GOOD": 9,
+          "BAD": 91,
+          "NEUTRAL": 27040
+        }
+      },
+      "thresholds": [
+        {
+          "threshold": 0.5,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.6,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.7,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.8,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        },
+        {
+          "threshold": 0.9,
+          "signalCount": 0,
+          "winRate": 0,
+          "averageReturn": 0,
+          "profitFactor": 0,
+          "maxDrawdown": null
+        }
+      ]
+    }
+  },
+  "modelSnapshot": {
+    "modelHash": "40809bdf99e2288232e486b8148974b8de6a376968d79b03e6fe63543a2649f3",
+    "featureList": [
+      "return1",
+      "return3",
+      "return5",
+      "return10",
+      "priceAcceleration",
+      "distanceToVWAP",
+      "MA5",
+      "MA20",
+      "volumeRatio",
+      "rollingVolatility",
+      "sentimentScore",
+      "minuteOfDay"
+    ],
+    "labelList": [
+      "GOOD",
+      "BAD",
+      "NEUTRAL"
+    ],
+    "seed": 17,
+    "trainCount": 174966
+  },
+  "replaySnapshot": {
+    "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+    "modelHash": "40809bdf99e2288232e486b8148974b8de6a376968d79b03e6fe63543a2649f3",
+    "testCount": 30848,
+    "predictionHash": "fad8172a08ebce3abc8b713f8652026f2acaf198b3a6476b2ded98cd5b3320dd"
+  },
+  "reproducibility": {
+    "runA": "7ecdcf37937d19a861544e844bd2043b0923e0e50342a3d0f5d287042d5b5d25",
+    "runB": "7ecdcf37937d19a861544e844bd2043b0923e0e50342a3d0f5d287042d5b5d25",
+    "identical": true
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "gate": "PASS"
+}

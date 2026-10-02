@@ -1,0 +1,283 @@
+{
+  "title": "Offline Learning V0.8.2.7 Portfolio-aware Counterfactual Value",
+  "dataset": {
+    "input": ".data-inspect/zijin-601899-2022-2026.jsonl",
+    "stateCount": 249917,
+    "stateSchemaVersion": "ValidatedStatePriceOnlyV0.1",
+    "featureVersion": "price-only-features-v0.1",
+    "statesHash": "9781f64db4213349b2f56e754697a41e1d347d2d2ef89066fdee6f734bf45a08"
+  },
+  "portfolioContext": "ResearchPortfolioContextV0.1",
+  "scenarioGrid": {
+    "version": "portfolio-scenario-grid-v0.1",
+    "scenarios": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F"
+    ],
+    "scenarioGridHash": "4b86aec8e00649be2eb71ac8d42a4712d96b5b5db7e3241f6b2d5f2d6a3071b8",
+    "definitions": {
+      "A": "position=0, cash=1 unit, sellable=0",
+      "B": "position=0.5 unit, sellable=0, remaining cash",
+      "C": "position=0.5 unit, sellable=0.5 unit",
+      "D": "position=1 unit, sellable=1 unit",
+      "E": "position=1 unit, sellable=0.5 unit",
+      "F": "cash constrained"
+    }
+  },
+  "actionConfig": {
+    "notionalUnit": 10000,
+    "buySmallUnits": 0.5,
+    "buyUnits": 1,
+    "sellPartFraction": 0.25,
+    "lotSize": 100,
+    "commissionRate": 0.00025,
+    "slippageRate": 0.0002,
+    "executionPrice": "price(T)",
+    "costVersion": "research-portfolio-cost-v0.1",
+    "actionConfigHash": "d0428e3efd09722c2cff1031efb1846ef890cb8bd347a79c8b0c3251aeb7954a"
+  },
+  "scale": "Net Future Equity Delta = future equity after single-step action minus current equity; same objective for all actions; averageCost is retained in context but does not weight economic value.",
+  "horizons": {
+    "definition": "next observed trading bars",
+    "bars": [
+      "10 observed 1m bars",
+      "30 observed 1m bars",
+      "60 observed 1m bars"
+    ]
+  },
+  "counts": {
+    "stateCount": 249917,
+    "scenarioCount": 6,
+    "decisionContextCount": 1499502,
+    "applicableActionCount": 11036150,
+    "applicableActionRate": 0.49065845416233744
+  },
+  "scenarioSummaries": {
+    "A": {
+      "10": {
+        "resolvedStates": 249907,
+        "bestActions": {
+          "WAIT": 142527,
+          "BUY": 106921,
+          "BUY_SMALL": 459
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      },
+      "30": {
+        "resolvedStates": 249887,
+        "bestActions": {
+          "WAIT": 136714,
+          "BUY": 112681,
+          "BUY_SMALL": 492
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      },
+      "60": {
+        "resolvedStates": 249857,
+        "bestActions": {
+          "WAIT": 133216,
+          "BUY": 116105,
+          "BUY_SMALL": 536
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      }
+    },
+    "B": {
+      "10": {
+        "resolvedStates": 249907,
+        "bestActions": {
+          "WAIT": 142780,
+          "BUY_SMALL": 107127
+        },
+        "singleApplicable": 599,
+        "lowMargin": 0
+      },
+      "30": {
+        "resolvedStates": 249887,
+        "bestActions": {
+          "WAIT": 136972,
+          "BUY_SMALL": 112915
+        },
+        "singleApplicable": 599,
+        "lowMargin": 0
+      },
+      "60": {
+        "resolvedStates": 249857,
+        "bestActions": {
+          "WAIT": 133493,
+          "BUY_SMALL": 116364
+        },
+        "singleApplicable": 599,
+        "lowMargin": 0
+      }
+    },
+    "C": {
+      "10": {
+        "resolvedStates": 249907,
+        "bestActions": {
+          "SELL_ALL": 111602,
+          "WAIT": 31178,
+          "BUY_SMALL": 107127
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      },
+      "30": {
+        "resolvedStates": 249887,
+        "bestActions": {
+          "SELL_ALL": 119345,
+          "BUY_SMALL": 112915,
+          "WAIT": 17627
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      },
+      "60": {
+        "resolvedStates": 249857,
+        "bestActions": {
+          "SELL_ALL": 122009,
+          "WAIT": 11484,
+          "BUY_SMALL": 116364
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      }
+    },
+    "D": {
+      "10": {
+        "resolvedStates": 249907,
+        "bestActions": {
+          "SELL_ALL": 111602,
+          "WAIT": 138305
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      },
+      "30": {
+        "resolvedStates": 249887,
+        "bestActions": {
+          "SELL_ALL": 119345,
+          "WAIT": 130542
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      },
+      "60": {
+        "resolvedStates": 249857,
+        "bestActions": {
+          "SELL_ALL": 122009,
+          "WAIT": 127848
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      }
+    },
+    "E": {
+      "10": {
+        "resolvedStates": 249907,
+        "bestActions": {
+          "SELL_ALL": 111602,
+          "WAIT": 138305
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      },
+      "30": {
+        "resolvedStates": 249887,
+        "bestActions": {
+          "SELL_ALL": 119345,
+          "WAIT": 130542
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      },
+      "60": {
+        "resolvedStates": 249857,
+        "bestActions": {
+          "SELL_ALL": 122009,
+          "WAIT": 127848
+        },
+        "singleApplicable": 0,
+        "lowMargin": 0
+      }
+    },
+    "F": {
+      "10": {
+        "resolvedStates": 249907,
+        "bestActions": {
+          "WAIT": 249907
+        },
+        "singleApplicable": 249907,
+        "lowMargin": 0
+      },
+      "30": {
+        "resolvedStates": 249887,
+        "bestActions": {
+          "WAIT": 249887
+        },
+        "singleApplicable": 249887,
+        "lowMargin": 0
+      },
+      "60": {
+        "resolvedStates": 249857,
+        "bestActions": {
+          "WAIT": 249857
+        },
+        "singleApplicable": 249857,
+        "lowMargin": 0
+      }
+    }
+  },
+  "scenarioInvariance": {
+    "noPositionSellAllInapplicable": true,
+    "positionSellAllApplicable": true,
+    "t1SellAllInapplicable": true,
+    "cashConstrainedBuyInapplicable": true
+  },
+  "portfolioTrajectoryIsolation": "single-step only; no action is fed into the next timestamp",
+  "audit": {
+    "futureBlind": {
+      "status": "PASS",
+      "mutationPoints": [
+        {
+          "index": 50000,
+          "stateHashIdentical": true,
+          "outcomeMayChange": true
+        },
+        {
+          "index": 125000,
+          "stateHashIdentical": true,
+          "outcomeMayChange": true
+        },
+        {
+          "index": 200000,
+          "stateHashIdentical": true,
+          "outcomeMayChange": true
+        }
+      ]
+    },
+    "reproducibility": {
+      "runA": "915221cff531728e3d61eb3570c869ca560b05fbbe5fe4df56e5ef660995dd9b",
+      "runB": "915221cff531728e3d61eb3570c869ca560b05fbbe5fe4df56e5ef660995dd9b",
+      "identical": true
+    },
+    "portfolioInvariants": "PASS",
+    "actionApplicability": "PASS",
+    "t1": "PASS",
+    "cost": "PASS"
+  },
+  "legacyExpertLabel": "excluded; LEGACY_OHLC_EXPERT_BENCHMARK only",
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "PORTFOLIO_AWARE_VALUE_READY"
+}

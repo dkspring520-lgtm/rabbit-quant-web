@@ -1,0 +1,89 @@
+{
+  "title": "Offline Learning V0.8.2.4 Price-Only Outcome & Counterfactual Label Contract",
+  "input": ".data-inspect/zijin-601899-2022-2026.jsonl",
+  "datasetVersion": "PriceOnlyCounterfactualDatasetV0.1",
+  "labelVersion": "price-only-outcome-counterfactual-v0.1",
+  "stateSchemaVersion": "ValidatedStatePriceOnlyV0.1",
+  "featureVersion": "price-only-features-v0.1",
+  "rows": 249917,
+  "datasetHash": "61cb3d126ff5422b1f4ce0622bb60a40eeecf875b646e0c66b5fc98274886ae5",
+  "experimentConfig": {
+    "commissionRate": 0.00025,
+    "slippageRate": 0.0002,
+    "mfeWeight": 0.25,
+    "maeWeight": 0.25,
+    "lowMarginThreshold": 0.0005,
+    "costModelVersion": "price-only-cost-v0.1",
+    "experimentConfigHash": "73c2defeafceb017865959fab268cc9dab22e72fac53a6210e4aa190c56de75e"
+  },
+  "outcomeDefinition": "futureReturn is endpoint return; futureMFE/futureMAE are extrema of causal future path; OUTCOME_UNRESOLVED is retained",
+  "actionValueDefinition": "exposure * futureReturn + mfeWeight * actionMFE + maeWeight * actionMAE; net subtracts abs(exposure) * (commissionRate + slippageRate)",
+  "horizons": {
+    "10": {
+      "resolved": 249907,
+      "unresolved": 10,
+      "coverage": 0.9999599867155896
+    },
+    "30": {
+      "resolved": 249887,
+      "unresolved": 30,
+      "coverage": 0.9998799601467687
+    },
+    "60": {
+      "resolved": 249857,
+      "unresolved": 60,
+      "coverage": 0.9997599202935374
+    }
+  },
+  "actionRanking": {
+    "resolved30Count": 249887,
+    "bestActionCounts": {
+      "WAIT": 15252,
+      "BUY_SMALL": 0,
+      "BUY": 114966,
+      "SELL_PART": 0,
+      "SELL_ALL": 119669
+    },
+    "lowMarginCount": 41624,
+    "lowMarginRate": 0.16657129022318087,
+    "costRankingChanged": 14818,
+    "costRankingChangeRate": 0.05929880305898266
+  },
+  "mutationAudit": {
+    "status": "PASS",
+    "mutationPoints": [
+      {
+        "index": 50000,
+        "stateHashIdentical": true,
+        "outcomeMayChange": true
+      },
+      {
+        "index": 125000,
+        "stateHashIdentical": true,
+        "outcomeMayChange": true
+      },
+      {
+        "index": 200000,
+        "stateHashIdentical": true,
+        "outcomeMayChange": true
+      }
+    ]
+  },
+  "decisionTimeArtifacts": {
+    "stateContainsFuture": false,
+    "rankingsUseFutureOutcomes": true,
+    "rankingsAreOutcomeTimeArtifacts": true
+  },
+  "legacyExpertLabel": "excluded; retained only as LEGACY_OHLC_EXPERT_BENCHMARK",
+  "reproducibility": {
+    "runA": "522b5a4efccbde6fbeb89ad53ce8eaa9f39fa80a29c19fe4fcbd8541f64c064d",
+    "runB": "522b5a4efccbde6fbeb89ad53ce8eaa9f39fa80a29c19fe4fcbd8541f64c064d",
+    "identical": true
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "PRICE_ONLY_COUNTERFACTUAL_DATASET_READY"
+}

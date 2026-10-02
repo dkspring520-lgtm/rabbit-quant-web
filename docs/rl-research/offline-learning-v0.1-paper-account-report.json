@@ -1,0 +1,182 @@
+{
+  "title": "OFFLINE LEARNING V0.1 PAPER ACCOUNT INTEGRATION V1",
+  "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+  "contextHash": "c23c51ad83cf6d291190c7d3460d861da33341e28177cd8a19980f4710975750",
+  "testStart": "20251009T09:30:00",
+  "testEnd": "20260417T15:00:00",
+  "barCount": 30848,
+  "sampleCount": 30848,
+  "costConfig": {
+    "commission": 0.025,
+    "minimumCommission": 5,
+    "stampDuty": 0.05,
+    "slippage": 0.02
+  },
+  "accounts": {
+    "Expert": {
+      "strategyId": "Expert",
+      "accountId": "Expert-account",
+      "initialCash": 1000000,
+      "endingCash": 2858.487671,
+      "position": 33400,
+      "sellablePosition": 33400,
+      "tradeCount": 510,
+      "realizedPnL": 30142.931565,
+      "fees": 2709.813529,
+      "slippage": 326.697723,
+      "netReturn": 0.127636,
+      "maxDrawdown": 0.332163,
+      "costModelUnavailable": false
+    },
+    "Learned": {
+      "strategyId": "Learned",
+      "accountId": "Learned-account",
+      "initialCash": 1000000,
+      "endingCash": 1184613.324098,
+      "position": 900,
+      "sellablePosition": 0,
+      "tradeCount": 2591,
+      "realizedPnL": 184665.569285,
+      "fees": 15038.114302,
+      "slippage": 1626.567594,
+      "netReturn": 0.17906,
+      "maxDrawdown": 0.056941,
+      "costModelUnavailable": false
+    },
+    "Random": {
+      "strategyId": "Random",
+      "accountId": "Random-account",
+      "initialCash": 1000000,
+      "endingCash": 1472.6584,
+      "position": 33400,
+      "sellablePosition": 33400,
+      "tradeCount": 324,
+      "realizedPnL": 0,
+      "fees": 1620,
+      "slippage": 199.341986,
+      "netReturn": 0.126292,
+      "maxDrawdown": 0.332558,
+      "costModelUnavailable": false
+    },
+    "AlwaysWait": {
+      "strategyId": "AlwaysWait",
+      "accountId": "AlwaysWait-account",
+      "initialCash": 1000000,
+      "endingCash": 1000000,
+      "position": 1000,
+      "sellablePosition": 1000,
+      "tradeCount": 0,
+      "realizedPnL": 0,
+      "fees": 0,
+      "slippage": 0,
+      "netReturn": 0.003404,
+      "maxDrawdown": 0.014243,
+      "costModelUnavailable": false
+    },
+    "Majority": {
+      "strategyId": "Majority",
+      "accountId": "Majority-account",
+      "initialCash": 1000000,
+      "endingCash": 1000000,
+      "position": 1000,
+      "sellablePosition": 1000,
+      "tradeCount": 0,
+      "realizedPnL": 0,
+      "fees": 0,
+      "slippage": 0,
+      "netReturn": 0.003404,
+      "maxDrawdown": 0.014243,
+      "costModelUnavailable": false
+    }
+  },
+  "replaySnapshots": {
+    "Expert": {
+      "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+      "contextHash": "c23c51ad83cf6d291190c7d3460d861da33341e28177cd8a19980f4710975750",
+      "modelHash": "4b0d4239c4d82f14b35f0b703496cd268c4a871814018921b41556f44c38383e",
+      "featureVersion": "OHLCV_T_RESEARCH_V1",
+      "stateVersion": "offline-state-v0.2",
+      "predictionHash": "0b897775cc94b52db33ffcf06b6ead27101bf2cdc32e80d253f45da751082d89",
+      "strategyId": "Expert",
+      "actionSequenceHash": "19a45ee9cfe556cdac432b34e42515202d8252ea000ee54a40b2928d4ffcbf12",
+      "performanceHash": "84037eee04652608e12ca1ffd41fd5b08c7fbbb9016f878a1b1afcaf3713503f",
+      "snapshotHash": "bb7d4a402d1c4417628072d84bd2508265e2281dd31d7aa96a0abaf65dddebf3"
+    },
+    "Learned": {
+      "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+      "contextHash": "c23c51ad83cf6d291190c7d3460d861da33341e28177cd8a19980f4710975750",
+      "modelHash": "4b0d4239c4d82f14b35f0b703496cd268c4a871814018921b41556f44c38383e",
+      "featureVersion": "OHLCV_T_RESEARCH_V1",
+      "stateVersion": "offline-state-v0.2",
+      "predictionHash": "0b897775cc94b52db33ffcf06b6ead27101bf2cdc32e80d253f45da751082d89",
+      "strategyId": "Learned",
+      "actionSequenceHash": "12885cfac46801a922aa0afec5e432a10ef54064d6f3460120e3e21eabfd04af",
+      "performanceHash": "a6d44f30effa450a1edab760a16b72f6ed0dd64732798698c299271cd6889331",
+      "snapshotHash": "fc4d1e93f92c9d3f3fba834883abf46def234659376a9781263bf8140e4cbeac"
+    },
+    "Random": {
+      "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+      "contextHash": "c23c51ad83cf6d291190c7d3460d861da33341e28177cd8a19980f4710975750",
+      "modelHash": "4b0d4239c4d82f14b35f0b703496cd268c4a871814018921b41556f44c38383e",
+      "featureVersion": "OHLCV_T_RESEARCH_V1",
+      "stateVersion": "offline-state-v0.2",
+      "predictionHash": "0b897775cc94b52db33ffcf06b6ead27101bf2cdc32e80d253f45da751082d89",
+      "strategyId": "Random",
+      "actionSequenceHash": "fc95e4b388a2b100ab213caaa72775ec412bd67c282dd31772ca04e4b480b807",
+      "performanceHash": "52a36bcd3f4afc844aaaa982401e61ad81c00e73b5808c8dfd38b9bfbf1f0d5e",
+      "snapshotHash": "d12b61277d21183aa66304a1a9c864a951716bdb1f2907284f55502277519c5c"
+    },
+    "AlwaysWait": {
+      "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+      "contextHash": "c23c51ad83cf6d291190c7d3460d861da33341e28177cd8a19980f4710975750",
+      "modelHash": "4b0d4239c4d82f14b35f0b703496cd268c4a871814018921b41556f44c38383e",
+      "featureVersion": "OHLCV_T_RESEARCH_V1",
+      "stateVersion": "offline-state-v0.2",
+      "predictionHash": "0b897775cc94b52db33ffcf06b6ead27101bf2cdc32e80d253f45da751082d89",
+      "strategyId": "AlwaysWait",
+      "actionSequenceHash": "335b6b09c4c0ea933fc0e3880bba282454f515efe6f4a9054ba9b0e59d81937b",
+      "performanceHash": "788b140f432941f9a36a77fe4c4b3ae2fab4dd839f37a2cf5e93b6776f1e558c",
+      "snapshotHash": "e29444b5db9badca4b77b34b2ba33dbe36ae83858afca405f52a6ac0aff661ca"
+    },
+    "Majority": {
+      "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+      "contextHash": "c23c51ad83cf6d291190c7d3460d861da33341e28177cd8a19980f4710975750",
+      "modelHash": "4b0d4239c4d82f14b35f0b703496cd268c4a871814018921b41556f44c38383e",
+      "featureVersion": "OHLCV_T_RESEARCH_V1",
+      "stateVersion": "offline-state-v0.2",
+      "predictionHash": "0b897775cc94b52db33ffcf06b6ead27101bf2cdc32e80d253f45da751082d89",
+      "strategyId": "Majority",
+      "actionSequenceHash": "335b6b09c4c0ea933fc0e3880bba282454f515efe6f4a9054ba9b0e59d81937b",
+      "performanceHash": "ef19e13be8e6c64b27a7fc0d5afd9f2b761db466afd301eb25560d9145f9a9c6",
+      "snapshotHash": "cb55d73751986147029da8f7fcc3820a64814c09908acb9b58761aca6e80ab5c"
+    }
+  },
+  "reproducibility": {
+    "runA": {
+      "Expert": "bb7d4a402d1c4417628072d84bd2508265e2281dd31d7aa96a0abaf65dddebf3",
+      "Learned": "fc4d1e93f92c9d3f3fba834883abf46def234659376a9781263bf8140e4cbeac",
+      "Random": "d12b61277d21183aa66304a1a9c864a951716bdb1f2907284f55502277519c5c",
+      "AlwaysWait": "e29444b5db9badca4b77b34b2ba33dbe36ae83858afca405f52a6ac0aff661ca",
+      "Majority": "cb55d73751986147029da8f7fcc3820a64814c09908acb9b58761aca6e80ab5c"
+    },
+    "runB": {
+      "Expert": "bb7d4a402d1c4417628072d84bd2508265e2281dd31d7aa96a0abaf65dddebf3",
+      "Learned": "fc4d1e93f92c9d3f3fba834883abf46def234659376a9781263bf8140e4cbeac",
+      "Random": "d12b61277d21183aa66304a1a9c864a951716bdb1f2907284f55502277519c5c",
+      "AlwaysWait": "e29444b5db9badca4b77b34b2ba33dbe36ae83858afca405f52a6ac0aff661ca",
+      "Majority": "cb55d73751986147029da8f7fcc3820a64814c09908acb9b58761aca6e80ab5c"
+    },
+    "identical": true
+  },
+  "policyIsolation": {
+    "independentAccounts": true,
+    "independentOrders": true,
+    "sharedContextUnchanged": true
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "offlineModelReady": true
+}

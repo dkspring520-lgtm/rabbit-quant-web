@@ -1,0 +1,109 @@
+{
+  "title": "OFFLINE LEARNING V0.4 POLICY IMPROVEMENT",
+  "split": {
+    "train": 174966,
+    "validation": 44103,
+    "test": 30848
+  },
+  "thresholdSelection": {
+    "allowedSets": [
+      "train",
+      "validation"
+    ],
+    "selected": 0.5,
+    "validationMetrics": {
+      "tradeCount": 0,
+      "winRate": 0,
+      "averageReturn": 0,
+      "profitFactor": 0,
+      "maxDrawdown": null,
+      "holdingTime": 5
+    }
+  },
+  "test": {
+    "expertPolicy": {
+      "tradeCount": 5622,
+      "winRate": 0.08561332987551867,
+      "averageReturn": 0.000002350250220844121,
+      "profitFactor": 1.01049469276428,
+      "maxDrawdown": null,
+      "holdingTime": 5
+    },
+    "filteredPolicy": {
+      "tradeCount": 0,
+      "winRate": 0,
+      "averageReturn": 0,
+      "profitFactor": 0,
+      "maxDrawdown": null,
+      "holdingTime": 5
+    }
+  },
+  "calibration": {
+    "curve": [
+      {
+        "bucket": "0-0.2",
+        "count": 0,
+        "meanPredicted": 0,
+        "observedRate": 0
+      },
+      {
+        "bucket": "0.2-0.4",
+        "count": 0,
+        "meanPredicted": 0,
+        "observedRate": 0
+      },
+      {
+        "bucket": "0.4-0.6000000000000001",
+        "count": 0,
+        "meanPredicted": 0,
+        "observedRate": 0
+      },
+      {
+        "bucket": "0.6-0.8",
+        "count": 0,
+        "meanPredicted": 0,
+        "observedRate": 0
+      },
+      {
+        "bucket": "0.8-1",
+        "count": 0,
+        "meanPredicted": 0,
+        "observedRate": 0
+      },
+      {
+        "bucket": "1-1",
+        "count": 0,
+        "meanPredicted": 0,
+        "observedRate": 0
+      }
+    ],
+    "brierScore": null,
+    "reliabilityMetrics": {
+      "meanAbsoluteCalibrationError": 0
+    }
+  },
+  "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+  "modelSnapshot": {
+    "modelHash": "8f253501513924a603dab2a3df5e4442fff121c9718559d21bdf5775b07f77f4",
+    "version": "action-quality-v0.2"
+  },
+  "replaySnapshot": {
+    "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+    "modelHash": "8f253501513924a603dab2a3df5e4442fff121c9718559d21bdf5775b07f77f4",
+    "threshold": 0.5,
+    "predictionHash": "dc29d9676b97e18f8bae7ccca081e262b6e27eb6edf6e0df3d8e43f4df2b4388",
+    "expertHash": "b7ee3f25c989ac8752f373c2d7f02291c13c0e5d5498b52b003ca13a4729d9ae",
+    "filteredHash": "658a0a04df2f2f2cb9626308d35ec4bcb7f3402aa6a4d7d4b0c7f9f6308aa8a4"
+  },
+  "reproducibility": {
+    "runA": "eb045d78d273107348b0300c01d29b7552d622abbc6faf81b3ec55359aa9950c",
+    "runB": "eb045d78d273107348b0300c01d29b7552d622abbc6faf81b3ec55359aa9950c",
+    "identical": true
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "gate": "PASS"
+}

@@ -1,0 +1,13 @@
+{
+  "title": "OFFLINE LEARNING V0.8 LIVE SHADOW VALIDATION",
+  "status": "RESEARCH_BLOCKED",
+  "reason": "LIVE_BARS_JSON path does not exist.",
+  "inputPath": "C:\\真实路径\\601899-live-bars.json",
+  "requiredInput": "A real verified 601899.SH 1m JSON bar file",
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "realOrders": false
+}

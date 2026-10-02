@@ -12,6 +12,7 @@
     "start": "node scripts/sites-env.mjs -- vinext start",
     "research:factor-daily": "node scripts/zijin-factor-daily.mjs",
     "research:daily-assignment": "node scripts/zijin-factor-daily.mjs --assignment",
+    "shadow:nats": "node scripts/check-third-party-nats-runtime.mjs",
     "test": "node --test tests/*.test.mjs",
     "validate:artifact": "node scripts/validate-artifact.mjs",
     "lint": "node scripts/sites-env.mjs -- eslint app lib server tests --ignore-pattern dist --ignore-pattern .next --cache --cache-location .sites-runtime/eslint-cache",

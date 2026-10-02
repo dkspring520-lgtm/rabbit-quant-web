@@ -1,0 +1,974 @@
+{
+  "title": "Offline Learning V0.8.3 Portfolio-aware Value Regression + Ranking Benchmark",
+  "dataset": {
+    "stateCount": 249917,
+    "scenarioCount": 6,
+    "decisionContextCount": 1499502,
+    "splitCounts": {
+      "train": 174966,
+      "validation": 44103,
+      "test": 30848,
+      "excluded": 0
+    },
+    "splitBeforeScenarioExpansion": true,
+    "sampleStride": 2,
+    "datasetHash": "9781f64db4213349b2f56e754697a41e1d347d2d2ef89066fdee6f734bf45a08"
+  },
+  "features": [
+    "return_1m",
+    "return_5m",
+    "price_vs_session_vwap",
+    "rolling_return_std_20",
+    "volume_ratio_20",
+    "minutesSinceOpen",
+    "cashRatio",
+    "positionRatio",
+    "sellableRatio",
+    "averageCostRatio"
+  ],
+  "models": {
+    "NaiveValueBaseline": "action mean and scenario-grid aggregate mean",
+    "RidgeRegression": "closed-form ridge over causal market + portfolio context features",
+    "TreeModel": "deterministic decision stump on return_1m with train-only branch means",
+    "LearningToRank": "interface reserved; not used"
+  },
+  "targets": {
+    "objective": "Net Future Equity Delta",
+    "horizons": [
+      10,
+      30,
+      60
+    ],
+    "futureFieldsExcluded": true
+  },
+  "validationMetrics": {
+    "validation": {
+      "10": {
+        "mean": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 11.622269238982211,
+              "rmse": 25.91926413572895,
+              "r2": -0.0005521541226294335
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 17.59554729195218,
+              "rmse": 31.024621420325946,
+              "r2": -0.0013415393509692564
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 24.09884877776499,
+              "rmse": 41.06821257991569,
+              "r2": -0.00111879882723942
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 18.81542948166866,
+              "rmse": 31.658928837703318,
+              "r2": -0.00044397410815433247
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 5.31381191211239,
+              "rmse": 13.653387932745364,
+              "r2": -0.000880493398482729
+            }
+          },
+          "top1ActionAgreement": 0.5546889171050244,
+          "actionMarginMAE": 9.835944941543108,
+          "contexts": 132312
+        },
+        "ridge": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 11.703581207246492,
+              "rmse": 25.922963082913302,
+              "r2": -0.0008377527907599269
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 17.61257544235149,
+              "rmse": 31.035291656631657,
+              "r2": -0.0020304366020251763
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 24.11400582047367,
+              "rmse": 41.08505416873264,
+              "r2": -0.0019400611729414319
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 18.793081872324777,
+              "rmse": 31.67060548167475,
+              "r2": -0.0011820901980161835
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 4.620207208465936,
+              "rmse": 13.588089866730934,
+              "r2": 0.008670143791447815
+            }
+          },
+          "top1ActionAgreement": 0.5542278856037245,
+          "actionMarginMAE": 9.82002533708733,
+          "contexts": 132312
+        },
+        "tree": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 11.808041212262465,
+              "rmse": 25.9238501425832,
+              "r2": -0.0009062494355038808
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 17.649702070805315,
+              "rmse": 31.033880252327336,
+              "r2": -0.0019392992008839816
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 24.160267214345673,
+              "rmse": 41.08094504954186,
+              "r2": -0.001739653246927375
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 18.82717622822745,
+              "rmse": 31.66107182124366,
+              "r2": -0.0005794182061971132
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 5.310926882319904,
+              "rmse": 13.654429052080955,
+              "r2": -0.0010331406050079206
+            }
+          },
+          "top1ActionAgreement": 0.522121954168934,
+          "actionMarginMAE": 9.841708256500993,
+          "contexts": 132312
+        }
+      },
+      "30": {
+        "mean": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 21.451051431645872,
+              "rmse": 45.27939890930476,
+              "r2": -0.0016236742749091704
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 32.34189200783425,
+              "rmse": 54.17770531830643,
+              "r2": -0.0030462914594791
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 44.42056563926392,
+              "rmse": 71.8263304140799,
+              "r2": -0.0030092435993815947
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 34.51100487297705,
+              "rmse": 55.37569739774699,
+              "r2": -0.0016264045152558637
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 9.137484144241327,
+              "rmse": 23.832121155630812,
+              "r2": -0.0013640801341585629
+            }
+          },
+          "top1ActionAgreement": 0.5301408791341677,
+          "actionMarginMAE": 18.051807851214964,
+          "contexts": 132312
+        },
+        "ridge": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 21.502858130667885,
+              "rmse": 45.27032264132991,
+              "r2": -0.0012221630380366832
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 32.37754304993269,
+              "rmse": 54.18286018841838,
+              "r2": -0.0032371751191608844
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 44.45791544929396,
+              "rmse": 71.82694276783731,
+              "r2": -0.0030263459375812207
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 34.52888844461816,
+              "rmse": 55.42540382879762,
+              "r2": -0.0034253748659849315
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 8.519373850611814,
+              "rmse": 23.76277559345276,
+              "r2": 0.004454883928164399
+            }
+          },
+          "top1ActionAgreement": 0.5300804159864563,
+          "actionMarginMAE": 18.06713726317579,
+          "contexts": 132312
+        },
+        "tree": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 21.461672657646996,
+              "rmse": 45.27859710327278,
+              "r2": -0.0015882011541321628
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 32.3476634409622,
+              "rmse": 54.175770708285356,
+              "r2": -0.0029746579803817674
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 44.42350126472348,
+              "rmse": 71.82522035986086,
+              "r2": -0.002978241429771211
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 34.51109180628102,
+              "rmse": 55.37217920112398,
+              "r2": -0.001499135447541322
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 9.136753985857876,
+              "rmse": 23.83188851134826,
+              "r2": -0.0013445300077210565
+            }
+          },
+          "top1ActionAgreement": 0.49932734748170987,
+          "actionMarginMAE": 18.056934991945838,
+          "contexts": 132312
+        }
+      },
+      "60": {
+        "mean": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 31.865426115459478,
+              "rmse": 63.56426625004802,
+              "r2": -0.0031397976061025012
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 47.843751989492986,
+              "rmse": 76.11374208234494,
+              "r2": -0.005463765820258315
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 65.86116508693596,
+              "rmse": 100.8312095721459,
+              "r2": -0.005654028771799213
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 51.30932244804643,
+              "rmse": 78.21562581200382,
+              "r2": -0.003201904577855297
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 13.182477259034176,
+              "rmse": 33.39081166481914,
+              "r2": -0.002199083873269947
+            }
+          },
+          "top1ActionAgreement": 0.43577302134349116,
+          "actionMarginMAE": 26.672810022309942,
+          "contexts": 132312
+        },
+        "ridge": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 31.97671356075157,
+              "rmse": 63.587338796700955,
+              "r2": -0.003868168803556893
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 47.96749013333236,
+              "rmse": 76.22246854559664,
+              "r2": -0.008338374187276454
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 66.01144167127833,
+              "rmse": 100.97828232530276,
+              "r2": -0.008589869256725446
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 51.400460285068434,
+              "rmse": 78.3741665976702,
+              "r2": -0.007272948176281435
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 12.73179721675203,
+              "rmse": 33.31205733707332,
+              "r2": 0.002522840119292713
+            }
+          },
+          "top1ActionAgreement": 0.5230062277042142,
+          "actionMarginMAE": 26.873768934504916,
+          "contexts": 132312
+        },
+        "tree": {
+          "byAction": {
+            "WAIT": {
+              "count": 132312,
+              "mae": 31.879012366379868,
+              "rmse": 63.56538638728131,
+              "r2": -0.003175152820733773
+            },
+            "BUY_SMALL": {
+              "count": 66102,
+              "mae": 47.844794465953754,
+              "rmse": 76.1165061465639,
+              "r2": -0.005536793812448204
+            },
+            "BUY": {
+              "count": 21959,
+              "mae": 65.85392362814387,
+              "rmse": 100.83596584873354,
+              "r2": -0.00574890577556153
+            },
+            "SELL_PART": {
+              "count": 20399,
+              "mae": 51.30772342631235,
+              "rmse": 78.21970460952878,
+              "r2": -0.003306537484497163
+            },
+            "SELL_ALL": {
+              "count": 66156,
+              "mae": 13.192339956422769,
+              "rmse": 33.39096844217343,
+              "r2": -0.0022084949945855303
+            }
+          },
+          "top1ActionAgreement": 0.4869626337747143,
+          "actionMarginMAE": 26.676087771333602,
+          "contexts": 132312
+        }
+      }
+    },
+    "test": {
+      "10": {
+        "mean": {
+          "byAction": {
+            "WAIT": {
+              "count": 92514,
+              "mae": 14.430962921205852,
+              "rmse": 32.6543007627466,
+              "r2": -4.028718867399306e-7
+            },
+            "BUY_SMALL": {
+              "count": 46257,
+              "mae": 20.78620464429955,
+              "rmse": 37.38235142503391,
+              "r2": -0.00011037251213563692
+            },
+            "BUY": {
+              "count": 15393,
+              "mae": 30.670613840363334,
+              "rmse": 52.31165377518398,
+              "r2": -0.00010528204126347696
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46257,
+              "mae": 6.817195354579694,
+              "rmse": 18.196108108216883,
+              "r2": -0.0007977100526208591
+            }
+          },
+          "top1ActionAgreement": 0.5581425513976263,
+          "actionMarginMAE": 16.13230413126084,
+          "contexts": 92514
+        },
+        "ridge": {
+          "byAction": {
+            "WAIT": {
+              "count": 92514,
+              "mae": 14.5485557945314,
+              "rmse": 32.65263772021325,
+              "r2": 0.0001014520639807115
+            },
+            "BUY_SMALL": {
+              "count": 46257,
+              "mae": 20.799175717602427,
+              "rmse": 37.38014997639032,
+              "r2": 0.0000074171244285325955
+            },
+            "BUY": {
+              "count": 15393,
+              "mae": 30.676211568848334,
+              "rmse": 52.30261456388325,
+              "r2": 0.00024031521158029978
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46257,
+              "mae": 6.1876017287893195,
+              "rmse": 18.146384563147624,
+              "r2": 0.004664470881404759
+            }
+          },
+          "top1ActionAgreement": 0.5587586743627991,
+          "actionMarginMAE": 16.12341400854143,
+          "contexts": 92514
+        },
+        "tree": {
+          "byAction": {
+            "WAIT": {
+              "count": 92514,
+              "mae": 14.630216946412157,
+              "rmse": 32.661997034353675,
+              "r2": -0.00047183735328504284
+            },
+            "BUY_SMALL": {
+              "count": 46257,
+              "mae": 20.825113178194023,
+              "rmse": 37.398895632932074,
+              "r2": -0.0009958007776240674
+            },
+            "BUY": {
+              "count": 15393,
+              "mae": 30.706882107619855,
+              "rmse": 52.328142663643845,
+              "r2": -0.0007358575331883888
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46257,
+              "mae": 6.81675199865341,
+              "rmse": 18.19622101749955,
+              "r2": -0.0008101302582443903
+            }
+          },
+          "top1ActionAgreement": 0.5581425513976263,
+          "actionMarginMAE": 16.135763369121207,
+          "contexts": 92514
+        }
+      },
+      "30": {
+        "mean": {
+          "byAction": {
+            "WAIT": {
+              "count": 92454,
+              "mae": 26.74751315516999,
+              "rmse": 55.75434552144781,
+              "r2": -4.984531487561839e-7
+            },
+            "BUY_SMALL": {
+              "count": 46227,
+              "mae": 38.47483737573006,
+              "rmse": 63.86560538771123,
+              "r2": -0.000012786433980283007
+            },
+            "BUY": {
+              "count": 15383,
+              "mae": 56.66084721063057,
+              "rmse": 89.26564480171665,
+              "r2": -0.0000630115562847422
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46227,
+              "mae": 11.930838489665698,
+              "rmse": 31.004618003983637,
+              "r2": -0.00037007245547404644
+            }
+          },
+          "top1ActionAgreement": 0.5298526834966578,
+          "actionMarginMAE": 29.802695525988156,
+          "contexts": 92454
+        },
+        "ridge": {
+          "byAction": {
+            "WAIT": {
+              "count": 92454,
+              "mae": 26.862098203120507,
+              "rmse": 55.74752293055782,
+              "r2": 0.00024422424212011684
+            },
+            "BUY_SMALL": {
+              "count": 46227,
+              "mae": 38.52538398351986,
+              "rmse": 63.85266885838916,
+              "r2": 0.0003922949689457722
+            },
+            "BUY": {
+              "count": 15383,
+              "mae": 56.686540568700785,
+              "rmse": 89.24426558699483,
+              "r2": 0.00041596334102311783
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46227,
+              "mae": 11.40597013176157,
+              "rmse": 30.961421916569567,
+              "r2": 0.002415446220771611
+            }
+          },
+          "top1ActionAgreement": 0.5326216280528695,
+          "actionMarginMAE": 29.84534065574614,
+          "contexts": 92454
+        },
+        "tree": {
+          "byAction": {
+            "WAIT": {
+              "count": 92454,
+              "mae": 26.786755692373486,
+              "rmse": 55.757480015070854,
+              "r2": -0.00011294110730775131
+            },
+            "BUY_SMALL": {
+              "count": 46227,
+              "mae": 38.49281230872177,
+              "rmse": 63.87271974700208,
+              "r2": -0.00023559326325384156
+            },
+            "BUY": {
+              "count": 15383,
+              "mae": 56.678977453208326,
+              "rmse": 89.27242090922701,
+              "r2": -0.00021484581906405786
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46227,
+              "mae": 11.931181580699477,
+              "rmse": 31.004623457731707,
+              "r2": -0.00037042438800449773
+            }
+          },
+          "top1ActionAgreement": 0.5298526834966578,
+          "actionMarginMAE": 29.80760807931489,
+          "contexts": 92454
+        }
+      },
+      "60": {
+        "mean": {
+          "byAction": {
+            "WAIT": {
+              "count": 92364,
+              "mae": 39.723301102239546,
+              "rmse": 78.05475036221348,
+              "r2": -8.47592022124033e-7
+            },
+            "BUY_SMALL": {
+              "count": 46182,
+              "mae": 56.95652907727402,
+              "rmse": 89.50944864848584,
+              "r2": -3.028290840312309e-8
+            },
+            "BUY": {
+              "count": 15368,
+              "mae": 83.92986887630218,
+              "rmse": 124.64881785465232,
+              "r2": -0.00005274063419569153
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46182,
+              "mae": 17.357303562379872,
+              "rmse": 43.345006275534374,
+              "r2": -0.00028300999386154935
+            }
+          },
+          "top1ActionAgreement": 0.5203001169286735,
+          "actionMarginMAE": 44.13084051040623,
+          "contexts": 92364
+        },
+        "ridge": {
+          "byAction": {
+            "WAIT": {
+              "count": 92364,
+              "mae": 39.99831822108931,
+              "rmse": 78.09360845843155,
+              "r2": -0.0009967588304691244
+            },
+            "BUY_SMALL": {
+              "count": 46182,
+              "mae": 57.10528134669871,
+              "rmse": 89.6008718415637,
+              "r2": -0.0020438342869764092
+            },
+            "BUY": {
+              "count": 15368,
+              "mae": 84.08582934853959,
+              "rmse": 124.76406889537623,
+              "r2": -0.0019029050373811085
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46182,
+              "mae": 17.062280882223764,
+              "rmse": 43.30773776545548,
+              "r2": 0.0014363590486685673
+            }
+          },
+          "top1ActionAgreement": 0.5392577194577974,
+          "actionMarginMAE": 44.50762183319336,
+          "contexts": 92364
+        },
+        "tree": {
+          "byAction": {
+            "WAIT": {
+              "count": 92364,
+              "mae": 39.78791550568635,
+              "rmse": 78.06506421102891,
+              "r2": -0.00026513743795342215
+            },
+            "BUY_SMALL": {
+              "count": 46182,
+              "mae": 56.997496289918004,
+              "rmse": 89.53216658700322,
+              "r2": -0.0005077045566477256
+            },
+            "BUY": {
+              "count": 15368,
+              "mae": 83.97527384826769,
+              "rmse": 124.67574553372252,
+              "r2": -0.0004848668017936042
+            },
+            "SELL_PART": {
+              "count": 0,
+              "mae": null,
+              "rmse": null,
+              "r2": null
+            },
+            "SELL_ALL": {
+              "count": 46182,
+              "mae": 17.358509599734518,
+              "rmse": 43.34678702718678,
+              "r2": -0.000365201340262189
+            }
+          },
+          "top1ActionAgreement": 0.5203001169286735,
+          "actionMarginMAE": 44.14419542523306,
+          "contexts": 92364
+        }
+      }
+    }
+  },
+  "selectedModel": {
+    "10": "ridge",
+    "30": "ridge",
+    "60": "mean"
+  },
+  "policyConfig": {
+    "actionMarginThreshold": 0.002,
+    "thresholdCandidates": [
+      0,
+      0.0001,
+      0.0005,
+      0.001,
+      0.002
+    ],
+    "thresholdScoresValidation": {
+      "0": {
+        "accepted": 110233,
+        "correct": 48057
+      },
+      "0.0001": {
+        "accepted": 110232,
+        "correct": 48057
+      },
+      "0.0005": {
+        "accepted": 110230,
+        "correct": 48057
+      },
+      "0.001": {
+        "accepted": 110227,
+        "correct": 48057
+      },
+      "0.002": {
+        "accepted": 110222,
+        "correct": 48055
+      }
+    },
+    "selectedOn": "validation only"
+  },
+  "replay": {
+    "AlwaysWait": {
+      "policyName": "AlwaysWait",
+      "modelName": "ridge",
+      "tradeCount": 0,
+      "winRate": 0,
+      "averageReturn": 0,
+      "netReturn": 0,
+      "actionDistribution": {
+        "WAIT": 30788,
+        "BUY_SMALL": 0,
+        "BUY": 0,
+        "SELL_PART": 0,
+        "SELL_ALL": 0
+      },
+      "testOnly": true
+    },
+    "Oracle": {
+      "policyName": "Oracle",
+      "modelName": "ridge",
+      "tradeCount": 432,
+      "winRate": 0.7060185185185185,
+      "averageReturn": 0.0011790212759805099,
+      "netReturn": 42.068227059620405,
+      "actionDistribution": {
+        "WAIT": 30356,
+        "BUY_SMALL": 71,
+        "BUY": 234,
+        "SELL_PART": 0,
+        "SELL_ALL": 127
+      },
+      "testOnly": true
+    },
+    "MLValue": {
+      "policyName": "MLValue",
+      "modelName": "ridge",
+      "tradeCount": 82,
+      "winRate": 0.34146341463414637,
+      "averageReturn": 0.00032030406513135646,
+      "netReturn": 4.647623545948898,
+      "actionDistribution": {
+        "WAIT": 30706,
+        "BUY_SMALL": 45,
+        "BUY": 9,
+        "SELL_PART": 0,
+        "SELL_ALL": 28
+      },
+      "testOnly": true
+    },
+    "LegacyOHLC": {
+      "policyName": "LegacyOHLC",
+      "modelName": "ridge",
+      "tradeCount": 134,
+      "winRate": 0.41044776119402987,
+      "averageReturn": 0.00010666480221517329,
+      "netReturn": 1.136087041631134,
+      "actionDistribution": {
+        "WAIT": 25171,
+        "BUY_SMALL": 5519,
+        "BUY": 0,
+        "SELL_PART": 0,
+        "SELL_ALL": 98
+      },
+      "testOnly": true
+    }
+  },
+  "oracleDefinition": "Counterfactual Oracle uses future outcome and is offline upper-bound reference only",
+  "snapshot": {
+    "datasetHash": "9781f64db4213349b2f56e754697a41e1d347d2d2ef89066fdee6f734bf45a08",
+    "stateSchemaVersion": "ValidatedStatePriceOnlyV0.1",
+    "featureVersion": "price-only-features-v0.1",
+    "portfolioSchemaVersion": "ResearchPortfolioContextV0.1",
+    "valueTargetVersion": "NetFutureEquityDeltaV0.1",
+    "costModelVersion": "research-portfolio-cost-v0.1",
+    "modelVersion": "portfolio-aware-value-regression-v0.1",
+    "trainingConfigHash": "577bbe8309b47baefacdee1e7e894ff5514cc12d15eca6f958cb29bbc12a7a81",
+    "policyConfigHash": "d0428e3efd09722c2cff1031efb1846ef890cb8bd347a79c8b0c3251aeb7954a",
+    "modelSnapshots": {
+      "10": {
+        "mean": {
+          "modelHash": "1e59dfb0953e16629334606ff12667f2520e6374c0ae41456197a8fa9e1c5705",
+          "modelType": "action-mean",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        },
+        "ridge": {
+          "modelHash": "d5bbc5db9f9aab19c433aea703d0cc934772ab7cf66ead3ebd2a452d4694e09f",
+          "modelType": "ridge-regression",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        },
+        "tree": {
+          "modelHash": "606bf87242eed339ba3fbc5f89010fc59e7bda23222fc540cff75e47326de900",
+          "modelType": "deterministic-decision-stump",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        }
+      },
+      "30": {
+        "mean": {
+          "modelHash": "977043d55ae1e1e10d6eff275e5e9013a9999e297fcaa1bced8d6ae842e78b3c",
+          "modelType": "action-mean",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        },
+        "ridge": {
+          "modelHash": "9c5670f700eeca18fe04bd6ac9d7d8ce8895562ccd868414315658e218b46547",
+          "modelType": "ridge-regression",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        },
+        "tree": {
+          "modelHash": "0cc4a419bb95537f054c201a0130d8adfcb549a68f560181485c972ac375395f",
+          "modelType": "deterministic-decision-stump",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        }
+      },
+      "60": {
+        "mean": {
+          "modelHash": "86b1166105c9ccfd0bbc7e9e822c1915887f94ac26d88f45194be1814d6dc21d",
+          "modelType": "action-mean",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        },
+        "ridge": {
+          "modelHash": "3c5a997a9b744c8bc419fd3130c41d349d77cc5549086b198433d8ae3c9c76b0",
+          "modelType": "ridge-regression",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        },
+        "tree": {
+          "modelHash": "b0496a85d6d831831e8f2ad51a9c2a7e6f5ebd9fd9e00a4ee4dce95cf3dca2e1",
+          "modelType": "deterministic-decision-stump",
+          "trainingSampleCounts": {
+            "WAIT": 524898,
+            "BUY_SMALL": 261913,
+            "BUY": 87003,
+            "SELL_PART": 195923,
+            "SELL_ALL": 262449
+          }
+        }
+      }
+    }
+  },
+  "leakageAudit": {
+    "futureOutcomeInFeatures": false,
+    "mutationPoints": [
+      1,
+      5,
+      10,
+      30
+    ],
+    "stateFutureBlind": true,
+    "splitTimestampExclusive": true,
+    "status": "PASS"
+  },
+  "reproducibility": {
+    "runA": "9220644167ef54995e3409d19359da3262493bf3e08d922dea10e6b485c5eca6",
+    "runB": "9220644167ef54995e3409d19359da3262493bf3e08d922dea10e6b485c5eca6",
+    "identical": true
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "VALUE_MODEL_READY"
+}

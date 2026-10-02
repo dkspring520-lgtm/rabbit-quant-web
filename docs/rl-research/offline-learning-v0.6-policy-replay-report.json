@@ -1,0 +1,217 @@
+{
+  "title": "OFFLINE LEARNING V0.6 POLICY REPLAY",
+  "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+  "testRange": {
+    "start": "20251009T09:30:00",
+    "end": "20260417T15:00:00"
+  },
+  "barCount": 30848,
+  "strategies": {
+    "Expert": {
+      "totalReturn": -0.01958558,
+      "netReturn": -0.01958558,
+      "maxDrawdown": 0.19417771,
+      "winRate": 0.7105263157894737,
+      "profitFactor": 1.2561905267274376,
+      "tradeCount": 5353,
+      "turnover": 35698338.430363,
+      "averageHoldingTime": null,
+      "MAE": -0.15553822928491928,
+      "MFE": 0.07327836799492991,
+      "initialCash": 1000000,
+      "endingCash": 590789.96445195,
+      "position": 12100,
+      "fees": 39818.35503119,
+      "slippage": 7139.65319599
+    },
+    "Counterfactual": {
+      "totalReturn": -0.01958558,
+      "netReturn": -0.01958558,
+      "maxDrawdown": 0.19417771,
+      "winRate": 0.7105263157894737,
+      "profitFactor": 1.2561905267274376,
+      "tradeCount": 5353,
+      "turnover": 35698338.430363,
+      "averageHoldingTime": null,
+      "MAE": -0.15553822928491928,
+      "MFE": 0.07327836799492991,
+      "initialCash": 1000000,
+      "endingCash": 590789.96445195,
+      "position": 12100,
+      "fees": 39818.35503119,
+      "slippage": 7139.65319599
+    },
+    "AlwaysWait": {
+      "totalReturn": 0.00340374,
+      "netReturn": 0.00340374,
+      "maxDrawdown": 0.01424332,
+      "winRate": 0,
+      "profitFactor": 0,
+      "tradeCount": 0,
+      "turnover": 0,
+      "averageHoldingTime": null,
+      "MAE": 0,
+      "MFE": 0,
+      "initialCash": 1000000,
+      "endingCash": 1000000,
+      "position": 1000,
+      "fees": 0,
+      "slippage": 0
+    }
+  },
+  "actionDistribution": {
+    "Expert": {
+      "WAIT": {
+        "count": 25226,
+        "percentage": 0.8177515560165975
+      },
+      "BUY_SMALL": {
+        "count": 5524,
+        "percentage": 0.17907157676348548
+      },
+      "BUY": {
+        "count": 0,
+        "percentage": 0
+      },
+      "SELL_PART": {
+        "count": 0,
+        "percentage": 0
+      },
+      "SELL_ALL": {
+        "count": 98,
+        "percentage": 0.0031768672199170124
+      }
+    },
+    "Counterfactual": {
+      "WAIT": {
+        "count": 25226,
+        "percentage": 0.8177515560165975
+      },
+      "BUY_SMALL": {
+        "count": 5524,
+        "percentage": 0.17907157676348548
+      },
+      "BUY": {
+        "count": 0,
+        "percentage": 0
+      },
+      "SELL_PART": {
+        "count": 0,
+        "percentage": 0
+      },
+      "SELL_ALL": {
+        "count": 98,
+        "percentage": 0.0031768672199170124
+      }
+    },
+    "AlwaysWait": {
+      "WAIT": {
+        "count": 30848,
+        "percentage": 1
+      },
+      "BUY_SMALL": {
+        "count": 0,
+        "percentage": 0
+      },
+      "BUY": {
+        "count": 0,
+        "percentage": 0
+      },
+      "SELL_PART": {
+        "count": 0,
+        "percentage": 0
+      },
+      "SELL_ALL": {
+        "count": 0,
+        "percentage": 0
+      }
+    }
+  },
+  "selectedActionsHash": "a2ec6938c3212f9c7ea9578a657b66b48c1cde85086e0f1294971c1d95f31c39",
+  "constraints": {
+    "commission": 0.025,
+    "slippage": 0.02,
+    "TPlus1": true,
+    "positionLimit": true,
+    "cashLimit": true,
+    "lotSize": 100,
+    "limitUpDown": true,
+    "paperExecutionConnected": false
+  },
+  "reproducibility": {
+    "runA": "0df74acdac0b7f5270b73df02df226d88d0f270d06b3b3315e8314810055e05c",
+    "runB": "0df74acdac0b7f5270b73df02df226d88d0f270d06b3b3315e8314810055e05c",
+    "identical": true
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "gate": "POLICY_REPLAY_READY",
+  "counterfactualPolicy": {
+    "selection": "max action probability",
+    "actionScores": [
+      {
+        "timestamp": "20251009T09:30:00",
+        "selectedAction": "WAIT",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:31:00",
+        "selectedAction": "SELL_ALL",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:32:00",
+        "selectedAction": "SELL_ALL",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:33:00",
+        "selectedAction": "WAIT",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:34:00",
+        "selectedAction": "WAIT",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:35:00",
+        "selectedAction": "WAIT",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:36:00",
+        "selectedAction": "WAIT",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:37:00",
+        "selectedAction": "WAIT",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:38:00",
+        "selectedAction": "WAIT",
+        "actionScore": 0.5,
+        "confidence": 0
+      },
+      {
+        "timestamp": "20251009T09:39:00",
+        "selectedAction": "WAIT",
+        "actionScore": 0.5,
+        "confidence": 0
+      }
+    ]
+  }
+}

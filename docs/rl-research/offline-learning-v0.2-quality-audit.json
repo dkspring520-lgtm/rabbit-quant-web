@@ -1,0 +1,219 @@
+{
+  "title": "OFFLINE LEARNING V0.2 ACTION QUALITY + CONFIDENCE CALIBRATION CLOSURE AUDIT",
+  "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+  "dataset": {
+    "totalBars": 249917,
+    "totalSamples": 249917,
+    "trainCount": 174966,
+    "testCount": 30848,
+    "excludedSamples": 0
+  },
+  "labelDefinition": {
+    "horizonBars": 5,
+    "threshold": 0.001,
+    "formula": "BUY_SMALL: future/current-1; SELL_ALL: -(future/current-1); WAIT: 0",
+    "labels": {
+      "train": {
+        "GOOD": {
+          "count": 8675,
+          "percentage": 0.049581061463370026
+        },
+        "BAD": {
+          "count": 7912,
+          "percentage": 0.04522021421304711
+        },
+        "NEUTRAL": {
+          "count": 158379,
+          "percentage": 0.9051987243235828
+        }
+      },
+      "test": {
+        "GOOD": {
+          "count": 1839,
+          "percentage": 0.059614885892116186
+        },
+        "BAD": {
+          "count": 1869,
+          "percentage": 0.060587396265560166
+        },
+        "NEUTRAL": {
+          "count": 27140,
+          "percentage": 0.8797977178423236
+        }
+      }
+    }
+  },
+  "model": {
+    "modelVersion": "action-quality-v0.2",
+    "stats": {
+      "WAIT": {
+        "count": 147693,
+        "good": 0,
+        "probability": 0
+      },
+      "BUY_SMALL": {
+        "count": 27008,
+        "good": 8577,
+        "probability": 0.3175725710900474
+      },
+      "SELL_ALL": {
+        "count": 265,
+        "good": 98,
+        "probability": 0.36981132075471695
+      }
+    }
+  },
+  "testPredictions": [
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "SELL_ALL",
+      "confidence": 0.36981132075471695,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "SELL_ALL",
+      "confidence": 0.36981132075471695,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "BUY_SMALL",
+      "confidence": 0.3175725710900474,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "BUY_SMALL",
+      "confidence": 0.3175725710900474,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "BUY_SMALL",
+      "confidence": 0.3175725710900474,
+      "expectedQuality": "NOT_GOOD"
+    },
+    {
+      "expertAction": "WAIT",
+      "confidence": 0,
+      "expectedQuality": "NOT_GOOD"
+    }
+  ],
+  "replaySnapshot": {
+    "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+    "modelHash": "8f253501513924a603dab2a3df5e4442fff121c9718559d21bdf5775b07f77f4",
+    "trainCount": 174966,
+    "testCount": 30848,
+    "threshold": 0.001,
+    "predictionHash": "dc29d9676b97e18f8bae7ccca081e262b6e27eb6edf6e0df3d8e43f4df2b4388",
+    "labelHash": "6579b803a516349922e9e0925b2b30a0984a3b7d12875453ff0cebdc00bc04d1",
+    "leakage": "PASS",
+    "featureVersion": "ohlcv-features-v1",
+    "stateVersion": "state-v0.1"
+  },
+  "leakageAudit": {
+    "stateUsesFuture": false,
+    "labelUsesFutureOnly": true,
+    "trainTestOverlap": false,
+    "status": "PASS"
+  },
+  "reproducibility": {
+    "runA": {
+      "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+      "modelHash": "8f253501513924a603dab2a3df5e4442fff121c9718559d21bdf5775b07f77f4",
+      "trainCount": 174966,
+      "testCount": 30848,
+      "threshold": 0.001,
+      "predictionHash": "dc29d9676b97e18f8bae7ccca081e262b6e27eb6edf6e0df3d8e43f4df2b4388",
+      "labelHash": "6579b803a516349922e9e0925b2b30a0984a3b7d12875453ff0cebdc00bc04d1",
+      "leakage": "PASS",
+      "featureVersion": "ohlcv-features-v1",
+      "stateVersion": "state-v0.1"
+    },
+    "runB": {
+      "datasetHash": "70764e3c3fa54c14008407264915ee25704bf0070f18471539fe472a2979e825",
+      "modelHash": "8f253501513924a603dab2a3df5e4442fff121c9718559d21bdf5775b07f77f4",
+      "trainCount": 174966,
+      "testCount": 30848,
+      "threshold": 0.001,
+      "predictionHash": "dc29d9676b97e18f8bae7ccca081e262b6e27eb6edf6e0df3d8e43f4df2b4388",
+      "labelHash": "6579b803a516349922e9e0925b2b30a0984a3b7d12875453ff0cebdc00bc04d1",
+      "leakage": "PASS",
+      "featureVersion": "ohlcv-features-v1",
+      "stateVersion": "state-v0.1"
+    },
+    "identical": true
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "gate": "PASS"
+}

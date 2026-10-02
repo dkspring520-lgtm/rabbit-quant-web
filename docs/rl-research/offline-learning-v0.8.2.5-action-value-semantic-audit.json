@@ -1,0 +1,393 @@
+{
+  "title": "Offline Learning V0.8.2.5 Action Value Semantic Audit",
+  "datasetVersion": "PriceOnlyCounterfactualDatasetV0.1",
+  "stateSchemaVersion": "ValidatedStatePriceOnlyV0.1",
+  "actionDefinitions": {
+    "WAIT": {
+      "formula": "value = 0; opportunity cost is reported separately and is not assigned to WAIT",
+      "requiredInputs": [
+        "timestamp"
+      ],
+      "futureInputs": [],
+      "portfolioInputs": [],
+      "costInputs": [],
+      "economicInterpretation": "Hold the standardized notional in cash; no market return is claimed.",
+      "provenanceStatus": "PASS"
+    },
+    "BUY_SMALL": {
+      "formula": "gross = 0.5 * futureReturn + 0.25 * actionMFE + 0.25 * actionMAE; net = gross - 0.5 * (commission + slippage)",
+      "requiredInputs": [
+        "price at T",
+        "future price path",
+        "standardized notional unit"
+      ],
+      "futureInputs": [
+        "futureReturn",
+        "futureMFE",
+        "futureMAE"
+      ],
+      "portfolioInputs": [
+        "cash required for execution; absent from this market-conditional audit"
+      ],
+      "costInputs": [
+        "commission",
+        "slippage"
+      ],
+      "economicInterpretation": "Half of one declared normalized notional unit, not unlimited capital.",
+      "provenanceStatus": "MARKET_VALUE_ONLY"
+    },
+    "BUY": {
+      "formula": "gross = 1.0 * futureReturn + 0.25 * actionMFE + 0.25 * actionMAE; net = gross - 1.0 * (commission + slippage)",
+      "requiredInputs": [
+        "price at T",
+        "future price path",
+        "standardized notional unit"
+      ],
+      "futureInputs": [
+        "futureReturn",
+        "futureMFE",
+        "futureMAE"
+      ],
+      "portfolioInputs": [
+        "cash required for execution; absent from this market-conditional audit"
+      ],
+      "costInputs": [
+        "commission",
+        "slippage"
+      ],
+      "economicInterpretation": "One declared normalized notional unit, not unlimited capital.",
+      "provenanceStatus": "MARKET_VALUE_ONLY"
+    },
+    "SELL_PART": {
+      "formula": "undefined without an existing long position and a specified sellable fraction",
+      "requiredInputs": [
+        "price at T",
+        "position",
+        "sellablePosition",
+        "partial fraction"
+      ],
+      "futureInputs": [
+        "futureReturn",
+        "futureMFE",
+        "futureMAE"
+      ],
+      "portfolioInputs": [
+        "position",
+        "sellablePosition",
+        "T+1 inventory"
+      ],
+      "costInputs": [
+        "commission",
+        "slippage"
+      ],
+      "economicInterpretation": "Partial reduction of an existing long; cannot be represented by simply negating futureReturn.",
+      "provenanceStatus": "PORTFOLIO_CONTEXT_REQUIRED"
+    },
+    "SELL_ALL": {
+      "formula": "undefined without an existing long position and sellable quantity",
+      "requiredInputs": [
+        "price at T",
+        "position",
+        "sellablePosition"
+      ],
+      "futureInputs": [
+        "futureReturn",
+        "futureMFE",
+        "futureMAE"
+      ],
+      "portfolioInputs": [
+        "position",
+        "sellablePosition",
+        "T+1 inventory"
+      ],
+      "costInputs": [
+        "commission",
+        "slippage"
+      ],
+      "economicInterpretation": "Liquidation of an existing long; invalid when no position context exists.",
+      "provenanceStatus": "PORTFOLIO_CONTEXT_REQUIRED"
+    }
+  },
+  "actionApplicability": {
+    "WAIT": {
+      "applicable": true,
+      "applicabilityReason": "cash hold has value 0"
+    },
+    "BUY_SMALL": {
+      "applicable": true,
+      "applicabilityReason": "market-conditional normalized 0.5 notional; execution cash not modeled"
+    },
+    "BUY": {
+      "applicable": true,
+      "applicabilityReason": "market-conditional normalized 1.0 notional; execution cash not modeled"
+    },
+    "SELL_PART": {
+      "applicable": false,
+      "applicabilityReason": "NO_POSITION_CONTEXT; PORTFOLIO_CONTEXT_REQUIRED"
+    },
+    "SELL_ALL": {
+      "applicable": false,
+      "applicabilityReason": "NO_POSITION_CONTEXT; PORTFOLIO_CONTEXT_REQUIRED"
+    }
+  },
+  "costAudit": {
+    "config": {
+      "commissionRate": 0.00025,
+      "slippageRate": 0.0002,
+      "mfeWeight": 0.25,
+      "maeWeight": 0.25,
+      "lowMarginThreshold": 0.0005,
+      "costModelVersion": "price-only-cost-v0.1"
+    },
+    "monotonic": true,
+    "sensitivity": [
+      {
+        "rate": 0,
+        "buySmallNet": 0.005,
+        "buyNet": 0.01
+      },
+      {
+        "rate": 0.0001,
+        "buySmallNet": 0.0049,
+        "buyNet": 0.0098
+      },
+      {
+        "rate": 0.00025,
+        "buySmallNet": 0.00475,
+        "buyNet": 0.0095
+      },
+      {
+        "rate": 0.001,
+        "buySmallNet": 0.004,
+        "buyNet": 0.008
+      }
+    ],
+    "existingV0824RankingFlips": 14818,
+    "interpretation": "Prior ranking flips are cost effects only for actions with a valid normalized exposure; sell rankings must not be treated as executable without portfolio context."
+  },
+  "horizonAudit": {
+    "definition": "future trading bars, not wall-clock minutes",
+    "horizons": {
+      "10m": "next 10 observed 1m bars",
+      "30m": "next 30 observed 1m bars",
+      "60m": "next 60 observed 1m bars"
+    },
+    "lunchBreak": "11:30 to 13:01 is a sequence gap, not 91 synthetic bars",
+    "crossTradingDay": "allowed by configuration when next observed bars are on the next trading day",
+    "missingBars": "not fabricated; unresolved only when the required observed future bar is absent",
+    "outcomeCoverage30m": {
+      "resolved": 249887,
+      "unresolved": 30
+    },
+    "boundaries": [
+      {
+        "previous": "2022-01-04T11:30:00",
+        "current": "2022-01-04T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-04T15:00:00",
+        "current": "2022-01-05T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-05T11:30:00",
+        "current": "2022-01-05T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-05T15:00:00",
+        "current": "2022-01-06T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-06T11:30:00",
+        "current": "2022-01-06T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-06T15:00:00",
+        "current": "2022-01-07T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-07T11:30:00",
+        "current": "2022-01-07T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-07T15:00:00",
+        "current": "2022-01-10T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-10T11:30:00",
+        "current": "2022-01-10T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-10T15:00:00",
+        "current": "2022-01-11T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-11T11:30:00",
+        "current": "2022-01-11T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-11T15:00:00",
+        "current": "2022-01-12T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-12T11:30:00",
+        "current": "2022-01-12T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-12T15:00:00",
+        "current": "2022-01-13T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-13T11:30:00",
+        "current": "2022-01-13T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-13T15:00:00",
+        "current": "2022-01-14T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-14T11:30:00",
+        "current": "2022-01-14T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-14T15:00:00",
+        "current": "2022-01-17T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      },
+      {
+        "previous": "2022-01-17T11:30:00",
+        "current": "2022-01-17T13:01:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": true
+      },
+      {
+        "previous": "2022-01-17T15:00:00",
+        "current": "2022-01-18T09:30:00",
+        "acceptedAsNextBar": true,
+        "lunchBreak": false
+      }
+    ],
+    "boundaryCount": 2073
+  },
+  "outcomeAudit": {
+    "fixturePaths": {
+      "rising": {
+        "up": true,
+        "buy": 0.009550000000000008,
+        "wait": 0,
+        "sellPart": null,
+        "sellAll": null
+      },
+      "falling": {
+        "up": false,
+        "buy": -0.01045000000000001,
+        "wait": 0,
+        "sellPart": null,
+        "sellAll": null
+      },
+      "vReversal": {
+        "up": true,
+        "buy": 0.009550000000000008,
+        "wait": 0,
+        "sellPart": null,
+        "sellAll": null
+      },
+      "fallThenRise": {
+        "up": true,
+        "buy": 0.009550000000000008,
+        "wait": 0,
+        "sellPart": null,
+        "sellAll": null
+      },
+      "riseThenFall": {
+        "up": false,
+        "buy": -0.01045000000000001,
+        "wait": 0,
+        "sellPart": null,
+        "sellAll": null
+      },
+      "flat": {
+        "up": false,
+        "buy": -0.00045,
+        "wait": 0,
+        "sellPart": null,
+        "sellAll": null
+      }
+    },
+    "directionCheck": "BUY value follows endpoint return; SELL values are intentionally undefined without a long position",
+    "futureFieldsExcludedFromState": true
+  },
+  "noArbitrageAudit": {
+    "status": "PASS",
+    "sellActionsRequirePosition": true,
+    "fixturesChecked": [
+      "rising",
+      "falling",
+      "vReversal",
+      "fallThenRise",
+      "riseThenFall",
+      "flat"
+    ]
+  },
+  "rankingAudit": {
+    "lowMarginRemainsOutcomeDependent": true,
+    "valueAnomalyDetected": false,
+    "note": "A ranking is not executable when its selected sell action is inapplicable."
+  },
+  "portfolioContext": {
+    "requiredFor": [
+      "SELL_PART",
+      "SELL_ALL",
+      "actual cash-constrained BUY execution"
+    ],
+    "missingFields": [
+      "cash",
+      "position",
+      "sellablePosition",
+      "T+1 inventory",
+      "positionCost"
+    ],
+    "status": "PORTFOLIO_CONTEXT_REQUIRED"
+  },
+  "legacyExpertLabel": "excluded; LEGACY_OHLC_EXPERT_BENCHMARK only",
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "RESEARCH_BLOCKED"
+}

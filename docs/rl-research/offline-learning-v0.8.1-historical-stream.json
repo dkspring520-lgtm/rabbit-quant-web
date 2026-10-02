@@ -1,0 +1,304 @@
+{
+  "title": "OFFLINE LEARNING V0.8.1 HISTORICAL STREAM VALIDATION",
+  "inputFile": "C:/Users/dkspr/Documents/我的网站/.data-inspect/zijin-601899-2022-2026.jsonl",
+  "sourceMode": "HISTORICAL_STREAM_SIMULATION",
+  "realLiveShadow": false,
+  "streamBarCount": 249917,
+  "decisionCount": 249917,
+  "decisionLogHash": "6fb7faf51bdd5866e09ecdbf8f65539514cfb41ca2bf4029234574116610b934",
+  "decisionLog": [
+    {
+      "timestamp": "2022-01-04T09:30:00",
+      "stateHash": "f8cf48c825d7daaebe14380e8854ab43394fd3fc4a77c72f5400f9af80ed8034",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:31:00",
+      "stateHash": "d901102465f68752391b1b1f3c5d6b90c3cef28a5785988818738f142de8e6c4",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:32:00",
+      "stateHash": "5c80feec7bd3caada1ba76cae581a6506ebb22a70008364dc8ea3056178875d8",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:33:00",
+      "stateHash": "806f75b6246b12ebec8f8aa0fef3300e77323d250867d7834819114869bb3cf4",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:34:00",
+      "stateHash": "fe60848185f097743c8e653f5578d853850be57db11fe919443a9b8f267f1c6a",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:35:00",
+      "stateHash": "8b1250950561edbb668cd7db2b3c9a7ea2a12e20af3c6720e29892a5abe95d3f",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:36:00",
+      "stateHash": "5364633ac34c849377e824aa64d71d668c6667b4d29f0f4ff124a98f3d73c737",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:37:00",
+      "stateHash": "c4cfbcee8b3c33ab32607d7fa7ba8c8d30fb7f02b035afe353829e62996a3f2d",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:38:00",
+      "stateHash": "732a5fe7cd20689660f4413f84f049afcedf770efbaadab87c06b3ba1fe5f381",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:39:00",
+      "stateHash": "3a684b760918e5ebd8fde8e41b3f57f515f6de69f00a8781787079e3d73b3152",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:40:00",
+      "stateHash": "7db87d72d3b5c195460dd27512f560944477495c18212d36f370af48ed7fb772",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:41:00",
+      "stateHash": "c3131b4a5bbc89c59804e4b7ae59c0fee2f20785973059b4a0249e95b6bac6a1",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:42:00",
+      "stateHash": "5fea88986bad041c1c3f22ff6bd1f6551262e2adb85a1223b68127056dede9fc",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:43:00",
+      "stateHash": "3696544c95e5bb5538a007e7532c912ab221799d33f3b6c03cda8689ba0107dc",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:44:00",
+      "stateHash": "fe1422c2531c01a65b234f424d9ae618f03f4c8ffbd559f8311b42ae6d1dfdc2",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:45:00",
+      "stateHash": "26a7506024674746b31f00b3a149b50d6c89a8bd71e66d9a27ba8eeb8df4f30e",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:46:00",
+      "stateHash": "c5ed1eda8eee06cf342ea729cf7c9791fd7f2c3e102db22bf21e6edb87544443",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:47:00",
+      "stateHash": "97db4e8d6bea4aa00f6eb3b06f212c66612f4ea078fb98460dbf96061336a776",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:48:00",
+      "stateHash": "1e27642d77c66d9f3a0a3192f2cfe21c4c704240fa557d380e16e3a3f785244b",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    },
+    {
+      "timestamp": "2022-01-04T09:49:00",
+      "stateHash": "a3595502a82a452339dcba133824d73c500c90c385ed112867e9feff96eab63a",
+      "selectedAction": "WAIT",
+      "actionScore": 1,
+      "confidence": 0,
+      "modelVersion": "action-ranking-v0.5",
+      "featureVersion": "price-only-stream-v0.8.1",
+      "datasetVersion": "DATA-07",
+      "sourceMode": "HISTORICAL_STREAM_SIMULATION"
+    }
+  ],
+  "actionDistribution": {
+    "WAIT": {
+      "count": 249917,
+      "percentage": 1
+    },
+    "BUY_SMALL": {
+      "count": 0,
+      "percentage": 0
+    },
+    "BUY": {
+      "count": 0,
+      "percentage": 0
+    },
+    "SELL_PART": {
+      "count": 0,
+      "percentage": 0
+    },
+    "SELL_ALL": {
+      "count": 0,
+      "percentage": 0
+    }
+  },
+  "dataGaps": [],
+  "sourceEvents": [],
+  "futureBlindAudit": {
+    "mutationResults": [
+      {
+        "offset": 1,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 5,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 10,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 30,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      }
+    ],
+    "usesFutureFields": false
+  },
+  "replayReconciliation": {
+    "actionSequenceIdentical": true,
+    "stateHashIdentical": true,
+    "scoreDeviation": 0,
+    "confidenceDeviation": 0
+  },
+  "priceOnlyHandling": {
+    "openHighLowCloseFabricated": false,
+    "usesExistingData07Normalization": false
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "HISTORICAL_STREAM_READY"
+}

@@ -1,0 +1,128 @@
+{
+  "title": "Offline Learning V0.8.2.2 Price-Only State",
+  "input": ".data-inspect/zijin-601899-2022-2026.jsonl",
+  "sourceMode": "HISTORICAL_STREAM_SIMULATION",
+  "processedBars": 249917,
+  "stateSchemaVersion": "ValidatedStatePriceOnlyV0.1",
+  "featureVersion": "price-only-features-v0.1",
+  "streamingVersion": "price-only-streaming-v0.2",
+  "datasetHash": "25d40b963337d67da5f40581e6505a3d3c96911b4758a69950257bdab8b54b99",
+  "processing": {
+    "processingMs": 2128.2,
+    "barsPerSecond": 117431,
+    "peakHeapUsedMb": 485.48,
+    "benchmarks": [
+      {
+        "bars": 10000,
+        "processingMs": 80.38,
+        "barsPerSecond": 124402
+      },
+      {
+        "bars": 50000,
+        "processingMs": 381.59,
+        "barsPerSecond": 131030
+      },
+      {
+        "bars": 100000,
+        "processingMs": 757.73,
+        "barsPerSecond": 131973
+      },
+      {
+        "bars": 249917,
+        "processingMs": 2012.53,
+        "barsPerSecond": 124181
+      }
+    ]
+  },
+  "featureEquivalence": {
+    "tolerance": 1e-12,
+    "checkedBars": 14,
+    "mismatchCount": 0,
+    "maxAbsoluteDiff": 0,
+    "firstMismatch": null,
+    "status": "PASS"
+  },
+  "stateEquivalence": {
+    "checkedBars": 14,
+    "featureValuesEquivalent": true,
+    "schemaEquivalent": true,
+    "status": "PASS"
+  },
+  "featureProvenance": {
+    "status": "PASS",
+    "usesFutureData": false,
+    "syntheticOHLC": false,
+    "excludedFields": [
+      "open",
+      "high",
+      "low",
+      "upperWickRatio",
+      "lowerWickRatio",
+      "bodyRatio",
+      "amount"
+    ]
+  },
+  "futureBlindAudit": {
+    "status": "PASS",
+    "mutationOffsets": [
+      {
+        "offset": 1,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 5,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 10,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 30,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      }
+    ]
+  },
+  "reproducibilityAudit": {
+    "status": "PASS",
+    "datasetHashRunA": "25d40b963337d67da5f40581e6505a3d3c96911b4758a69950257bdab8b54b99",
+    "datasetHashRunB": "25d40b963337d67da5f40581e6505a3d3c96911b4758a69950257bdab8b54b99",
+    "identical": true
+  },
+  "modelRetraining": {
+    "status": "BLOCKED",
+    "reason": "Price-only stream contains no formally defined Expert Action label source; old OHLC Expert labels and snapshots cannot be reused without violating the Price-Only contract."
+  },
+  "comparison": {
+    "oldStateSchema": "ValidatedStateV0.1",
+    "newStateSchema": "ValidatedStatePriceOnlyV0.1",
+    "deletedFeatures": [
+      "open",
+      "high",
+      "low",
+      "upperWickRatio",
+      "lowerWickRatio",
+      "bodyRatio",
+      "amount"
+    ],
+    "syntheticOHLC": "excluded"
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "RESEARCH_BLOCKED"
+}

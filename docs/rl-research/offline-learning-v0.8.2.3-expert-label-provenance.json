@@ -1,0 +1,333 @@
+{
+  "title": "Offline Learning V0.8.2.3 Expert Action Label Provenance Audit",
+  "dataset": {
+    "source": "C:/Users/dkspr/AppData/Local/Temp/data07-bars.json",
+    "symbol": "601899.SH",
+    "bars": 249917,
+    "datasetHash": "a711413e14103b643a52ea051dd977eef15946a67418eecd5c099b1c91c92a65"
+  },
+  "actionSource": {
+    "entryPoint": "runOHLCVTResearch",
+    "generator": "generateOHLCVResearchSignal",
+    "statePath": "ValidatedStateV0.1 / buildOHLCVFeatures",
+    "futureLabelPath": false
+  },
+  "dependencyGraph": {
+    "nodes": [
+      "runOHLCVTResearch",
+      "buildOHLCVFeatures",
+      "classifyOHLCVSentiment",
+      "generateOHLCVResearchSignal",
+      "OHLCV fields",
+      "VWAP/returns/volatility",
+      "trend(MA5,MA20)",
+      "positiveT",
+      "reverseT",
+      "ExpertAction"
+    ],
+    "edges": [
+      [
+        "runOHLCVTResearch",
+        "buildOHLCVFeatures"
+      ],
+      [
+        "buildOHLCVFeatures",
+        "classifyOHLCVSentiment"
+      ],
+      [
+        "buildOHLCVFeatures",
+        "generateOHLCVResearchSignal"
+      ],
+      [
+        "OHLCV fields",
+        "VWAP/returns/volatility"
+      ],
+      [
+        "OHLCV fields",
+        "trend(MA5,MA20)"
+      ],
+      [
+        "classifyOHLCVSentiment",
+        "positiveT"
+      ],
+      [
+        "classifyOHLCVSentiment",
+        "reverseT"
+      ],
+      [
+        "trend(MA5,MA20)",
+        "positiveT"
+      ],
+      [
+        "VWAP/returns/volatility",
+        "positiveT"
+      ],
+      [
+        "OHLCV fields",
+        "positiveT"
+      ],
+      [
+        "OHLCV fields",
+        "reverseT"
+      ],
+      [
+        "positiveT",
+        "ExpertAction"
+      ],
+      [
+        "reverseT",
+        "ExpertAction"
+      ]
+    ]
+  },
+  "fieldProvenance": [
+    {
+      "fieldName": "open",
+      "source": "bar.open",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "raw DATA-07 OHLC; fallback p.open ?? p.close",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "INVALID_FOR_PRICE_ONLY"
+    },
+    {
+      "fieldName": "high",
+      "source": "bar.high",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "raw DATA-07 OHLC; fallback p.high ?? p.close",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "INVALID_FOR_PRICE_ONLY"
+    },
+    {
+      "fieldName": "low",
+      "source": "bar.low",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "raw DATA-07 OHLC; fallback p.low ?? p.close",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "INVALID_FOR_PRICE_ONLY"
+    },
+    {
+      "fieldName": "close",
+      "source": "bar.close",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "raw DATA-07 close (or price fallback)",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "PASS_ON_DATA07_ONLY"
+    },
+    {
+      "fieldName": "price",
+      "source": "bar.price",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "raw price",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "AVAILABLE_PRICE_ONLY"
+    },
+    {
+      "fieldName": "volume",
+      "source": "bar.volume",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "raw volume",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "AVAILABLE_PRICE_ONLY"
+    },
+    {
+      "fieldName": "amount",
+      "source": "bar.amount",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "raw amount required for amount/volume VWAP",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "FIELD_UNAVAILABLE_PRICE_ONLY"
+    },
+    {
+      "fieldName": "VWAP",
+      "source": "amount, volume, close",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "amount / volume and cumulative amount / volume",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "INVALID_FOR_PRICE_ONLY"
+    },
+    {
+      "fieldName": "return",
+      "source": "close/price",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "current divided by prior price minus one",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "AVAILABLE_PRICE_ONLY"
+    },
+    {
+      "fieldName": "volatility",
+      "source": "close/price returns",
+      "stateVersion": "ValidatedStateV0.1 / PriceOnlyV0.1",
+      "derivedFrom": "rolling causal return dispersion",
+      "usesFutureData": false,
+      "lookback": "current and causal prior rows",
+      "futureWindow": null,
+      "portfolioDependency": false,
+      "provenanceStatus": "AVAILABLE_PRICE_ONLY"
+    },
+    {
+      "fieldName": "futureReturn",
+      "source": "future close/price",
+      "stateVersion": "label-only",
+      "derivedFrom": "future outcome resolver only",
+      "usesFutureData": true,
+      "lookback": "current and causal prior rows",
+      "futureWindow": "label horizon only",
+      "portfolioDependency": false,
+      "provenanceStatus": "NOT_USED_BY_OLD_EXPERT_ACTION"
+    },
+    {
+      "fieldName": "futureHigh",
+      "source": "future high",
+      "stateVersion": "label-only",
+      "derivedFrom": "MFE resolver only",
+      "usesFutureData": true,
+      "lookback": "current and causal prior rows",
+      "futureWindow": "label horizon only",
+      "portfolioDependency": false,
+      "provenanceStatus": "NOT_USED_BY_OLD_EXPERT_ACTION"
+    },
+    {
+      "fieldName": "futureLow",
+      "source": "future low",
+      "stateVersion": "label-only",
+      "derivedFrom": "MAE resolver only",
+      "usesFutureData": true,
+      "lookback": "current and causal prior rows",
+      "futureWindow": "label horizon only",
+      "portfolioDependency": false,
+      "provenanceStatus": "NOT_USED_BY_OLD_EXPERT_ACTION"
+    },
+    {
+      "fieldName": "MFE",
+      "source": "future high path",
+      "stateVersion": "label-only",
+      "derivedFrom": "future outcome resolver only",
+      "usesFutureData": true,
+      "lookback": "current and causal prior rows",
+      "futureWindow": "label horizon only",
+      "portfolioDependency": false,
+      "provenanceStatus": "NOT_USED_BY_OLD_EXPERT_ACTION"
+    },
+    {
+      "fieldName": "MAE",
+      "source": "future low path",
+      "stateVersion": "label-only",
+      "derivedFrom": "future outcome resolver only",
+      "usesFutureData": true,
+      "lookback": "current and causal prior rows",
+      "futureWindow": "label horizon only",
+      "portfolioDependency": false,
+      "provenanceStatus": "NOT_USED_BY_OLD_EXPERT_ACTION"
+    }
+  ],
+  "actionSemantics": {
+    "WAIT": "default when neither positiveT nor reverseT passes",
+    "BUY_SMALL": "positiveT with score < 70",
+    "BUY": "positiveT with score >= 70",
+    "SELL_PART": "reverseT with score < 75",
+    "SELL_ALL": "reverseT with score >= 75",
+    "sizing": "action only; quantity is downstream",
+    "portfolioState": "not read by label generator"
+  },
+  "labelQuality": {
+    "all": {
+      "WAIT": 209583,
+      "BUY_SMALL": 39892,
+      "BUY": 0,
+      "SELL_PART": 0,
+      "SELL_ALL": 442
+    },
+    "train": {
+      "WAIT": 147693,
+      "BUY_SMALL": 27008,
+      "BUY": 0,
+      "SELL_PART": 0,
+      "SELL_ALL": 265
+    },
+    "validation": {
+      "WAIT": 36664,
+      "BUY_SMALL": 7360,
+      "BUY": 0,
+      "SELL_PART": 0,
+      "SELL_ALL": 79
+    },
+    "test": {
+      "WAIT": 25226,
+      "BUY_SMALL": 5524,
+      "BUY": 0,
+      "SELL_PART": 0,
+      "SELL_ALL": 98
+    },
+    "duplicateTimestampCount": 0,
+    "actionRunCount": 37979,
+    "maxConsecutiveByAction": {
+      "WAIT": 130,
+      "BUY_SMALL": 10,
+      "BUY": 0,
+      "SELL_PART": 0,
+      "SELL_ALL": 5
+    }
+  },
+  "futureDataAudit": {
+    "actionGenerationUsesFutureData": false,
+    "futureReturnOnlyLabelGenerationAllowed": true,
+    "futureFieldsUsedByOldExpertAction": [],
+    "status": "PASS"
+  },
+  "portfolioAudit": {
+    "fieldsChecked": [
+      "cash",
+      "position",
+      "positionCost",
+      "sellablePosition",
+      "availableCash",
+      "T+1 inventory",
+      "holding size"
+    ],
+    "usedByExpertAction": false,
+    "priceOnlyStateContainsPortfolioContext": false,
+    "status": "NOT_REQUIRED_FOR_CURRENT_LABEL"
+  },
+  "priceOnlyMigration": {
+    "usesRawOHLCOnData07": true,
+    "syntheticFallbackPathExists": true,
+    "syntheticFallbackUsedOnData07": false,
+    "missingAmountForVWAP": true,
+    "missingOpenHighLow": true,
+    "decision": "OLD_EXPERT_LABEL_INVALID",
+    "reason": "DATA-07 labels use raw OHLC, but ValidatedStatePriceOnlyV0.1 cannot provide the same OHLC and amount-derived VWAP inputs."
+  },
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "OLD_EXPERT_LABEL_INVALID"
+}

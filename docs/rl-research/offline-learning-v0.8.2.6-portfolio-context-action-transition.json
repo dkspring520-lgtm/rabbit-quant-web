@@ -1,0 +1,748 @@
+{
+  "title": "Offline Learning V0.8.2.6 Portfolio Context + Action Transition Contract",
+  "contextVersion": "ResearchPortfolioContextV0.1",
+  "notionalUnitVersion": "ResearchNotionalUnitV0.1",
+  "actionConfig": {
+    "notionalUnit": 10000,
+    "buySmallUnits": 0.5,
+    "buyUnits": 1,
+    "sellPartFraction": 0.25,
+    "lotSize": 100,
+    "commissionRate": 0.00025,
+    "slippageRate": 0.0002,
+    "executionPrice": "price(T)",
+    "costVersion": "research-portfolio-cost-v0.1",
+    "actionConfigHash": "d0428e3efd09722c2cff1031efb1846ef890cb8bd347a79c8b0c3251aeb7954a"
+  },
+  "marketStateIsolation": {
+    "portfolioFieldsAddedToValidatedStatePriceOnly": false,
+    "status": "PASS"
+  },
+  "executionConvention": {
+    "selected": "price(T) then directional slippage",
+    "source": "existing project paper execution convention uses observation price and directional slippage",
+    "status": "PASS"
+  },
+  "portfolioSchema": {
+    "cash": "non-negative research currency",
+    "position": "sum of lot remainingQuantity",
+    "sellablePosition": "sum of lots whose sellableAt <= tradeDate",
+    "averageCost": "weighted lot costBasis",
+    "totalEquity": "cash + positionValue",
+    "positionValue": "position * current price",
+    "lots": [
+      "acquiredAt",
+      "quantity",
+      "remainingQuantity",
+      "sellableQuantity",
+      "sellableAt",
+      "costBasis"
+    ]
+  },
+  "actionSemantics": {
+    "WAIT": "no transition",
+    "BUY_SMALL": "0.5 * 10,000 normalized notional, rounded down to 100-share lot",
+    "BUY": "1.0 * 10,000 normalized notional, rounded down to 100-share lot",
+    "SELL_PART": "25% of sellablePosition, rounded down to 100-share lot",
+    "SELL_ALL": "all sellablePosition, rounded down to 100-share lot"
+  },
+  "transitions": {
+    "WAIT": {
+      "applicable": true,
+      "applicabilityReason": "NO_POSITION_OR_CASH_CHANGE",
+      "requestedQuantity": 0,
+      "executedQuantity": 0,
+      "executionPrice": 10,
+      "commission": 0,
+      "slippage": 0,
+      "cashDelta": 0,
+      "positionDelta": 0,
+      "sellablePositionDelta": 0,
+      "beforeContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 100000,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 100000,
+        "positionValue": 0,
+        "lots": []
+      },
+      "action": "WAIT",
+      "afterContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 100000,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 100000,
+        "positionValue": 0,
+        "lots": []
+      },
+      "actionConfigHash": "d0428e3efd09722c2cff1031efb1846ef890cb8bd347a79c8b0c3251aeb7954a"
+    },
+    "BUY_SMALL": {
+      "applicable": true,
+      "applicabilityReason": "EXECUTABLE_SINGLE_STEP",
+      "requestedQuantity": 500,
+      "executedQuantity": 500,
+      "executionPrice": 10.002,
+      "commission": 1.25025,
+      "slippage": 1,
+      "cashDelta": -5002.25025,
+      "positionDelta": 500,
+      "sellablePositionDelta": 0,
+      "beforeContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 100000,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 100000,
+        "positionValue": 0,
+        "lots": []
+      },
+      "action": "BUY_SMALL",
+      "afterContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 94997.74975,
+        "position": 500,
+        "sellablePosition": 0,
+        "todayBought": 500,
+        "averageCost": 10.004500499999999,
+        "totalEquity": 99997.74975,
+        "positionValue": 5000,
+        "lots": [
+          {
+            "acquiredAt": "20260417",
+            "quantity": 500,
+            "remainingQuantity": 500,
+            "sellableQuantity": 0,
+            "sellableAt": "20260420",
+            "costBasis": 10.004500499999999
+          }
+        ]
+      },
+      "actionConfigHash": "d0428e3efd09722c2cff1031efb1846ef890cb8bd347a79c8b0c3251aeb7954a"
+    },
+    "BUY": {
+      "applicable": true,
+      "applicabilityReason": "EXECUTABLE_SINGLE_STEP",
+      "requestedQuantity": 1000,
+      "executedQuantity": 1000,
+      "executionPrice": 10.002,
+      "commission": 2.5005,
+      "slippage": 2,
+      "cashDelta": -10004.5005,
+      "positionDelta": 1000,
+      "sellablePositionDelta": 0,
+      "beforeContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 100000,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 100000,
+        "positionValue": 0,
+        "lots": []
+      },
+      "action": "BUY",
+      "afterContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 89995.4995,
+        "position": 1000,
+        "sellablePosition": 0,
+        "todayBought": 1000,
+        "averageCost": 10.004500499999999,
+        "totalEquity": 99995.4995,
+        "positionValue": 10000,
+        "lots": [
+          {
+            "acquiredAt": "20260417",
+            "quantity": 1000,
+            "remainingQuantity": 1000,
+            "sellableQuantity": 0,
+            "sellableAt": "20260420",
+            "costBasis": 10.004500499999999
+          }
+        ]
+      },
+      "actionConfigHash": "d0428e3efd09722c2cff1031efb1846ef890cb8bd347a79c8b0c3251aeb7954a"
+    },
+    "SELL_PART": {
+      "applicable": false,
+      "applicabilityReason": "NO_SELLABLE_POSITION",
+      "requestedQuantity": 0,
+      "executedQuantity": 0,
+      "executionPrice": null,
+      "commission": 0,
+      "slippage": 0,
+      "cashDelta": 0,
+      "positionDelta": 0,
+      "sellablePositionDelta": 0,
+      "beforeContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 100000,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 100000,
+        "positionValue": 0,
+        "lots": []
+      },
+      "action": "SELL_PART",
+      "afterContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 100000,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 100000,
+        "positionValue": 0,
+        "lots": []
+      }
+    },
+    "SELL_ALL": {
+      "applicable": false,
+      "applicabilityReason": "NO_SELLABLE_POSITION",
+      "requestedQuantity": 0,
+      "executedQuantity": 0,
+      "executionPrice": null,
+      "commission": 0,
+      "slippage": 0,
+      "cashDelta": 0,
+      "positionDelta": 0,
+      "sellablePositionDelta": 0,
+      "beforeContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 100000,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 100000,
+        "positionValue": 0,
+        "lots": []
+      },
+      "action": "SELL_ALL",
+      "afterContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 100000,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 100000,
+        "positionValue": 0,
+        "lots": []
+      }
+    }
+  },
+  "sellableTransitions": {
+    "SELL_PART": {
+      "applicable": true,
+      "applicabilityReason": "EXECUTABLE_SINGLE_STEP",
+      "requestedQuantity": 2500,
+      "executedQuantity": 2500,
+      "executionPrice": 9.998,
+      "commission": 6.24875,
+      "slippage": 5,
+      "cashDelta": 24988.75125,
+      "positionDelta": -2500,
+      "sellablePositionDelta": -2500,
+      "beforeContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 0,
+        "position": 10000,
+        "sellablePosition": 10000,
+        "todayBought": 0,
+        "averageCost": 9,
+        "totalEquity": 100000,
+        "positionValue": 100000,
+        "lots": [
+          {
+            "acquiredAt": "20260416",
+            "quantity": 10000,
+            "remainingQuantity": 10000,
+            "sellableQuantity": 10000,
+            "sellableAt": "20260416",
+            "costBasis": 9
+          }
+        ]
+      },
+      "action": "SELL_PART",
+      "afterContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 24988.75125,
+        "position": 7500,
+        "sellablePosition": 7500,
+        "todayBought": 0,
+        "averageCost": 9,
+        "totalEquity": 99988.75125,
+        "positionValue": 75000,
+        "lots": [
+          {
+            "acquiredAt": "20260416",
+            "quantity": 10000,
+            "remainingQuantity": 7500,
+            "sellableQuantity": 7500,
+            "sellableAt": "20260416",
+            "costBasis": 9
+          }
+        ]
+      },
+      "actionConfigHash": "d0428e3efd09722c2cff1031efb1846ef890cb8bd347a79c8b0c3251aeb7954a"
+    },
+    "SELL_ALL": {
+      "applicable": true,
+      "applicabilityReason": "EXECUTABLE_SINGLE_STEP",
+      "requestedQuantity": 10000,
+      "executedQuantity": 10000,
+      "executionPrice": 9.998,
+      "commission": 24.995,
+      "slippage": 20,
+      "cashDelta": 99955.005,
+      "positionDelta": -10000,
+      "sellablePositionDelta": -10000,
+      "beforeContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 0,
+        "position": 10000,
+        "sellablePosition": 10000,
+        "todayBought": 0,
+        "averageCost": 9,
+        "totalEquity": 100000,
+        "positionValue": 100000,
+        "lots": [
+          {
+            "acquiredAt": "20260416",
+            "quantity": 10000,
+            "remainingQuantity": 10000,
+            "sellableQuantity": 10000,
+            "sellableAt": "20260416",
+            "costBasis": 9
+          }
+        ]
+      },
+      "action": "SELL_ALL",
+      "afterContext": {
+        "contextVersion": "ResearchPortfolioContextV0.1",
+        "symbol": "601899.SH",
+        "tradeDate": "20260417",
+        "cash": 99955.005,
+        "position": 0,
+        "sellablePosition": 0,
+        "todayBought": 0,
+        "averageCost": null,
+        "totalEquity": 99955.005,
+        "positionValue": 0,
+        "lots": []
+      },
+      "actionConfigHash": "d0428e3efd09722c2cff1031efb1846ef890cb8bd347a79c8b0c3251aeb7954a"
+    }
+  },
+  "fixtures": {
+    "fixtureA": {
+      "position": 0,
+      "SELL_PART": {
+        "applicable": false,
+        "applicabilityReason": "NO_SELLABLE_POSITION",
+        "requestedQuantity": 0,
+        "executedQuantity": 0,
+        "executionPrice": null,
+        "commission": 0,
+        "slippage": 0,
+        "cashDelta": 0,
+        "positionDelta": 0,
+        "sellablePositionDelta": 0,
+        "beforeContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 100000,
+          "position": 0,
+          "sellablePosition": 0,
+          "todayBought": 0,
+          "averageCost": null,
+          "totalEquity": 100000,
+          "positionValue": 0,
+          "lots": []
+        },
+        "action": "SELL_PART",
+        "afterContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 100000,
+          "position": 0,
+          "sellablePosition": 0,
+          "todayBought": 0,
+          "averageCost": null,
+          "totalEquity": 100000,
+          "positionValue": 0,
+          "lots": []
+        }
+      },
+      "SELL_ALL": {
+        "applicable": false,
+        "applicabilityReason": "NO_SELLABLE_POSITION",
+        "requestedQuantity": 0,
+        "executedQuantity": 0,
+        "executionPrice": null,
+        "commission": 0,
+        "slippage": 0,
+        "cashDelta": 0,
+        "positionDelta": 0,
+        "sellablePositionDelta": 0,
+        "beforeContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 100000,
+          "position": 0,
+          "sellablePosition": 0,
+          "todayBought": 0,
+          "averageCost": null,
+          "totalEquity": 100000,
+          "positionValue": 0,
+          "lots": []
+        },
+        "action": "SELL_ALL",
+        "afterContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 100000,
+          "position": 0,
+          "sellablePosition": 0,
+          "todayBought": 0,
+          "averageCost": null,
+          "totalEquity": 100000,
+          "positionValue": 0,
+          "lots": []
+        }
+      }
+    },
+    "fixtureB": {
+      "position": 10000,
+      "sellablePosition": 0,
+      "SELL_PART": {
+        "applicable": false,
+        "applicabilityReason": "NO_SELLABLE_POSITION",
+        "requestedQuantity": 0,
+        "executedQuantity": 0,
+        "executionPrice": null,
+        "commission": 0,
+        "slippage": 0,
+        "cashDelta": 0,
+        "positionDelta": 0,
+        "sellablePositionDelta": 0,
+        "beforeContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 0,
+          "position": 10000,
+          "sellablePosition": 0,
+          "todayBought": 10000,
+          "averageCost": 9,
+          "totalEquity": 100000,
+          "positionValue": 100000,
+          "lots": [
+            {
+              "acquiredAt": "20260417",
+              "quantity": 10000,
+              "remainingQuantity": 10000,
+              "sellableQuantity": 0,
+              "sellableAt": "20260420",
+              "costBasis": 9
+            }
+          ]
+        },
+        "action": "SELL_PART",
+        "afterContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 0,
+          "position": 10000,
+          "sellablePosition": 0,
+          "todayBought": 10000,
+          "averageCost": 9,
+          "totalEquity": 100000,
+          "positionValue": 100000,
+          "lots": [
+            {
+              "acquiredAt": "20260417",
+              "quantity": 10000,
+              "remainingQuantity": 10000,
+              "sellableQuantity": 0,
+              "sellableAt": "20260420",
+              "costBasis": 9
+            }
+          ]
+        }
+      },
+      "SELL_ALL": {
+        "applicable": false,
+        "applicabilityReason": "NO_SELLABLE_POSITION",
+        "requestedQuantity": 0,
+        "executedQuantity": 0,
+        "executionPrice": null,
+        "commission": 0,
+        "slippage": 0,
+        "cashDelta": 0,
+        "positionDelta": 0,
+        "sellablePositionDelta": 0,
+        "beforeContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 0,
+          "position": 10000,
+          "sellablePosition": 0,
+          "todayBought": 10000,
+          "averageCost": 9,
+          "totalEquity": 100000,
+          "positionValue": 100000,
+          "lots": [
+            {
+              "acquiredAt": "20260417",
+              "quantity": 10000,
+              "remainingQuantity": 10000,
+              "sellableQuantity": 0,
+              "sellableAt": "20260420",
+              "costBasis": 9
+            }
+          ]
+        },
+        "action": "SELL_ALL",
+        "afterContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 0,
+          "position": 10000,
+          "sellablePosition": 0,
+          "todayBought": 10000,
+          "averageCost": 9,
+          "totalEquity": 100000,
+          "positionValue": 100000,
+          "lots": [
+            {
+              "acquiredAt": "20260417",
+              "quantity": 10000,
+              "remainingQuantity": 10000,
+              "sellableQuantity": 0,
+              "sellableAt": "20260420",
+              "costBasis": 9
+            }
+          ]
+        }
+      }
+    },
+    "fixtureC": {
+      "cash": 100,
+      "BUY_SMALL": {
+        "applicable": false,
+        "applicabilityReason": "INSUFFICIENT_CASH",
+        "requestedQuantity": 500,
+        "executedQuantity": 0,
+        "executionPrice": null,
+        "commission": 0,
+        "slippage": 0,
+        "cashDelta": 0,
+        "positionDelta": 0,
+        "sellablePositionDelta": 0,
+        "beforeContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 100,
+          "position": 0,
+          "sellablePosition": 0,
+          "todayBought": 0,
+          "averageCost": null,
+          "totalEquity": 100,
+          "positionValue": 0,
+          "lots": []
+        },
+        "action": "BUY_SMALL",
+        "afterContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 100,
+          "position": 0,
+          "sellablePosition": 0,
+          "todayBought": 0,
+          "averageCost": null,
+          "totalEquity": 100,
+          "positionValue": 0,
+          "lots": []
+        }
+      },
+      "BUY": {
+        "applicable": false,
+        "applicabilityReason": "INSUFFICIENT_CASH",
+        "requestedQuantity": 1000,
+        "executedQuantity": 0,
+        "executionPrice": null,
+        "commission": 0,
+        "slippage": 0,
+        "cashDelta": 0,
+        "positionDelta": 0,
+        "sellablePositionDelta": 0,
+        "beforeContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 100,
+          "position": 0,
+          "sellablePosition": 0,
+          "todayBought": 0,
+          "averageCost": null,
+          "totalEquity": 100,
+          "positionValue": 0,
+          "lots": []
+        },
+        "action": "BUY",
+        "afterContext": {
+          "contextVersion": "ResearchPortfolioContextV0.1",
+          "symbol": "601899.SH",
+          "tradeDate": "20260417",
+          "cash": 100,
+          "position": 0,
+          "sellablePosition": 0,
+          "todayBought": 0,
+          "averageCost": null,
+          "totalEquity": 100,
+          "positionValue": 0,
+          "lots": []
+        }
+      }
+    }
+  },
+  "invariants": {
+    "WAIT": {
+      "cashNonNegative": true,
+      "positionNonNegative": true,
+      "sellableNotAbovePosition": true,
+      "executedQuantityNonNegative": true,
+      "sellQuantityWithinSellable": true,
+      "buyWithinCash": true,
+      "todayBoughtNotSellable": true,
+      "costNotAboveGross": true,
+      "pass": true
+    },
+    "BUY_SMALL": {
+      "cashNonNegative": true,
+      "positionNonNegative": true,
+      "sellableNotAbovePosition": true,
+      "executedQuantityNonNegative": true,
+      "sellQuantityWithinSellable": true,
+      "buyWithinCash": true,
+      "todayBoughtNotSellable": true,
+      "costNotAboveGross": true,
+      "pass": true
+    },
+    "BUY": {
+      "cashNonNegative": true,
+      "positionNonNegative": true,
+      "sellableNotAbovePosition": true,
+      "executedQuantityNonNegative": true,
+      "sellQuantityWithinSellable": true,
+      "buyWithinCash": true,
+      "todayBoughtNotSellable": true,
+      "costNotAboveGross": true,
+      "pass": true
+    },
+    "SELL_PART": {
+      "cashNonNegative": true,
+      "positionNonNegative": true,
+      "sellableNotAbovePosition": true,
+      "executedQuantityNonNegative": true,
+      "sellQuantityWithinSellable": true,
+      "buyWithinCash": true,
+      "todayBoughtNotSellable": true,
+      "costNotAboveGross": true,
+      "pass": true
+    },
+    "SELL_ALL": {
+      "cashNonNegative": true,
+      "positionNonNegative": true,
+      "sellableNotAbovePosition": true,
+      "executedQuantityNonNegative": true,
+      "sellQuantityWithinSellable": true,
+      "buyWithinCash": true,
+      "todayBoughtNotSellable": true,
+      "costNotAboveGross": true,
+      "pass": true
+    },
+    "sellableTransitions": {
+      "SELL_PART": {
+        "cashNonNegative": true,
+        "positionNonNegative": true,
+        "sellableNotAbovePosition": true,
+        "executedQuantityNonNegative": true,
+        "sellQuantityWithinSellable": true,
+        "buyWithinCash": true,
+        "todayBoughtNotSellable": true,
+        "costNotAboveGross": true,
+        "pass": true
+      },
+      "SELL_ALL": {
+        "cashNonNegative": true,
+        "positionNonNegative": true,
+        "sellableNotAbovePosition": true,
+        "executedQuantityNonNegative": true,
+        "sellQuantityWithinSellable": true,
+        "buyWithinCash": true,
+        "todayBoughtNotSellable": true,
+        "costNotAboveGross": true,
+        "pass": true
+      }
+    },
+    "allPass": true
+  },
+  "t1Policy": "todayBought remains in lots with sellableQuantity 0 and becomes sellable on nextTradingDate",
+  "singleStepOnly": true,
+  "productionIsolation": {
+    "affectsSmartT": false,
+    "affectsShadowV2": false,
+    "canPromoteAutomatically": false
+  },
+  "status": "PORTFOLIO_CONTEXT_READY"
+}

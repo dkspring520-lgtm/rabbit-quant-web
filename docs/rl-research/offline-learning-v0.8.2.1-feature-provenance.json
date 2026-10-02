@@ -1,0 +1,161 @@
+{
+  "title": "OFFLINE LEARNING V0.8.2.1 FEATURE PROVENANCE AUDIT",
+  "input": "C:/Users/dkspr/Documents/我的网站/.data-inspect/zijin-601899-2022-2026.jsonl",
+  "rawInputFields": [
+    "time",
+    "price",
+    "volume"
+  ],
+  "sourceSchema": [
+    "date",
+    "previousClose",
+    "minutes[].time",
+    "minutes[].price",
+    "minutes[].volume"
+  ],
+  "features": [
+    {
+      "featureName": "close/price",
+      "sourceFields": [
+        "minutes[].price"
+      ],
+      "lookbackWindow": "current bar",
+      "usesFutureData": false,
+      "transformation": "price retained as price/close-compatible input",
+      "provenanceStatus": "SOURCE_DIRECT"
+    },
+    {
+      "featureName": "volume",
+      "sourceFields": [
+        "minutes[].volume"
+      ],
+      "lookbackWindow": "current bar",
+      "usesFutureData": false,
+      "transformation": "numeric volume",
+      "provenanceStatus": "SOURCE_DIRECT"
+    },
+    {
+      "featureName": "return1m",
+      "sourceFields": [
+        "minutes[].price"
+      ],
+      "lookbackWindow": "current and previous bar",
+      "usesFutureData": false,
+      "transformation": "current price / price[t-1] - 1",
+      "provenanceStatus": "DERIVED_CAUSAL"
+    },
+    {
+      "featureName": "return3m/5m/10m",
+      "sourceFields": [
+        "minutes[].price"
+      ],
+      "lookbackWindow": "current and prior N bars",
+      "usesFutureData": false,
+      "transformation": "current price / price[t-N] - 1",
+      "provenanceStatus": "DERIVED_CAUSAL"
+    },
+    {
+      "featureName": "volumeRatio",
+      "sourceFields": [
+        "minutes[].volume"
+      ],
+      "lookbackWindow": "prior volume window",
+      "usesFutureData": false,
+      "transformation": "current volume / prior average volume",
+      "provenanceStatus": "DERIVED_CAUSAL"
+    },
+    {
+      "featureName": "MA5/MA20/volatility",
+      "sourceFields": [
+        "minutes[].price"
+      ],
+      "lookbackWindow": "current and prior bars",
+      "usesFutureData": false,
+      "transformation": "rolling price statistics",
+      "provenanceStatus": "DERIVED_CAUSAL"
+    },
+    {
+      "featureName": "open/high/low",
+      "sourceFields": [],
+      "lookbackWindow": "none",
+      "usesFutureData": false,
+      "transformation": "missing in source; feature builder fallback uses current price",
+      "provenanceStatus": "SYNTHETIC_OHLC"
+    },
+    {
+      "featureName": "upperWickRatio/lowerWickRatio/bodyRatio",
+      "sourceFields": [
+        "open/high/low/close"
+      ],
+      "lookbackWindow": "current bar",
+      "usesFutureData": false,
+      "transformation": "depends on synthetic missing OHLC fallback",
+      "provenanceStatus": "SYNTHETIC_OHLC"
+    },
+    {
+      "featureName": "VWAP",
+      "sourceFields": [
+        "price",
+        "volume"
+      ],
+      "lookbackWindow": "current session",
+      "usesFutureData": false,
+      "transformation": "price*volume / cumulative volume where amount unavailable",
+      "provenanceStatus": "DERIVED_CAUSAL_WITH_MISSING_AMOUNT"
+    },
+    {
+      "featureName": "sentiment/regime/action score",
+      "sourceFields": [
+        "causal features"
+      ],
+      "lookbackWindow": "current and prior bars",
+      "usesFutureData": false,
+      "transformation": "existing production research functions",
+      "provenanceStatus": "DERIVED_CAUSAL"
+    }
+  ],
+  "syntheticOHLCDetected": true,
+  "syntheticOHLCFields": [
+    "open/high/low",
+    "upperWickRatio/lowerWickRatio/bodyRatio"
+  ],
+  "data07FormalPriceToOHLCRuleFound": false,
+  "futureBlindAudit": {
+    "status": "PASS",
+    "mutation": [
+      {
+        "offset": 1,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 5,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 10,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      },
+      {
+        "offset": 30,
+        "stateHashIdentical": true,
+        "actionIdentical": true,
+        "scoreIdentical": true,
+        "confidenceIdentical": true
+      }
+    ]
+  },
+  "policyImpact": {
+    "streamPolicyResultCannotBeAcceptedAsFullyValid": true,
+    "reason": "State feature path includes implicit synthetic OHLC fallback without an approved DATA-07 conversion rule."
+  },
+  "status": "RESEARCH_BLOCKED"
+}
