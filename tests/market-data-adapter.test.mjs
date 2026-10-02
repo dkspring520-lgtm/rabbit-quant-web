@@ -1,0 +1,7 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { MarketDataAdapter, BAR_STATES } from "../lib/rl-research/trainer/market-data-adapter.mjs";
+
+test("normalizes closed bars and rejects duplicate timestamps", () => { const bars = [], events = []; const adapter = new MarketDataAdapter({ onBar: x => bars.push(x), onEvent: x => events.push(x) }); adapter.emit({ timestamp: "2026-10-02T09:30:00", open: 1, high: 2, low: 1, close: 1.5, volume: 10 }); adapter.emit({ timestamp: "2026-10-02T09:30:00", open: 1, high: 2, low: 1, close: 1.5, volume: 10 }); assert.equal(bars.length, 1); assert.equal(bars[0].status, BAR_STATES.CLOSED); assert.equal(events[0].type, "DATA_DUPLICATE"); });
+test("reports regressions and gaps without fabricating bars", () => { const events = []; const adapter = new MarketDataAdapter({ onEvent: x => events.push(x) }); adapter.emit({ timestamp: "2026-10-02T09:30:00", close: 1 }); adapter.emit({ timestamp: "2026-10-02T09:32:00", close: 1 }); adapter.emit({ timestamp: "2026-10-02T09:31:00", close: 1 }); assert.equal(events[0].type, "DATA_GAP"); assert.equal(events[1].type, "TIMESTAMP_REGRESSION"); });
+test("open and update bars do not mark a minute closed", () => { const bars = []; const adapter = new MarketDataAdapter({ onBar: x => bars.push(x) }); adapter.emit({ timestamp: "2026-10-02T09:30:00", close: 1 }, BAR_STATES.OPEN); adapter.emit({ timestamp: "2026-10-02T09:30:30", close: 1.1 }, BAR_STATES.UPDATE); assert.equal(adapter.closed.size, 0); assert.equal(bars.length, 2); });
