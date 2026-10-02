@@ -4,14 +4,17 @@ import { buildOfflineSamples, chronologicalSplit, auditOfflineDataset, trainCent
 
 const bars = JSON.parse(await readFile("C:/Users/dkspr/AppData/Local/Temp/data07-bars.json"));
 const { signals } = runOHLCVTResearch(bars, { symbol: "601899.SH" });
-const selected = signals.map((signal, index) => ({ signal, index })).filter(x => x.signal.action !== "WAIT");
-const samples = buildOfflineSamples(selected.map(x => bars[x.index]), selected.map(x => x.signal));
+const allRows = signals.map((signal, index) => ({ signal, index }));
+const selected = allRows.filter(x => x.signal.action !== "WAIT");
+const samples = buildOfflineSamples(bars, signals);
 const split = chronologicalSplit(samples);
 const audit = auditOfflineDataset({ bars, samples, datasetVersion: "DATA-07", symbol: "601899.SH" });
 const model = trainCentroidClassifier(split.train, { seed: 17 });
 const predict = rows => rows.map(row => predictCentroid(model, row));
 const metrics = { validation: metricsForPredictions(split.validation, predict(split.validation)), test: metricsForPredictions(split.test, predict(split.test)) };
 const baselines = Object.fromEntries(["AlwaysWait", "MajorityClass", "SeededRandom", "ExpertActionReplay"].map(name => [name, metricsForPredictions(split.test, baselinePredictions(split.test, name, { seed: 17 }))]));
-const output = { dataset: { totalBars: bars.length, totalSamples: samples.length }, audit: { ...audit, split: undefined }, splits: { train: split.train.length, validation: split.validation.length, test: split.test.length, excluded: split.excluded.length }, labelDistribution: { train: audit.ranges.train.actionDistribution, validation: audit.ranges.validation.actionDistribution, test: audit.ranges.test.actionDistribution }, metrics, baselines, reproducibility: { status: "PASS", hash: reproducibilityHash({ audit, metrics, baselines }) }, leakage: { status: "BLOCKED", reason: "Mutation rerun requires a persisted DATA-07 sample source; this run only verifies causal feature construction." }, costs: { commission: "unavailable", slippage: "unavailable" }, gate: "BLOCKED" };
+const mutations = [50000, 125000, 200000].map(point => { const mutated = bars.map((bar, i) => i > point ? { ...bar, close: bar.close * 1.07, price: bar.price * 1.07 } : bar); const rerun = runOHLCVTResearch(mutated, { symbol: "601899.SH" }).signals; const unchanged = signals.slice(0, point).every((s, i) => s.action === rerun[i].action && s.score === rerun[i].score && JSON.stringify(s.features) === JSON.stringify(rerun[i].features)); return { point, unchanged }; });
+const leakage = { status: mutations.every(x => x.unchanged) ? "PASS" : "FAIL", mutationPoints: mutations };
+const output = { dataset: { totalBars: bars.length, totalStates: samples.length, totalSamples: samples.length, signalSamples: selected.length }, audit: { ...audit, split: undefined }, splits: { train: split.train.length, validation: split.validation.length, test: split.test.length, excluded: split.excluded.length }, labelDistribution: { train: audit.ranges.train.actionDistribution, validation: audit.ranges.validation.actionDistribution, test: audit.ranges.test.actionDistribution }, mutations, metrics, baselines, reproducibility: { status: "PASS", hash: reproducibilityHash({ audit, metrics, baselines, mutations }) }, leakage, costs: { commission: "unavailable", slippage: "unavailable" }, gate: "BLOCKED" };
 await writeFile("C:/Users/dkspr/AppData/Local/Temp/data07-oos.json", JSON.stringify(output, null, 2));
 console.log(JSON.stringify(output, null, 2));
