@@ -1,0 +1,15 @@
+import { createReadStream, createWriteStream } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createGunzip, createGzip } from "node:zlib";
+import { createInterface } from "node:readline";
+import { pipeline } from "node:stream/promises";
+import { createHash } from "node:crypto";
+import { transformTrajectoryRecordV010 } from "../lib/rl-research/dataset/offline-dataset-v010.mjs";
+const sourceArtifact=process.argv[2]??".data-inspect/offline-rl-v0.9.6/OFFLINE_RL_LOGGED_TRAJECTORY_V0.9.6.jsonl.gz";
+const outputDir=".data-inspect/offline-rl-v0.10"; const output=`${outputDir}/OFFLINE_RL_DATASET_V0.10.jsonl.gz`;
+await mkdir(outputDir,{recursive:true}); const sourceManifest=JSON.parse(await readFile(`${sourceArtifact}.manifest.json`,`utf8`));
+const input=createInterface({input:createReadStream(sourceArtifact).pipe(createGunzip()),crlfDelay:Infinity}); const gzip=createGzip(); const pipe=pipeline(gzip,createWriteStream(output)); const hash=createHash("sha256");
+let recordCount=0; let rewardCount=0; let rewardNullCount=0; const actions={WAIT:0,BUY_SMALL:0,BUY:0,SELL_PART:0,SELL_ALL:0}; const scenarios=new Set(); const episodes=new Set();
+for await(const line of input){if(!line.trim())continue; const source=JSON.parse(line); const row=transformTrajectoryRecordV010(source); const serialized=JSON.stringify(row)+"\n"; hash.update(serialized); if(!gzip.write(serialized))await new Promise(resolve=>gzip.once("drain",resolve)); recordCount++; scenarios.add(row.scenarioId); episodes.add(row.episodeId); actions[row.action]++; if(row.reward===null||row.reward===undefined)rewardNullCount++;else rewardCount++;} gzip.end(); await pipe;
+const manifest={datasetVersion:"OFFLINE_RL_V0.10",sourceTrajectoryVersion:sourceManifest.trajectoryVersion,sourceTrajectoryHash:sourceManifest.trajectoryHash,recordCount,scenarioCount:scenarios.size,episodeCount:episodes.size,actionCounts:actions,rewardCount,rewardNullCount,datasetHash:hash.digest("hex"),sourceDatasetHash:sourceManifest.sourceDatasetHash,normalizedDatasetHash:sourceManifest.normalizedDatasetHash,expertSignalHash:sourceManifest.expertSignalHash,trajectoryDatasetHash:sourceManifest.trajectoryHash,createdFrom:"run-offline-rl-v0.10-dataset.mjs"};
+await writeFile(`${output}.manifest.json`,JSON.stringify(manifest,null,2)+"\n"); console.log(JSON.stringify(manifest,null,2));
