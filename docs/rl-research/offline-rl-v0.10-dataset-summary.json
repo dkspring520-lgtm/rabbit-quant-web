@@ -1,0 +1,27 @@
+{
+  "title": "Offline RL V0.10 Dataset Summary",
+  "status": "PASS",
+  "count": 749751,
+  "manifestCount": 749751,
+  "scenarioCount": 3,
+  "episodeCount": 3111,
+  "actions": {
+    "WAIT": 629142,
+    "BUY_SMALL": 119058,
+    "BUY": 0,
+    "SELL_PART": 0,
+    "SELL_ALL": 1551
+  },
+  "rewardCount": 640361,
+  "rewardNullCount": 109390,
+  "datasetHash": "ebaa75ba7c791e54dcfd9468f7ba519fc67b2fd169e8cf6865ffcc10baa02cd3",
+  "manifestMatch": true,
+  "errors": [],
+  "datasetVersion": "OFFLINE_RL_V0.10",
+  "sourceTrajectoryVersion": "OFFLINE_RL_LOGGED_TRAJECTORY_V0.9.6",
+  "sourceTrajectoryHash": "0e1e437d46e44eafc1815516ae2f5b154b0409209246be5fcec12c53bcb8c1cb",
+  "sourceDatasetHash": "ed2a01e126ff09cadd03b8a0a21c8f1dabdd72c9d1bcda4e421591bebf339472",
+  "normalizedDatasetHash": "d51b5155ddc3a985a5d8d8f4018f5d8c1e9c4f097fe0d6445864e9b1e92bd81b",
+  "expertSignalHash": "b501e2b3715b14e9de2864099544e38cb0a0015ae5e45eb6ff340e166cddd7bb",
+  "trainingPerformed": false
+}

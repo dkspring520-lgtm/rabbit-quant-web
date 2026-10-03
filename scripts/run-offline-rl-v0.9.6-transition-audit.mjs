@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { materializeScenario } from "../lib/rl-research/trainer/expert-trajectory-v095.mjs";
+
+const scenario = { scenarioId: "SYNTHETIC_RESEARCH_PORTFOLIO_C_10000_V0.1", accountType: "SYNTHETIC_RESEARCH_PORTFOLIO", initialCash: 200000, initialPosition: 2000, initialSellablePosition: 2000, initialAverageCost: 10 };
+const bar = (symbol, timestamp, price = 10) => ({ symbol, timestamp, price, open: price, high: price, low: price, close: price, volume: 100, amount: price * 100 });
+const signal = (symbol, timestamp, action) => ({ symbol, timestamp, action, strategyId: "OHLCV_T_RESEARCH_V1", strategyVersion: "OHLCV_T_RESEARCH_V1" });
+const run = (rows, signals, overrides = {}) => materializeScenario({ rows, signals, scenario: { ...scenario, ...overrides }, sourceDatasetHash: "source", normalizedDatasetHash: "normalized", expertSignalHash: "expert", trajectoryDatasetHash: "trajectory", stateDatasetHash: "state" });
+const checks = [];
+const check = (name, fn) => { try { fn(); checks.push({ name, pass: true }); } catch (error) { checks.push({ name, pass: false, error: error.message }); } };
+check("WAIT", () => { const r = run([bar("601899.SH", "2025-10-09T10:00:00"), bar("601899.SH", "2025-10-09T10:01:00")], [signal("601899.SH", "2025-10-09T10:00:00", "WAIT"), signal("601899.SH", "2025-10-09T10:01:00", "WAIT")]); assert.equal(r.records[0].executionResult.status, "CANCELLED"); });
+for (const action of ["BUY_SMALL", "BUY", "SELL_PART", "SELL_ALL"]) check(action, () => { const r = run([bar("601899.SH", "2025-10-09T10:00:00"), bar("601899.SH", "2025-10-09T10:01:00", 10.2)], [signal("601899.SH", "2025-10-09T10:00:00", action), signal("601899.SH", "2025-10-09T10:01:00", "WAIT")]); assert.ok(r.records[0].executionResult); assert.ok(r.records[0].nextState); });
+check("T+1 and nextState", () => { const r = run([bar("601899.SH", "2025-10-09T10:00:00"), bar("601899.SH", "2025-10-10T09:30:00"), bar("601899.SH", "2025-10-10T09:31:00")], [signal("601899.SH", "2025-10-09T10:00:00", "BUY"), signal("601899.SH", "2025-10-10T09:30:00", "WAIT"), signal("601899.SH", "2025-10-10T09:31:00", "WAIT")], { initialPosition: 0, initialSellablePosition: 0, initialAverageCost: null }); assert.ok(r.records[0].nextState === null); assert.equal(r.records[0].done, true); assert.equal(r.records[1].done, false); assert.ok(r.records[1].nextState); });
+check("exact symbol+timestamp", () => { assert.throws(() => run([bar("A", "2025-10-09T10:00:00"), bar("B", "2025-10-09T10:00:00")], [signal("A", "2025-10-09T10:00:00", "WAIT")]), /EXPERT_SIGNAL_UNMATCHED/); });
+check("determinism and leakage", () => { const rows = [bar("601899.SH", "2025-10-09T10:00:00"), bar("601899.SH", "2025-10-09T10:01:00", 10.2)]; const signals = rows.map(row => signal(row.symbol, row.timestamp, row.timestamp.endsWith("10:00:00") ? "BUY_SMALL" : "WAIT")); const a = run(rows, signals, { initialPosition: 0, initialSellablePosition: 0, initialAverageCost: null }); const b = run(rows, signals, { initialPosition: 0, initialSellablePosition: 0, initialAverageCost: null }); assert.deepEqual(a.hashes, b.hashes); const c = run([rows[0], { ...rows[1], price: 20 }], signals, { initialPosition: 0, initialSellablePosition: 0, initialAverageCost: null }); assert.deepEqual(a.records[0].state, c.records[0].state); assert.notEqual(a.records[0].rewardNet, c.records[0].rewardNet); });
+const pass = checks.every(row => row.pass);
+console.log(JSON.stringify({ gate: pass ? "PASS" : "FAIL", checks }, null, 2));
+if (!pass) process.exitCode = 1;

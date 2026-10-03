@@ -1,0 +1,59 @@
+{
+  "title": "Offline RL V0.9.5 STEP 3 Pre-action Account State Audit",
+  "status": "PASS",
+  "sourceDatasetHash": "ed2a01e126ff09cadd03b8a0a21c8f1dabdd72c9d1bcda4e421591bebf339472",
+  "normalizedDatasetHash": "d51b5155ddc3a985a5d8d8f4018f5d8c1e9c4f097fe0d6445864e9b1e92bd81b",
+  "expertSignalHash": "b501e2b3715b14e9de2864099544e38cb0a0015ae5e45eb6ff340e166cddd7bb",
+  "uniqueMarketBars": 249917,
+  "scenarioExpandedStates": 749751,
+  "scenarios": [
+    {
+      "scenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_C_10000_V0.1",
+      "sampleCount": 249917,
+      "stateCoverage": 249917,
+      "accountStateCoverage": 249917,
+      "expertActionCoverage": 249917,
+      "accountStateHash": "056de016420024804b028c2b8aab5410562954c05376b6b10754c9807f18a551",
+      "stateHash": "2e4c4457c7ee59fcb12b11ccc444f825f60700ab7255345a0a2499a97368832d",
+      "expertActionHash": "966db592b2e5dd84d0768896cc66d2cbfc573a30fa49e3d13b96159d7a0e2ea3"
+    },
+    {
+      "scenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_B_LONG_INVENTORY_V0.1",
+      "sampleCount": 249917,
+      "stateCoverage": 249917,
+      "accountStateCoverage": 249917,
+      "expertActionCoverage": 249917,
+      "accountStateHash": "3e35c4598373e9278765bc6731c6262584521f9d217954290605c79f088d4fa2",
+      "stateHash": "7acfd9ab83ec90123289c085744766028c60051d732b26ee02b8322f53eb9447",
+      "expertActionHash": "966db592b2e5dd84d0768896cc66d2cbfc573a30fa49e3d13b96159d7a0e2ea3"
+    },
+    {
+      "scenarioId": "SYNTHETIC_RESEARCH_PORTFOLIO_C_LARGER_INVENTORY_V0.1",
+      "sampleCount": 249917,
+      "stateCoverage": 249917,
+      "accountStateCoverage": 249917,
+      "expertActionCoverage": 249917,
+      "accountStateHash": "9c4518c65b303870c093970205f3a6d853a3eba2ffcfaa22991c8650790188fa",
+      "stateHash": "fbe2c4ca3b68c2f9140c148d26be44dc97a95a06d512781160f665135139a9d4",
+      "expertActionHash": "966db592b2e5dd84d0768896cc66d2cbfc573a30fa49e3d13b96159d7a0e2ea3"
+    }
+  ],
+  "validations": {
+    "stateComposition": true,
+    "preActionTiming": true,
+    "causalMarketState": true,
+    "accountFields": true,
+    "scenarioIsolation": true,
+    "expertActionSequenceEquality": true,
+    "deterministicHashes": true,
+    "futureMutation": true,
+    "futureExpertActionIsolation": true
+  },
+  "executionPerformed": false,
+  "rewardGenerated": false,
+  "nextStateGenerated": false,
+  "doneGenerated": false,
+  "counterfactualGenerated": false,
+  "trainingPerformed": false,
+  "productionIsolation": true
+}
