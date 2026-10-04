@@ -63,3 +63,10 @@ next-env.d.ts
 *.tar
 *.tsbuildinfo
 /.openai/site-version-*.tar.gz
+
+# Git audit temporary files
+all-objects.txt
+commit-files.txt
+git-large-files.txt
+git-tree.txt
+objects-list.txt
