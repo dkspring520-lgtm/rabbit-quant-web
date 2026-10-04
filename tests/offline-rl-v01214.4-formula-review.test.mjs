@@ -1,0 +1,2 @@
+import assert from "node:assert/strict";import test from "node:test";import {buildFormulaReview,hash} from "../lib/rl-research/reward-formula-review-v01214.4.mjs";
+test("formula review remains blocked without approved horizon",()=>{const r=buildFormulaReview({sourceReplayHash:"r",sourceReplayManifestHash:"m"});assert.equal(r.status,"BLOCKED");assert.equal(r.recommendedHorizon,"NONE");assert.equal(r.rewardArtifactStatus,"BLOCKED");const {reviewHash,...payload}=r;assert.equal(reviewHash,hash(payload));});

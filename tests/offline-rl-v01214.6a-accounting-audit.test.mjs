@@ -1,0 +1,2 @@
+import assert from "node:assert/strict";import test from "node:test";import {portfolioValue,hash,ACCOUNTING_SOURCE} from "../lib/rl-research/dataset/execution-accounting-audit-v01214.6a.mjs";
+test("portfolio accounting formula is deterministic",()=>{assert.equal(portfolioValue({cash:100,position:10},5),150);assert.equal(hash({a:1}),hash({a:1}));assert.equal(ACCOUNTING_SOURCE.module,"PaperExecutionEngine");});

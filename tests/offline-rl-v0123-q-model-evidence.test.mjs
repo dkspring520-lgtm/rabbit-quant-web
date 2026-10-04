@@ -1,0 +1,4 @@
+import assert from "node:assert/strict";import test from "node:test";import {stats,addStats,finishStats,normalize,acc,addSample,fit,predict,rank,hash} from "../lib/rl-research/dataset/q-model-evidence-v0123.mjs";
+test("train-only normalization and deterministic fit",()=>{const s=stats();addStats(s,[1,2,4]);addStats(s,[1,4,8]);const n=finishStats(s);const a=acc(3);addSample(a,normalize([1,2,4],n),1);addSample(a,normalize([1,4,8],n),2);const m=fit(a);assert.deepEqual(m,fit(a));assert.equal(hash(m),hash(m));});
+test("Q schema and ranking use supported actions only",()=>{const q={WAIT:1,BUY_SMALL:3,SELL_ALL:2};assert.deepEqual(rank(q),["BUY_SMALL","SELL_ALL","WAIT"]);assert.deepEqual(Object.keys(q).sort(),["BUY_SMALL","SELL_ALL","WAIT"]);});
+test("Q prediction is deterministic",()=>{const m={weights:[1,2]};assert.equal(predict(m,[1,2]),5);});

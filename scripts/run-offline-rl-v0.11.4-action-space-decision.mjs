@@ -1,0 +1,15 @@
+import fs from "node:fs";
+import { buildDecisionReport } from "../lib/rl-research/dataset/action-space-decision-v0114.mjs";
+const root = new URL("..", import.meta.url);
+const read = name => JSON.parse(fs.readFileSync(new URL(name, root), "utf8"));
+const actionAnalysis = read("docs/rl-research/offline-rl-v0.11.2-action-space-analysis.json");
+const coverageAnalysis = read("docs/rl-research/offline-rl-v0.11.3-expert-coverage-analysis.json");
+const actionSpaceResearch = read("docs/rl-research/offline-rl-v0.11.3-action-space-research.json");
+const report = buildDecisionReport({ actionAnalysis, coverageAnalysis, actionSpaceResearch });
+const outJson = new URL("docs/rl-research/offline-rl-v0.11.4-action-space-decision.json", root);
+const outMd = new URL("docs/rl-research/offline-rl-v0.11.4-action-space-decision.md", root);
+fs.writeFileSync(outJson, JSON.stringify(report, null, 2) + "\n");
+const c = report.actionCounts;
+const md = ["# Offline RL V0.11.4 Action Space Decision", "", "- Gate: OFFLINE_RL_V0.11.4_ACTION_SPACE_DECISION = PASS", "- Current observed action space: WAIT, BUY_SMALL, SELL_ALL", "- Counts: WAIT " + c.WAIT + ", BUY_SMALL " + c.BUY_SMALL + ", SELL_ALL " + c.SELL_ALL + ", BUY " + c.BUY + ", SELL_PART " + c.SELL_PART, "", "## Evidence Matrix", "", "| Option | Observed support | Evaluation support | Portfolio / T+1 | Future expansion |", "| --- | --- | --- | --- | --- |", "| 3-action | Complete current observed labels; SELL_ALL low support | Partial; SELL_ALL rare | Account state and sellablePosition required | New version with new observed data |", "| 5-action | BUY and SELL_PART unseen | Blocked for those actions | Account state and sellablePosition required | Requires new observed coverage |", "| Target Position | Not a logged label | Research schema only | Target cannot override todayBought | New schema and observed replay |", "| Position Delta | Not a logged label | Research schema only | Negative delta clipped to sellablePosition | New schema and observed replay |", "", "## Research Path", "", report.recommendedResearchPath, "", "Dataset impact: V0.10 is unchanged. Counterfactuals are not promoted to observed data. No policy or RL training was performed.", "", "- Source dataset hash: " + report.lineage.sourceDatasetHash, "- Source trajectory hash: " + report.lineage.sourceTrajectoryHash, "- Decision hash: " + report.decisionHash, "- Production isolation: true", ""];
+fs.writeFileSync(outMd, md.join("\n"));
+console.log(JSON.stringify({ gate: "OFFLINE_RL_V0.11.4_ACTION_SPACE_DECISION = PASS", observedActionSpace: report.observedActionSpace, actionCounts: report.actionCounts, decisionHash: report.decisionHash, researchPath: report.recommendedResearchPath }, null, 2));

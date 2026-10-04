@@ -1,0 +1,2 @@
+import assert from "node:assert/strict";import fs from "node:fs";import test from "node:test";
+test("V2.8 stateful replay audit is PASS and retains unsupported SELL_PART",()=>{const r=JSON.parse(fs.readFileSync("docs/rl-research/offline-rl-v0.12.11-expert-v28-replay-audit.json","utf8"));assert.equal(r.status,"PASS");assert.equal(r.count,749751);assert.equal(r.scenarioCount,3);assert.equal(r.actionCounts.SELL_PART,0);assert.equal(r.counterfactualExcluded,true);assert.equal(r.hashMatches,true);});

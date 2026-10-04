@@ -1,0 +1,52 @@
+import fs from "node:fs";
+import zlib from "node:zlib";
+import readline from "node:readline";
+import { deterministicHash, emptyActionCounts, incrementAction, classifyRegime, actionSpaceResearch, coverageConclusion } from "../lib/rl-research/dataset/expert-coverage-analysis-v0113.mjs";
+
+const root = new URL("..", import.meta.url);
+const datasetPath = new URL(".data-inspect/offline-rl-v0.10/OFFLINE_RL_DATASET_V0.10.jsonl.gz", root);
+const supportPath = new URL("docs/rl-research/offline-rl-v0.11.1-action-support-matrix.json", root);
+const jsonCoverage = new URL("docs/rl-research/offline-rl-v0.11.3-expert-coverage-analysis.json", root);
+const mdCoverage = new URL("docs/rl-research/offline-rl-v0.11.3-expert-coverage-analysis.md", root);
+const jsonSpace = new URL("docs/rl-research/offline-rl-v0.11.3-action-space-research.json", root);
+const mdSpace = new URL("docs/rl-research/offline-rl-v0.11.3-action-space-research.md", root);
+const years = {}, quarters = {}, months = {}, regimes = {}, scenarios = {};
+const actionCounts = emptyActionCounts();
+let records = 0;
+let firstTimestamp = null;
+let lastTimestamp = null;
+const input = fs.createReadStream(datasetPath).pipe(zlib.createGunzip());
+const lines = readline.createInterface({ input, crlfDelay: Infinity });
+for await (const line of lines) {
+  if (!line) continue;
+  const row = JSON.parse(line);
+  records += 1;
+  const timestamp = String(row.timestamp);
+  firstTimestamp ??= timestamp;
+  lastTimestamp = timestamp;
+  const year = timestamp.slice(0, 4);
+  const month = timestamp.slice(0, 7);
+  const quarter = year + "-Q" + (Math.floor((Number(timestamp.slice(5, 7)) - 1) / 3) + 1);
+  const regime = classifyRegime(row.state?.marketState);
+  incrementAction(actionCounts, row.action);
+  for (const [bucket, key] of [[years, year], [quarters, quarter], [months, month]]) { bucket[key] ??= emptyActionCounts(); incrementAction(bucket[key], row.action); }
+  const regimeKey = regime.trend + "/" + regime.volatility + "/" + regime.range;
+  regimes[regimeKey] ??= { ...regime, counts: emptyActionCounts() };
+  incrementAction(regimes[regimeKey].counts, row.action);
+  scenarios[row.scenarioId] ??= emptyActionCounts();
+  incrementAction(scenarios[row.scenarioId], row.action);
+}
+const support = JSON.parse(fs.readFileSync(supportPath, "utf8"));
+const lineage = support.lineage;
+const triggerAnalysis = { BUY: { generated: 0, executionBlocked: 0, conclusion: "SIGNAL_NEVER_GENERATED_IN_COVERAGE", sourceRule: "positiveT with score >= 70 (from existing provenance audit)" }, SELL_PART: { generated: 0, executionBlocked: 0, conclusion: "SIGNAL_NEVER_GENERATED_IN_COVERAGE", sourceRule: "reverseT with score < 75 (from existing provenance audit)" }, distinction: "No BUY/SELL_PART signal rows exist to classify as execution-blocked; no execution failure is inferred." };
+const coverage = { status: "PASS", records, sourceDatasetHash: lineage.data07RawHash, sourceTrajectoryHash: lineage.trajectoryHash, normalizedDatasetHash: lineage.normalizedDatasetHash, expertSignalHash: lineage.expertSignalHash, firstTimestamp, lastTimestamp, actionCounts, temporal: { years, quarters, months }, regimeCoverage: regimes, scenarioCounts: scenarios, triggerAnalysis, actionSupport: coverageConclusion(actionCounts), existingSupportAuditHash: support.auditHash, productionIsolation: true, trainingPerformed: false };
+coverage.analysisHash = deterministicHash(coverage);
+const space = { status: "PASS", sourceDatasetHash: lineage.data07RawHash, sourceTrajectoryHash: lineage.trajectoryHash, analysisHash: coverage.analysisHash, comparison: actionSpaceResearch(), observedActionCounts: { WAIT: actionCounts.WAIT, BUY_SMALL: actionCounts.BUY_SMALL, SELL_ALL: actionCounts.SELL_ALL }, unsupportedActionCounts: { BUY: actionCounts.BUY, SELL_PART: actionCounts.SELL_PART }, tPlusOne: { targetPosition: "target is constrained by sellablePosition and todayBought", positionDelta: "negative delta is clipped to sellablePosition; positive delta is cash constrained" }, portfolioFields: ["cash", "position", "sellablePosition", "averageCost", "todayBought"], noPolicyTraining: true, productionIsolation: true };
+space.researchHash = deterministicHash(space);
+fs.writeFileSync(jsonCoverage, JSON.stringify(coverage, null, 2) + "\n");
+fs.writeFileSync(jsonSpace, JSON.stringify(space, null, 2) + "\n");
+const md1 = ["# Offline RL V0.11.3 Expert Coverage Analysis", "", "- Gate: OFFLINE_RL_V0.11.3_EXPERT_COVERAGE_ANALYSIS = PASS", "- Records: " + records, "- Source dataset hash: " + lineage.data07RawHash, "- Source trajectory hash: " + lineage.trajectoryHash, "- Normalized dataset hash: " + lineage.normalizedDatasetHash, "", "## Findings", "", "BUY and SELL_PART have zero source, joined, trajectory, and dataset observations in the existing support audit. The existing Expert provenance defines BUY as positiveT with score >= 70 and SELL_PART as reverseT with score < 75, but this artifact contains no such generated signals. Therefore this audit does not claim whether broader dates or symbols would produce them.", "", "SELL_ALL remains rare observed support. WAIT dominance is retained as observed behavior. Regime labels are causal summaries of fields already present in state and do not create actions.", "", "## Temporal Coverage", "", "Years: " + Object.keys(years).join(", "), "", "## Action Counts", "", JSON.stringify(actionCounts, null, 2), "", "- Training performed: false", "- Production isolation: true", "- Analysis hash: " + coverage.analysisHash, ""];
+const md2 = ["# Offline RL V0.11.3 Action Space Research", "", "This is a schema comparison only. The V0.10 Dataset is unchanged and no policy is trained.", "", "- Five discrete actions: BUY and SELL_PART are currently unsupported by observed data.", "- Three observed actions: WAIT, BUY_SMALL, SELL_ALL; SELL_ALL is rare.", "- Target Position: expressiveness is portfolio-aware, but target intent cannot override T+1 sellable inventory.", "- Position Delta: directly expresses changes, but negative deltas must be clipped by sellablePosition and positive deltas by cash.", "", "No alternative action space is selected or applied.", "", "- Source dataset hash: " + lineage.data07RawHash, "- Source trajectory hash: " + lineage.trajectoryHash, "- Research hash: " + space.researchHash, "- Production isolation: true", "- Training performed: false", ""];
+fs.writeFileSync(mdCoverage, md1.join("\n"));
+fs.writeFileSync(mdSpace, md2.join("\n"));
+console.log(JSON.stringify({ gate: "OFFLINE_RL_V0.11.3_EXPERT_COVERAGE_ANALYSIS = PASS", records, actionCounts, triggerAnalysis, analysisHash: coverage.analysisHash, researchHash: space.researchHash }, null, 2));

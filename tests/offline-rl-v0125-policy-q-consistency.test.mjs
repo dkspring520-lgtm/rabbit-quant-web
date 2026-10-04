@@ -1,0 +1,3 @@
+import assert from "node:assert/strict";import test from "node:test";import {ACTIONS,emptyMatrix,addMatrix,metricDefinitions,hashLineage} from "../lib/rl-research/dataset/policy-q-consistency-v0125.mjs";
+test("metric definitions distinguish expert and Q agreement",()=>{const d=metricDefinitions();assert.notEqual(d.expertAgreement,d.qAgreement);assert.notEqual(d.qAgreement,d.qVsExpertAgreement);});
+test("mask matrix is deterministic and three-action only",()=>{const m=emptyMatrix();addMatrix(m,"WAIT","BUY_SMALL");assert.equal(m.WAIT.BUY_SMALL,1);assert.deepEqual(ACTIONS,["WAIT","BUY_SMALL","SELL_ALL"]);assert.equal(hashLineage({a:1}),hashLineage({a:1}));});

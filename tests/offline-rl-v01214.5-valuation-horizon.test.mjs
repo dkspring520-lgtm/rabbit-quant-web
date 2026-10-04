@@ -1,0 +1,3 @@
+import assert from "node:assert/strict";import test from "node:test";import {portfolioValue,validateValuation,hash} from "../lib/rl-research/dataset/valuation-horizon-v01214.5.mjs";
+test("portfolio valuation reads cash, position and observed price only",()=>{assert.equal(portfolioValue({cash:100,position:10},5),150);assert.equal(portfolioValue({cash:100,position:10},undefined),null);assert.equal(portfolioValue({cash:100,position:10},"bad"),null);assert.equal(validateValuation(150),true);});
+test("valuation is deterministic",()=>{assert.equal(hash({cash:1,position:2,price:3}),hash({cash:1,position:2,price:3}));});

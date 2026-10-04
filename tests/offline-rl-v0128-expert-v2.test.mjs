@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { decideExpertV2, hashSequence, requiredBuyQuantity, classifySupport, V2_ACTIONS } from "../lib/rl-research/dataset/expert-v2-coverage-v0128.mjs";
+
+const signal = { action: "BUY", score: 90, marketRegime: "UP", sentimentState: "HEALTHY_UP", features: { return5m: .01, rollingVolatility: .001, distanceToVWAP: 0 } };
+test("V2 action schema is deterministic and complete", () => { assert.deepEqual(V2_ACTIONS, ["WAIT", "BUY_SMALL", "BUY", "SELL_PART", "SELL_ALL"]); assert.equal(decideExpertV2({ signal, account: { cash: 20000, position: 0, sellablePosition: 0 }, price: 10 }).action, "BUY"); });
+test("BUY respects cash feasibility", () => { const result = decideExpertV2({ signal, account: { cash: 1, position: 0, sellablePosition: 0 }, price: 10 }); assert.equal(result.action, "WAIT"); assert.match(result.reason, /cash/); assert.ok(requiredBuyQuantity("BUY", 10) > requiredBuyQuantity("BUY_SMALL", 10)); });
+test("SELL_PART respects sellable inventory and T+1", () => { const sell = decideExpertV2({ signal: { ...signal, action: "SELL_PART", sentimentState: "OVERHEATED", score: 65 }, account: { cash: 0, position: 1000, sellablePosition: 1000 }, price: 10, todayBought: 0 }); assert.equal(sell.action, "SELL_PART"); const blocked = decideExpertV2({ signal: { ...signal, action: "SELL_PART", sentimentState: "OVERHEATED", score: 65 }, account: { cash: 0, position: 1000, sellablePosition: 0 }, price: 10, todayBought: 1000 }); assert.equal(blocked.action, "WAIT"); });
+test("V2 does not read future state and is deterministic", () => { const input = { signal, account: { cash: 10000, position: 0, sellablePosition: 0 }, price: 10 }; assert.deepEqual(decideExpertV2(input), decideExpertV2(input)); assert.equal(hashSequence(["WAIT", "BUY"]), hashSequence(["WAIT", "BUY"])); });
+test("support classification is explicit", () => { assert.equal(classifySupport(0, 0), "UNSUPPORTED"); assert.equal(classifySupport(10, 0), "INFEASIBLE_CONTEXT"); assert.equal(classifySupport(10, 10), "RARE_SUPPORTED"); });

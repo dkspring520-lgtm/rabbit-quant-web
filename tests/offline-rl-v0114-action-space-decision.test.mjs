@@ -1,0 +1,7 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { ACTION_SPACE_OPTIONS, buildDecisionMatrix, buildDecisionReport, hashDecision } from "../lib/rl-research/dataset/action-space-decision-v0114.mjs";
+const input = { actionAnalysis: { analysisHash: "a", originalEnvironmentSpace: { counts: { WAIT: 10, BUY_SMALL: 2, BUY: 0, SELL_PART: 0, SELL_ALL: 1 } } }, coverageAnalysis: { sourceDatasetHash: "s", sourceTrajectoryHash: "t", normalizedDatasetHash: "n", expertSignalHash: "e", analysisHash: "c" }, actionSpaceResearch: {} };
+test("decision matrix contains four explicit schemas", () => { const matrix = buildDecisionMatrix(input); assert.deepEqual(ACTION_SPACE_OPTIONS, ["3_ACTION", "5_ACTION", "TARGET_POSITION", "POSITION_DELTA"]); assert.equal(matrix["5_ACTION"].observedSupport, "BUY_AND_SELL_PART_UNSEEN"); assert.match(matrix.TARGET_POSITION.tPlusOne, /TODAY_BOUGHT/); assert.match(matrix.POSITION_DELTA.tPlusOne, /SELLABLE_POSITION/); });
+test("decision report preserves lineage and immutable-data claims", () => { const report = buildDecisionReport(input); assert.equal(report.status, "PASS"); assert.equal(report.actionCounts.BUY, 0); assert.equal(report.evidence.datasetModified, false); assert.equal(report.evidence.policyTraining, false); assert.equal(report.decisionHash, hashDecision({ ...report, decisionHash: undefined })); });
+test("decision report is deterministic", () => { assert.deepEqual(buildDecisionReport(input), buildDecisionReport(input)); });
