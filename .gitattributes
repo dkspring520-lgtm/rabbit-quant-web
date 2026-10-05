@@ -1,5 +1,5 @@
+docs/rl-research/**/*.json filter=lfs diff=lfs merge=lfs -text
 docs/rl-research/**/*.csv filter=lfs diff=lfs merge=lfs -text
 docs/rl-research/**/*.jsonl filter=lfs diff=lfs merge=lfs -text
 docs/rl-research/**/*artifact*.json filter=lfs diff=lfs merge=lfs -text
 docs/rl-research/**/*evidence*.json filter=lfs diff=lfs merge=lfs -text
-docs/rl-research/**/*.json filter=lfs diff=lfs merge=lfs -text
