@@ -3,6 +3,7 @@ import { GET as getMarketContext } from "@/app/api/market-context/route";
 import { GET as getMarketData } from "@/app/api/market-data/route";
 import { GET as getZijinHkMinute } from "@/app/api/zijin-hk-minute/route";
 import { buildShadowResearchLayer } from "@/lib/shadow-research-layer.mjs";
+import { buildTObservation } from "@/lib/t-observation.mjs";
 
 async function readPayload(response: Response) {
   const payload = await response.json().catch(() => null);
@@ -62,6 +63,11 @@ export async function GET(request: Request) {
     minutes: marketResult.payload?.minutes,
     marketDate: marketResult.payload?.marketDate ?? marketResult.payload?.date,
   });
+  const tObservation = buildTObservation({
+    minutes: marketResult.payload?.minutes ?? [],
+    symbol: code,
+    timeframe: "1m",
+  });
 
   return Response.json({
     fetchedAt: new Date().toISOString(),
@@ -70,6 +76,7 @@ export async function GET(request: Request) {
     eventRadar: radarResult.payload,
     zijinHk: hkResult.payload,
     shadowResearch,
+    tObservation,
     errors,
   }, {
     status: marketResult.payload || contextResult.payload || radarResult.payload ? 200 : 502,

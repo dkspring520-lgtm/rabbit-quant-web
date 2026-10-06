@@ -273,7 +273,11 @@ type EventRadarResponse = { fetchedAt:string; scanned:number; requested:number; 
 type ShadowResearchEvidence = { id:string; title:string; detail:string; sentiment:"positive"|"negative"|"neutral"; source:string; observedAt:string; freshnessMinutes:number; taskRoute:string; strategyImpact:"shadow-only" };
 type ShadowResearch = { version:string; policy:{ mode:string; researchOnly:boolean; affectsFormalSignal:boolean; affectsRiskGate:boolean; canExecute:boolean }; code:string; phase:"preopen"|"intraday"|"postclose"; generatedAt:string; counts:{ total:number; positive:number; negative:number; neutral:number }; evidence:ShadowResearchEvidence[]; top:ShadowResearchEvidence[]; summary:string; formalSignalInputChanged:boolean; formalRiskGateChanged:boolean };
 type ZijinHkMarket = { symbol:string; name:string; provider:string; fetchedAt:string; sourceTimestamp:string|null; quote:{price:number;previousClose:number;changePercent:number}; minutes:{time:string;price:number}[] };
-type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; shadowResearch:ShadowResearch|null; zijinHk:ZijinHkMarket|null; errors:string[] };
+type TObservationFeature = { trend?:{trendDirection?:string}; position?:{rangePosition?:number|null}; momentum?:{momentumDecay?:number|null}; volume?:{volumeTrend?:string}; volatility?:{volatilityExpansion?:boolean} };
+type TObservationState = { state?:string; validity?:string };
+type TObservationOpportunity = { type?:string; score?:number|null; reasons?:string[] };
+type TObservation = { status:string; timestamp:string|number|null; feature:TObservationFeature|null; state:TObservationState|null; opportunity:TObservationOpportunity|null; researchOnly:boolean; rlEligible:boolean };
+type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; shadowResearch:ShadowResearch|null; tObservation?:TObservation|null; zijinHk:ZijinHkMarket|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type FormalSyncState = { status:"idle"|"syncing"|"ok"|"error"; message:string; at:number|null };
 type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; marketDate?:string; marketTime?:string; price?:number; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
@@ -1999,6 +2003,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [eventRadar, setEventRadar] = useState<EventRadarResponse | null>(null);
   const [eventRadarError, setEventRadarError] = useState("");
   const [shadowResearch, setShadowResearch] = useState<ShadowResearch | null>(null);
+  const [tObservation, setTObservation] = useState<TObservation | null>(null);
   const [starredRevision, setStarredRevision] = useState(0);
   const [initialCockpitUi] = useState<Partial<CockpitLayoutSnapshot>>(()=>{
     try{
@@ -6265,6 +6270,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           setZijinHkMarket(data.zijinHk);
           setEventRadar(data.eventRadar);
           setShadowResearch(data.shadowResearch ?? null);
+          setTObservation(data.tObservation ?? null);
           setMarketContextError(data.context ? "" : "外部环境暂不可用，已降为个股保守模式");
           setEventRadarError(data.eventRadar ? "" : "事件雷达暂不可用，不使用旧消息改变信号");
         }
@@ -7196,6 +7202,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </>}
             </OrderFlowDrawer>
           </section>}
+          <section className={`t-observation-card ${tObservation?.status === "VALID" ? "ready" : "waiting"}`} aria-label="T辅助观察">
+            <div className="t-observation-head"><span><i/>T辅助观察</span><em>研究层 · 不生成交易动作</em></div>
+            {tObservation?.feature ? <div className="t-observation-grid">
+              <div><small>趋势</small><b>{tObservation.feature.trend?.trendDirection === "UP" ? "↑ 上行" : tObservation.feature.trend?.trendDirection === "DOWN" ? "↓ 下行" : "横盘"}</b></div>
+              <div><small>位置</small><b>{(tObservation.feature.position?.rangePosition ?? 0.5) > .66 ? "高" : (tObservation.feature.position?.rangePosition ?? .5) < .34 ? "低" : "中"}</b></div>
+              <div><small>动能</small><b>{(tObservation.feature.momentum?.momentumDecay ?? 0) > 0 ? "衰减" : "观察中"}</b></div>
+              <div><small>量能</small><b>{tObservation.feature.volume?.volumeTrend === "EXPANDING" ? "放大" : tObservation.feature.volume?.volumeTrend === "CONTRACTING" ? "收缩" : "正常"}</b></div>
+              <div><small>波动</small><b>{tObservation.feature.volatility?.volatilityExpansion ? "扩张" : "正常"}</b></div>
+              <div><small>结构</small><b>{tObservation.state?.state ?? "待数据"}</b></div>
+              <div><small>T环境</small><b>{tObservation.opportunity?.type === "POSITIVE_T_ENVIRONMENT" ? "正T环境" : tObservation.opportunity?.type === "COUNTER_T_ENVIRONMENT" ? "反T环境" : "中性"}</b></div>
+              <div><small>强度</small><b>{tObservation.opportunity?.score == null ? "—" : `${tObservation.opportunity.score}/100`}</b></div>
+              <p title={(tObservation.opportunity?.reasons ?? []).join("；")}>{(tObservation.opportunity?.reasons ?? [])[0] ?? (tObservation.status === "VALID" ? "等待结构确认" : "等待足够的 CORE_SAFE 数据")}</p>
+            </div> : <div className="t-observation-empty">等待真实行情与 CORE_SAFE 依赖，不使用假数据。</div>}
+          </section>
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>

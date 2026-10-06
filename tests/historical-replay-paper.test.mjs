@@ -21,7 +21,7 @@ test("resolver only exposes returns once replay reaches the window", () => {
 });
 test("replay preserves T+1 rejection", () => {
   const source = ({ index }) => index === 0 ? { side: "BUY", quantity: 100 } : index === 1 ? { side: "SELL", quantity: 100 } : { side: "WAIT" };
-  const replay = new HistoricalReplayEngine({ symbol: "601899", dataset, signalSource: source, initialCash: 10000, initialPosition: 1000 }); const result = replay.run(); assert.equal(result.fills.find(fill => fill.side === "SELL").status, "REJECTED");
+  const replay = new HistoricalReplayEngine({ symbol: "601899", dataset, signalSource: source, initialCash: 10000, initialPosition: 0, initialSellablePosition: 0 }); const result = replay.run(); assert.equal(result.fills.find(fill => fill.side === "SELL").status, "REJECTED");
 });
 test("sample lifecycle moves CREATED to OBSERVING to RESOLVED", () => {
   const created = createSignalSample({ sampleId: "s1", signalId: "sig1", entryPrice: 10, signal: "BUY", lifecycle: "CREATED" });
