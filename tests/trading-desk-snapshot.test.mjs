@@ -21,6 +21,7 @@ test("操盘台快照允许部分数据源失败", () => {
 test("操盘台快照暴露真实 T observation 而不是假数据", () => {
   assert.match(route, /buildTObservation/);
   assert.match(route, /minutes: marketResult\.payload\?\.minutes/);
+  assert.match(route, /observation.*=== \"1\"|observation.*=== \'1\'/);
   assert.match(route, /tObservation/);
 });
 

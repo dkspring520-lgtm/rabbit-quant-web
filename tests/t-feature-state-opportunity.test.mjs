@@ -41,4 +41,5 @@ test("Opportunity contract exposes only environment types", () => {
 test("Market data to observation integration is research-only", () => {
   const observation = buildTObservation({ minutes: points, symbol: "TEST" });
   assert.equal(observation.researchOnly, true); assert.equal(observation.rlEligible, false); assert.ok(observation.feature); assert.ok(observation.state); assert.ok(observation.opportunity);
+  assert.ok(observation.humanGuidance); assert.equal(observation.humanGuidance.researchOnly, true); assert.equal(observation.humanGuidance.executionAllowed, false);
 });

@@ -276,7 +276,9 @@ type ZijinHkMarket = { symbol:string; name:string; provider:string; fetchedAt:st
 type TObservationFeature = { trend?:{trendDirection?:string}; position?:{rangePosition?:number|null}; momentum?:{momentumDecay?:number|null}; volume?:{volumeTrend?:string}; volatility?:{volatilityExpansion?:boolean} };
 type TObservationState = { state?:string; validity?:string };
 type TObservationOpportunity = { type?:string; score?:number|null; reasons?:string[] };
-type TObservation = { status:string; timestamp:string|number|null; feature:TObservationFeature|null; state:TObservationState|null; opportunity:TObservationOpportunity|null; researchOnly:boolean; rlEligible:boolean };
+type TObservationGuidance = { timestamp:string|number|null; primaryLabel:string; primaryLabelText:string; actionBias:string; actionBiasText:string; strength:number|null; strengthBand:string; strengthText:string; reasons:string[]; warnings:string[]; confirmation:string; confirmations:string[]; state?:string|null; stateText:string; candidateState?:string|null; candidateStateText:string; opportunity?:string|null; opportunityScore?:number|null; chartMarker?:{kind:string;label:string;timestamp:string|number|null;title:string;detail:string}|null; researchOnly:boolean; rlEligible:boolean; executionAllowed:boolean; voiceAllowed:boolean };
+type TGuidanceReminder = { kind:string; label:string; timestamp:string|number|null; title:string; detail:string; guidanceLabel:string; actionBias:string; strength:number|null; reasons:string[]; warnings:string[]; confirmation:string; researchOnly:boolean; executionAllowed:boolean };
+type TObservation = { status:string; timestamp:string|number|null; feature:TObservationFeature|null; state:TObservationState|null; opportunity:TObservationOpportunity|null; humanGuidance:TObservationGuidance|null; guidanceHistory:TObservationGuidance[]; reminders:TGuidanceReminder[]; researchOnly:boolean; rlEligible:boolean };
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; shadowResearch:ShadowResearch|null; tObservation?:TObservation|null; zijinHk:ZijinHkMarket|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type FormalSyncState = { status:"idle"|"syncing"|"ok"|"error"; message:string; at:number|null };
@@ -4471,6 +4473,19 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       riskMarkers,
     };
   },[activeChartDate,activeQuote?.open,alertHistory,causalObservationLayer,chartAnnotationMode,chartFormalActions,chartModel,chartViewport,currentObservations,durableVisibleChartObservations,formalSignalVisible,isZijinStock,minutePoints,peakVolumeLabel,stock.code,stock.name,tradeLedgerRows,uiTheme,rabbitTrackerSignal,v1SignalVisible,v29SignalVisible,viewportChartX,zijinV1ChartObservations,zijinV1ContextReplay,zijinV29ChartObservations,zijinV29Replay]);
+  const tGuidanceMarkerLayout=useMemo(()=>{
+    if(!chartModel||!tObservation?.reminders?.length)return [];
+    return tObservation.reminders.flatMap((reminder,index)=>{
+      const rawTime=String(reminder.timestamp??"");
+      const clock=rawTime.match(/(?:T|\s)(\d{2}):(\d{2})/) ?? rawTime.match(/^(\d{2}):(\d{2})$/);
+      const time=clock ? `${clock[1]}${clock[2]}` : rawTime.replace(/\D/g,"").slice(-4).padStart(4,"0");
+      const point=chartModel.points.find(item=>item.time===time);
+      if(!point)return [];
+      const slot=aShareMinuteSlot(time);
+      if(slot<chartViewport.start||slot>chartViewport.start+chartViewport.span)return [];
+      return [{...reminder,time,x:point.x,y:point.y,key:`t-guidance-${time}-${reminder.kind}-${index}`}];
+    });
+  },[chartModel,chartViewport.span,chartViewport.start,tObservation?.reminders]);
   const intradayCursorSignal=useMemo(()=>{
     if(!intradayCursor)return "无提醒";
     const action=intradayMarkerLayout.actions.find(marker=>marker.action.time===intradayCursor.time);
@@ -6252,6 +6267,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         const params = new URLSearchParams({
           code: stock.code,
           market: "0",
+          observation: "1",
           codes: stockList.slice(0,10).map(item => item.code).join(","),
           names: stockList.slice(0,10).map(item => item.name).join(","),
         });
@@ -7002,6 +7018,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {indicatorsVisible&&chartModel.recentVwapCross&&<g className={`vwap-cross-marker ${chartModel.recentVwapCross.direction}`}><circle cx={chartModel.recentVwapCross.x} cy={chartModel.recentVwapCross.y} r="5"/><text x={chartModel.recentVwapCross.x+8} y={chartModel.recentVwapCross.y-7}>{chartModel.recentVwapCross.direction==="up"?"站上均价":"跌破均价"}</text></g>}
               {chartModel.closingAuctionJump&&<g className="closing-auction-marker"><circle cx={chartModel.closingAuctionJump.x} cy={chartModel.closingAuctionJump.y} r="5"/><text x={chartModel.closingAuctionJump.x-8} y={chartModel.closingAuctionJump.y-8} textAnchor="end">收盘竞价 {chartModel.closingAuctionJump.movePct>=0?"+":""}{chartModel.closingAuctionJump.movePct.toFixed(2)}%</text></g>}
               {isZijinStock&&groupedChartEvents.filter(event=>event.layers.some((layer: {type?: string})=>layer.type==='score')).map((event,index)=>{const x=viewportChartX(event.time),y=liveChartPriceY(event.price,chartModel.min,chartModel.max);let lastX=-Infinity,labelIndex=-1;for(let j=0;j<=index;j++){const px=viewportChartX(groupedChartEvents[j].time);if(px-lastX>=220){lastX=px;labelIndex=j;}}const open=()=>setFlowDetail({kind:'history',title:event.label,time:event.time,price:event.price,layers:event.layers});const showLabel=labelIndex===index;const labelX=Math.max(LIVE_CHART.plotLeft+48,Math.min(LIVE_CHART.plotRight-48,x+(x>600?-42:42)));const labelY=Math.max(LIVE_CHART.priceTop+14,Math.min(LIVE_CHART.priceBottom-8,y+(y<150?28:-28)));return <g key={event.id} role="button" tabIndex={0} aria-label={`${event.time} ${event.shortLabel}`} style={{cursor:'pointer',pointerEvents:'auto'}} onPointerDown={e=>e.stopPropagation()} onClick={open} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}}}><title>{event.shortLabel} · 详情含开盘背景与路径证据</title><circle cx={x} cy={y} r={showLabel?3:1.5} fill={event.side==='buy'?'#28d7c4':event.side==='sell'?'#ff655f':'#dca838'}/>{showLabel&&<><line x1={x} y1={y} x2={labelX} y2={labelY-5} className="marker-label-leader"/><text x={labelX} y={labelY} textAnchor="middle" style={{fontSize:11,fontWeight:800,fill:event.side==='buy'?'#28d7c4':event.side==='sell'?'#ff655f':'var(--text)',paintOrder:'stroke',stroke:'var(--surface)',strokeWidth:3}}>{event.shortLabel}</text></>}</g>})}
+              {tGuidanceMarkerLayout.map(marker=>{
+                const hoverKey=marker.key;
+                const positive=marker.kind==="positive-t-watch";
+                const counter=marker.kind==="counter-t-watch";
+                const labelY=Math.max(LIVE_CHART.priceTop+10,Math.min(LIVE_CHART.priceBottom-8,marker.y+(positive?18:counter?-18:-14)));
+                const detail=`${marker.title} · ${marker.detail} · 仅作辅助观察，不生成交易动作`;
+                return <g key={hoverKey} className={`t-guidance-chart-marker ${marker.kind}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.title,detail})} onPointerLeave={()=>setHoveredChartSignal(null)} aria-label={`${marker.time} ${marker.title}`}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${detail}`}</title><line x1={marker.x} y1={marker.y} x2={marker.x} y2={labelY+(positive?-5:5)} className="t-guidance-marker-leader"/>{counter?<polygon points={`${marker.x},${marker.y-5} ${marker.x+5},${marker.y} ${marker.x},${marker.y+5} ${marker.x-5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4"/>}<text x={marker.x+7} y={labelY} className="t-guidance-marker-label">{marker.label}</text>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.title}</strong><span>{detail}</span></div></foreignObject>}</g>;
+              })}
               {false&&isZijinStock&&orderFlowChartPoint&&<g className="intraday-order-flow-badge" transform={`translate(${orderFlowChartPoint.x} ${orderFlowChartPoint.y})`} aria-label={`订单流影子评分：正T ${orderFlowBuyStrength.label}，反T ${orderFlowSellStrength.label}`}>
                 <title>{`${orderFlowChartPoint.time.slice(0,2)}:${orderFlowChartPoint.time.slice(2)} · 订单流影子评分 · 正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label} · 仅作质量观察，不影响正式闭环`}</title>
                 <rect x="-50" y="-12" width="100" height="24" rx="6"/>
@@ -7202,19 +7226,27 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </>}
             </OrderFlowDrawer>
           </section>}
-          <section className={`t-observation-card ${tObservation?.status === "VALID" ? "ready" : "waiting"}`} aria-label="T辅助观察">
-            <div className="t-observation-head"><span><i/>T辅助观察</span><em>研究层 · 不生成交易动作</em></div>
-            {tObservation?.feature ? <div className="t-observation-grid">
-              <div><small>趋势</small><b>{tObservation.feature.trend?.trendDirection === "UP" ? "↑ 上行" : tObservation.feature.trend?.trendDirection === "DOWN" ? "↓ 下行" : "横盘"}</b></div>
-              <div><small>位置</small><b>{(tObservation.feature.position?.rangePosition ?? 0.5) > .66 ? "高" : (tObservation.feature.position?.rangePosition ?? .5) < .34 ? "低" : "中"}</b></div>
-              <div><small>动能</small><b>{(tObservation.feature.momentum?.momentumDecay ?? 0) > 0 ? "衰减" : "观察中"}</b></div>
-              <div><small>量能</small><b>{tObservation.feature.volume?.volumeTrend === "EXPANDING" ? "放大" : tObservation.feature.volume?.volumeTrend === "CONTRACTING" ? "收缩" : "正常"}</b></div>
-              <div><small>波动</small><b>{tObservation.feature.volatility?.volatilityExpansion ? "扩张" : "正常"}</b></div>
-              <div><small>结构</small><b>{tObservation.state?.state ?? "待数据"}</b></div>
-              <div><small>T环境</small><b>{tObservation.opportunity?.type === "POSITIVE_T_ENVIRONMENT" ? "正T环境" : tObservation.opportunity?.type === "COUNTER_T_ENVIRONMENT" ? "反T环境" : "中性"}</b></div>
-              <div><small>强度</small><b>{tObservation.opportunity?.score == null ? "—" : `${tObservation.opportunity.score}/100`}</b></div>
-              <p title={(tObservation.opportunity?.reasons ?? []).join("；")}>{(tObservation.opportunity?.reasons ?? [])[0] ?? (tObservation.status === "VALID" ? "等待结构确认" : "等待足够的 CORE_SAFE 数据")}</p>
-            </div> : <div className="t-observation-empty">等待真实行情与 CORE_SAFE 依赖，不使用假数据。</div>}
+          <section className={`t-observation-card t-guidance-card ${tObservation?.humanGuidance?.primaryLabel ?? "INVALID"} ${tObservation?.status === "VALID" ? "ready" : "waiting"}`} aria-label="T辅助观察">
+            <div className="t-observation-head"><span><i/>T辅助观察</span><em>人类观察层 · 不生成交易动作</em></div>
+            {tObservation?.humanGuidance ? <>
+              <div className="t-guidance-primary">
+                <div><small>现在发生了什么</small><b>{tObservation.humanGuidance.primaryLabelText}</b><span>{tObservation.humanGuidance.actionBiasText}</span></div>
+                <div className="t-guidance-strength"><small>结构强度</small><b>{tObservation.humanGuidance.strength == null ? "—" : tObservation.humanGuidance.strength}</b><span>{tObservation.humanGuidance.strengthText}</span></div>
+              </div>
+              <div className="t-observation-grid">
+                <div><small>趋势</small><b>{tObservation.feature?.trend?.trendDirection === "UP" ? "↑ 上行" : tObservation.feature?.trend?.trendDirection === "DOWN" ? "↓ 下行" : "横盘"}</b></div>
+                <div><small>位置</small><b>{(tObservation.feature?.position?.rangePosition ?? 0.5) > .66 ? "高" : (tObservation.feature?.position?.rangePosition ?? .5) < .34 ? "低" : "中"}</b></div>
+                <div><small>动能</small><b>{(tObservation.feature?.momentum?.momentumDecay ?? 0) > 0 ? "衰减" : "观察中"}</b></div>
+                <div><small>量能</small><b>{tObservation.feature?.volume?.volumeTrend === "EXPANDING" ? "放大" : tObservation.feature?.volume?.volumeTrend === "CONTRACTING" ? "收缩" : "正常"}</b></div>
+                <div><small>波动</small><b>{tObservation.feature?.volatility?.volatilityExpansion ? "扩张" : "正常"}</b></div>
+                <div><small>结构状态</small><b>{tObservation.humanGuidance.stateText}</b></div>
+                <div><small>候选变化</small><b>{tObservation.humanGuidance.candidateStateText}</b></div>
+                <div><small>T环境</small><b>{tObservation.humanGuidance.opportunity === "POSITIVE_T_ENVIRONMENT" ? "正T环境" : tObservation.humanGuidance.opportunity === "COUNTER_T_ENVIRONMENT" ? "反T环境" : "中性"}</b></div>
+                <p title={tObservation.humanGuidance.reasons.join("；")}>{tObservation.humanGuidance.reasons.join("；")}</p>
+                <p className="t-guidance-confirmation" title={tObservation.humanGuidance.warnings.join("；")}>{tObservation.humanGuidance.confirmation}</p>
+              </div>
+              <div className="t-guidance-safety">辅助观察，不是买卖指令 · 不代表成功概率</div>
+            </> : <div className="t-observation-empty">等待真实行情与 CORE_SAFE 依赖，不使用假数据。</div>}
           </section>
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>

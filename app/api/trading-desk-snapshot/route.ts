@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   const marketUrl = new URL("/api/market-data", incoming.origin);
   marketUrl.searchParams.set("code", code);
   marketUrl.searchParams.set("mode", "trial-realtime");
-  const includeMarket = incoming.searchParams.get("market") !== "0";
+  const includeMarket = incoming.searchParams.get("market") !== "0" || incoming.searchParams.get("observation") === "1";
   const radarUrl = new URL("/api/event-radar", incoming.origin);
   radarUrl.searchParams.set("codes", incoming.searchParams.get("codes") ?? code);
   radarUrl.searchParams.set("names", incoming.searchParams.get("names") ?? code);
