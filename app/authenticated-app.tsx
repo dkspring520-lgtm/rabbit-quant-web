@@ -80,6 +80,7 @@ import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.m
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 import { diagnoseAiMonitorSnapshot, mergeAiMonitorDiagnosis, normalizeAiMonitorRemoteCheck } from "@/lib/ai-monitor-diagnostics.mjs";
 import { buildMultiTimeframeContext } from "@/lib/multi-timeframe-context.mjs";
+import { formatObservationTime, guidanceTimeline, normalizeObservationAction, observationContext, observationMainMessage, observationNextStep, observationReasons, observationStateKey, researchContextForState } from "@/lib/t-observation-panel.mjs";
 import AiMonitorDiagnosticsPanel, { type AiMonitorDiagnosis } from "./ai-monitor-diagnostics-panel";
 const LightweightIntradayChart = (_props: { data: unknown[] }) => null;
 const ZijinFactorLifecyclePanel = dynamic(
@@ -2256,6 +2257,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const currentMarket = marketData?.quote.code === stock?.code ? marketData : null;
   const currentContext = marketContext?.code === stock?.code ? marketContext : null;
   const currentEvents = eventRadar?.stocks.find(item => item.code === stock?.code) ?? null;
+  const tObservationGuidance = tObservation?.humanGuidance ?? null;
+  const tObservationState = tObservation?.state ?? null;
+  const tObservationAction = useMemo(() => normalizeObservationAction(tObservationGuidance), [tObservationGuidance]);
+  const tObservationStateKey = useMemo(() => observationStateKey(tObservationGuidance, tObservationState), [tObservationGuidance, tObservationState]);
+  const tObservationContext = useMemo(() => observationContext(tObservation?.timestamp), [tObservation?.timestamp]);
+  const tObservationReasons = useMemo(() => observationReasons(tObservationGuidance), [tObservationGuidance]);
+  const tObservationNextStep = useMemo(() => observationNextStep(tObservationGuidance, tObservationState), [tObservationGuidance, tObservationState]);
+  const tObservationMainMessage = useMemo(() => observationMainMessage(tObservationGuidance, tObservationState), [tObservationGuidance, tObservationState]);
+  const tObservationResearch = useMemo(() => researchContextForState(tObservationStateKey), [tObservationStateKey]);
+  const tObservationTimeline = useMemo(() => guidanceTimeline(tObservation?.guidanceHistory ?? []), [tObservation?.guidanceHistory]);
+  const tObservationHasStructure = Boolean(tObservationGuidance && tObservationStateKey);
   const eventsByCode = useMemo(() => Object.fromEntries((eventRadar?.stocks ?? []).map(item => [item.code, item])), [eventRadar]);
   const currentEventTierCounts = useMemo(() => ({
     primary: currentEvents?.items.filter(item=>item.sourceTier===1).length ?? 0,
@@ -3383,6 +3395,15 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const visibleMargin=Math.min(12,clamped.span*.15);
     const latestAllowedStart=Math.max(0,latestIntradayDataSlot-visibleMargin);
     return clampCockpitViewport({...clamped,start:Math.min(clamped.start,latestAllowedStart)});
+  };
+  const jumpToGuidanceTimestamp=(timestamp:string|number|null)=>{
+    const raw=String(timestamp??"");
+    const match=raw.match(/(?:T|\s)(\d{2}):(\d{2})/) ?? raw.match(/^(\d{2})(\d{2})$/);
+    if(!match)return;
+    const time=match[1]+match[2];
+    const slot=aShareMinuteSlot(time);
+    setIntradayCursorTime(time);
+    setChartViewport(clampIntradayViewportToData({start:slot-chartViewport.span/2,span:chartViewport.span}));
   };
   const intradayLocalPosition=(clientX:number,clientY:number)=>{
     const svg=intradayChartRef.current;
@@ -7227,26 +7248,29 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </OrderFlowDrawer>
           </section>}
           <section className={`t-observation-card t-guidance-card ${tObservation?.humanGuidance?.primaryLabel ?? "INVALID"} ${tObservation?.status === "VALID" ? "ready" : "waiting"}`} aria-label="T辅助观察">
-            <div className="t-observation-head"><span><i/>T辅助观察</span><em>人类观察层 · 不生成交易动作</em></div>
-            {tObservation?.humanGuidance ? <>
-              <div className="t-guidance-primary">
-                <div><small>现在发生了什么</small><b>{tObservation.humanGuidance.primaryLabelText}</b><span>{tObservation.humanGuidance.actionBiasText}</span></div>
-                <div className="t-guidance-strength"><small>结构强度</small><b>{tObservation.humanGuidance.strength == null ? "—" : tObservation.humanGuidance.strength}</b><span>{tObservation.humanGuidance.strengthText}</span></div>
+            <div className="t-observation-head"><span><i/>T观察</span><em>人类观察层 · 不生成交易动作</em></div>
+            {tObservationGuidance && tObservationHasStructure ? <>
+              <div className="t-observation-current">
+                <div className="t-observation-current-copy"><small>当前状态</small><div className="t-observation-action-row"><strong>{tObservationGuidance.primaryLabelText || tObservationAction.text}</strong><span className="t-observation-action-badge">{tObservationAction.label}</span></div><p>{tObservationMainMessage}</p></div>
+                <div className="t-observation-state-badge"><small>结构</small><b>{tObservationGuidance.stateText || tObservationStateKey}</b></div>
               </div>
-              <div className="t-observation-grid">
-                <div><small>趋势</small><b>{tObservation.feature?.trend?.trendDirection === "UP" ? "↑ 上行" : tObservation.feature?.trend?.trendDirection === "DOWN" ? "↓ 下行" : "横盘"}</b></div>
-                <div><small>位置</small><b>{(tObservation.feature?.position?.rangePosition ?? 0.5) > .66 ? "高" : (tObservation.feature?.position?.rangePosition ?? .5) < .34 ? "低" : "中"}</b></div>
-                <div><small>动能</small><b>{(tObservation.feature?.momentum?.momentumDecay ?? 0) > 0 ? "衰减" : "观察中"}</b></div>
-                <div><small>量能</small><b>{tObservation.feature?.volume?.volumeTrend === "EXPANDING" ? "放大" : tObservation.feature?.volume?.volumeTrend === "CONTRACTING" ? "收缩" : "正常"}</b></div>
-                <div><small>波动</small><b>{tObservation.feature?.volatility?.volatilityExpansion ? "扩张" : "正常"}</b></div>
-                <div><small>结构状态</small><b>{tObservation.humanGuidance.stateText}</b></div>
-                <div><small>候选变化</small><b>{tObservation.humanGuidance.candidateStateText}</b></div>
-                <div><small>T环境</small><b>{tObservation.humanGuidance.opportunity === "POSITIVE_T_ENVIRONMENT" ? "正T环境" : tObservation.humanGuidance.opportunity === "COUNTER_T_ENVIRONMENT" ? "反T环境" : "中性"}</b></div>
-                <p title={tObservation.humanGuidance.reasons.join("；")}>{tObservation.humanGuidance.reasons.join("；")}</p>
-                <p className="t-guidance-confirmation" title={tObservation.humanGuidance.warnings.join("；")}>{tObservation.humanGuidance.confirmation}</p>
+              <div className="t-observation-next"><span>下一步</span><b>{tObservationNextStep}</b></div>
+              <div className="t-observation-section t-observation-why"><div className="t-observation-section-head"><span>为什么</span><em>最多三条</em></div><ul>{(tObservationReasons.length ? tObservationReasons : ["暂无足够结构信息"]).map(reason=><li key={reason}>{reason}</li>)}</ul></div>
+              <div className="t-observation-facts">
+                <div><small>市场上下文</small><b>{tObservationContext.label}</b><em>仅作背景，不是动作信号</em></div>
+                <div><small>候选状态</small><b>{tObservationGuidance.candidateStateText || "暂无"}</b></div>
+                <div><small>T环境</small><b>{tObservationGuidance.opportunity === "POSITIVE_T_ENVIRONMENT" ? "正T环境" : tObservationGuidance.opportunity === "COUNTER_T_ENVIRONMENT" ? "反T环境" : "中性"}</b></div>
+                <div><small>确认状态</small><b>{tObservationGuidance.confirmation || "等待确认"}</b></div>
               </div>
-              <div className="t-guidance-safety">辅助观察，不是买卖指令 · 不代表成功概率</div>
-            </> : <div className="t-observation-empty">等待真实行情与 CORE_SAFE 依赖，不使用假数据。</div>}
+              <div className="t-observation-research" aria-label="历史研究背景"><div className="t-observation-section-head"><span>历史研究</span><em>背景信息 · 不参与评分</em></div><p>{tObservationResearch.message}</p>{tObservationResearch.cautions.map(item=><small key={item}>{item}</small>)}</div>
+              {tObservationResearch.cautions.length > 0 && <div className="t-observation-caution" role="note"><span>注意</span><b>历史漂移或样本外稳定性有限，不代表当前预测。</b></div>}
+              <div className="t-observation-timeline" aria-label="指导历史"><div className="t-observation-section-head"><span>时间线</span><em>点击回到对应分钟</em></div>{tObservationTimeline.length ? <ol>{tObservationTimeline.map(item=><li key={item.key}><button type="button" onClick={()=>jumpToGuidanceTimestamp(item.timestamp)} disabled={!item.timestamp} title={item.reason}><time>{formatObservationTime(item.timestamp)}</time><span>{item.eventType}</span><small>{item.reason}</small></button></li>)}</ol> : <p>暂无历史指导记录。</p>}</div>
+              <div className="t-guidance-safety">辅助观察，不是买卖指令 · 历史研究不参与当前评分 · 不代表成功概率</div>
+            </> : <>
+              <div className="t-observation-empty-panel"><strong>暂无足够结构信息</strong><span>等待真实行情与 CORE_SAFE 依赖，不使用假数据。</span><b>下一步：继续观察</b></div>
+              <div className="t-observation-facts"><div><small>市场上下文</small><b>{tObservationContext.label}</b><em>仅作背景，不是动作信号</em></div><div><small>当前状态</small><b>暂无</b></div></div>
+              <div className="t-guidance-safety">数据不足时保持中性，不补填状态、原因或研究结论。</div>
+            </>}
           </section>
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
