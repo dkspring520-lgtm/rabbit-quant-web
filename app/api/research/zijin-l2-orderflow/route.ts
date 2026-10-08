@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 
 const statePath = process.env.ZIJIN_L2_STATE_PATH || "/training-state/zijin-l2-orderflow.json";
 const streamIntervalMs = 300;
+const COLLECTOR_HEARTBEAT_MAX_AGE_SECONDS = 15;
+const FEED_MAX_AGE_SECONDS = 15;
 let cachedState: Awaited<ReturnType<typeof readState>> | null = null;
 let cachedAt = 0;
 let stateRead: Promise<Awaited<ReturnType<typeof readState>>> | null = null;
@@ -12,13 +14,17 @@ async function readState() {
   const heartbeatAgeSeconds = Number.isFinite(updatedAt)
     ? Math.max(0, (Date.now() - updatedAt) / 1000)
     : null;
-  const collectorAlive = heartbeatAgeSeconds !== null && heartbeatAgeSeconds <= 15;
+  const collectorAlive = heartbeatAgeSeconds !== null && heartbeatAgeSeconds <= COLLECTOR_HEARTBEAT_MAX_AGE_SECONDS;
   const transportConnected = payload.status?.connected === true;
   const feedAgeSeconds = Number.isFinite(payload.status?.ageSeconds)
     ? payload.status.ageSeconds
     : null;
-  const feedStale = payload.status?.stale !== false;
-  const stale = !collectorAlive || feedStale;
+  const authorized = payload.status?.authorized !== false;
+  const messageCounts = payload.messages ?? {};
+  const hasMessages = Object.values(messageCounts).some((count) => Number(count) > 0);
+  const feedFresh = feedAgeSeconds !== null && feedAgeSeconds <= FEED_MAX_AGE_SECONDS;
+  const explicitlyStale = payload.status?.stale === true;
+  const stale = !collectorAlive || !transportConnected || !authorized || !feedFresh || !hasMessages || explicitlyStale;
 
   return {
     ...payload,
@@ -26,6 +32,7 @@ async function readState() {
       ...payload.status,
       transportConnected,
       connected: collectorAlive && transportConnected,
+      authorized,
       collectorAlive,
       collectorStale: !collectorAlive,
       heartbeatAgeSeconds,
@@ -109,6 +116,8 @@ export async function GET(request: Request) {
             "lastMessageAt" in payload ? payload.lastMessageAt : "",
             payload.status?.connected,
             payload.status?.stale,
+            payload.status?.authorized,
+            payload.status?.feedAgeSeconds,
           ].join("|");
           if (initialSnapshot || fingerprint !== lastFingerprint || Date.now() - lastSnapshotAt >= 2_500) {
             const includeRecentMinutes = initialSnapshot || Date.now() - lastMinutesSnapshotAt >= 2_500;
