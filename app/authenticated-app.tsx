@@ -81,6 +81,7 @@ import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 import { diagnoseAiMonitorSnapshot, mergeAiMonitorDiagnosis, normalizeAiMonitorRemoteCheck } from "@/lib/ai-monitor-diagnostics.mjs";
 import { buildMultiTimeframeContext } from "@/lib/multi-timeframe-context.mjs";
 import { createDefaultDashboardLayout, readDashboardLayout, writeDashboardLayout } from "@/lib/dashboard-panel-layout.mjs";
+import { compactChartDisplayLabel, compactForceNote, compactForecastDetail, compactForecastMeta, compactMainForceAmount, compactObservationNextStep, compactObservationStatus, compactObservationTag, compactOpeningStructure } from "@/lib/trading-desk-display.mjs";
 import { formatObservationTime, guidanceTimeline, normalizeObservationAction, observationContext, observationMainMessage, observationNextStep, observationReasons, observationStateKey, researchContextForState } from "@/lib/t-observation-panel.mjs";
 import AiMonitorDiagnosticsPanel, { type AiMonitorDiagnosis } from "./ai-monitor-diagnostics-panel";
 import { DashboardOptionalPanelArea, DashboardPanelManager, DashboardPanelShell, type DashboardLayout } from "./dashboard-panel-shell";
@@ -2282,6 +2283,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const tObservationStateKey = useMemo(() => observationStateKey(tObservationGuidance, tObservationState), [tObservationGuidance, tObservationState]);
   const tObservationContext = useMemo(() => observationContext(tObservation?.timestamp), [tObservation?.timestamp]);
   const tObservationReasons = useMemo(() => observationReasons(tObservationGuidance), [tObservationGuidance]);
+  const tObservationDisplayReasons = useMemo(() => [...new Set((tObservationGuidance?.reasons ?? []).map(compactObservationTag).filter(Boolean))].slice(0,3), [tObservationGuidance?.reasons]);
   const tObservationNextStep = useMemo(() => observationNextStep(tObservationGuidance, tObservationState), [tObservationGuidance, tObservationState]);
   const tObservationMainMessage = useMemo(() => observationMainMessage(tObservationGuidance, tObservationState), [tObservationGuidance, tObservationState]);
   const tObservationResearch = useMemo(() => researchContextForState(tObservationStateKey), [tObservationStateKey]);
@@ -4336,12 +4338,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         :observation.strategy==="v29"
           ?`${calibratedLabel} · ${strength.detail}`
           :`${calibratedLabel} · ${strength.detail}（方向、位置、触发三项评分均值）`;
-      const currentLabel=observation.strategy==="observation"
+      const rawCurrentLabel=observation.strategy==="observation"
         ?(observation.stage==="candidate"&&!rawLabel.includes("分")&&!rawLabel.includes("%")?`${rawLabel} · ${displayStrengthLabel}`:rawLabel)
         :observation.strategy==="v1"||observation.strategy==="v29"
         ?`${isSell?"候卖":"候买"} ${displayStrengthLabel}`
         :calibratedLabel;
-      const labelWidth=signalBadgeWidth(currentLabel,16);
+      const currentLabel=rawCurrentLabel;
+      const displayLabel=compactChartDisplayLabel(rawCurrentLabel);
+      const labelWidth=signalBadgeWidth(displayLabel,16);
       // Observation-layer text is detail-on-hover, not a permanent trading
       // instruction. Formal/V1/V2.9 labels keep their compact text badges.
       const labelVisible=persistentChartLabel(observation.strategy,rawLabel,chartAnnotationMode);
@@ -4393,7 +4397,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         ? reserveDirectionalMarkerLabel(point.x,point.y,labelWidth,16,isSell)
         : {labelX:point.x,labelY:point.y,labelAbove:isSell,labelRendered:false};
       if(placed.labelRendered)labeledObservationEpisodes.push({time:observation.time,isSell,strategy:observation.strategy});
-      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel,fullLabel,labelWidth,labelVisible,observation,strategy:observation.strategy}];
+      return [{...point,...placed,index,isSell,qualified,assessment,sideClass,currentLabel:displayLabel,fullLabel,labelWidth,labelVisible,observation,strategy:observation.strategy}];
     });
     // Every delivered candidate reminder is evidence, not just the latest
     // rabbit state. Plot the recorded minute on its own chart so an alert such
@@ -6985,15 +6989,17 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         </div>
         <div className="quote-focus">
           <div className={`quote ${activeQuote?.changePercent == null ? "flat" : activeQuote.changePercent < 0 ? "down" : activeQuote.changePercent === 0 ? "flat" : "up"}`}><strong>{activeQuote?.price?.toFixed(2) ?? "--"}</strong><span>{activeQuote?.changePercent == null ? "--" : `${activeQuote.changePercent >= 0 ? "+" : ""}${activeQuote.changePercent.toFixed(2)}%`}</span></div>
-          <div className="opening-assessment"><span>开盘结构</span><b>{openingAssessment.auction}</b><small>{openingAssessment.gapText} · {decisionConditionsConfirmed}/4 条件确认</small></div>
+          <div className="opening-assessment" title={`${openingAssessment.auction} · ${openingAssessment.gapText} · ${decisionConditionsConfirmed}/4 条件确认`}>
+            <span>结构</span><b>{compactOpeningStructure(openingAssessment.auction)}</b><small>{openingAssessment.gapText} · {decisionConditionsConfirmed}/4</small>
+          </div>
         </div>
         <div className="quote-metrics">
-          <span>今开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span>最高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span>最低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span>数据 <b className="teal">{isZijinStock&&liveL2PriceUsable ? "L2 主源" : currentTrial ? "1 秒试用" : currentMarket ? "公开兜底" : "切换中"}</b></span><span>分钟线 <b className="teal">{minutePoints.length ? isZijinStock ? `${minutePoints.length} 点 · 盘口 ${l2CalculationCoverage} · 资金 ${zijinMainForceTrack.bars.length}` : `${minutePoints.length} 点同步` : "等待数据"}</b></span>{afterHoursSummary&&<span>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
+          <span title="今开">开 <b>{activeQuote?.open?.toFixed(2) ?? "--"}</b></span><span title="最高">高 <b>{activeQuote?.high?.toFixed(2) ?? "--"}</b></span><span title="最低">低 <b>{activeQuote?.low?.toFixed(2) ?? "--"}</b></span><span title={`数据源：${isZijinStock&&liveL2PriceUsable ? "L2 主源" : currentTrial ? "1 秒试用" : currentMarket ? "公开兜底" : "切换中"}`}>源 <b className="teal">{isZijinStock&&liveL2PriceUsable ? "L2" : currentTrial ? "试用" : currentMarket ? "公开" : "切换"}</b></span><span title={minutePoints.length ? isZijinStock ? `分钟线 ${minutePoints.length} 点 · 盘口 ${l2CalculationCoverage} · 资金 ${zijinMainForceTrack.bars.length}` : `分钟线 ${minutePoints.length} 点同步` : "分钟线等待数据"}>线 <b className="teal">{minutePoints.length || "--"}</b></span>{afterHoursSummary&&<span title={`盘后成交 ${afterHoursSummary.points} 点 · 成交量 ${afterHoursSummary.totalVolume.toLocaleString("zh-CN")}`}>盘后 <b className="amber">{afterHoursSummary.price.toFixed(2)}</b></span>}
         </div>
-        <div className={`next-session-header ${openingStageCard.tone}`} role="status" aria-label={openingStageCard.ariaLabel} title={openingStageCard.tooltip}>
-          <span>{openingStageCard.title}</span>
-          <b>{openingStageCard.value}<small>{openingStageCard.suffix}</small></b>
-          <em>{openingStageCard.detail}</em>
+        <div className={`next-session-header ${openingStageCard.tone}`} role="status" aria-label={openingStageCard.ariaLabel} title={`${openingStageCard.tooltip} · ${openingStageCard.detail}${openingStageCard.suffix}`}>
+          <span>{openingStageCard.title === "明日预判" ? "预判" : openingStageCard.title}</span>
+          <b>{openingStageCard.value}<small>{compactForecastMeta(openingStageCard.suffix)}</small></b>
+          <em>{compactForecastDetail(openingStageCard.detail)}</em>
         </div>
         <div className={`l2-console-status data-health-status ${displayedWeb4Status} ${liveDataGate.ready?l2ConsoleStatus.tone:"stale"}`} role="status" title={`${l2ConsoleStatus.detail} · ${displayedWeb4Summary} · ${liveDataGate.detail}`}>
           <i/><div><span>{displayedWeb4HealthLabel}</span><b>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></b></div><em>{l2ConsoleStatus.label} · {liveDataGate.label}</em>
@@ -7065,7 +7071,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                  </div>
                </div>
              </div>
-             <button type="button" className="chart-tools-toggle" aria-expanded={chartToolsExpanded} aria-controls="chart-tool-controls" onClick={()=>setChartToolsExpanded(value=>!value)}>{chartToolsExpanded?"收起工具":"展开图表工具"}<span aria-hidden="true">{chartToolsExpanded?"⌃":"⌄"}</span></button>
+             <button type="button" className="chart-tools-toggle" aria-expanded={chartToolsExpanded} aria-controls="chart-tool-controls" onClick={()=>setChartToolsExpanded(value=>!value)}>{chartToolsExpanded?"收起":"工具"}<span aria-hidden="true">{chartToolsExpanded?"⌃":"⌄"}</span></button>
           </div>
 
           <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
@@ -7186,20 +7192,20 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </div>
           {isZijinStock&&<section className={`main-force-track ${zijinMainForceTrack.bars.some(bar=>bar.bigBuyNotional+bar.bigSellNotional>0)?"has-data":"is-empty"}`} aria-label="紫金矿业全天 L2 大额主动净额追踪，非总成交量">
             <div className="main-force-track-head">
-              <div><strong>主力追踪</strong><span>L2 大额主动净额 · 非总成交量 · 与主图按分钟对齐</span></div>
+              <div><strong>主力</strong><span title="L2 大额主动净额 · 非总成交量 · 与主图按分钟对齐">L2 大额净额</span></div>
               <div className="main-force-track-legend"><span className="buy"><i/>大额主动净买</span><span className="sell"><i/>大额主动净卖</span><span className="cumulative"><i/>累计净额</span></div>
               <label className="subchart-size-control" title="调整成交量与 L2 副图高度"><span>副图</span><input type="range" min="110" max="220" step="5" value={orderFlowHeight} onChange={event=>setOrderFlowHeight(Number(event.target.value))}/></label>
               <div className={`main-force-response ${zijinFundResponse.state}`} title={`${zijinFundResponse.message}；${zijinFundResponse.evidence}`}>
-                <span>{zijinFundResponse.label}</span>
+                <span>{compactForceNote(zijinFundResponse.label)}</span>
                 <i><u style={{width:`${zijinFundResponse.score}%`}}/></i>
                 <b>{zijinFundResponse.score}</b>
               </div>
               <div className={`main-force-track-summary ${zijinMainForceTrack.totals.netNotional>=0?'buy':'sell'}`}>
-                <span>{zijinMainForceTrack.stance}</span><b>{formatMainForceAmount(zijinMainForceTrack.totals.netNotional)}</b>
+                <span>{compactForceNote(zijinMainForceTrack.stance)}</span><b>{compactMainForceAmount(zijinMainForceTrack.totals.netNotional)}</b>
               </div>
             </div>
             {zijinRepair?.ready&&<div className={`main-force-repair-state ${zijinRepair.status} ${zijinRepair.checks?.l2BuyRecovery?"confirmed":"waiting"}`}>
-              <span>资金承接修复</span><b>{zijinRepair.title}</b><small>二次探底 {zijinRepair.checks?.secondBottom?"✓":"·"} · 动量 {zijinRepair.checks?.momentumPositive?"✓":"·"} · L2连续回流 {zijinRepair.checks?.l2BuyRecovery?"✓":"·"} · 局部突破 {zijinRepair.checks?.localBreakout?"✓":"·"}</small>
+              <span>修复</span><b title={zijinRepair.title}>{compactForceNote(zijinRepair.title)}</b><small title="二次探底、动量、L2连续回流、局部突破">二底 {zijinRepair.checks?.secondBottom?"✓":"·"} · 动量 {zijinRepair.checks?.momentumPositive?"✓":"·"} · L2 {zijinRepair.checks?.l2BuyRecovery?"✓":"·"} · 突破 {zijinRepair.checks?.localBreakout?"✓":"·"}</small>
             </div>}
             <svg viewBox={`0 0 ${LIVE_CHART.width} 72`} preserveAspectRatio="none" role="img" aria-label={`主力追踪：${zijinMainForceTrack.stance}`}>
               <defs><clipPath id="main-force-viewport-clip" clipPathUnits="userSpaceOnUse"><rect x={LIVE_CHART.plotLeft} y="0" width={LIVE_CHART.plotRight-LIVE_CHART.plotLeft} height="72"/></clipPath></defs>
@@ -7217,11 +7223,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {!zijinMainForceTrack.bars.some(bar=>bar.bigBuyNotional+bar.bigSellNotional>0)&&<text x="460" y="40" textAnchor="middle" className="main-force-empty">等待 L2 大额主动成交</text>}
             </svg>
             <div className="main-force-track-foot">
-              <span>大额买入 {formatMainForceAmount(zijinMainForceTrack.totals.bigBuyNotional)}</span>
-              <span>大额卖出 {formatMainForceAmount(zijinMainForceTrack.totals.bigSellNotional)}</span>
+              <span title={`大额买入 ${formatMainForceAmount(zijinMainForceTrack.totals.bigBuyNotional)}`}>买 {compactMainForceAmount(zijinMainForceTrack.totals.bigBuyNotional)}</span>
+              <span title={`大额卖出 ${formatMainForceAmount(zijinMainForceTrack.totals.bigSellNotional)}`}>卖 {compactMainForceAmount(zijinMainForceTrack.totals.bigSellNotional)}</span>
               <span className={`main-force-intent ${zijinMainForceIntent.state}`} title={`${zijinMainForceIntent.message}；${zijinMainForceIntent.evidence}。仅为大额成交统计观察，不识别具体资金主体，也不构成交易建议。`}><i>全天意图</i><b>{zijinMainForceIntent.label}</b><small>{zijinMainForceIntent.confidence}</small></span>
-              <span className={`main-force-response-note ${zijinFundResponse.state}`}>{zijinFundResponse.message}</span>
-              <em>{zijinFundResponse.evidence}</em>
+              <span className={`main-force-response-note ${zijinFundResponse.state}`} title={zijinFundResponse.message}>{compactForceNote(zijinFundResponse.message)}</span>
+              <em title={zijinFundResponse.evidence}>{compactForceNote(zijinFundResponse.evidence)}</em>
             </div>
           </section>}
           {afterHoursSummary&&<div className="after-hours-strip" role="status" aria-label="盘后固定价格交易数据">
@@ -7305,21 +7311,21 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           {dashboardLayout.panels["t-observation"]?.visible && <DashboardPanelShell id="t-observation" title="当前指导" description="现在发生什么 · 为什么 · 等待什么" state={dashboardLayout.panels["t-observation"]} layout={dashboardLayout} onChange={setDashboardLayout} resizeEnabled={false} className={`t-observation-card t-guidance-card ${tObservation?.humanGuidance?.primaryLabel ?? "INVALID"} ${tObservation?.status === "VALID" ? "ready" : "waiting"}`}>
             {tObservationGuidance && tObservationHasStructure ? <>
               <div className="t-observation-current">
-                <div className="t-observation-current-copy"><small>当前状态</small><div className="t-observation-action-row"><strong>{tObservationGuidance.primaryLabelText || tObservationAction.text}</strong></div><p>{tObservationMainMessage}</p></div>
-                <div className="t-observation-state-badge"><small>结构</small><b>{tObservationGuidance.stateText || tObservationStateKey}</b></div>
+                <div className="t-observation-current-copy"><small>当前</small><div className="t-observation-action-row"><strong>{compactObservationStatus(tObservationGuidance.primaryLabel)}</strong>{tObservationGuidance.strength!==null&&<b className="t-observation-strength" title="结构评分，不是胜率">{tObservationGuidance.strength}</b>}</div><p title={tObservationMainMessage}>{compactObservationTag(tObservationGuidance.stateText || tObservationStateKey)}</p></div>
+                <div className="t-observation-state-badge"><small>结构</small><b>{compactObservationTag(tObservationGuidance.stateText || tObservationStateKey)}</b></div>
               </div>
-              <div className="t-observation-section t-observation-why"><div className="t-observation-section-head"><span>为什么</span></div><ul>{(tObservationReasons.length ? tObservationReasons : ["暂无足够结构信息"]).map(reason=><li key={reason}>{reason}</li>)}</ul></div>
-              <div className="t-observation-next"><span>下一步</span><b>{tObservationNextStep}</b></div>
+              <div className="t-observation-section t-observation-why"><div className="t-observation-section-head"><span>原因</span><em>详情可展开</em></div><ul>{(tObservationDisplayReasons.length ? tObservationDisplayReasons : ["待数据"]).map((reason,index)=><li key={`${reason}-${index}`} title={tObservationReasons[index]??reason}>{reason}</li>)}</ul></div>
+              <div className="t-observation-next"><span>下一步</span><b title={tObservationNextStep}>{compactObservationNextStep(tObservationNextStep)}</b></div>
               <div className="t-observation-facts">
-                <div><small>市场上下文</small><b>{tObservationContext.label}</b><em>仅作背景</em></div>
-                <div><small>确认状态</small><b>{tObservationGuidance.confirmation || "等待确认"}</b></div>
+                <div><small>场景</small><b>{compactObservationTag(tObservationContext.label)}</b><em title={tObservationContext.label}>背景</em></div>
+                <div><small>确认</small><b title={tObservationGuidance.confirmation}>{compactObservationTag(tObservationGuidance.confirmation || "等待确认")}</b></div>
               </div>
               <details className="t-observation-research" aria-label="历史研究背景"><summary><span>历史研究</span><em>背景信息 · 不参与当前评分</em></summary><p>{tObservationResearch.message}</p>{tObservationResearch.cautions.map(item=><small key={item}>{item}</small>)}</details>
               {tObservationResearch.cautions.length > 0 && <div className="t-observation-caution" role="note"><span>注意</span><b>历史漂移或样本外稳定性有限，不代表当前预测。</b></div>}
               <details className="t-observation-timeline" aria-label="指导历史"><summary><span>指导时间线</span><em>点击事件回到对应分钟</em></summary>{tObservationTimeline.length ? <ol>{tObservationTimeline.map(item=><li key={item.key}><button type="button" onClick={()=>jumpToGuidanceTimestamp(item.timestamp)} disabled={!item.timestamp} title={item.reason}><time>{formatObservationTime(item.timestamp)}</time><span>{item.eventType}</span><small>{item.reason}</small></button></li>)}</ol> : <p>暂无历史指导记录。</p>}</details>
-              <div className="t-guidance-safety">辅助观察，不是买卖指令 · 历史研究不参与当前评分 · 不代表成功概率</div>
+              <div className="t-guidance-safety" title="辅助观察，不是买卖指令；历史研究不参与当前评分；不代表成功概率">观察层 · 不下单</div>
             </> : <>
-              <div className="t-observation-empty-panel"><strong>暂无足够结构信息</strong><span>等待真实行情与 CORE_SAFE 依赖，不使用假数据。</span><b>下一步：继续观察</b></div>
+              <div className="t-observation-empty-panel"><strong>待数据</strong><span title="等待真实行情与 CORE_SAFE 依赖，不使用假数据。">等待真实结构</span><b>观望</b></div>
               <div className="t-observation-facts"><div><small>市场上下文</small><b>{tObservationContext.label}</b><em>仅作背景，不是动作信号</em></div><div><small>当前状态</small><b>暂无</b></div></div>
               <div className="t-guidance-safety">数据不足时保持中性，不补填状态、原因或研究结论。</div>
             </>}

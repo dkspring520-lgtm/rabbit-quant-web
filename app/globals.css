@@ -5943,3 +5943,80 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui.tv-console .decision-primary-card .global-decision-live-signal.idle{border-color:var(--desk-divider);background:transparent}
 .app-shell.minimal-ui.tv-console .decision-primary-card .signal-fusion-summary.wait{border-color:var(--desk-divider);background:transparent}
 @media(max-width:760px){.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail{padding:10px 12px 14px}.app-shell.minimal-ui.tv-console .unified-right-rail-head div{align-items:flex-start;flex-direction:column;gap:3px}.app-shell.minimal-ui.tv-console .unified-rail-section>summary{min-height:40px}}
+
+/* V3.0 cockpit distillation: display-only hierarchy, no data or signal changes. */
+.app-shell.minimal-ui.tv-console .desk-core-strip{display:none}
+.app-shell.minimal-ui.tv-console .stock-head{height:88px;min-height:88px;padding:8px 18px;gap:14px;border-bottom:1px solid var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .stock-identity{min-width:170px;gap:6px}
+.app-shell.minimal-ui.tv-console .stock-code{font-size:10px;color:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .stock-identity h1{font-size:20px;letter-spacing:-.04em}
+.app-shell.minimal-ui.tv-console .quote-focus{gap:10px}
+.app-shell.minimal-ui.tv-console .quote-focus .quote{border:0;padding-left:0;gap:8px}
+.app-shell.minimal-ui.tv-console .quote-focus .quote strong{font-size:32px;letter-spacing:-.05em}
+.app-shell.minimal-ui.tv-console .quote-focus .quote span{font-size:13px}
+.app-shell.minimal-ui.tv-console .quote-focus .opening-assessment{min-width:150px;border-left:1px solid var(--desk-attention);padding:3px 0 3px 9px;gap:2px 7px}
+.app-shell.minimal-ui.tv-console .quote-focus .opening-assessment span{font-size:8px;color:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .quote-focus .opening-assessment b{font-size:11px;color:var(--desk-attention)}
+.app-shell.minimal-ui.tv-console .quote-focus .opening-assessment small{font-size:8px;color:var(--desk-muted)}
+.app-shell.minimal-ui.tv-console .quote-metrics{gap:10px;font-size:9px;color:var(--desk-faint);opacity:.78}
+.app-shell.minimal-ui.tv-console .quote-metrics span{gap:2px}
+.app-shell.minimal-ui.tv-console .quote-metrics b{font:600 10px/1.2 var(--desk-numeric);color:var(--desk-muted)}
+.app-shell.minimal-ui.tv-console .next-session-header{min-width:128px;flex-basis:150px;padding:5px 8px;border:0;border-left:1px solid var(--desk-attention);border-radius:0;background:transparent}
+.app-shell.minimal-ui.tv-console .next-session-header span{font-size:8px;color:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .next-session-header b{font:650 13px/1.1 var(--desk-font);color:var(--desk-attention)}
+.app-shell.minimal-ui.tv-console .next-session-header b small{font-size:9px;color:var(--desk-muted)}
+.app-shell.minimal-ui.tv-console .next-session-header em{font:600 9px/1.2 var(--desk-numeric);color:var(--desk-ink)}
+.app-shell.minimal-ui.tv-console .l2-console-status{min-width:132px;flex-basis:160px;padding:4px 0;border:0;border-radius:0;background:transparent}
+.app-shell.minimal-ui.tv-console .l2-console-status i{width:5px;height:5px}
+.app-shell.minimal-ui.tv-console .data-health-status>div span{font-size:8px}
+.app-shell.minimal-ui.tv-console .data-health-status>div b{font-size:10px}
+.app-shell.minimal-ui.tv-console .data-health-status>em{font-size:7px}
+.app-shell.minimal-ui.tv-console .chart-tools-toggle{font-size:9px}
+.app-shell.minimal-ui.tv-console .t-observation-card>.dashboard-panel-shell-head{border-bottom:0;padding-bottom:4px}
+.app-shell.minimal-ui.tv-console .t-observation-card>.dashboard-panel-shell-head .dashboard-panel-shell-title small{display:none}
+.app-shell.minimal-ui.tv-console .t-observation-card>.dashboard-panel-shell-body{padding-top:4px}
+.app-shell.minimal-ui.tv-console .t-observation-current{padding:0;border:0;border-radius:0;background:transparent;gap:10px}
+.app-shell.minimal-ui.tv-console .t-observation-current-copy small{font-size:8px;color:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .t-observation-action-row{align-items:baseline;gap:8px;margin-top:3px}
+.app-shell.minimal-ui.tv-console .t-observation-action-row strong{font:650 22px/1 var(--desk-font);letter-spacing:-.04em}
+.app-shell.minimal-ui.tv-console .t-observation-strength{color:var(--desk-attention);font:700 20px/1 var(--desk-numeric)}
+.app-shell.minimal-ui.tv-console .t-observation-current-copy p{margin:4px 0 0;color:var(--desk-muted);font:500 10px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-state-badge{min-width:64px;text-align:right}
+.app-shell.minimal-ui.tv-console .t-observation-state-badge small{font-size:8px;color:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .t-observation-state-badge b{font-size:10px;color:var(--desk-ink)}
+.app-shell.minimal-ui.tv-console .t-observation-why{margin-top:10px}
+.app-shell.minimal-ui.tv-console .t-observation-section-head{margin-bottom:5px}
+.app-shell.minimal-ui.tv-console .t-observation-section-head span{font-size:9px;color:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .t-observation-section-head em{font-size:8px;color:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .t-observation-why ul{display:flex;flex-wrap:wrap;gap:5px}
+.app-shell.minimal-ui.tv-console .t-observation-why li{padding:4px 7px;border:1px solid var(--desk-divider);border-radius:3px;background:transparent;color:var(--desk-ink);font:550 9px/1.2 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-why li::before{display:none}
+.app-shell.minimal-ui.tv-console .t-observation-next{margin:9px 0;padding:8px 0;border:0;border-top:1px solid var(--desk-divider);border-radius:0;background:transparent}
+.app-shell.minimal-ui.tv-console .t-observation-next span{font-size:8px;color:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .t-observation-next b{font-size:11px;color:var(--desk-attention)}
+.app-shell.minimal-ui.tv-console .t-observation-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;margin-top:4px;padding-top:7px;border-top:1px solid var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .t-observation-facts>div{padding:3px 0}
+.app-shell.minimal-ui.tv-console .t-observation-facts small{font-size:8px}
+.app-shell.minimal-ui.tv-console .t-observation-facts b{font-size:9px}
+.app-shell.minimal-ui.tv-console .t-observation-facts em{display:none}
+.app-shell.minimal-ui.tv-console .t-observation-caution{display:none}
+.app-shell.minimal-ui.tv-console .t-guidance-safety{padding-top:7px;border-top:1px solid var(--desk-divider);color:var(--desk-faint);font-size:8px}
+.app-shell.minimal-ui.tv-console .main-force-track{height:102px;flex-basis:102px;padding:4px 10px;background:transparent;border-top:1px solid var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .main-force-track-head{height:22px;gap:10px;font-size:8px}
+.app-shell.minimal-ui.tv-console .main-force-track-head strong{font-size:10px;color:var(--desk-strong)}
+.app-shell.minimal-ui.tv-console .main-force-track-head>div:first-child span{display:inline;color:var(--desk-faint);font-size:8px}
+.app-shell.minimal-ui.tv-console .main-force-track-legend,.app-shell.minimal-ui.tv-console .subchart-size-control{display:none}
+.app-shell.minimal-ui.tv-console .main-force-response{min-width:58px;padding:2px 4px;border:0;background:transparent}
+.app-shell.minimal-ui.tv-console .main-force-response>span{min-width:0;font-size:8px}
+.app-shell.minimal-ui.tv-console .main-force-response>i{display:none}
+.app-shell.minimal-ui.tv-console .main-force-response>b{font-size:11px}
+.app-shell.minimal-ui.tv-console .main-force-track-summary{gap:4px}
+.app-shell.minimal-ui.tv-console .main-force-track-summary span{font-size:8px}
+.app-shell.minimal-ui.tv-console .main-force-track-summary b{font:700 11px/1 var(--desk-numeric);color:var(--desk-accent)}
+.app-shell.minimal-ui.tv-console .main-force-track svg{height:60px}
+.app-shell.minimal-ui.tv-console .main-force-track-foot{height:16px;gap:9px;font-size:8px}
+.app-shell.minimal-ui.tv-console .main-force-track-foot>span:nth-child(-n+2),.app-shell.minimal-ui.tv-console .main-force-track-foot>em{display:none}
+.app-shell.minimal-ui.tv-console .main-force-track-foot .main-force-intent{padding:0;border:0;background:transparent;font-size:8px}
+.app-shell.minimal-ui.tv-console .main-force-track-foot .main-force-response-note{max-width:70px}
+.app-shell.minimal-ui.tv-console .intraday-risk-marker text,.app-shell.minimal-ui.tv-console .candidate-signal-marker text,.app-shell.minimal-ui.tv-console .live-signal-marker text{font-size:8px}
+@media(max-width:760px){.app-shell.minimal-ui.tv-console .stock-head{height:auto;min-height:78px;padding:8px 12px}.app-shell.minimal-ui.tv-console .quote-focus .quote strong{font-size:28px}.app-shell.minimal-ui.tv-console .quote-metrics{display:none}.app-shell.minimal-ui.tv-console .next-session-header{min-width:104px;flex-basis:104px}.app-shell.minimal-ui.tv-console .l2-console-status{min-width:94px;flex-basis:94px}.app-shell.minimal-ui.tv-console .main-force-track{height:98px;flex-basis:98px}}
