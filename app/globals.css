@@ -60,6 +60,9 @@
 @media(max-width:1100px){.main-nav{display:none}.quote-metrics span:nth-child(-n+2){display:none}.workspace{grid-template-columns:minmax(0,2fr) minmax(300px,1fr)}.lower-panel{grid-template-columns:1fr}.agents{border-top:1px solid var(--line)}.history{border-right:0}.agent-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.topbar{gap:8px;padding:0 10px}.brand{border:0;padding:0;min-width:0}.brand-lockup .brand-emblem{width:50px;height:50px}.brand-lockup .brand-emblem .rabbit-logo{width:52px;height:52px}.brand-lockup .brand-type strong{font-size:18px!important}.brand-lockup .brand-type small{display:none}.top-actions{gap:7px}.beta,.clock,.quote-metrics,.opening-assessment,.market-open,.auto-off,.profile-cycle,.strategy-help,.icon-button{display:none!important}.account-button{max-width:112px}.account-button b{max-width:68px;overflow:hidden;text-overflow:ellipsis}.ticker{overflow-x:auto}.session-ribbon{height:auto;min-height:32px;padding:7px 12px;gap:8px}.session-ribbon small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.stock-head{flex-wrap:wrap;gap:12px}.quote{margin-left:auto}.workspace{display:block;height:auto;overflow:visible}.chart-zone{height:430px;border-right:0}.decision-zone{border-top:1px solid var(--line);overflow:visible}.lower-panel{display:block}.agent-grid{grid-template-columns:1fr 1fr}.chart-wrap{min-height:300px}.signal-tape{overflow-x:auto}.primary-action{min-height:64px}footer span:nth-child(2){display:none}}
 .release-version{margin-left:auto;white-space:nowrap;font-family:var(--font-geist-mono),monospace}.release-version b{color:var(--muted);font-weight:600}.release-version a{color:inherit;text-decoration:none}.release-version a:hover{color:var(--text)}
+.dashboard-layout-trigger{min-height:26px;padding:0 9px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--muted);font-size:10px;cursor:pointer}.dashboard-layout-trigger:hover,.dashboard-layout-trigger:focus-visible{border-color:var(--amber);color:var(--text);outline:none}
+.dashboard-optional-area{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin:12px 0}.dashboard-panel-shell{position:relative;min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 4px 16px rgba(30,45,65,.05)}.dashboard-panel-shell.is-collapsed{min-height:0}.dashboard-panel-shell-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:38px;padding:7px 9px;border-bottom:1px solid var(--line-soft)}.dashboard-panel-shell-title{display:flex;align-items:center;gap:7px;min-width:0}.dashboard-panel-shell-title>div{min-width:0}.dashboard-panel-shell-title b{display:block;color:var(--text);font-size:11px}.dashboard-panel-shell-title small{display:block;overflow:hidden;color:var(--muted);font-size:9px;text-overflow:ellipsis;white-space:nowrap}.dashboard-panel-drag-handle,.dashboard-layout-row-handle{color:var(--dim);font-size:14px;line-height:1;cursor:grab}.dashboard-panel-shell-actions{display:flex;gap:4px;flex:0 0 auto}.dashboard-panel-shell-actions button,.dashboard-layout-row button{min-height:22px;padding:0 6px;border:1px solid var(--line-soft);border-radius:5px;background:transparent;color:var(--muted);font-size:9px;cursor:pointer}.dashboard-panel-shell-actions button:hover,.dashboard-panel-shell-actions button:focus-visible,.dashboard-layout-row button:hover,.dashboard-layout-row button:focus-visible{border-color:var(--amber);color:var(--text);outline:none}.dashboard-panel-shell.is-locked .dashboard-panel-shell-actions button:nth-child(2){color:var(--amber)}.dashboard-panel-shell-body{padding:10px}.dashboard-panel-resize-handle{position:absolute;right:2px;bottom:2px;width:14px;height:14px;border:0;background:linear-gradient(135deg,transparent 45%,var(--muted) 46%,var(--muted) 54%,transparent 55%);cursor:nwse-resize}.dashboard-placeholder-content{display:grid;gap:5px;min-height:76px;align-content:center;color:var(--muted);font-size:10px;line-height:1.45}.dashboard-placeholder-content b{color:var(--text);font-size:11px;font-weight:650}.dashboard-layout-overlay{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:20px;background:rgba(12,16,14,.42)}.dashboard-layout-manager{width:min(760px,100%);max-height:min(760px,calc(100vh - 40px));overflow:auto;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 24px 70px rgba(0,0,0,.28)}.dashboard-layout-manager>header{display:flex;justify-content:space-between;gap:15px;align-items:flex-start}.dashboard-layout-manager>header span{color:var(--muted);font:700 9px var(--font-geist-mono),monospace;letter-spacing:.08em}.dashboard-layout-manager>header h2{margin:5px 0 3px;color:var(--text);font-size:20px}.dashboard-layout-manager>header p{margin:0;color:var(--muted);font-size:10px}.dashboard-layout-manager>header>button{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--muted);font-size:18px;cursor:pointer}.dashboard-layout-presets{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 10px}.dashboard-layout-presets button{min-height:28px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--muted);font-size:10px;cursor:pointer}.dashboard-layout-presets button:hover,.dashboard-layout-presets button:focus-visible,.dashboard-layout-presets button.active{border-color:var(--amber);color:var(--text);background:rgba(190,153,84,.08);outline:none}.dashboard-layout-list{display:grid;gap:6px}.dashboard-layout-row{display:grid;grid-template-columns:18px minmax(0,1fr) 54px auto auto 24px 24px;gap:6px;align-items:center;padding:8px;border:1px solid var(--line-soft);border-radius:7px;background:color-mix(in srgb,var(--surface) 90%,var(--bg))}.dashboard-layout-row.hidden{opacity:.56}.dashboard-layout-row-copy{min-width:0}.dashboard-layout-row-copy b,.dashboard-layout-row-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dashboard-layout-row-copy b{color:var(--text);font-size:10px}.dashboard-layout-row-copy small{color:var(--muted);font-size:9px}.dashboard-layout-row-area{color:var(--dim);font-size:9px}.dashboard-layout-manager>footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;color:var(--muted);font-size:10px}.dashboard-layout-manager>footer button{min-height:28px;padding:0 14px;border:1px solid var(--amber);border-radius:6px;background:transparent;color:var(--text);font-size:10px;cursor:pointer}
+@media(max-width:760px){.dashboard-layout-trigger{padding:0 7px;font-size:9px}.dashboard-optional-area{grid-template-columns:1fr}.dashboard-panel-shell-head{align-items:flex-start}.dashboard-panel-shell-actions{flex-wrap:wrap;justify-content:flex-end}.dashboard-layout-overlay{padding:10px}.dashboard-layout-manager{padding:13px}.dashboard-layout-row{grid-template-columns:16px minmax(0,1fr) auto auto;gap:5px}.dashboard-layout-row-area{display:none}.dashboard-layout-row button:nth-last-child(-n+2){display:none}.dashboard-layout-manager>footer{align-items:flex-start;flex-direction:column}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}.primary-action:hover{transform:none}}
 .chart-wrap .volume{fill:#19b7a8;opacity:.82}.chart-wrap .volume.red{fill:#ef5f59}.chart-wrap .volume-divider{stroke:#34413e;opacity:.82}
 .interactive-intraday-chart{cursor:crosshair;touch-action:pan-y;outline:none}.interactive-intraday-chart:focus-visible{filter:drop-shadow(0 0 2px rgba(46,207,192,.55))}.intraday-crosshair{pointer-events:none}.intraday-crosshair-line{stroke:#9aa5a2;stroke-width:1;stroke-dasharray:5 4;opacity:.82;vector-effect:non-scaling-stroke}.intraday-crosshair-dot{fill:var(--surface);stroke:var(--text);stroke-width:1.4;vector-effect:non-scaling-stroke}.intraday-crosshair-card{filter:drop-shadow(0 8px 12px rgba(0,0,0,.42))}.intraday-crosshair-card rect{fill:rgba(8,11,12,.97);stroke:#55615e;stroke-width:1;vector-effect:non-scaling-stroke}.intraday-crosshair-card text{fill:#b7c0bd;font-size:8.5px;font-weight:550}.intraday-crosshair-card text.title{fill:#f4f7f6;font-size:10px;font-weight:780;letter-spacing:.03em}.intraday-crosshair-card text.primary{font-size:10.5px;font-weight:800}.intraday-crosshair-card text.up{fill:var(--coral)}.intraday-crosshair-card text.down{fill:var(--teal)}.intraday-crosshair-card text.force-buy{fill:#c59aff}.intraday-crosshair-card text.force-sell{fill:#ff7889}.intraday-crosshair-card .tooltip-divider{stroke:#35403d;stroke-width:1;vector-effect:non-scaling-stroke}.intraday-crosshair-axis-label rect{fill:rgba(8,11,12,.98);stroke:#56615f;stroke-width:1;vector-effect:non-scaling-stroke}.intraday-crosshair-axis-label text{fill:#f4f7f6;font-size:8px;font-weight:750}.intraday-crosshair-axis-label.price.up rect{fill:color-mix(in srgb,var(--coral) 78%,#111)}.intraday-crosshair-axis-label.price.down rect{fill:color-mix(in srgb,var(--teal) 72%,#111)}.intraday-crosshair-axis-label.time rect{fill:#151a19}.main-force-crosshair{stroke:#b8c0be;stroke-width:1;stroke-dasharray:5 4;opacity:.86;vector-effect:non-scaling-stroke;pointer-events:none}
@@ -2153,7 +2156,7 @@
   background:color-mix(in srgb,var(--coral) 10%,var(--surface));
 }
 :root[data-theme="light"] .minimal-ui .zijin-price-plan{display:flex;flex-direction:column;gap:7px}
-:root[data-theme="light"] .minimal-ui .zijin-price-plan-head{order:1}
+:root[data-theme="light"] .minimal-ui .zijin-price-plan-head{order:1;display:flex}
 :root[data-theme="light"] .minimal-ui .zijin-price-plan-quick-fill{order:2;margin:0}
 :root[data-theme="light"] .minimal-ui .zijin-price-plan-grid{order:3}
 :root[data-theme="light"] .minimal-ui .zijin-price-plan-meta,
@@ -4755,7 +4758,7 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui .decision-zone > .primary-action{order:5!important}
 .app-shell.minimal-ui .decision-zone > .alert-channel{order:6!important}
 .app-shell.minimal-ui .decision-zone > .order-flow-top-card{order:7!important}
-.app-shell.minimal-ui .decision-zone > *:not(.decision-zone-tabs):not(.decision-primary-card):not(.zijin-price-plan):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel):not(.order-flow-top-card){order:8!important}
+.app-shell.minimal-ui .decision-zone > *:not(.decision-zone-tabs):not(.t-observation-card):not(.decision-primary-card):not(.zijin-price-plan):not(.decision-position-card):not(.trade-alert-stack):not(.primary-action):not(.alert-channel):not(.order-flow-top-card){order:9!important}
 
 /* The chart toolbar is grouped by task so the signal layers do not compete
    with the period switch or utility actions. Indicators can scroll on narrow
@@ -5289,3 +5292,589 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 @media (max-width:680px){.t-observation-current{flex-direction:column}.t-observation-state-badge{min-width:0;text-align:left}.t-observation-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.t-observation-timeline li button{grid-template-columns:40px 70px minmax(0,1fr)}.t-observation-action-row strong{font-size:18px}}
 .t-guidance-chart-marker{opacity:.94}.t-guidance-chart-marker circle{fill:#fff7dc;stroke:#b47b16;stroke-width:1.4}.t-guidance-chart-marker polygon{fill:#fff0d2;stroke:#b47b16;stroke-width:1.4}.t-guidance-chart-marker.positive-t-watch circle{fill:#dff6e9;stroke:#3c9c78}.t-guidance-chart-marker.counter-t-watch polygon{fill:#ffe1c7;stroke:#cb7a27}.t-guidance-chart-marker.structure-change circle{fill:#f4ead0;stroke:#a47a24}.t-guidance-marker-leader{stroke:#b47b16;stroke-width:1;stroke-dasharray:2 2;opacity:.8}.t-guidance-marker-label{fill:#815609;font-size:8px;font-weight:800;paint-order:stroke;stroke:var(--surface);stroke-width:2px}.t-guidance-chart-marker:hover{opacity:1}.t-guidance-chart-marker:hover circle,.t-guidance-chart-marker:hover polygon{stroke-width:2}
 @media (max-width:680px){.t-guidance-primary b{font-size:18px}.t-guidance-primary{padding:8px}.t-guidance-strength b{font-size:18px}}
+
+/* V0.12.48 — restrained workstation system, scoped to the trading desk. */
+.app-shell.minimal-ui.tv-console{
+  --desk-space-1:4px;
+  --desk-space-2:8px;
+  --desk-space-3:12px;
+  --desk-space-4:16px;
+  --desk-space-5:20px;
+  --desk-space-6:24px;
+  --desk-radius-sm:6px;
+  --desk-radius:10px;
+  --desk-font:Inter,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+  --desk-numeric:var(--font-geist-mono),ui-monospace,monospace;
+  --desk-type-xs:8px;
+  --desk-type-sm:10px;
+  --desk-type-md:12px;
+  --desk-type-lg:16px;
+  --desk-control-height:30px;
+  --desk-bg:var(--tv-bg);
+  --desk-panel:var(--tv-panel);
+  --desk-rail:var(--tv-panel-2);
+  --desk-raised:color-mix(in srgb,var(--tv-panel) 82%,var(--tv-bg));
+  --desk-border:var(--tv-border);
+  --desk-divider:color-mix(in srgb,var(--tv-border) 68%,transparent);
+  --desk-ink:var(--tv-text);
+  --desk-strong:var(--tv-text);
+  --desk-muted:var(--tv-muted);
+  --desk-faint:color-mix(in srgb,var(--tv-muted) 72%,var(--tv-bg));
+  --desk-accent:var(--teal);
+  --desk-attention:var(--amber);
+  --desk-semantic-positive:#4f9b7a;
+  --desk-semantic-caution:#bf8b46;
+  --desk-semantic-wait:#b59a5f;
+  --desk-semantic-neutral:var(--desk-muted);
+  --desk-focus:color-mix(in srgb,var(--desk-accent) 62%,transparent);
+  --desk-shadow:0 1px 3px rgba(0,0,0,.12);
+  font-family:var(--desk-font);
+}
+:root[data-theme="light"] .app-shell.minimal-ui.tv-console{
+  --desk-bg:#f4f6f2;
+  --desk-panel:#ffffff;
+  --desk-rail:#f7f8f5;
+  --desk-raised:#f1f4ef;
+  --desk-border:#e0e6df;
+  --desk-divider:#e9ede7;
+  --desk-ink:#4d5a52;
+  --desk-strong:#26342c;
+  --desk-muted:#718078;
+  --desk-faint:#89958e;
+  --desk-accent:#4f7864;
+  --desk-attention:#9b7438;
+  --desk-semantic-positive:#3f8768;
+  --desk-semantic-caution:#a36f34;
+  --desk-semantic-wait:#8f7338;
+  --desk-semantic-neutral:#718078;
+  --desk-focus:rgba(63,135,104,.58);
+  --desk-shadow:0 1px 3px rgba(34,52,40,.045);
+}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console{
+  --desk-bg:#101310;
+  --desk-panel:#171b17;
+  --desk-rail:#121612;
+  --desk-raised:#1c211c;
+  --desk-border:#2b322b;
+  --desk-divider:#222922;
+  --desk-ink:#c1cbc2;
+  --desk-strong:#e5ebe5;
+  --desk-muted:#929d93;
+  --desk-faint:#727e73;
+  --desk-accent:#91ad94;
+  --desk-attention:#c5a56b;
+  --desk-semantic-positive:#91b69a;
+  --desk-semantic-caution:#c5a56b;
+  --desk-semantic-wait:#c9b27b;
+  --desk-semantic-neutral:#929d93;
+  --desk-focus:rgba(145,173,148,.62);
+  --desk-shadow:0 1px 3px rgba(0,0,0,.16);
+}
+
+/* The desk is a working surface, not a hero landing page. */
+.app-shell.minimal-ui.tv-console{background:var(--desk-bg);background-image:none}
+
+.app-shell.minimal-ui.tv-console .topbar{
+  height:46px;
+  min-height:46px;
+  padding-inline:16px;
+  column-gap:16px;
+  border-color:var(--desk-border);
+  background:var(--desk-panel);
+}
+.app-shell.minimal-ui.tv-console .brand{padding-right:10px;border-color:var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .brand-primary-logo{width:136px;max-height:34px}
+.app-shell.minimal-ui.tv-console .main-nav{gap:0;margin-left:0}
+.app-shell.minimal-ui.tv-console .main-nav button,
+.app-shell.minimal-ui.tv-console .main-nav .nav-more>button{
+  min-height:30px;
+  padding-inline:clamp(6px,.68vw,12px);
+  color:var(--desk-muted);
+  font:500 12px/1.2 var(--desk-font);
+}
+.app-shell.minimal-ui.tv-console .main-nav button:hover,
+.app-shell.minimal-ui.tv-console .main-nav .nav-more>button:hover,
+.app-shell.minimal-ui.tv-console .top-actions button:hover{color:var(--desk-strong);background:var(--desk-raised)}
+.app-shell.minimal-ui.tv-console .main-nav button.active,
+.app-shell.minimal-ui.tv-console .main-nav .nav-more>button.active{color:var(--desk-strong)}
+.app-shell.minimal-ui.tv-console .main-nav button.active:after,
+.app-shell.minimal-ui.tv-console .main-nav .nav-more>button.active:after{background:var(--desk-accent)}
+.app-shell.minimal-ui.tv-console .top-actions{gap:6px}
+.app-shell.minimal-ui.tv-console .top-actions button,
+.app-shell.minimal-ui.tv-console .dashboard-layout-trigger{
+  min-height:var(--desk-control-height);
+  border-color:var(--desk-border);
+  border-radius:var(--desk-radius-sm);
+  color:var(--desk-muted);
+  font:500 11px/1 var(--desk-font);
+}
+
+.app-shell.minimal-ui.tv-console .ticker{
+  min-height:42px;
+  height:42px;
+  flex-basis:42px;
+  gap:7px;
+  padding:4px 14px;
+  border-color:var(--desk-border);
+  background:var(--desk-rail);
+}
+.app-shell.minimal-ui.tv-console .ticker-item{
+  height:32px;
+  min-height:32px;
+  max-height:32px;
+  border:1px solid var(--desk-border)!important;
+  border-radius:var(--desk-radius-sm);
+  background:var(--desk-panel);
+  box-shadow:none;
+}
+.app-shell.minimal-ui.tv-console .ticker-item.selected{
+  border-color:color-mix(in srgb,var(--desk-accent) 48%,var(--desk-border))!important;
+  background:color-mix(in srgb,var(--desk-accent) 7%,var(--desk-panel))!important;
+  box-shadow:none!important;
+}
+.app-shell.minimal-ui.tv-console .session-ribbon{
+  height:22px;
+  flex-basis:22px;
+  padding-inline:14px;
+  border-color:var(--desk-border);
+  background:var(--desk-rail);
+  color:var(--desk-muted);
+  font:500 10px/1.2 var(--desk-font);
+}
+.app-shell.minimal-ui.tv-console .stock-head{
+  min-height:70px;
+  height:70px;
+  padding:7px 16px;
+  gap:14px;
+  border-color:var(--desk-border);
+  background:var(--desk-bg);
+}
+.app-shell.minimal-ui.tv-console .stock-identity h1{font:620 17px/1.25 var(--desk-font);color:var(--desk-strong)}
+.app-shell.minimal-ui.tv-console .stock-code{color:var(--desk-muted);font:550 11px/1 var(--desk-numeric)}
+.app-shell.minimal-ui.tv-console .quote strong{font:700 27px/1 var(--desk-numeric);font-variant-numeric:tabular-nums}
+.app-shell.minimal-ui.tv-console .quote span{font:650 16px/1 var(--desk-numeric);font-variant-numeric:tabular-nums}
+.app-shell.minimal-ui.tv-console .quote-metrics{gap:10px;color:var(--desk-muted);font:450 10px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .quote-metrics b{color:var(--desk-ink);font-weight:580}
+.app-shell.minimal-ui.tv-console .desk-core-strip{
+  min-height:42px;
+  padding:4px 12px;
+  gap:6px;
+  border:0;
+  border-bottom:1px solid var(--desk-border);
+  background:var(--desk-panel);
+}
+.app-shell.minimal-ui.tv-console .desk-core-strip>div{
+  padding:4px 9px;
+  border:0;
+  border-left:1px solid var(--desk-divider);
+  border-radius:0;
+  background:transparent;
+}
+.app-shell.minimal-ui.tv-console .desk-core-strip>div:first-child{border-left:0}
+.app-shell.minimal-ui.tv-console .desk-core-strip span{color:var(--desk-muted);font:450 9px/1.2 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .desk-core-strip b{color:var(--desk-strong);font:600 12px/1.25 var(--desk-numeric)}
+
+@media(min-width:981px){
+  .app-shell.minimal-ui.tv-console .workspace:not(.workspace-fullscreen):not(:fullscreen){
+    height:clamp(480px,calc(100vh - 250px),780px);
+    min-height:480px;
+    max-height:780px;
+  }
+}
+.app-shell.minimal-ui.tv-console .workspace{border-color:var(--desk-border);background:var(--desk-bg)}
+.app-shell.minimal-ui.tv-console .workspace>.chart-zone,
+.app-shell.minimal-ui.tv-console .workspace>.chart-zone>.chart-tools,
+.app-shell.minimal-ui.tv-console .workspace>.chart-zone>.chart-wrap{
+  border-color:var(--desk-border);
+  background:var(--desk-bg);
+}
+.app-shell.minimal-ui.tv-console .workspace>.chart-zone>.chart-tools{
+  height:42px;
+  min-height:42px;
+  flex-basis:42px;
+  padding-inline:14px;
+  background:var(--desk-panel);
+}
+.app-shell.minimal-ui.tv-console .workspace>.chart-zone>.chart-wrap{padding-top:10px}
+:root[data-theme="light"] .app-shell.minimal-ui.tv-console .grid-line{stroke:#dfe5de}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .grid-line{stroke:#2b322b}
+.app-shell.minimal-ui.tv-console .workspace>.decision-panel-resizer{
+  border-color:var(--desk-divider);
+  background:var(--desk-rail);
+}
+.app-shell.minimal-ui.tv-console .decision-panel-resizer>i{background:var(--desk-faint);box-shadow:3px 0 color-mix(in srgb,var(--desk-faint) 45%,transparent),-3px 0 color-mix(in srgb,var(--desk-faint) 45%,transparent)}
+.app-shell.minimal-ui.tv-console .decision-panel-resizer>button{border-color:var(--desk-border);background:var(--desk-panel);color:var(--desk-muted)}
+.app-shell.minimal-ui.tv-console .decision-panel-resizer>button:hover,
+.app-shell.minimal-ui.tv-console .decision-panel-resizer>button:focus-visible{border-color:var(--desk-accent);color:var(--desk-accent)}
+.app-shell.minimal-ui.tv-console .workspace.workspace-fullscreen,
+.app-shell.minimal-ui.tv-console .workspace:fullscreen{background:var(--desk-bg)}
+
+.app-shell.minimal-ui.tv-console .decision-zone{
+  padding:14px;
+  border-color:var(--desk-border);
+  background:var(--desk-rail);
+  color:var(--desk-ink);
+}
+.app-shell.minimal-ui.tv-console .decision-zone-tabs{
+  top:0;
+  margin:-14px -14px 12px;
+  padding:7px 14px 0;
+  gap:6px;
+  border-color:var(--desk-border);
+  background:var(--desk-rail);
+  backdrop-filter:blur(12px);
+}
+.app-shell.minimal-ui.tv-console .decision-zone-tabs button{
+  min-height:32px;
+  border:0;
+  border-bottom:2px solid transparent;
+  border-radius:0;
+  color:var(--desk-muted);
+  background:transparent;
+  font:500 11px/1.2 var(--desk-font);
+}
+.app-shell.minimal-ui.tv-console .decision-zone-tabs button.active{
+  border-bottom-color:var(--desk-accent);
+  color:var(--desk-strong);
+  background:transparent;
+  box-shadow:none;
+}
+.app-shell.minimal-ui.tv-console .decision-zone :is(.decision-primary-card,.decision-position-card,.order-flow-top-card,.t-calculator){
+  border-color:var(--desk-border);
+  border-radius:var(--desk-radius);
+  box-shadow:none;
+}
+.app-shell.minimal-ui.tv-console .decision-zone :is(.decision-primary-card,.decision-position-card,.order-flow-top-card){background:var(--desk-panel)}
+.app-shell.minimal-ui.tv-console .decision-zone :is(.decision-primary-card,.decision-position-card,.order-flow-top-card) :is(header,footer){border-color:var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .decision-zone :is(button,a,summary):focus-visible,
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button:focus-visible,
+.app-shell.minimal-ui.tv-console .dashboard-layout-manager button:focus-visible{outline:2px solid var(--desk-focus);outline-offset:2px}
+
+/* Primary / secondary / tertiary hierarchy.  This changes emphasis only. */
+.app-shell.minimal-ui.tv-console .decision-zone>.decision-primary-card{order:1!important;border-left:2px solid var(--desk-accent)}
+.app-shell.minimal-ui.tv-console .decision-zone>.order-flow-top-card{order:2!important;background:var(--desk-rail);border-color:var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .decision-zone>.zijin-price-plan,
+.app-shell.minimal-ui.tv-console .decision-zone>.decision-position-card,
+.app-shell.minimal-ui.tv-console .decision-zone>.t-calculator{order:3!important;background:var(--desk-rail);border-color:var(--desk-divider)}
+
+/* T Observation is one quiet, readable card; its historical details stay available on demand. */
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card{
+  order:-3!important;
+  position:relative;
+  z-index:2;
+  flex:0 0 auto;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  margin:0 0 12px;
+  padding:var(--desk-space-3);
+  overflow:visible;
+  border:1px solid var(--desk-border);
+  border-radius:var(--desk-radius);
+  background:var(--desk-panel);
+  box-shadow:var(--desk-shadow);
+}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.waiting{opacity:1}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.POSITIVE_T_WATCH{border-left:2px solid var(--desk-semantic-positive)}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.COUNTER_T_WATCH{border-left:2px solid var(--desk-semantic-caution)}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.WAIT_CONFIRMATION{border-left:2px solid var(--desk-semantic-wait)}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.INVALID,
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.NO_CLEAR_T_OPPORTUNITY{border-left:2px solid var(--desk-semantic-neutral)}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card>.dashboard-panel-shell-head{
+  min-height:32px;
+  padding:0 0 var(--desk-space-2);
+  border-bottom:1px solid var(--desk-divider);
+}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-title{gap:7px}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-title b{color:var(--desk-strong);font:620 12px/1.25 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-title small{margin-top:2px;color:var(--desk-faint);font:450 9px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .dashboard-panel-drag-handle{color:var(--desk-faint);font-size:13px}
+.app-shell.minimal-ui.tv-console .dashboard-panel-drag-handle[draggable="true"]{cursor:grab;touch-action:none}
+.app-shell.minimal-ui.tv-console .dashboard-panel-drag-handle[draggable="true"]:active{cursor:grabbing}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions{gap:3px}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button{
+  min-height:24px;
+  padding-inline:7px;
+  border-color:transparent;
+  border-radius:5px;
+  color:var(--desk-faint);
+  font:450 9px/1 var(--desk-font);
+}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button:hover{border-color:var(--desk-border);background:var(--desk-raised);color:var(--desk-strong)}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell.is-locked .dashboard-panel-shell-actions button:nth-child(2){color:var(--desk-accent)}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card>.dashboard-panel-shell-body{padding:var(--desk-space-2) 0 0}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card>.dashboard-panel-resize-handle{display:none}
+.app-shell.minimal-ui.tv-console .t-observation-current{
+  align-items:center;
+  gap:var(--desk-space-3);
+  padding:2px 0 var(--desk-space-3);
+  border:0;
+  border-bottom:1px solid var(--desk-divider);
+  border-radius:0;
+  background:transparent;
+}
+.app-shell.minimal-ui.tv-console .t-observation-current-copy small,
+.app-shell.minimal-ui.tv-console .t-observation-state-badge small{color:var(--desk-muted);font:500 9px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-action-row{gap:6px;margin-top:3px}
+.app-shell.minimal-ui.tv-console .t-observation-action-row strong{color:var(--desk-strong);font:620 16px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-action-badge{padding:3px 6px;border:1px solid var(--desk-border);border-radius:999px;background:var(--desk-rail);color:var(--desk-muted);font:550 9px/1.2 var(--desk-numeric)}
+.app-shell.minimal-ui.tv-console .t-observation-card.POSITIVE_T_WATCH .t-observation-action-badge{border-color:color-mix(in srgb,var(--desk-semantic-positive) 44%,var(--desk-border));color:var(--desk-semantic-positive)}
+.app-shell.minimal-ui.tv-console .t-observation-card.COUNTER_T_WATCH .t-observation-action-badge{border-color:color-mix(in srgb,var(--desk-semantic-caution) 44%,var(--desk-border));color:var(--desk-semantic-caution)}
+.app-shell.minimal-ui.tv-console .t-observation-card.WAIT_CONFIRMATION .t-observation-action-badge{border-color:color-mix(in srgb,var(--desk-semantic-wait) 44%,var(--desk-border));color:var(--desk-semantic-wait)}
+.app-shell.minimal-ui.tv-console .t-observation-current-copy p{margin:4px 0 0;color:var(--desk-muted);font:450 10px/1.5 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-state-badge{min-width:0;max-width:42%;text-align:right}
+.app-shell.minimal-ui.tv-console .t-observation-state-badge b{margin-top:3px;color:var(--desk-ink);font:550 10px/1.35 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-next{
+  min-height:36px;
+  margin:var(--desk-space-2) 0 0;
+  padding:7px 9px;
+  border:1px solid var(--desk-divider);
+  border-left:2px solid var(--desk-attention);
+  border-radius:var(--desk-radius-sm);
+  background:var(--desk-rail);
+}
+.app-shell.minimal-ui.tv-console .t-observation-next span{color:var(--desk-muted);font:500 9px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-next b{color:var(--desk-strong);font:550 10px/1.4 var(--desk-font);text-align:right}
+.app-shell.minimal-ui.tv-console .t-observation-section{margin-top:var(--desk-space-3)}
+.app-shell.minimal-ui.tv-console .t-observation-section-head{margin-bottom:5px}
+.app-shell.minimal-ui.tv-console .t-observation-section-head span{color:var(--desk-muted);font:550 10px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-section-head em{color:var(--desk-faint);font:450 9px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-why ul{gap:4px}
+.app-shell.minimal-ui.tv-console .t-observation-why li{padding-left:11px;color:var(--desk-ink);font:450 10px/1.45 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-why li::before{width:4px;height:4px;background:var(--desk-faint)}
+.app-shell.minimal-ui.tv-console .t-observation-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10px;margin-top:var(--desk-space-2);padding-top:var(--desk-space-2);border-top:1px solid var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .t-observation-facts>div{padding:5px 0;border:0;border-radius:0;background:transparent}
+.app-shell.minimal-ui.tv-console .t-observation-facts small,
+.app-shell.minimal-ui.tv-console .t-observation-facts em{color:var(--desk-faint);font:450 8px/1.3 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-facts b{margin:3px 0 0;color:var(--desk-ink);font:520 9px/1.35 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-research,
+.app-shell.minimal-ui.tv-console .t-observation-timeline{
+  margin-top:var(--desk-space-2);
+  padding-top:var(--desk-space-2);
+  border:0;
+  border-top:1px solid var(--desk-divider);
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+.app-shell.minimal-ui.tv-console .t-observation-research>summary,
+.app-shell.minimal-ui.tv-console .t-observation-timeline>summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  min-height:24px;
+  color:var(--desk-muted);
+  cursor:pointer;
+  list-style:none;
+}
+.app-shell.minimal-ui.tv-console .t-observation-research>summary::-webkit-details-marker,
+.app-shell.minimal-ui.tv-console .t-observation-timeline>summary::-webkit-details-marker{display:none}
+.app-shell.minimal-ui.tv-console .t-observation-research>summary::after,
+.app-shell.minimal-ui.tv-console .t-observation-timeline>summary::after{content:"＋";flex:0 0 auto;color:var(--desk-faint);font:500 11px/1 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-research[open]>summary::after,
+.app-shell.minimal-ui.tv-console .t-observation-timeline[open]>summary::after{content:"−"}
+.app-shell.minimal-ui.tv-console .t-observation-research>summary span,
+.app-shell.minimal-ui.tv-console .t-observation-timeline>summary span{font:520 9px/1.35 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-research>summary em,
+.app-shell.minimal-ui.tv-console .t-observation-timeline>summary em{margin-left:auto;color:var(--desk-faint);font:450 8px/1.35 var(--desk-font);font-style:normal;text-align:right}
+.app-shell.minimal-ui.tv-console .t-observation-research>p,
+.app-shell.minimal-ui.tv-console .t-observation-timeline>p{margin:5px 0 0;color:var(--desk-muted);font:450 9px/1.5 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-research>small{color:var(--desk-attention);font:450 8px/1.4 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-timeline ol{gap:2px;margin-top:5px}
+.app-shell.minimal-ui.tv-console .t-observation-timeline li button{grid-template-columns:38px 66px minmax(0,1fr);gap:6px;padding:5px 4px;border-color:transparent;border-radius:5px;color:var(--desk-ink)}
+.app-shell.minimal-ui.tv-console .t-observation-timeline li button:hover{border-color:var(--desk-divider);background:var(--desk-rail)}
+.app-shell.minimal-ui.tv-console .t-observation-timeline time{color:var(--desk-faint);font:500 8px/1.3 var(--desk-numeric)}
+.app-shell.minimal-ui.tv-console .t-observation-timeline li span,
+.app-shell.minimal-ui.tv-console .t-observation-timeline li small{color:var(--desk-muted);font:450 8px/1.35 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-caution{gap:6px;margin-top:var(--desk-space-2);padding:7px 8px;border:1px solid color-mix(in srgb,var(--desk-attention) 22%,var(--desk-border));border-radius:var(--desk-radius-sm);background:color-mix(in srgb,var(--desk-attention) 7%,var(--desk-panel));color:var(--desk-attention);font:450 9px/1.4 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-caution b{font-weight:450}
+.app-shell.minimal-ui.tv-console .t-guidance-safety{margin-top:var(--desk-space-2);padding-top:var(--desk-space-2);border-color:var(--desk-divider);color:var(--desk-faint);font:450 8px/1.45 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-empty-panel{gap:5px;padding:12px 8px;border:1px dashed var(--desk-border);border-radius:var(--desk-radius-sm);background:var(--desk-rail)}
+.app-shell.minimal-ui.tv-console .t-observation-empty-panel strong{color:var(--desk-strong);font:600 12px/1.35 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .t-observation-empty-panel span,
+.app-shell.minimal-ui.tv-console .t-observation-empty-panel b{color:var(--desk-muted);font:450 9px/1.45 var(--desk-font)}
+
+/* Optional panels and the layout manager share the same quiet surface language. */
+.app-shell.minimal-ui.tv-console .dashboard-optional-area{gap:var(--desk-space-3);margin:var(--desk-space-4) 0}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell.dashboard-optional-panel{
+  border-color:var(--desk-border);
+  border-radius:var(--desk-radius);
+  background:var(--desk-panel);
+  box-shadow:var(--desk-shadow);
+}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-head{border-color:var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-body{padding:var(--desk-space-3)}
+.app-shell.minimal-ui.tv-console .dashboard-placeholder-content{min-height:56px;color:var(--desk-muted);font:450 10px/1.5 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .dashboard-placeholder-content b{color:var(--desk-ink);font:550 11px/1.4 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .dashboard-panel-resize-handle{right:4px;bottom:4px;width:17px;height:17px;opacity:.65;touch-action:none}
+.app-shell.minimal-ui.tv-console .dashboard-panel-resize-handle:hover,
+.app-shell.minimal-ui.tv-console .dashboard-panel-resize-handle:focus-visible{opacity:1;outline:2px solid color-mix(in srgb,var(--desk-accent) 55%,transparent);outline-offset:1px}
+.app-shell.minimal-ui.tv-console .dashboard-layout-overlay{background:rgba(25,32,26,.42)}
+.app-shell.minimal-ui.tv-console .dashboard-layout-manager{border-color:var(--desk-border);border-radius:12px;background:var(--desk-panel);box-shadow:0 10px 30px rgba(20,30,22,.16);color:var(--desk-ink);font-family:var(--desk-font)}
+.app-shell.minimal-ui.tv-console .dashboard-layout-manager>header h2{color:var(--desk-strong);font:620 18px/1.25 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .dashboard-layout-manager>header p,
+.app-shell.minimal-ui.tv-console .dashboard-layout-manager>footer{color:var(--desk-muted);font:450 10px/1.5 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .dashboard-layout-row{border-color:var(--desk-divider);border-radius:var(--desk-radius-sm);background:var(--desk-rail)}
+.app-shell.minimal-ui.tv-console .dashboard-layout-row-copy b{color:var(--desk-ink)}
+.app-shell.minimal-ui.tv-console .dashboard-layout-row-copy small{color:var(--desk-muted)}
+.app-shell.minimal-ui.tv-console .dashboard-layout-presets button,
+.app-shell.minimal-ui.tv-console .dashboard-layout-row button,
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button{font-family:var(--desk-font)}
+.app-shell.minimal-ui.tv-console .dashboard-layout-presets button.active,
+.app-shell.minimal-ui.tv-console .dashboard-layout-presets button:hover{border-color:var(--desk-accent);background:color-mix(in srgb,var(--desk-accent) 8%,var(--desk-panel));color:var(--desk-strong)}
+
+@media(max-width:980px){
+  .app-shell.minimal-ui.tv-console .workspace:not(.workspace-fullscreen):not(:fullscreen){
+    display:block;
+    height:auto;
+    min-height:0;
+    max-height:none;
+    overflow:visible;
+  }
+  .app-shell.minimal-ui.tv-console .workspace>.chart-zone{
+    height:clamp(390px,56svh,560px);
+    min-height:390px;
+    border-right:0;
+  }
+  .app-shell.minimal-ui.tv-console .workspace>.decision-zone{
+    width:auto;
+    max-height:none;
+    overflow:visible;
+    border-top:1px solid var(--desk-border);
+    border-left:0;
+  }
+  .app-shell.minimal-ui.tv-console .workspace>.decision-panel-resizer{display:none}
+  .app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card{max-width:none}
+}
+@media(max-width:760px){
+  .app-shell.minimal-ui.tv-console .topbar{height:44px;min-height:44px;padding-inline:10px;gap:8px}
+  .app-shell.minimal-ui.tv-console .brand-primary-logo{width:122px;max-height:30px}
+  .app-shell.minimal-ui.tv-console .ticker{height:38px;min-height:38px;flex-basis:38px;padding-inline:8px}
+  .app-shell.minimal-ui.tv-console .session-ribbon{padding-inline:9px}
+  .app-shell.minimal-ui.tv-console .stock-head{height:auto;min-height:68px;padding:7px 10px}
+  .app-shell.minimal-ui.tv-console .workspace>.chart-zone{height:clamp(360px,56svh,500px);min-height:360px}
+  .app-shell.minimal-ui.tv-console .workspace.with-main-force>.chart-zone{height:max(470px,58svh)}
+  .app-shell.minimal-ui.tv-console .decision-zone{padding:12px}
+  .app-shell.minimal-ui.tv-console .decision-zone-tabs{margin:-12px -12px 10px;padding-inline:12px}
+  .app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card{padding:10px}
+  .app-shell.minimal-ui.tv-console .t-observation-state-badge{max-width:100%;text-align:left}
+  .app-shell.minimal-ui.tv-console .t-observation-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app-shell.minimal-ui.tv-console .dashboard-layout-row{grid-template-columns:16px minmax(0,1fr) auto auto;gap:5px}
+}
+
+/* Remove the legacy blue active accents from the light terminal variant. */
+:root[data-theme="light"] .app-shell.minimal-ui.tv-console .layer-switches button.active{
+  color:var(--desk-accent);
+  border-color:color-mix(in srgb,var(--desk-accent) 52%,var(--desk-border));
+  background:color-mix(in srgb,var(--desk-accent) 8%,var(--desk-panel));
+}
+:root[data-theme="light"] .app-shell.minimal-ui.tv-console .layer-switches button.formal.active{color:var(--coral);border-color:color-mix(in srgb,var(--coral) 48%,var(--desk-border));background:color-mix(in srgb,var(--coral) 7%,var(--desk-panel))}
+:root[data-theme="light"] .app-shell.minimal-ui.tv-console .layer-switches button.v29.active{color:var(--desk-semantic-caution);border-color:color-mix(in srgb,var(--desk-semantic-caution) 48%,var(--desk-border));background:color-mix(in srgb,var(--desk-semantic-caution) 7%,var(--desk-panel))}
+:root[data-theme="light"] .app-shell.minimal-ui.tv-console .layer-switches button.v1.active{color:var(--desk-muted);border-color:var(--desk-border);background:var(--desk-raised)}
+:root:not([data-theme="light"]) .app-shell.minimal-ui.tv-console .layer-switches button.v1.active{color:var(--desk-muted);border-color:var(--desk-border);background:var(--desk-raised)}
+
+/* Quiet controls: clear state without turning every panel into a badge. */
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell.is-collapsed>.dashboard-panel-shell-head{border-bottom-color:transparent}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell.is-locked>.dashboard-panel-shell-head{background:color-mix(in srgb,var(--desk-raised) 42%,transparent)}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button:disabled,
+.app-shell.minimal-ui.tv-console .dashboard-layout-row button:disabled{opacity:.42;cursor:not-allowed}
+.app-shell.minimal-ui.tv-console .dashboard-layout-row:focus-within{border-color:color-mix(in srgb,var(--desk-accent) 42%,var(--desk-divider))}
+@media(max-width:980px){
+  .app-shell.minimal-ui.tv-console .decision-zone>.decision-primary-card{order:1!important}
+  .app-shell.minimal-ui.tv-console .decision-zone>.order-flow-top-card{order:2!important}
+}
+@media(prefers-reduced-motion:reduce){.app-shell.minimal-ui.tv-console .dashboard-panel-shell,.app-shell.minimal-ui.tv-console .dashboard-layout-manager{scroll-behavior:auto;transition:none}}
+
+/* V0.12.55 — final micro-polish: keep the default scan path quiet. */
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .chart-control-groups{
+  display:flex;
+  gap:4px;
+  margin-left:auto;
+  opacity:1;
+  pointer-events:auto;
+  transform:none;
+}
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .chart-control-group:not(:first-child){display:none}
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .chart-control-group:first-child{gap:3px}
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .chart-control-group:first-child .chart-control-group-label{display:none}
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .chart-control-group:first-child .layer-switches{border:0;background:transparent;padding:0}
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .chart-control-group:first-child .layer-switches button{min-height:24px;padding-inline:6px}
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .primary-chart-legend > :not(.latest-price-legend),
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .strategy-signal-legend,
+.app-shell.minimal-ui.tv-console .chart-tools.collapsed .auxiliary-indicators{display:none!important}
+.app-shell.minimal-ui.tv-console .decision-position-content{min-width:0}
+.app-shell.minimal-ui.tv-console .mobile-position-toggle{display:none}
+.app-shell.minimal-ui.tv-console .decision-zone.focus-mode .decision-position-card .decision-position-content>header{display:none}
+.app-shell.minimal-ui.tv-console .t-observation-facts small,
+.app-shell.minimal-ui.tv-console .t-observation-facts em,
+.app-shell.minimal-ui.tv-console .t-observation-research>summary em,
+.app-shell.minimal-ui.tv-console .t-observation-timeline>summary em{font-size:9px}
+:root[data-theme="light"] .app-shell.minimal-ui.tv-console .lower-tabs button.active{
+  color:var(--desk-accent);
+  box-shadow:inset 0 -1px var(--desk-accent);
+}
+@media(max-width:760px){
+  .app-shell.minimal-ui.tv-console .chart-tools.collapsed .chart-control-groups{margin-left:0}
+  .app-shell.minimal-ui.tv-console .decision-position-card.mobile-collapsed .decision-position-content{display:none}
+  .app-shell.minimal-ui.tv-console .decision-position-card.mobile-expanded .decision-position-content{display:block}
+  .app-shell.minimal-ui.tv-console .mobile-position-toggle{
+    width:100%;
+    min-height:34px;
+    padding:0;
+    display:grid;
+    grid-template-columns:1fr auto auto;
+    align-items:center;
+    gap:8px;
+    border:0;
+    background:transparent;
+    color:var(--desk-strong);
+    font:550 10px/1.2 var(--desk-font);
+    text-align:left;
+    cursor:pointer;
+  }
+  .app-shell.minimal-ui.tv-console .mobile-position-toggle small{color:var(--desk-muted);font:450 9px/1.2 var(--desk-font)}
+  .app-shell.minimal-ui.tv-console .mobile-position-toggle b{color:var(--desk-accent);font:500 16px/1 var(--desk-font)}
+  .app-shell.minimal-ui.tv-console .decision-position-card.mobile-expanded .mobile-position-toggle{margin-bottom:8px;border-bottom:1px solid var(--desk-divider)}
+}
+
+/* V0.12.51 — final hierarchy and subtraction pass. */
+.app-shell.minimal-ui.tv-console .decision-zone>.decision-zone-tabs{order:0!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card{order:1!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.decision-primary-card{order:2!important;border-left:1px solid var(--desk-accent)}
+.app-shell.minimal-ui.tv-console .decision-zone>.order-flow-top-card{order:3!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.decision-position-card{order:4!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.zijin-price-plan{order:5!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.alert-channel{order:6!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.trade-alert-stack{order:7!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.primary-action{order:8!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card{border-left:1px solid var(--desk-border)}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.POSITIVE_T_WATCH{border-color:color-mix(in srgb,var(--desk-semantic-positive) 42%,var(--desk-border));background:color-mix(in srgb,var(--desk-semantic-positive) 4%,var(--desk-panel))}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.COUNTER_T_WATCH{border-color:color-mix(in srgb,var(--desk-semantic-caution) 42%,var(--desk-border));background:color-mix(in srgb,var(--desk-semantic-caution) 4%,var(--desk-panel))}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.WAIT_CONFIRMATION{border-color:color-mix(in srgb,var(--desk-semantic-wait) 42%,var(--desk-border));background:color-mix(in srgb,var(--desk-semantic-wait) 3%,var(--desk-panel))}
+.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.INVALID,.app-shell.minimal-ui.tv-console .decision-zone>.dashboard-panel-shell.t-observation-card.NO_CLEAR_T_OPPORTUNITY{border-color:var(--desk-border)}
+.app-shell.minimal-ui.tv-console .t-observation-next{border-left:1px solid var(--desk-attention)}
+.app-shell.minimal-ui.tv-console .today-t-opportunity{border-left-width:1px}
+.app-shell.minimal-ui.tv-console .decision-zone>.decision-position-card{border:0!important;border-top:1px solid var(--desk-divider)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding-inline:0!important}
+.app-shell.minimal-ui.tv-console .decision-zone>.order-flow-top-card.waiting{padding:8px 0;border:0;border-top:1px solid var(--desk-divider);border-bottom:1px solid var(--desk-divider);border-radius:0;background:transparent;gap:4px;box-shadow:none}
+.app-shell.minimal-ui.tv-console .decision-zone>.order-flow-top-card.waiting .order-flow-score-row{display:none}
+.app-shell.minimal-ui.tv-console .decision-zone>.order-flow-top-card.waiting .order-flow-top-head{min-height:24px}
+.app-shell.minimal-ui.tv-console .decision-zone>.order-flow-top-card.waiting .order-flow-scope{margin:0;color:var(--desk-muted);font-size:9px}
+.app-shell.minimal-ui.tv-console .decision-zone>.order-flow-top-card.waiting .order-flow-scope+button{padding:0;border:0;background:transparent;color:var(--desk-faint);font-size:9px;text-align:left}
+.app-shell.minimal-ui.tv-console .main-force-track.is-empty{height:40px;flex-basis:40px;padding:4px 12px}
+.app-shell.minimal-ui.tv-console .main-force-track.is-empty .main-force-track-head{height:30px}
+.app-shell.minimal-ui.tv-console .main-force-track.is-empty .main-force-track-head>div:first-child span,.app-shell.minimal-ui.tv-console .main-force-track.is-empty .main-force-track-legend,.app-shell.minimal-ui.tv-console .main-force-track.is-empty .subchart-size-control,.app-shell.minimal-ui.tv-console .main-force-track.is-empty .main-force-response,.app-shell.minimal-ui.tv-console .main-force-track.is-empty .main-force-track-summary,.app-shell.minimal-ui.tv-console .main-force-track.is-empty svg{display:none}
+.app-shell.minimal-ui.tv-console .main-force-track.is-empty .main-force-track-foot{height:auto;gap:10px;font-size:8px}
+.app-shell.minimal-ui.tv-console .main-force-track.is-empty .main-force-track-foot>span:nth-child(-n+2){display:none}
+.app-shell.minimal-ui.tv-console .main-force-track.is-empty .main-force-track-foot em{margin-left:auto}
+.app-shell.minimal-ui.tv-console .ai-watch-bunny{display:none!important}
+.app-shell.minimal-ui.tv-console .ai-diagnostics-trigger{min-height:var(--desk-control-height);padding:0 8px;border:1px solid transparent;border-radius:var(--desk-radius-sm);background:transparent;color:var(--desk-muted);font:500 11px/1 var(--desk-font);cursor:pointer}
+.app-shell.minimal-ui.tv-console .ai-diagnostics-trigger:hover,.app-shell.minimal-ui.tv-console .ai-diagnostics-trigger:focus-visible{border-color:var(--desk-border);background:var(--desk-raised);color:var(--desk-strong);outline:0}
+.app-shell.minimal-ui.tv-console .zijin-price-plan{display:block;padding:0;border:0;border-top:1px solid var(--desk-divider);border-bottom:1px solid var(--desk-divider);border-radius:0;background:transparent;box-shadow:none}
+.app-shell.minimal-ui.tv-console .zijin-price-plan>.zijin-price-plan-head{min-height:38px;padding:8px 0;list-style:none;cursor:pointer}
+.app-shell.minimal-ui.tv-console .zijin-price-plan>.zijin-price-plan-head::-webkit-details-marker{display:none}
+.app-shell.minimal-ui.tv-console .zijin-price-plan>.zijin-price-plan-head:after{content:"＋";color:var(--desk-faint);font:500 12px/1 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .zijin-price-plan[open]>.zijin-price-plan-head:after{content:"−"}
+.app-shell.minimal-ui.tv-console .zijin-price-plan[open]{padding-bottom:10px}
+.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button,.app-shell.minimal-ui.tv-console .dashboard-layout-row button{min-height:28px}
+@media(max-width:760px){.app-shell.minimal-ui.tv-console .ai-diagnostics-trigger{min-height:28px;padding-inline:6px;font-size:9px}.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button,.app-shell.minimal-ui.tv-console .dashboard-layout-row button{min-height:30px}}

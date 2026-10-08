@@ -80,8 +80,11 @@ import { clientFetch as fetch, startClientPolling } from "@/lib/client-polling.m
 import { shouldPreferL2Quote } from "@/lib/market-data-quality.mjs";
 import { diagnoseAiMonitorSnapshot, mergeAiMonitorDiagnosis, normalizeAiMonitorRemoteCheck } from "@/lib/ai-monitor-diagnostics.mjs";
 import { buildMultiTimeframeContext } from "@/lib/multi-timeframe-context.mjs";
+import { createDefaultDashboardLayout, readDashboardLayout, writeDashboardLayout } from "@/lib/dashboard-panel-layout.mjs";
 import { formatObservationTime, guidanceTimeline, normalizeObservationAction, observationContext, observationMainMessage, observationNextStep, observationReasons, observationStateKey, researchContextForState } from "@/lib/t-observation-panel.mjs";
 import AiMonitorDiagnosticsPanel, { type AiMonitorDiagnosis } from "./ai-monitor-diagnostics-panel";
+import { DashboardOptionalPanelArea, DashboardPanelManager, DashboardPanelShell, type DashboardLayout } from "./dashboard-panel-shell";
+import ZijinLabRedesign from "./zijin-lab-redesign";
 const LightweightIntradayChart = (_props: { data: unknown[] }) => null;
 const ZijinFactorLifecyclePanel = dynamic(
   () => import("./zijin-factor-lifecycle-panel").then(module => module.ZijinFactorLifecyclePanel),
@@ -1895,6 +1898,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if (typeof window === "undefined" || !localAuth) return;
     try { sessionStorage.setItem("rabbit-active-view", activeView); } catch {}
   }, [activeView, localAuth]);
+  useEffect(() => {
+    if (typeof window === "undefined" || !localAuth) return;
+    if (new URLSearchParams(window.location.search).get("view") === "zijin-lab-redesign" && activeView !== "操盘台") {
+      setActiveView("操盘台");
+    }
+  }, [activeView, localAuth]);
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [memberAdminOpen,setMemberAdminOpen]=useState(false);
@@ -2007,6 +2016,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [eventRadarError, setEventRadarError] = useState("");
   const [shadowResearch, setShadowResearch] = useState<ShadowResearch | null>(null);
   const [tObservation, setTObservation] = useState<TObservation | null>(null);
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>(() => {
+    if (typeof window === "undefined") return createDefaultDashboardLayout() as DashboardLayout;
+    return readDashboardLayout(window.localStorage) as DashboardLayout;
+  });
+  const [dashboardLayoutOpen, setDashboardLayoutOpen] = useState(false);
   const [starredRevision, setStarredRevision] = useState(0);
   const [initialCockpitUi] = useState<Partial<CockpitLayoutSnapshot>>(()=>{
     try{
@@ -2020,10 +2034,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   });
   const [indicatorsVisible, setIndicatorsVisible] = useState(initialCockpitUi.indicators??true);
   const [intradayChartType,setIntradayChartType]=useState<"line"|"candle">(initialCockpitUi.chartType??"candle");
+  const [redesignChartType,setRedesignChartType]=useState<"line"|"candle">("line");
   const [signalLayerVisible,setSignalLayerVisible]=useState(initialCockpitUi.signals??true);
   const [formalSignalVisible,setFormalSignalVisible]=useState(initialCockpitUi.formalSignals??true);
-  const [v29SignalVisible,setV29SignalVisible]=useState(initialCockpitUi.v29Signals??true);
-  const [v1SignalVisible,setV1SignalVisible]=useState(initialCockpitUi.v1Signals??true);
+  const [v29SignalVisible,setV29SignalVisible]=useState(initialCockpitUi.v29Signals??false);
+  const [v1SignalVisible,setV1SignalVisible]=useState(initialCockpitUi.v1Signals??false);
   const [chartAnnotationMode,setChartAnnotationMode]=useState<"full"|"compact">(()=>{
     if(initialCockpitUi.annotation)return initialCockpitUi.annotation;
     try{return localStorage.getItem("rabbit-chart-annotation-mode")==="full"?"full":"compact"}catch{return "compact"}
@@ -2033,7 +2048,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [chartToolsExpanded,setChartToolsExpanded]=useState(false);
   const [rabbitTrackerVisible,setRabbitTrackerVisible]=useState(()=>{
     if(initialCockpitUi.rabbit!==undefined)return initialCockpitUi.rabbit;
-    try{return localStorage.getItem("rabbit-chart-tracker-visible")!=="false"}catch{return true}
+    try{return localStorage.getItem("rabbit-chart-tracker-visible")==="true"}catch{return false}
   });
   const [tEntryPrice,setTEntryPrice]=useState("");
   const [tExitPrice,setTExitPrice]=useState("");
@@ -2044,6 +2059,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [tUseConservativeFee,setTUseConservativeFee]=useState(true);
   const [decisionAuditOpen,setDecisionAuditOpen]=useState(false);
   const [tCalculatorOpen,setTCalculatorOpen]=useState(false);
+  const [mobilePositionExpanded,setMobilePositionExpanded]=useState(false);
   const [showAllPriceLevels,setShowAllPriceLevels]=useState(false);
   const [decisionZoneMode,setDecisionZoneMode]=useState<"focus"|"all">(initialCockpitUi.decisionMode??"focus");
   const [decisionPanelWidth,setDecisionPanelWidth]=useState(()=>Math.max(320,Math.min(520,Number(initialCockpitUi.panelWidth)||380)));
@@ -2094,6 +2110,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   useEffect(()=>{
     try{localStorage.setItem("rabbit-cockpit-ui-state",JSON.stringify(cockpitLayoutSnapshot))}catch{}
   },[cockpitLayoutSnapshot]);
+  useEffect(()=>{
+    try{writeDashboardLayout(window.localStorage,dashboardLayout)}catch{}
+  },[dashboardLayout]);
   const activeProfitMode=preferences.profitMode;
   const activeProfitSummary=profitModeSummary(stock?.code,activeProfitMode);
   const setProfitMode=(value:ProfitMode)=>setPreferences(current=>{
@@ -6845,6 +6864,39 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   };
   if(!authReady) return <main className="auth-loading"><Image src="/rabbit-logo-compact.png" alt="" width={48} height={48} priority/></main>;
   if(!localAuth) return <main className="auth-loading" role="status"><span>请返回登录页重新进入操盘台</span></main>;
+  const isZijinLabRedesign=typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("view")==="zijin-lab-redesign";
+  if(isZijinLabRedesign){
+    const redesignObservation={
+      available:Boolean(tObservationGuidance&&tObservationHasStructure),
+      action:tObservationAction.text,
+      actionText:tObservationGuidance?.primaryLabelText??"",
+      state:tObservationGuidance?.stateText??tObservationStateKey??"",
+      message:tObservationMainMessage,
+      reasons:tObservationReasons,
+      nextStep:tObservationNextStep,
+      context:tObservationContext.label,
+      confirmation:tObservationGuidance?.confirmation??"等待确认",
+      research:tObservationResearch.message,
+       timeline:tObservationTimeline.map(item=>({key:item.key,time:formatObservationTime(item.timestamp),timestamp:item.timestamp,eventType:item.eventType,reason:item.reason})),
+    };
+    return <ZijinLabRedesign
+      theme={uiTheme}
+      onToggleTheme={toggleUiTheme}
+      onBack={()=>{window.history.replaceState({},"","/");setActiveView("操盘台");}}
+      onOpenLayout={()=>setDashboardLayoutOpen(true)}
+      layout={dashboardLayout}
+      onLayoutChange={setDashboardLayout}
+      layoutOpen={dashboardLayoutOpen}
+      onLayoutClose={()=>setDashboardLayoutOpen(false)}
+      stock={{code:stock.code,name:stock.name}}
+      quote={activeQuote}
+      minutePoints={minutePoints}
+      chartType={redesignChartType}
+      onChartTypeChange={setRedesignChartType}
+       onTimelineClick={item=>jumpToGuidanceTimestamp(item.timestamp??null)}
+      observation={redesignObservation}
+    />;
+  }
 
   return (
     <main className={`app-shell minimal-ui session-${marketSession.tone} ${activeView === "操盘台" ? "tv-console" : ""}`}>
@@ -6875,6 +6927,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <span className="clock">{currentTrial ? new Date(currentTrial.sourceTimestamp || currentTrial.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : currentMarket ? new Date(currentMarket.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
           <button className="profile-cycle" onClick={()=>setStrategyOpen(true)} aria-label={`内置闭环当前使用${profile}，点击查看策略档位`} title="操盘台与模拟回测共用此档位"><span>闭环 · {profile.replace('档','')}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
+          <button className="dashboard-layout-trigger" type="button" onClick={()=>setDashboardLayoutOpen(true)} aria-label="打开工作台布局管理器">布局</button>
+          <button className="ai-diagnostics-trigger" type="button" onClick={()=>{setAiMonitorOpen(true);void runAiMonitorDiagnosis();}} aria-label="打开 AI 盯盘链路诊断" title="检查网站链路、行情和日内图">诊断</button>
           <button className="account-button" onClick={()=>setAccountOpen(true)} aria-label="打开账户中心"><span>{accountName.slice(0,1).toUpperCase()}</span><b>{accountName}</b><i>⌄</i></button>
           <button className="icon-button theme-toggle" type="button" onClick={toggleUiTheme} aria-label={uiTheme==='dark'?'切换到白天模式':'切换到黑夜模式'} title={uiTheme==='dark'?'白天模式':'黑夜模式'}><span aria-hidden="true">{uiTheme==='dark'?'☀':'☾'}</span></button>
           <button className="icon-button" onClick={()=>setOnboardingOpen(true)} aria-label="打开账户与监控设置" title="账户与监控设置">⚙</button>
@@ -7015,7 +7069,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           </div>
 
           <div className="chart-wrap" onWheelCapture={handleIntradayWheel}>
-            {uiTheme==="light"&&<div className="rabbit-chart-caption" aria-hidden="true">
+             {uiTheme==="light"&&chartAnnotationMode!=="compact"&&<div className="rabbit-chart-caption" aria-hidden="true">
               <span className="rabbit-chart-avatar"/>
               <div><b>兔兔分时花园</b><small>价格 · 均价 · 成交量</small></div>
             </div>}
@@ -7130,7 +7184,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               })()}
             </svg>
           </div>
-          {isZijinStock&&<section className="main-force-track" aria-label="紫金矿业全天 L2 大额主动净额追踪，非总成交量">
+          {isZijinStock&&<section className={`main-force-track ${zijinMainForceTrack.bars.some(bar=>bar.bigBuyNotional+bar.bigSellNotional>0)?"has-data":"is-empty"}`} aria-label="紫金矿业全天 L2 大额主动净额追踪，非总成交量">
             <div className="main-force-track-head">
               <div><strong>主力追踪</strong><span>L2 大额主动净额 · 非总成交量 · 与主图按分钟对齐</span></div>
               <div className="main-force-track-legend"><span className="buy"><i/>大额主动净买</span><span className="sell"><i/>大额主动净卖</span><span className="cumulative"><i/>累计净额</span></div>
@@ -7187,7 +7241,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className="decision-panel-resizer" role="separator" aria-label="调整右侧决策面板宽度" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={520} aria-valuenow={decisionPanelWidth} onPointerDown={handleDecisionPanelResizeStart} onPointerMove={handleDecisionPanelResize} onPointerUp={handleDecisionPanelResizeEnd} onPointerCancel={handleDecisionPanelResizeEnd} onDoubleClick={()=>setDecisionPanelWidth(380)}>
           <i aria-hidden="true"/><button type="button" onClick={()=>setDecisionPanelCollapsed(value=>!value)} title={decisionPanelCollapsed?"展开决策面板":"折叠决策面板"} aria-pressed={decisionPanelCollapsed}>{decisionPanelCollapsed?"‹":"›"}</button>
         </div>
-        <aside className={`decision-zone ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`}>
+        <aside className={`decision-zone unified-right-rail ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`} aria-label="统一T观察决策台">
+          <div className="unified-right-rail-head"><div><span>统一观察台</span><b>{stock.name} · {stock.code}</b></div><small>现在发生什么 · 为什么 · 等什么</small></div>
           {isZijinStock&&<section className={`order-flow-top-card ${orderFlowCurrentAvailable?"ready":"waiting"} ${orderFlowFormalLink.state}`} aria-label="双兔订单流影子行为面板">
             <div className="order-flow-top-head">
               <span><i/>双兔订单流 <em>观察评分</em></span>
@@ -7247,35 +7302,34 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </>}
             </OrderFlowDrawer>
           </section>}
-          <section className={`t-observation-card t-guidance-card ${tObservation?.humanGuidance?.primaryLabel ?? "INVALID"} ${tObservation?.status === "VALID" ? "ready" : "waiting"}`} aria-label="T辅助观察">
-            <div className="t-observation-head"><span><i/>T观察</span><em>人类观察层 · 不生成交易动作</em></div>
+          {dashboardLayout.panels["t-observation"]?.visible && <DashboardPanelShell id="t-observation" title="T Observation" description="人类观察层 · 不生成交易动作" state={dashboardLayout.panels["t-observation"]} layout={dashboardLayout} onChange={setDashboardLayout} resizeEnabled={false} className={`t-observation-card t-guidance-card ${tObservation?.humanGuidance?.primaryLabel ?? "INVALID"} ${tObservation?.status === "VALID" ? "ready" : "waiting"}`}>
             {tObservationGuidance && tObservationHasStructure ? <>
               <div className="t-observation-current">
-                <div className="t-observation-current-copy"><small>当前状态</small><div className="t-observation-action-row"><strong>{tObservationGuidance.primaryLabelText || tObservationAction.text}</strong><span className="t-observation-action-badge">{tObservationAction.label}</span></div><p>{tObservationMainMessage}</p></div>
+                <div className="t-observation-current-copy"><small>当前状态</small><div className="t-observation-action-row"><strong>{tObservationGuidance.primaryLabelText || tObservationAction.text}</strong></div><p>{tObservationMainMessage}</p></div>
                 <div className="t-observation-state-badge"><small>结构</small><b>{tObservationGuidance.stateText || tObservationStateKey}</b></div>
               </div>
+              <div className="t-observation-section t-observation-why"><div className="t-observation-section-head"><span>为什么</span></div><ul>{(tObservationReasons.length ? tObservationReasons : ["暂无足够结构信息"]).map(reason=><li key={reason}>{reason}</li>)}</ul></div>
               <div className="t-observation-next"><span>下一步</span><b>{tObservationNextStep}</b></div>
-              <div className="t-observation-section t-observation-why"><div className="t-observation-section-head"><span>为什么</span><em>最多三条</em></div><ul>{(tObservationReasons.length ? tObservationReasons : ["暂无足够结构信息"]).map(reason=><li key={reason}>{reason}</li>)}</ul></div>
               <div className="t-observation-facts">
-                <div><small>市场上下文</small><b>{tObservationContext.label}</b><em>仅作背景，不是动作信号</em></div>
-                <div><small>候选状态</small><b>{tObservationGuidance.candidateStateText || "暂无"}</b></div>
-                <div><small>T环境</small><b>{tObservationGuidance.opportunity === "POSITIVE_T_ENVIRONMENT" ? "正T环境" : tObservationGuidance.opportunity === "COUNTER_T_ENVIRONMENT" ? "反T环境" : "中性"}</b></div>
+                <div><small>市场上下文</small><b>{tObservationContext.label}</b><em>仅作背景</em></div>
                 <div><small>确认状态</small><b>{tObservationGuidance.confirmation || "等待确认"}</b></div>
               </div>
-              <div className="t-observation-research" aria-label="历史研究背景"><div className="t-observation-section-head"><span>历史研究</span><em>背景信息 · 不参与评分</em></div><p>{tObservationResearch.message}</p>{tObservationResearch.cautions.map(item=><small key={item}>{item}</small>)}</div>
+              <details className="t-observation-research" aria-label="历史研究背景"><summary><span>历史研究</span><em>背景信息 · 不参与当前评分</em></summary><p>{tObservationResearch.message}</p>{tObservationResearch.cautions.map(item=><small key={item}>{item}</small>)}</details>
               {tObservationResearch.cautions.length > 0 && <div className="t-observation-caution" role="note"><span>注意</span><b>历史漂移或样本外稳定性有限，不代表当前预测。</b></div>}
-              <div className="t-observation-timeline" aria-label="指导历史"><div className="t-observation-section-head"><span>时间线</span><em>点击回到对应分钟</em></div>{tObservationTimeline.length ? <ol>{tObservationTimeline.map(item=><li key={item.key}><button type="button" onClick={()=>jumpToGuidanceTimestamp(item.timestamp)} disabled={!item.timestamp} title={item.reason}><time>{formatObservationTime(item.timestamp)}</time><span>{item.eventType}</span><small>{item.reason}</small></button></li>)}</ol> : <p>暂无历史指导记录。</p>}</div>
+              <details className="t-observation-timeline" aria-label="指导历史"><summary><span>指导时间线</span><em>点击事件回到对应分钟</em></summary>{tObservationTimeline.length ? <ol>{tObservationTimeline.map(item=><li key={item.key}><button type="button" onClick={()=>jumpToGuidanceTimestamp(item.timestamp)} disabled={!item.timestamp} title={item.reason}><time>{formatObservationTime(item.timestamp)}</time><span>{item.eventType}</span><small>{item.reason}</small></button></li>)}</ol> : <p>暂无历史指导记录。</p>}</details>
               <div className="t-guidance-safety">辅助观察，不是买卖指令 · 历史研究不参与当前评分 · 不代表成功概率</div>
             </> : <>
               <div className="t-observation-empty-panel"><strong>暂无足够结构信息</strong><span>等待真实行情与 CORE_SAFE 依赖，不使用假数据。</span><b>下一步：继续观察</b></div>
               <div className="t-observation-facts"><div><small>市场上下文</small><b>{tObservationContext.label}</b><em>仅作背景，不是动作信号</em></div><div><small>当前状态</small><b>暂无</b></div></div>
               <div className="t-guidance-safety">数据不足时保持中性，不补填状态、原因或研究结论。</div>
             </>}
-          </section>
+          </DashboardPanelShell>}
           <div className="decision-zone-tabs" role="tablist" aria-label="右侧信息视图">
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>
           </div>
+          <details className="unified-rail-section decision-summary-section" open>
+          <summary><span>当前指导</span><small>核心摘要</small></summary>
           <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="操盘决策与执行摘要">
             <header><span>操盘决策 <small className="decision-engine-badge">闭环策略</small></span><em>{executionSnapshot?`${executionSnapshot.direction} · 把握度 ${executionSnapshot.confidence}%`:`${decisionConditionsConfirmed}/4 条件`}</em></header>
             <div className={`decision-machine-state ${decisionMachineState.toLowerCase()}`} aria-label={`系统状态 ${decisionMachineState}`}><i aria-hidden="true"/>{decisionMachineState}</div>
@@ -7313,12 +7367,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <p className="space"><span title="预期毛空间（未扣费用）">预期空间</span><b>¥{executionSnapshot.expectedGrossSpread.toFixed(2)} <small>毛空间 +{executionSnapshot.expectedGrossSpreadPct.toFixed(2)}%</small></b></p>
               </>:<div className="decision-execution-pending"><span>参考价与风控</span><b>等待实时数据</b><small>数据到齐后自动展开</small></div>}
             </div>}
-            <div className={`global-decision-live-signal ${freshReverseTAction||freshReverseTObservation?"active":"idle"}`} aria-label="实时反T信号">
+          <div className={`global-decision-live-signal ${marketSession.live&&(freshReverseTAction||freshReverseTObservation)?"active":"idle"}`} aria-label="实时反T信号">
               <span>实时反T</span>
               <b>{reverseTSignalLabel}</b>
               <small>{reverseTSignalDetail}</small>
             </div>
-            <div className={`signal-fusion-summary ${fusedSignal.direction}`} aria-label="超级信号融合摘要" title={`支持 ${fusedSignal.support}，反对 ${fusedSignal.oppose}，冲突 ${fusedSignal.conflict}；与图上近3分钟融合一致，未作胜率校准`}>
+          <div className={`signal-fusion-summary ${marketSession.live?fusedSignal.direction:"wait"}`} aria-label="超级信号融合摘要" title={`支持 ${fusedSignal.support}，反对 ${fusedSignal.oppose}，冲突 ${fusedSignal.conflict}；与图上近3分钟融合一致，未作胜率校准`}>
               <span>超级信号 <small>辅助聚合</small></span>
               <b>{fusedSignal.direction==="buy"?"正T候选":fusedSignal.direction==="sell"?"反T候选":"等待确认"} · {fusedSignal.score===null?"待评分":`${fusedSignal.score}分 · ${fusedSignal.grade}`}</b>
               <small>支持 {fusedSignal.support} · 反对 {fusedSignal.oppose} · 冲突 {fusedSignal.conflict}</small>
@@ -7352,7 +7406,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               {currentContext!.items.slice(0,4).map(item=>{const fresh=marketContextItemFresh(item,clockNow?.getTime()??null);return <i key={item.id} className={fresh?(item.changePercent??0)>0?"up":(item.changePercent??0)<0?"down":"flat":"flat stale"} title={fresh?(item.sourceTimestamp?`数据时间 ${new Date(item.sourceTimestamp).toLocaleString("zh-CN")}`:item.provider):"时间戳过期，不参与评分"}>{item.label} <b>{!fresh?"外盘待更新":item.changePercent==null?"--":`${item.changePercent>0?"+":""}${item.changePercent.toFixed(2)}%`}</b></i>})}
             </div>}
           </section>
-          <section className="decision-position-card" aria-label="持仓与本次做T">
+          </details>
+          <details className="unified-rail-section" open={mobilePositionExpanded}>
+          <summary><span>持仓 / T+1</span><small>只读校验与试算</small></summary>
+          <section className={mobilePositionExpanded ? "decision-position-card mobile-expanded" : "decision-position-card mobile-collapsed"} aria-label="持仓与本次做T">
+            <button type="button" className="mobile-position-toggle" onClick={()=>setMobilePositionExpanded(value=>!value)} aria-expanded={mobilePositionExpanded}>
+              <span>持仓与模拟</span><small>{mobilePositionExpanded?"收起":"按需展开"}</small><b aria-hidden="true">{mobilePositionExpanded?"−":"＋"}</b>
+            </button>
+            <div className="decision-position-content">
             <header><span>持仓与试算</span><em>{marketSession.live?"实时":"复盘"}</em></header>
             <div className="decision-position-grid">
               <p><span>当前持仓</span><b>{displayedShares.toLocaleString()}<small> 股</small></b></p>
@@ -7374,7 +7435,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <div className="quick-sim-order-actions"><button type="button" className="buy" onClick={()=>recordQuickSimulatedTrade("买入")}><b>B</b>买入</button><button type="button" className="sell" onClick={()=>recordQuickSimulatedTrade("卖出")} disabled={effectiveLivePosition.sellable<=0}><b>S</b>卖出</button></div>
               <div className="quick-sim-order-status"><span>{quickOrderFeedback||"只记入本机模拟账本，不会真实下单"}</span><b className={(manualTradeCostImpact.perShare??0)>=0?"positive":"negative"}>摊薄成本 {manualTradeCostImpact.perShare===null?"待闭环":`${manualTradeCostImpact.perShare>=0?"-":"+"}¥${Math.abs(manualTradeCostImpact.perShare).toFixed(3)}/股`}</b></div>
             </div>
+             </div>
           </section>
+          </details>
           {uiTheme==="light"&&<div className="rabbit-decision-header" aria-hidden="true">
             <span className="rabbit-decision-avatar"/>
             <div><b>双兔决策屋</b><small>低吸兔找机会 · 止盈兔守风险</small></div>
@@ -7483,8 +7546,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             {currentEvents?.items.length?<div className="news-rabbit-list">{currentEvents.items.slice(0,4).map(item=><a href={item.url} target="_blank" rel="noreferrer" key={item.id} className={`tier-${item.sourceTier} ${item.sentiment}`}><header><span>{item.sourceTierLabel}</span><i>{item.sentiment==="negative"?"利空":item.sentiment==="positive"?"利好":"中性"}</i><em>{item.verificationStatus==="verified"?"已验证":item.verificationStatus==="licensed-required"?"需授权":"待验证"}</em></header><b>{item.title}</b><small>{item.source} · {item.impactHorizon} · {new Date(item.publishedAt).toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</small></a>)}</div>:<p className="news-rabbit-empty">{eventRadarError||"近 72 小时暂无匹配事件"}</p>}
             <footer><span>一级官方事件可进入风险闸门</span><em>二、三级仅影子观察，不改变正式策略</em></footer>
           </details>}
-          {isZijinStock&&displayedZijinPricePlan&&<div className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"} ${premiumEnabled&&!displayedZijinPricePlan.ready?"compact-waiting":""}`} aria-label="紫金矿业预判买入卖出价区间">
-            <div className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":marketSession.live?"紫金会员 · 实时因果":"紫金会员 · 收盘复盘"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":marketSession.live?"实时参考价区":"复盘参考价区"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":marketSession.live?"等待分时":"已收盘"):"会员功能"}</em></div>
+          {isZijinStock&&displayedZijinPricePlan&&<details className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"} ${premiumEnabled&&!displayedZijinPricePlan.ready?"compact-waiting":""}`} aria-label="紫金矿业预判买入卖出价区间">
+            <summary className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":marketSession.live?"紫金会员 · 实时因果":"紫金会员 · 收盘复盘"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":marketSession.live?"实时参考价区":"复盘参考价区"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":marketSession.live?"等待分时":"已收盘"):"会员功能"}</em></summary>
             {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
               <div className="zijin-price-plan-grid">
                 <div className="buy"><small title="正T：先买入、后卖出等量旧仓，目标是降低持仓成本">{isPreopenPlanPhase?"开盘正T观察区":"正T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.buyRange[0].toFixed(2)}–{displayedZijinPricePlan.buyRange[1].toFixed(2)}</b><span>到区后等价格与量价结构确认</span></div>
@@ -7510,7 +7573,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <p>{displayedZijinPricePlan.reason}</p>
               <details className="zijin-price-plan-note"><summary>区间说明 ⓘ</summary><span>{isPreopenPlanPhase?"仅使用当时已知的竞价价格与 L2 状态；09:30 自动失效并切换为真实分时因果区间。":"仅使用截至当前已出现的分时、均价线与 L2 覆盖；这是预警区间，不是挂单建议。"}</span></details>
             </>}
-          </div>}
+          </details>}
           {visibleStockAgentEvaluation&&<div className={`zijin-opening-card stock-agent-card ${visibleStockAgentEvaluation.status}`}>
             <div><span>手动叠加 · {STOCK_AGENTS.zijin.name}</span><b>{visibleStockAgentEvaluation.title}</b><em>{visibleStockAgentEvaluation.asOfTime?`${visibleStockAgentEvaluation.asOfTime.slice(0,2)}:${visibleStockAgentEvaluation.asOfTime.slice(2)}`:"--:--"} · {visibleStockAgentEvaluation.score}/100</em></div>
             <p>{visibleStockAgentEvaluation.reasons[0]}</p>
@@ -7663,6 +7726,21 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         </aside>
       </section>
 
+      <DashboardOptionalPanelArea
+        layout={dashboardLayout}
+        onChange={setDashboardLayout}
+        renderPanel={panelId => {
+          const copy: Record<string, string> = {
+            indicators: "指标模块已注册；沿用现有主工作区图层，不创建第二套数据。",
+            "volume-structure": "成交结构模块已注册；当前不接入新的量价或订单流数据。",
+            "position-t1": "持仓 / T+1 模块已注册；既有持仓校验保持在原决策区。",
+            "guidance-timeline": "指导时间线模块已注册；现有时间线保留在 T Observation。",
+            research: "研究模块已注册；研究背景不参与实时决策。",
+            tools: "工具模块已注册；当前不连接执行接口。",
+          };
+          return <div className="dashboard-placeholder-content"><b>{copy[panelId] || "模块已注册，等待明确的数据接入需求。"}</b><span>当前版本只搭建布局框架，不新增信号或业务数据。</span></div>;
+        }}
+      />
       <section className="lower-panel">
         <div className={`history ${historyCollapsed?'collapsed':''}`}>
           <div className="lower-tabs">{['今日T循环','历史信号','模拟记录','每日复盘'].map(item=><button key={item} onClick={()=>{setPanel(item);setHistoryCollapsed(false)}} className={panel===item?'active':''}>{item}</button>)}<button type="button" className="history-collapse-toggle" onClick={()=>setHistoryCollapsed(current=>!current)} aria-expanded={!historyCollapsed}>{historyCollapsed?'展开':'收起'} <span aria-hidden="true">{historyCollapsed?'▾':'▴'}</span></button></div>
@@ -7757,6 +7835,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         onClose={()=>setAiMonitorOpen(false)}
         onRun={()=>void runAiMonitorDiagnosis()}
       />
+
+      {dashboardLayoutOpen && <DashboardPanelManager layout={dashboardLayout} onChange={setDashboardLayout} onClose={()=>setDashboardLayoutOpen(false)} />}
 
       <footer className="trade-footer"><span><i className="online"/>策略研究工具 · 非交易级</span><ReleaseVersion/></footer>
     </main>
