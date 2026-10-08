@@ -7243,7 +7243,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         </div>
         <aside className={`decision-zone unified-right-rail ${decisionZoneMode==="focus"?"focus-mode":"all-mode"}`} aria-label="统一T观察决策台">
           <div className="unified-right-rail-head"><div><span>统一观察台</span><b>{stock.name} · {stock.code}</b></div><small>现在发生什么 · 为什么 · 等什么</small></div>
-          {isZijinStock&&<section className={`order-flow-top-card ${orderFlowCurrentAvailable?"ready":"waiting"} ${orderFlowFormalLink.state}`} aria-label="双兔订单流影子行为面板">
+          {isZijinStock&&<details className="unified-rail-section unified-market-context"><summary><span>市场上下文 / L2</span><small>订单流辅助观察</small></summary><section className={`order-flow-top-card ${orderFlowCurrentAvailable?"ready":"waiting"} ${orderFlowFormalLink.state}`} aria-label="双兔订单流影子行为面板">
             <div className="order-flow-top-head">
               <span><i/>双兔订单流 <em>观察评分</em></span>
               <button type="button" onClick={()=>setFlowDetail({kind:'current',title:'数据状态与盘口'})}>{orderFlowCardStatus} ›</button>
@@ -7301,8 +7301,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </>:<div className="order-flow-paused" role="status"><b>当前订单流不作判断</b><small>{web4Microstructure.stale?"L2快照已延迟；恢复真实逐笔后再展开行为指标。":"等待当前分钟的真实逐笔与盘口快照。"}</small></div>}
             </>}
             </OrderFlowDrawer>
-          </section>}
-          {dashboardLayout.panels["t-observation"]?.visible && <DashboardPanelShell id="t-observation" title="T Observation" description="人类观察层 · 不生成交易动作" state={dashboardLayout.panels["t-observation"]} layout={dashboardLayout} onChange={setDashboardLayout} resizeEnabled={false} className={`t-observation-card t-guidance-card ${tObservation?.humanGuidance?.primaryLabel ?? "INVALID"} ${tObservation?.status === "VALID" ? "ready" : "waiting"}`}>
+          </section></details>}
+          {dashboardLayout.panels["t-observation"]?.visible && <DashboardPanelShell id="t-observation" title="当前指导" description="现在发生什么 · 为什么 · 等待什么" state={dashboardLayout.panels["t-observation"]} layout={dashboardLayout} onChange={setDashboardLayout} resizeEnabled={false} className={`t-observation-card t-guidance-card ${tObservation?.humanGuidance?.primaryLabel ?? "INVALID"} ${tObservation?.status === "VALID" ? "ready" : "waiting"}`}>
             {tObservationGuidance && tObservationHasStructure ? <>
               <div className="t-observation-current">
                 <div className="t-observation-current-copy"><small>当前状态</small><div className="t-observation-action-row"><strong>{tObservationGuidance.primaryLabelText || tObservationAction.text}</strong></div><p>{tObservationMainMessage}</p></div>
@@ -7328,8 +7328,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <button role="tab" aria-selected={decisionZoneMode==="focus"} className={decisionZoneMode==="focus"?"active":""} onClick={()=>setDecisionZoneMode("focus")}>操盘模式</button>
             <button role="tab" aria-selected={decisionZoneMode==="all"} className={decisionZoneMode==="all"?"active":""} onClick={()=>setDecisionZoneMode("all")}>研究详情</button>
           </div>
-          <details className="unified-rail-section decision-summary-section" open>
-          <summary><span>当前指导</span><small>核心摘要</small></summary>
+          <details className="unified-rail-section decision-summary-section">
+          <summary><span>操盘状态与确认</span><small>正式闭环摘要</small></summary>
           <section className={`decision-primary-card global-decision-card ${decisionModel.status} ${decisionActionSide==="sell"||(!decisionActionSide&&signalMode==="反T")?"reverse":"positive"}`} aria-label="操盘决策与执行摘要">
             <header><span>操盘决策 <small className="decision-engine-badge">闭环策略</small></span><em>{executionSnapshot?`${executionSnapshot.direction} · 把握度 ${executionSnapshot.confidence}%`:`${decisionConditionsConfirmed}/4 条件`}</em></header>
             <div className={`decision-machine-state ${decisionMachineState.toLowerCase()}`} aria-label={`系统状态 ${decisionMachineState}`}><i aria-hidden="true"/>{decisionMachineState}</div>
@@ -7369,13 +7369,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>}
           <div className={`global-decision-live-signal ${marketSession.live&&(freshReverseTAction||freshReverseTObservation)?"active":"idle"}`} aria-label="实时反T信号">
               <span>实时反T</span>
-              <b>{reverseTSignalLabel}</b>
-              <small>{reverseTSignalDetail}</small>
+              <b>{marketSession.live?reverseTSignalLabel:"收盘复盘 · 无当前反T"}</b>
+              <small>{marketSession.live?reverseTSignalDetail:"图表黄色标记是当日历史观察点，不是当前实时信号。"}</small>
             </div>
           <div className={`signal-fusion-summary ${marketSession.live?fusedSignal.direction:"wait"}`} aria-label="超级信号融合摘要" title={`支持 ${fusedSignal.support}，反对 ${fusedSignal.oppose}，冲突 ${fusedSignal.conflict}；与图上近3分钟融合一致，未作胜率校准`}>
               <span>超级信号 <small>辅助聚合</small></span>
-              <b>{fusedSignal.direction==="buy"?"正T候选":fusedSignal.direction==="sell"?"反T候选":"等待确认"} · {fusedSignal.score===null?"待评分":`${fusedSignal.score}分 · ${fusedSignal.grade}`}</b>
-              <small>支持 {fusedSignal.support} · 反对 {fusedSignal.oppose} · 冲突 {fusedSignal.conflict}</small>
+              <b>{marketSession.live?(fusedSignal.direction==="buy"?"正T候选":fusedSignal.direction==="sell"?"反T候选":"等待确认"):"收盘复盘 · 实时融合暂停"}{marketSession.live&&fusedSignal.score!==null?` · ${fusedSignal.score}分 · ${fusedSignal.grade}`:""}</b>
+              <small>{marketSession.live?`支持 ${fusedSignal.support} · 反对 ${fusedSignal.oppose} · 冲突 ${fusedSignal.conflict}`:"历史标记保留在分时图，仅供回看。"}</small>
             </div>
             <div
               className={`global-decision-live-signal lifecycle-signal ${["candidate","shadow-upgraded","confirmed","waiting-close"].includes(liveSignalLifecycle.phase)?"active":"idle"}`}
@@ -7407,12 +7407,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             </div>}
           </section>
           </details>
-          <details className="unified-rail-section" open={mobilePositionExpanded}>
-          <summary><span>持仓 / T+1</span><small>只读校验与试算</small></summary>
-          <section className={mobilePositionExpanded ? "decision-position-card mobile-expanded" : "decision-position-card mobile-collapsed"} aria-label="持仓与本次做T">
-            <button type="button" className="mobile-position-toggle" onClick={()=>setMobilePositionExpanded(value=>!value)} aria-expanded={mobilePositionExpanded}>
-              <span>持仓与模拟</span><small>{mobilePositionExpanded?"收起":"按需展开"}</small><b aria-hidden="true">{mobilePositionExpanded?"−":"＋"}</b>
-            </button>
+          <details className="unified-rail-section unified-position-section" open={mobilePositionExpanded} onToggle={event=>setMobilePositionExpanded(event.currentTarget.open)}>
+          <summary className="mobile-position-toggle"><span>持仓 / T+1</span><small>{mobilePositionExpanded?"收起":"只读校验与试算 · 按需展开"}</small><b aria-hidden="true">{mobilePositionExpanded?"−":"＋"}</b></summary>
+          <section className={mobilePositionExpanded?"decision-position-card mobile-expanded":"decision-position-card mobile-collapsed"} aria-label="持仓与本次做T">
             <div className="decision-position-content">
             <header><span>持仓与试算</span><em>{marketSession.live?"实时":"复盘"}</em></header>
             <div className="decision-position-grid">

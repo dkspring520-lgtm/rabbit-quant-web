@@ -5878,3 +5878,68 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui.tv-console .zijin-price-plan[open]{padding-bottom:10px}
 .app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button,.app-shell.minimal-ui.tv-console .dashboard-layout-row button{min-height:28px}
 @media(max-width:760px){.app-shell.minimal-ui.tv-console .ai-diagnostics-trigger{min-height:28px;padding-inline:6px;font-size:9px}.app-shell.minimal-ui.tv-console .dashboard-panel-shell-actions button,.app-shell.minimal-ui.tv-console .dashboard-layout-row button{min-height:30px}}
+
+/* Main desk: unify the right rail without changing its live-data contracts. */
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail{padding:12px 13px 16px;border-left:1px solid var(--desk-border);background:var(--desk-panel);box-shadow:none}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head{display:grid;gap:4px;padding:0 1px 11px;border-bottom:1px solid var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head div{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head span{color:var(--desk-faint);font-size:9px;letter-spacing:.12em}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head b{color:var(--desk-strong);font-size:12px;font-weight:650}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head small{color:var(--desk-muted);font-size:9px}
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail>.unified-right-rail-head{order:0!important}
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail>.dashboard-panel-shell.t-observation-card{order:1!important;margin:0;padding:8px 0 10px;border:0;border-bottom:1px solid var(--desk-divider);border-radius:0;background:transparent;box-shadow:none}
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail>.unified-market-context{order:3!important}
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail>.decision-summary-section{order:2!important}
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail>.unified-position-section{order:4!important}
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail>.unified-rail-section{margin:0;border-top:1px solid var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;padding:0 1px;color:var(--desk-strong);cursor:pointer;list-style:none}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary::-webkit-details-marker{display:none}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary:after{content:"＋";color:var(--desk-faint);font:500 12px/1 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .unified-rail-section[open]>summary:after{content:"−"}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary span{font-size:10px;font-weight:650}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary small{margin-left:auto;color:var(--desk-faint);font-size:8px}
+.app-shell.minimal-ui.tv-console .decision-summary-section>summary{display:flex}
+.app-shell.minimal-ui.tv-console .decision-summary-section>.decision-primary-card{margin:0;padding:9px 0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.app-shell.minimal-ui.tv-console .unified-position-section>.decision-position-card{margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.app-shell.minimal-ui.tv-console .unified-position-section>.mobile-position-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 1px;border:0;background:transparent;color:var(--desk-strong);text-align:left;cursor:pointer;list-style:none}
+.app-shell.minimal-ui.tv-console .unified-position-section>.mobile-position-toggle::-webkit-details-marker{display:none}
+.app-shell.minimal-ui.tv-console .unified-position-section>.mobile-position-toggle small{margin-left:auto;color:var(--desk-muted);font-size:9px}
+.app-shell.minimal-ui.tv-console .unified-position-section>.mobile-position-toggle b{color:var(--desk-accent);font-size:16px;font-weight:500}
+.app-shell.minimal-ui.tv-console .unified-position-section .decision-position-content{display:block}
+.app-shell.minimal-ui.tv-console .unified-market-context>.order-flow-top-card{margin:0;padding:9px 0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.app-shell.minimal-ui.tv-console .unified-market-context>.order-flow-top-card.waiting{padding:8px 0}
+.app-shell.minimal-ui.tv-console .unified-market-context .order-flow-top-head{min-height:25px}
+.app-shell.minimal-ui.tv-console .unified-market-context .order-flow-score-row{margin:6px 0}
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail>.decision-zone-tabs{order:5!important;margin:8px -13px 10px;padding:0 13px;background:var(--desk-panel)}
+.app-shell.minimal-ui.tv-console .decision-primary-card .global-decision-live-signal.idle,.app-shell.minimal-ui.tv-console .decision-primary-card .signal-fusion-summary.wait{border-color:var(--desk-divider);background:transparent}
+@media(max-width:760px){.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail{padding:10px 12px 14px}.app-shell.minimal-ui.tv-console .unified-right-rail-head div{align-items:flex-start;flex-direction:column;gap:3px}.app-shell.minimal-ui.tv-console .unified-rail-section>summary{min-height:40px}.app-shell.minimal-ui.tv-console .unified-position-section>.mobile-position-toggle{display:flex;width:100%;align-items:center;gap:8px}.app-shell.minimal-ui.tv-console .unified-position-section>.mobile-position-toggle small{margin-left:auto;color:var(--desk-muted);font-size:9px}.app-shell.minimal-ui.tv-console .unified-position-section>.mobile-position-toggle b{color:var(--desk-accent);font-size:16px;font-weight:500}}
+
+/* Main desk: one continuous right-side observation instrument. */
+.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail{gap:0;padding:12px 13px 16px;border-left:1px solid var(--desk-border);background:var(--desk-panel);box-shadow:none}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head{display:grid;gap:4px;padding:0 1px 11px;border-bottom:1px solid var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head div{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head span{color:var(--desk-faint);font-size:9px;letter-spacing:.12em}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head b{color:var(--desk-strong);font-size:12px;font-weight:650}
+.app-shell.minimal-ui.tv-console .unified-right-rail-head small{color:var(--desk-muted);font-size:9px}
+.app-shell.minimal-ui.tv-console .unified-rail-section{margin:0;border-top:1px solid var(--desk-divider)}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;padding:0 1px;color:var(--desk-strong);cursor:pointer;list-style:none}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary::-webkit-details-marker{display:none}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary::after{content:"＋";color:var(--desk-faint);font:500 12px/1 var(--desk-font)}
+.app-shell.minimal-ui.tv-console .unified-rail-section[open]>summary::after{content:"−"}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary span{font-size:10px;font-weight:650}
+.app-shell.minimal-ui.tv-console .unified-rail-section>summary small{margin-left:auto;color:var(--desk-faint);font-size:8px}
+.app-shell.minimal-ui.tv-console .decision-summary-section{border-top:0}
+.app-shell.minimal-ui.tv-console .decision-summary-section>summary{display:flex}
+.app-shell.minimal-ui.tv-console .decision-summary-section>.decision-primary-card{margin:0;padding:9px 0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.app-shell.minimal-ui.tv-console .unified-rail-section .decision-position-card{margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.app-shell.minimal-ui.tv-console .unified-rail-section .decision-position-content{display:block}
+.app-shell.minimal-ui.tv-console .unified-market-context>.order-flow-top-card{margin:0;padding:9px 0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.app-shell.minimal-ui.tv-console .unified-market-context>.order-flow-top-card.waiting{padding:8px 0}
+.app-shell.minimal-ui.tv-console .unified-market-context .order-flow-top-head{min-height:25px}
+.app-shell.minimal-ui.tv-console .unified-market-context .order-flow-score-row{margin:6px 0}
+.app-shell.minimal-ui.tv-console .unified-market-context .order-flow-top-head>span{font-size:9px}
+.app-shell.minimal-ui.tv-console .unified-position-section[open]{padding-bottom:8px}
+.app-shell.minimal-ui.tv-console .decision-zone>.unified-rail-section+.unified-rail-section{margin-top:0}
+.app-shell.minimal-ui.tv-console .decision-primary-card .global-decision-live-signal.idle{border-color:var(--desk-divider);background:transparent}
+.app-shell.minimal-ui.tv-console .decision-primary-card .signal-fusion-summary.wait{border-color:var(--desk-divider);background:transparent}
+@media(max-width:760px){.app-shell.minimal-ui.tv-console .decision-zone.unified-right-rail{padding:10px 12px 14px}.app-shell.minimal-ui.tv-console .unified-right-rail-head div{align-items:flex-start;flex-direction:column;gap:3px}.app-shell.minimal-ui.tv-console .unified-rail-section>summary{min-height:40px}}
