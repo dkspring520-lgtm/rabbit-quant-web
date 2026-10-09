@@ -24,6 +24,7 @@ import "./bunny-light.css";
 import "./brand-cute.css";
 import "./position-setup.css";
 import "./referral.css";
+import "./trading-terminal-v4.css";
 import { buildHistoricalSimilarityArchive, runSmartTReplay, summarizeHistoricalSimilarity } from "@/lib/smart-t-engine.mjs";
 import { summarizeTFlyRiskEvidence } from "@/lib/t-feature-risk-evidence.mjs";
 import { A_SHARE_INTRADAY_AXIS, aShareMinuteSlot, intradayChartX, intradaySlotX, isAShareAfterHoursFixedPriceMinute, isAShareClosingAuctionMinute, isAShareRegularTradingMinute } from "@/lib/intraday-axis.mjs";
@@ -6903,7 +6904,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   }
 
   return (
-    <main className={`app-shell minimal-ui session-${marketSession.tone} ${activeView === "操盘台" ? "tv-console" : ""}`}>
+    <main className={`app-shell minimal-ui session-${marketSession.tone} ${activeView === "操盘台" ? "tv-console trading-terminal-v4" : ""}`}>
       <header className="topbar">
         <div className="brand brand-lockup" aria-label="双兔助手 做T神器 Rabbit Smart-T">
           <img className="brand-primary-logo" src="/double-rabbit-assistant-brand.png" alt="双兔助手双兔无限线品牌标志" width={280} height={72} />

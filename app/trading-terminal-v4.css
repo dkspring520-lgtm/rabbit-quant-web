@@ -1,0 +1,895 @@
+/*
+ * Trading Terminal UI V4 · Phase 2/3
+ *
+ * Scoped to the production Trading Desk shell. This file establishes the
+ * visual contract without changing chart geometry, data mapping, state
+ * calculations, or panel behavior. A-share convention is preserved:
+ * bullish/up is restrained red and bearish/down is restrained green.
+ */
+
+.app-shell.minimal-ui.trading-terminal-v4 {
+  --tt-bg: #0b0f0e;
+  --tt-surface: #111614;
+  --tt-surface-2: #151b18;
+  --tt-raised: #19211d;
+  --tt-text: #eef2ec;
+  --tt-text-secondary: #a5b0a8;
+  --tt-muted: #7f8b83;
+  --tt-faint: #5f6b64;
+  --tt-border: rgba(199, 214, 204, 0.14);
+  --tt-border-soft: rgba(199, 214, 204, 0.08);
+  --tt-focus: #c6a76b;
+  --tt-accent: #c6a76b;
+  --tt-bullish: #d87370;
+  --tt-bearish: #65b39b;
+  --tt-neutral: #8d9890;
+  --tt-warning: #c6a76b;
+  --tt-space-1: 4px;
+  --tt-space-2: 8px;
+  --tt-space-3: 12px;
+  --tt-space-4: 16px;
+  --tt-space-5: 20px;
+  --tt-space-6: 24px;
+  --tt-radius-control: 4px;
+  --tt-radius-panel: 6px;
+  --tt-nav-height: 54px;
+  --tt-watchlist-height: 48px;
+  --tt-font-ui: var(--font-ui, "Segoe UI Variable", "PingFang SC", "Microsoft YaHei", sans-serif);
+  --tt-font-data: var(--font-data, "Cascadia Mono", "SFMono-Regular", Consolas, monospace);
+
+  /* Bridge legacy child selectors to the scoped V4 system. */
+  --bg: var(--tt-bg);
+  --surface: var(--tt-surface);
+  --surface-2: var(--tt-surface-2);
+  --panel: var(--tt-surface);
+  --panel-strong: #080c0b;
+  --field: #0e1411;
+  --line: var(--tt-border);
+  --line-soft: var(--tt-border-soft);
+  --text: var(--tt-text);
+  --text-soft: var(--tt-text-secondary);
+  --muted: var(--tt-muted);
+  --dim: var(--tt-faint);
+  --teal: var(--tt-bearish);
+  --teal-2: #75c3aa;
+  --coral: var(--tt-bullish);
+  --red: var(--tt-bullish);
+  --green: var(--tt-bearish);
+  --amber: var(--tt-warning);
+  --grid: rgba(199, 214, 204, 0.12);
+  --shadow: none;
+
+  --desk-bg: var(--tt-bg);
+  --desk-panel: var(--tt-surface);
+  --desk-panel-raised: var(--tt-raised);
+  --desk-rail: var(--tt-surface-2);
+  --desk-border: var(--tt-border);
+  --desk-divider: var(--tt-border-soft);
+  --desk-strong: var(--tt-text);
+  --desk-ink: var(--tt-text-secondary);
+  --desk-muted: var(--tt-muted);
+  --desk-faint: var(--tt-faint);
+  --desk-accent: var(--tt-accent);
+  --desk-attention: var(--tt-warning);
+  --desk-semantic-positive: var(--tt-bearish);
+  --desk-semantic-caution: var(--tt-warning);
+  --desk-semantic-wait: var(--tt-warning);
+  --desk-semantic-neutral: var(--tt-neutral);
+
+  background: var(--tt-bg);
+  color: var(--tt-text);
+  font-family: var(--tt-font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-theme="light"] .app-shell.minimal-ui.trading-terminal-v4 {
+  --tt-bg: #f1f3ef;
+  --tt-surface: #fbfcf9;
+  --tt-surface-2: #f7f8f5;
+  --tt-raised: #ffffff;
+  --tt-text: #26342c;
+  --tt-text-secondary: #4d5a52;
+  --tt-muted: #66756d;
+  --tt-faint: #87938b;
+  --tt-border: rgba(38, 52, 44, 0.14);
+  --tt-border-soft: rgba(38, 52, 44, 0.09);
+  --tt-focus: #8a6b35;
+  --tt-accent: #8a6b35;
+  --tt-bullish: #c84d4a;
+  --tt-bearish: #36876a;
+  --tt-neutral: #718078;
+  --tt-warning: #9b7438;
+  --panel-strong: #f6f8f4;
+  --field: #ffffff;
+  --grid: rgba(38, 52, 44, 0.12);
+  --shadow: none;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 :is(button, input, select, textarea) {
+  font-family: var(--tt-font-ui);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 :is(.quote strong, .quote span, .quote-metrics b, .stock-code, .desk-core-strip b) {
+  font-family: var(--tt-font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Top navigation: quiet instrument bar, not a SaaS button row. */
+.app-shell.minimal-ui.trading-terminal-v4 .topbar {
+  min-height: var(--tt-nav-height);
+  height: var(--tt-nav-height);
+  padding: 0 var(--tt-space-5);
+  gap: var(--tt-space-4);
+  background: var(--tt-surface);
+  border-bottom: 1px solid var(--tt-border);
+  box-shadow: none;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .brand {
+  min-width: 176px;
+  width: 176px;
+  height: var(--tt-nav-height);
+  padding: 0 var(--tt-space-4) 0 0;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .brand-primary-logo {
+  width: 92px;
+  height: auto;
+  object-fit: contain;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .brand-type {
+  gap: 3px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .brand-type strong {
+  color: var(--tt-text);
+  font-size: 16px !important;
+  font-weight: 680;
+  letter-spacing: -0.04em;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .brand-type strong span,
+.app-shell.minimal-ui.trading-terminal-v4 .brand-type strong em {
+  color: var(--tt-text);
+  -webkit-text-fill-color: var(--tt-text);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .brand-type small {
+  color: var(--tt-faint);
+  font-size: 8px;
+  letter-spacing: 0.13em;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav {
+  min-width: 0;
+  margin: 0;
+  gap: 2px;
+  align-self: stretch;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav > button,
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav .nav-more > button {
+  position: relative;
+  height: var(--tt-nav-height);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--tt-muted);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav > button:hover,
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav .nav-more > button:hover {
+  color: var(--tt-text);
+  background: rgba(198, 167, 107, 0.05);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav > button.active,
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav .nav-more > button.active {
+  color: var(--tt-text);
+  background: rgba(198, 167, 107, 0.06);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav > button.active::after,
+.app-shell.minimal-ui.trading-terminal-v4 .main-nav .nav-more > button.active::after {
+  position: absolute;
+  right: 12px;
+  bottom: 0;
+  left: 12px;
+  height: 2px;
+  background: var(--tt-accent);
+  content: "";
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .top-actions {
+  min-width: 0;
+  gap: 6px;
+  margin-left: auto;
+  background: transparent;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .top-actions :is(.market-open, .auto-off, .clock) {
+  height: 28px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--tt-muted);
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .top-actions :is(.market-open.running, .auto-off.running) {
+  color: var(--tt-bearish);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .top-actions :is(.market-open.pending, .market-open.auction, .market-open.paused, .auto-off.paused) {
+  color: var(--tt-warning);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .top-actions :is(.dashboard-layout-trigger, .ai-diagnostics-trigger, .strategy-help, .profile-cycle, .account-button, .icon-button) {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--tt-border);
+  border-radius: var(--tt-radius-control);
+  background: transparent;
+  color: var(--tt-muted);
+  font-size: 10px;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .top-actions :is(.dashboard-layout-trigger, .ai-diagnostics-trigger, .strategy-help, .profile-cycle, .account-button, .icon-button):hover {
+  border-color: rgba(198, 167, 107, 0.54);
+  background: rgba(198, 167, 107, 0.06);
+  color: var(--tt-text);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .theme-toggle {
+  width: 30px;
+  min-width: 30px;
+  padding: 0 !important;
+}
+
+/* Market strip: current instrument gets weight, not a heavy card. */
+.app-shell.minimal-ui.trading-terminal-v4 .ticker {
+  min-height: var(--tt-watchlist-height);
+  height: var(--tt-watchlist-height);
+  flex: 0 0 var(--tt-watchlist-height);
+  gap: 0;
+  padding: 0 var(--tt-space-5);
+  background: var(--tt-bg);
+  border-bottom: 1px solid var(--tt-border);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-item {
+  min-width: 188px;
+  max-width: 300px;
+  height: var(--tt-watchlist-height);
+  flex: 0 0 218px;
+  border-right: 1px solid var(--tt-border-soft);
+  background: transparent;
+  opacity: 0.72;
+  transition: opacity 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-item:hover,
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-item.selected {
+  opacity: 1;
+  background: rgba(198, 167, 107, 0.055);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-item.selected {
+  box-shadow: inset 0 -2px var(--tt-accent);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker .ticker-stock-button {
+  gap: 8px;
+  padding: 0 9px;
+  color: var(--tt-muted);
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-item.selected .ticker-stock-button {
+  color: var(--tt-text);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker .ticker-stock-button > span {
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker .ticker-stock-button b,
+.app-shell.minimal-ui.trading-terminal-v4 .ticker .ticker-stock-button em {
+  font-family: var(--tt-font-data);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-item.selected .ticker-stock-button b {
+  color: var(--tt-text);
+  font-size: 12px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker .ticker-stock-button em.up,
+.app-shell.minimal-ui.trading-terminal-v4 .quote.up :is(strong, span) {
+  color: var(--tt-bullish);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker .ticker-stock-button em.down,
+.app-shell.minimal-ui.trading-terminal-v4 .quote.down :is(strong, span) {
+  color: var(--tt-bearish);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-drag-handle,
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-order-button,
+.app-shell.minimal-ui.trading-terminal-v4 .ticker-remove {
+  color: var(--tt-faint);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .ticker .ticker-add {
+  height: 32px;
+  margin-left: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--tt-border);
+  border-radius: var(--tt-radius-control);
+  background: transparent;
+  color: var(--tt-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .session-ribbon {
+  min-height: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  gap: 10px;
+  padding: 0 var(--tt-space-5);
+  border-bottom: 1px solid var(--tt-border-soft);
+  background: transparent;
+  color: var(--tt-muted);
+  font-size: 9px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .session-ribbon strong {
+  color: var(--tt-text-secondary);
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .session-ribbon.pending,
+.app-shell.minimal-ui.trading-terminal-v4 .session-ribbon.auction,
+.app-shell.minimal-ui.trading-terminal-v4 .session-ribbon.paused {
+  border-bottom-color: rgba(198, 167, 107, 0.24);
+  background: rgba(198, 167, 107, 0.035);
+  color: var(--tt-warning);
+}
+
+/* Instrument header: price first, context second, metadata quiet. */
+.app-shell.minimal-ui.trading-terminal-v4 .stock-head {
+  min-height: 88px;
+  height: 88px;
+  padding: 12px var(--tt-space-5);
+  gap: var(--tt-space-5);
+  background: var(--tt-surface);
+  border-bottom: 1px solid var(--tt-border);
+  box-shadow: none;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .stock-identity {
+  min-width: 172px;
+  gap: 9px;
+  align-items: baseline;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .stock-identity h1 {
+  color: var(--tt-text);
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .stock-code {
+  color: var(--tt-muted);
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .quote-focus {
+  gap: 16px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .quote {
+  gap: 9px;
+  padding-left: 18px;
+  border-left: 1px solid var(--tt-border);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .quote strong {
+  color: var(--tt-bullish);
+  font-size: 32px;
+  font-weight: 650;
+  letter-spacing: -0.045em;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .quote span {
+  color: var(--tt-bullish);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .quote.flat :is(strong, span) {
+  color: var(--tt-neutral);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .opening-assessment {
+  min-width: 206px;
+  border-left: 1px solid var(--tt-warning);
+  padding: 4px 0 4px 12px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .opening-assessment span,
+.app-shell.minimal-ui.trading-terminal-v4 .quote-metrics span,
+.app-shell.minimal-ui.trading-terminal-v4 .next-session-header > span {
+  color: var(--tt-faint);
+  font-size: 9px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .opening-assessment b {
+  color: var(--tt-text-secondary);
+  font-size: 12px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .opening-assessment small {
+  color: var(--tt-muted);
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .quote-metrics {
+  gap: 18px;
+  color: var(--tt-muted);
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .quote-metrics b {
+  color: var(--tt-text-secondary);
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .quote-metrics .teal {
+  color: var(--tt-bearish);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .next-session-header {
+  min-width: 128px;
+  padding: 4px 0 4px 14px;
+  border-left: 1px solid var(--tt-border);
+  background: transparent;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .next-session-header b {
+  color: var(--tt-text-secondary);
+  font-size: 15px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .l2-console-status {
+  min-width: 140px;
+  padding: 4px 0 4px 14px;
+  border: 0;
+  border-left: 1px solid var(--tt-border);
+  background: transparent;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .l2-console-status b {
+  color: var(--tt-text);
+  font-size: 13px;
+}
+
+/* Core metrics become a registration line instead of four cards. */
+.app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip {
+  min-height: 52px;
+  padding: 6px var(--tt-space-5);
+  gap: 0;
+  background: var(--tt-bg);
+  border-bottom: 1px solid var(--tt-border);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip > div {
+  min-width: 0;
+  padding: 4px 14px;
+  border: 0;
+  border-left: 1px solid var(--tt-border-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip span {
+  color: var(--tt-faint);
+  font-size: 9px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip b {
+  color: var(--tt-text-secondary);
+  font-size: 14px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip .desk-core-reason b {
+  color: var(--tt-muted);
+  font-size: 10px;
+}
+
+/* Main workspace: enlarge the chart field and give the decision rail a stable width. */
+.app-shell.minimal-ui.trading-terminal-v4 .workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 390px);
+  height: min(760px, calc(100dvh - 220px));
+  min-height: 560px;
+  background: var(--tt-bg);
+  border-bottom: 1px solid var(--tt-border);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .workspace.with-main-force {
+  height: min(780px, calc(100dvh - 220px));
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .chart-zone {
+  background: var(--tt-bg);
+  border-right: 1px solid var(--tt-border);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools {
+  height: 44px;
+  flex-basis: 44px;
+  padding: 0 var(--tt-space-4);
+  gap: 12px;
+  background: var(--tt-surface);
+  border-bottom: 1px solid var(--tt-border);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools .legend {
+  gap: 11px;
+  color: var(--tt-muted);
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools .layer-switches button,
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools > .tool-button,
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools-toggle {
+  min-height: 26px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--tt-radius-control);
+  background: transparent;
+  color: var(--tt-muted);
+  font-size: 10px;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools .layer-switches button:hover,
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools .layer-switches button.active,
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools > .tool-button:hover,
+.app-shell.minimal-ui.trading-terminal-v4 .chart-tools-toggle:hover {
+  border-color: rgba(198, 167, 107, 0.42);
+  background: rgba(198, 167, 107, 0.06);
+  color: var(--tt-text);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .chart-wrap {
+  background: var(--tt-bg);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .decision-zone {
+  min-width: 0;
+  padding: var(--tt-space-4);
+  background: var(--tt-surface-2);
+  border-left: 0;
+  scrollbar-color: rgba(199, 214, 204, 0.25) transparent;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .decision-zone-tabs {
+  margin: calc(var(--tt-space-4) * -1) calc(var(--tt-space-4) * -1) var(--tt-space-3);
+  padding: 0 var(--tt-space-4);
+  background: var(--tt-surface);
+  border-bottom: 1px solid var(--tt-border);
+  backdrop-filter: none;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .decision-zone-tabs button {
+  height: 36px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--tt-muted);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .decision-zone-tabs button.active {
+  border-color: var(--tt-accent);
+  background: transparent;
+  color: var(--tt-text);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .lower-panel {
+  min-height: 170px;
+  background: var(--tt-surface);
+  border-top: 1px solid var(--tt-border);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 .lower-tabs button.active {
+  color: var(--tt-text);
+  box-shadow: inset 0 -2px var(--tt-accent);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 :is(.dashboard-panel-shell, .dashboard-layout-manager, .dashboard-optional-panel) {
+  border-color: var(--tt-border);
+  border-radius: var(--tt-radius-panel);
+  box-shadow: none;
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 :is(.dashboard-panel-shell-head, .dashboard-layout-manager header) {
+  background: var(--tt-surface);
+  border-color: var(--tt-border-soft);
+}
+
+.app-shell.minimal-ui.trading-terminal-v4 :focus-visible {
+  outline: 2px solid var(--tt-focus);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1440px) {
+  .app-shell.minimal-ui.trading-terminal-v4 .workspace {
+    grid-template-columns: minmax(0, 1fr) 410px;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 761px) {
+  .app-shell.minimal-ui.trading-terminal-v4 .topbar {
+    padding-inline: 12px;
+    gap: 8px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .brand {
+    min-width: 150px;
+    width: 150px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav > button,
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav .nav-more > button {
+    padding-inline: 8px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .workspace {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .quote-metrics {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell.minimal-ui.trading-terminal-v4 .topbar {
+    min-height: 48px;
+    height: 48px;
+    padding-inline: 12px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .brand {
+    min-width: 136px;
+    width: 136px;
+    height: 48px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .brand-type strong {
+    font-size: 14px !important;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav {
+    overflow-x: auto;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav > button,
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav .nav-more > button {
+    height: 48px;
+    padding-inline: 9px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .ticker {
+    min-height: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    padding-inline: 12px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .ticker-item {
+    height: 44px;
+    flex-basis: 190px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .stock-head {
+    height: auto;
+    min-height: 82px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 14px;
+    padding: 12px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .stock-identity {
+    min-width: 0;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .quote-focus {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .quote-metrics,
+  .app-shell.minimal-ui.trading-terminal-v4 .next-session-header,
+  .app-shell.minimal-ui.trading-terminal-v4 .l2-console-status {
+    display: none;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-inline: 12px;
+    overflow-x: auto;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip .desk-core-reason {
+    display: none;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .workspace,
+  .app-shell.minimal-ui.trading-terminal-v4 .workspace.with-main-force {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .chart-zone {
+    min-height: 560px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .decision-zone {
+    max-height: 680px;
+    border-top: 1px solid var(--tt-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell.minimal-ui.trading-terminal-v4 * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Phase 2.1: subtract chrome so the first viewport reaches the market field sooner. */
+@media (min-width: 761px) {
+  .app-shell.minimal-ui.trading-terminal-v4 .topbar {
+    min-height: 50px;
+    height: 50px;
+    padding-inline: var(--tt-space-4);
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .brand,
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav > button,
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav .nav-more > button {
+    height: 50px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .brand {
+    min-width: 164px;
+    width: 164px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .brand-primary-logo {
+    width: 82px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav > button,
+  .app-shell.minimal-ui.trading-terminal-v4 .main-nav .nav-more > button {
+    padding-inline: 10px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .top-actions :is(.dashboard-layout-trigger, .ai-diagnostics-trigger, .strategy-help, .profile-cycle, .account-button, .icon-button) {
+    min-height: 26px;
+    padding-inline: 6px;
+    border: 0;
+    border-left: 1px solid var(--tt-border-soft);
+    border-radius: 0;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .ticker {
+    min-height: 42px;
+    height: 42px;
+    flex-basis: 42px;
+    padding-inline: var(--tt-space-4);
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .ticker-item {
+    min-width: 170px;
+    height: 42px;
+    flex-basis: 200px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .ticker .ticker-stock-button {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .session-ribbon {
+    min-height: 22px;
+    height: 22px;
+    flex-basis: 22px;
+    padding-inline: var(--tt-space-4);
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .stock-head {
+    min-height: 72px;
+    height: 72px;
+    padding: 8px var(--tt-space-4);
+    gap: 14px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .stock-head :is(.quote-focus, .quote, .opening-assessment, .next-session-header, .l2-console-status) {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .stock-head .quote-focus {
+    border: 0;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .quote strong {
+    font-size: 30px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .quote {
+    padding-left: 12px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip {
+    min-height: 42px;
+    padding: 4px var(--tt-space-4);
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .desk-core-strip > div {
+    padding-block: 2px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .chart-tools {
+    height: 36px;
+    flex-basis: 36px;
+    padding-inline: 12px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell.minimal-ui.trading-terminal-v4 .top-actions {
+    display: none;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .session-ribbon {
+    min-height: 22px;
+    height: 22px;
+    flex-basis: 22px;
+  }
+
+  .app-shell.minimal-ui.trading-terminal-v4 .stock-head {
+    min-height: 76px;
+    padding-block: 9px;
+  }
+}
