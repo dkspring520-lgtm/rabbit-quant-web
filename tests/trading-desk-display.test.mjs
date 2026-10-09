@@ -9,6 +9,14 @@ test("compact guidance labels preserve WATCH versus action semantics", () => {
   assert.equal(compactObservationStatus("INVALID"), "待数据");
 });
 
+test("candidate captions retain candidate identity, source and the original score", () => {
+  assert.equal(compactChartDisplayLabel("候卖 确认分 75分"), "候卖 75");
+  assert.equal(compactChartDisplayLabel("候买 条件分 25分"), "候买 25");
+  assert.equal(compactChartDisplayLabel("V1 候买 确认分 80分"), "V1 候买 80");
+  assert.equal(compactChartDisplayLabel("V2.9 候卖 确认分 70分"), "V2.9 候卖 70");
+  assert.equal(compactChartDisplayLabel("顶 70%"), "顶 70%");
+});
+
 test("common long guidance reasons become concise display tags", () => {
   assert.equal(compactObservationTag("高位T环境出现"), "高位");
   assert.equal(compactObservationTag("价格位于近期区间偏高位置"), "高位");

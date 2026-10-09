@@ -776,6 +776,26 @@
 }
 
 /* Phase 2.1: subtract chrome so the first viewport reaches the market field sooner. */
+/* Marker identity is conveyed by shape, not a second set of trading scores. */
+.app-shell.minimal-ui.trading-terminal-v4 .interactive-intraday-chart .candidate-signal-marker circle,
+.app-shell.minimal-ui.trading-terminal-v4 .interactive-intraday-chart .candidate-signal-marker polygon {
+  fill: var(--tt-bg);
+  stroke-width: 1.2;
+}
+.app-shell.minimal-ui.trading-terminal-v4 .interactive-intraday-chart .candidate-signal-marker rect {
+  fill: var(--tt-surface);
+  stroke-dasharray: 3 2;
+}
+.app-shell.minimal-ui.trading-terminal-v4 .interactive-intraday-chart .live-signal-marker rect {
+  stroke-dasharray: none;
+  stroke-width: 1.5;
+}
+.app-shell.minimal-ui.trading-terminal-v4 .interactive-intraday-chart :is(.v1-context-marker, .v29-shadow-marker) {
+  opacity: 0.65;
+}
+.app-shell.minimal-ui.trading-terminal-v4 .interactive-intraday-chart :is(.v1-context-marker, .v29-shadow-marker):hover {
+  opacity: 1;
+}
 @media (min-width: 761px) {
   .app-shell.minimal-ui.trading-terminal-v4 .topbar {
     min-height: 50px;
