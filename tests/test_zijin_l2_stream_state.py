@@ -86,6 +86,16 @@ class StreamTests(unittest.TestCase):
 
 
 class CollectorCallbackTests(unittest.TestCase):
+    def test_stale_interval_does_not_release_an_existing_cooldown(self):
+        import zijin_l2_collector as module
+        machine = module.SecondLevelSignalMachine(state="cooldown", cooldown_until=10000)
+        args = dict(market_open=True, price=30, vwap=30, high=31, low=29, atr_pct=.5,
+            windows={f"{s}s": module.flow_window([], 9000, s) for s in (1, 3, 10, 30, 60)},
+            book={}, book3={})
+        self.assertEqual(machine.evaluate(now=9000, stale=True, **args)["state"], "invalid")
+        self.assertEqual(machine.evaluate(now=9001, stale=False, **args)["state"], "cooldown")
+        self.assertEqual(machine.cooldown_until, 10000)
+
     def test_real_published_state_is_json_serializable_and_marks_missing_streams(self):
         import zijin_l2_collector as module
         with patch.dict(module.os.environ, {"L2_NATS_USER": "", "L2_NATS_PASSWORD": ""}, clear=True), \
@@ -137,7 +147,11 @@ class CollectorCallbackTests(unittest.TestCase):
         self.assertEqual(collector.message_counts["transaction"], 2)
         self.assertEqual(collector.stream_state.latest_trade["price"], 29.72)
         collector.current_minute_bar = {"volume": 100}
-        collector.begin_connection_epoch()
+        collector.second_signal_machine = module.SecondLevelSignalMachine(state="cooldown", cooldown_until=10000, sequence=7)
+        with patch.object(module.time, "time", return_value=9000):
+            collector.begin_connection_epoch()
+        self.assertEqual(collector.second_signal_machine.cooldown_until, 10000)
+        self.assertEqual(collector.second_signal_machine.sequence, 8)
         self.assertEqual(len(collector.transactions), 0)
         self.assertEqual(len(collector.book_samples), 0)
         self.assertIsNone(collector.current_minute_bar)

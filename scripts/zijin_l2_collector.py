@@ -725,7 +725,13 @@ class Collector:
         self.book_samples.clear()
         self.current_minute_bar = None
         self.forward_minute_buffer = ForwardMinuteBuffer()
-        self.second_signal_machine = SecondLevelSignalMachine()
+        previous_machine = self.second_signal_machine
+        now = time.time()
+        self.second_signal_machine = SecondLevelSignalMachine(
+            state="invalid", state_started_at=now, sequence=previous_machine.sequence + 1,
+            cooldown_until=max(previous_machine.cooldown_until, now + 600 if previous_machine.state == "trigger" else 0),
+            last_reason="connection-generation-changed",
+        )
         self.last_second_sequence = -1
 
     def state(self):

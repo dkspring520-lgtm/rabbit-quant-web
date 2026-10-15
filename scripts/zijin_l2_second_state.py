@@ -302,8 +302,8 @@ class SecondLevelSignalMachine:
         elif self.state == "trigger":
             self.cooldown_until = now + 600
             self._transition("cooldown", self.direction, now, "同方向信号冷却10分钟")
-        elif self.state == "cooldown" and now < self.cooldown_until:
-            pass
+        elif now < self.cooldown_until:
+            self._transition("cooldown", self.direction, now, "cooldown-retained-after-gap")
         elif self.state == "cooldown":
             self._transition("normal", "none", now, "冷却完成")
         elif self.state in {"invalid", "expired"} and now - self.state_started_at < 15:

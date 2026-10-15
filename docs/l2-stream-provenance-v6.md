@@ -28,8 +28,9 @@ and source time no more than that threshold behind the accepted snapshot.
 exchange-to-browser latency. Source freshness is explicitly uncertified.
 Disconnected or absent streams are unavailable. Transport reconnect retains
 ordering watermarks, clears fast flow/book windows and the partial-minute and
-confirmation buffers, and waits for new accepted data. API receipt-age checks
-also prevent an old state file from presenting fresh stream metadata.
+confirmation buffers, retains outstanding cooldown deadlines even after stale
+intervals, and waits for new accepted data. API receipt-age checks also prevent
+an old state file from presenting fresh stream metadata.
 
 The existing 250ms collector publish default, 250ms API cache and 300ms SSE or
 fallback polling cadence remain unchanged. No subsecond update guarantee is
