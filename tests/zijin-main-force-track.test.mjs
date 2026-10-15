@@ -59,7 +59,9 @@ test("main-force chart is tracking evidence only and collector persists minute f
   assert.match(page, /signalMode==="正T"\?"下轨":"上轨"/);
   assert.match(page, /agentOpen&&<div className="agent-grid"/);
   assert.match(collector, /def update_minute_flow\(/);
-  assert.match(collector, /"schemaVersion": 5/);
+  assert.match(collector, /"schemaVersion": 6/);
+  assert.match(collector, /"lastExchangeTimeSource": "snapshot"/);
+  assert.match(collector, /"streams": streams/);
   assert.match(collector, /load_intraday_flow_state/);
   assert.match(collector, /load_intraday_flow_forward_fallback/);
   assert.match(collector, /causal-rolling-60s/);

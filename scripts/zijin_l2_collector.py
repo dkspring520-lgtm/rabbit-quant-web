@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 import nats
 import numpy as np
+from zijin_l2_stream_state import StreamState
 from zijin_l2_forward_labels import refresh_labels_and_state
 from zijin_closure_v2_reverse_shadow import ZijinClosureV2ReverseShadow
 from zijin_l2_second_state import (
@@ -197,6 +198,7 @@ class Collector:
         self.failovers = 0
         self.failover_reason = None
         self.message_counts = {"snapshot": 0, "transaction": 0, "order": 0}
+        self.stream_state = StreamState()
         self.forward_minutes = set()
         self.forward_days = set()
         self.last_forward_minute = None
@@ -383,6 +385,9 @@ class Collector:
     async def on_snapshot(self, message):
         received = time.time()
         for row in self.parse(message.data, SNAPSHOT):
+            self.message_counts["snapshot"] += 1
+            if not self.stream_state.accept("snapshot", row, received):
+                continue
             self.snapshot = row.copy()
             self.last_exchange_time = f"{int(row['date']):08d}-{int(row['time']):09d}"
             minute = exchange_minute(self.last_exchange_time)
@@ -399,7 +404,6 @@ class Collector:
                 "micropriceEdgeBps": book.get("micropriceEdgeBps"),
                 "price": price,
             })
-            self.message_counts["snapshot"] += 1
         self.last_message_at = received
 
     @staticmethod
@@ -685,12 +689,13 @@ class Collector:
     async def on_transaction(self, message):
         received = time.time()
         for row in self.parse(message.data, TRANSACTION):
+            self.message_counts["transaction"] += 1
+            if not self.stream_state.accept("transaction", row, received):
+                continue
             side, price, volume = decoded(row["bs_flag"]).upper(), float(row["price"]) / 10000, int(row["volume"])
             notional = int(row["turnover"]) or price * volume
             self.transactions.append((received, side, volume, notional, price))
-            self.message_counts["transaction"] += 1
-            self.last_exchange_time = f"{int(row['date']):08d}-{int(row['time']):09d}"
-            minute = exchange_minute(self.last_exchange_time)
+            minute = exchange_minute(self.stream_state.streams["transaction"]["exchangeTime"])
             if minute:
                 self.update_minute_flow(minute, side, volume, notional, price)
                 if price > 0:
@@ -706,14 +711,27 @@ class Collector:
     async def on_order(self, message):
         received = time.time()
         for row in self.parse(message.data, ORDER):
+            self.message_counts["order"] += 1
+            if not self.stream_state.accept("order", row, received):
+                continue
             self.orders.append((received, decoded(row["bs_flag"]).upper(), decoded(row["order_kind"]).upper(),
                                 int(row["volume"]), float(row["price"]) / 10000))
-            self.message_counts["order"] += 1
-            self.last_exchange_time = f"{int(row['date']):08d}-{int(row['time']):09d}"
         self.last_message_at = received
+
+    def begin_connection_epoch(self):
+        self.stream_state.reconnect()
+        self.transactions.clear()
+        self.orders.clear()
+        self.book_samples.clear()
+        self.current_minute_bar = None
+        self.forward_minute_buffer = ForwardMinuteBuffer()
+        self.second_signal_machine = SecondLevelSignalMachine()
+        self.last_second_sequence = -1
 
     def state(self):
         now = time.time()
+        streams = self.stream_state.public(now, self.connected, self.stale_seconds)
+        feed_stale = any(stream["stale"] for stream in streams.values())
         while self.transactions and now - self.transactions[0][0] > 60: self.transactions.popleft()
         while self.orders and now - self.orders[0][0] > 60: self.orders.popleft()
         while self.book_samples and now - self.book_samples[0]["receivedAt"] > 60: self.book_samples.popleft()
@@ -781,7 +799,7 @@ class Collector:
         second_state = self.second_signal_machine.evaluate(
             now=now,
             market_open=market_open,
-            stale=age is None or age > self.stale_seconds,
+            stale=feed_stale,
             price=last_price,
             vwap=cumulative_vwap,
             high=None if session is None else session["high"],
@@ -796,12 +814,20 @@ class Collector:
         ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
         shadow_status = self.reverse_shadow.public_status()
         return {
-            "schemaVersion": 5, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
+            "schemaVersion": 6, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
             "symbol": self.symbol, "updatedAt": utc_now(),
             "lastMessageAt": None if age is None else datetime.fromtimestamp(self.last_message_at, timezone.utc).isoformat().replace("+00:00", "Z"),
             "lastExchangeTime": self.last_exchange_time,
+            "lastExchangeTimeSource": "snapshot",
+            "streams": streams,
+            "latestTrade": None if self.stream_state.latest_trade is None else {
+                **self.stream_state.latest_trade, "available": streams["transaction"]["available"]},
+            "tradeEvents": list(self.stream_state.events),
+            "tradeEventsMeta": {"limit": 128, "lastId": self.stream_state.event_id,
+                                "generation": self.stream_state.generation, "completeHistory": False,
+                                "continuityCertified": False},
             "status": {"connected": self.connected, "authorized": not self.authorization_error,
-                       "stale": age is None or age > self.stale_seconds, "ageSeconds": None if age is None else round(age, 3),
+                       "stale": feed_stale, "ageSeconds": None if age is None else round(age, 3),
                        "parseErrors": self.parse_errors, "reconnects": self.reconnects,
                        "failovers": self.failovers, "failoverReason": self.failover_reason,
                        "nodePoolSize": len(self.urls)},
@@ -816,14 +842,18 @@ class Collector:
                      "buySweepStreak60s": buy_sweep_streak,
                      "sellSweepStreak60s": sell_sweep_streak,
                      "transactionCount60s": len(self.transactions), "orderCount60s": len(self.orders)},
-            "book": {"bidPrices": bid_prices, "askPrices": ask_prices, "bidVolumes": bid_volumes, "askVolumes": ask_volumes,
+            "book": {"source": "snapshot", "exchangeTime": streams["snapshot"]["exchangeTime"],
+                     "receivedAt": streams["snapshot"]["receivedAt"], "available": streams["snapshot"]["available"],
+                     "bidPrices": bid_prices, "askPrices": ask_prices, "bidVolumes": bid_volumes, "askVolumes": ask_volumes,
                      "lastPrice": last_price, "bid1Volume": bid1_volume, "ask1Volume": ask1_volume,
                      "nearBidVolume": near_bid, "nearAskVolume": near_ask,
                      "nearTouchImbalance": None if depth_total <= 0 else round((near_bid - near_ask) / depth_total, 6),
                      "spreadBps": None if mid <= 0 else round((best_ask - best_bid) / mid * 10000, 4),
                      "microprice": None if microprice <= 0 else round(microprice, 4),
                      "micropriceEdgeBps": None if mid <= 0 else round((microprice - mid) / mid * 10000, 4)},
-            "session": session,
+            "session": None if session is None else {**session, "source": "snapshot",
+                "exchangeTime": streams["snapshot"]["exchangeTime"], "receivedAt": streams["snapshot"]["receivedAt"],
+                "volumeUnit": "provider-raw", "amountUnit": "provider-raw"},
             "volatility": atr,
             "secondState": second_state,
             "recentMinutes": self.recent_minute_payload(),
@@ -992,6 +1022,7 @@ class Collector:
                     self.authorization_error = False
                     self.failover_reason = None
                     connected_at = time.time()
+                    self.begin_connection_epoch()
                     # A TCP connection can succeed while the first subscription
                     # is still waiting on a broken NATS socket. Bound every
                     # readiness step so the supervisor can rotate/restart the

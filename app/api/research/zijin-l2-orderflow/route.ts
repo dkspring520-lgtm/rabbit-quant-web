@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { withL2Provenance } from "../../../../lib/l2-provenance.mjs";
 
 const statePath = process.env.ZIJIN_L2_STATE_PATH || "/training-state/zijin-l2-orderflow.json";
 const streamIntervalMs = 300;
@@ -9,7 +10,7 @@ let cachedAt = 0;
 let stateRead: Promise<Awaited<ReturnType<typeof readState>>> | null = null;
 
 async function readState() {
-  const payload = JSON.parse(await readFile(statePath, "utf8"));
+  const payload = withL2Provenance(JSON.parse(await readFile(statePath, "utf8")));
   const updatedAt = Date.parse(payload.updatedAt);
   const heartbeatAgeSeconds = Number.isFinite(updatedAt)
     ? Math.max(0, (Date.now() - updatedAt) / 1000)

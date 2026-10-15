@@ -33,6 +33,8 @@ export async function GET() {
   return Response.json(
     {
       service: "rabbit-quant-web",
+      version: commit === "development" ? commit : commit.slice(0, 12),
+      contracts: { kdj: "kdj-ohlc-continuous-50-v1", l2: "per-stream-v6" },
       commit,
       shortCommit: commit === "development" ? commit : commit.slice(0, 12),
       buildTime,

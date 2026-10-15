@@ -6020,3 +6020,7 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .app-shell.minimal-ui.tv-console .main-force-track-foot .main-force-response-note{max-width:70px}
 .app-shell.minimal-ui.tv-console .intraday-risk-marker text,.app-shell.minimal-ui.tv-console .candidate-signal-marker text,.app-shell.minimal-ui.tv-console .live-signal-marker text{font-size:8px}
 @media(max-width:760px){.app-shell.minimal-ui.tv-console .stock-head{height:auto;min-height:78px;padding:8px 12px}.app-shell.minimal-ui.tv-console .quote-focus .quote strong{font-size:28px}.app-shell.minimal-ui.tv-console .quote-metrics{display:none}.app-shell.minimal-ui.tv-console .next-session-header{min-width:104px;flex-basis:104px}.app-shell.minimal-ui.tv-console .l2-console-status{min-width:94px;flex-basis:94px}.app-shell.minimal-ui.tv-console .main-force-track{height:98px;flex-basis:98px}}
+
+.l2-provenance{max-width:100%;margin:8px 0;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.l2-provenance summary{cursor:pointer}
+.l2-provenance p{margin:8px 0;line-height:1.6}

@@ -1,3 +1,4 @@
+import { readEastmoneyMinuteSnapshot } from "@/lib/indicators/eastmoney-minute-source.mjs";
 import { assessMarketDataQuality } from "@/lib/market-data-quality.mjs";
 
 type Quote = {
@@ -262,6 +263,10 @@ export async function GET(request: Request) {
   const requestedHistoryDays = Math.min(100, Math.max(1, Number(searchParams.get("historyDays")) || 6));
   try {
     validCode(code);
+    if (mode === "kdj-ohlc") {
+      const snapshot = await readEastmoneyMinuteSnapshot(code);
+      return Response.json(snapshot, { headers: realtimeHeaders });
+    }
     if (mode === "trial-quote") {
       const data = await fromPublicQuote(code);
       const fetchedAt = new Date().toISOString();

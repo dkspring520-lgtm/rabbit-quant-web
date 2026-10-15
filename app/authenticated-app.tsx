@@ -1,4 +1,5 @@
 "use client";
+import {l2ProvenanceText, shouldApplyL2Response, withL2Provenance} from '../lib/l2-provenance.mjs';
 import {openingPathEvents} from '../lib/opening-path.mjs';
 import {advanceSlice} from '../lib/slice-alerts.mjs';
 import {openingScoreEvents} from '../lib/opening-score.mjs';
@@ -59,6 +60,7 @@ import { buildZijinMainForceTrack } from "@/lib/zijin-main-force-track.mjs";
 import { evaluateZijinFundResponse } from "@/lib/zijin-fund-response.mjs";
 import { summarizeZijinMainForceIntent } from "@/lib/zijin-main-force-intent.mjs";
 import { analyzeZijinAhLinkage } from "@/lib/zijin-ah-linkage.mjs";
+import { calculateKdjSeries } from "@/lib/indicators/causal-kdj.mjs";
 import { evaluateWeb4Microstructure } from "@/lib/web4-microstructure.mjs";
 import { evaluateWeb4RealtimeMonitor } from "@/lib/web4-realtime-monitor.mjs";
 import { evaluateZijinDisplacementWatch } from "@/lib/zijin-displacement-reminder.mjs";
@@ -1308,8 +1310,8 @@ function buildPivotAndMacdObservations(
   const shadowCandidates=shadowObservations.filter(observation=>observation.observationKind!=="macd");
   const rsiStates=[6,12,24].map(period=>({period,gainSum:0,lossSum:0,avgGain:undefined as number|undefined,avgLoss:undefined as number|undefined,value:undefined as number|undefined}));
   const macdDiffHistory:number[]=[];
-  let kdjK=50;
-  let kdjD=50;
+  // Incomplete or price-only minute feeds cannot confirm an OHLC KDJ event.
+  const kdjValues=calculateKdjSeries(minutes).map(sample=>sample.value);
   const minuteLow=(index:number)=>finitePositive(minutes[index]?.low)??safePrice(index);
   const lowestIndex=(start:number,end:number)=>{
     let selected=-1;
@@ -1364,17 +1366,7 @@ function buildPivotAndMacdObservations(
         });
       }
     }
-    const kdjStart=Math.max(0,index-8);
-    let periodHigh=-Infinity;
-    let periodLow=Infinity;
-    for(let cursor=kdjStart;cursor<=index;cursor+=1){
-      periodHigh=Math.max(periodHigh,finitePositive(minutes[cursor]?.high)??Number(minutes[cursor]?.price));
-      periodLow=Math.min(periodLow,finitePositive(minutes[cursor]?.low)??Number(minutes[cursor]?.price));
-    }
-    const rsv=periodHigh>periodLow?(price-periodLow)/(periodHigh-periodLow)*100:50;
-    kdjK=kdjK*2/3+rsv/3;
-    kdjD=kdjD*2/3+kdjK/3;
-    const kdjJ=3*kdjK-2*kdjD;
+    const kdj=kdjValues[index];
     ema12=ema12===undefined?price:ema12+(price-ema12)*alpha12;
     ema26=ema26===undefined?price:ema26+(price-ema26)*alpha26;
     const diff=ema12-ema26;
@@ -1386,7 +1378,8 @@ function buildPivotAndMacdObservations(
     const [rsi6,rsi12,rsi24]=rsiStates.map(state=>state.value);
     const enough=index>=25&&previousHistogramValue!==undefined&&previousPreviousHistogramValue!==undefined
       &&rsi6!==undefined&&rsi12!==undefined&&rsi24!==undefined;
-    if(enough&&index-lastMacdIndex>=20){
+    if(enough&&kdj&&index-lastMacdIndex>=20){
+      const {k:kdjK,d:kdjD,j:kdjJ}=kdj;
       const golden=previousHistogramValue<=0&&histogram>0;
       const death=previousHistogramValue>=0&&histogram<0;
       const macdState=golden?"golden-cross":death?"death-cross":undefined;
@@ -2404,7 +2397,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         streamWatchdog=undefined;
       }
     };
-    const applyPayload=(payload:ZijinL2State)=>{
+    let previousPayload:ZijinL2State|null=null;
+    const applyPayload=(incoming:ZijinL2State)=>{
+      const payload=withL2Provenance(incoming);
+      if(!shouldApplyL2Response(previousPayload,payload))return;
+      previousPayload=payload;
       lastSuccessfulPayloadAt=Date.now();
       consecutivePollFailures=0;
       const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
@@ -7007,6 +7004,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <i/><div><span>{displayedWeb4HealthLabel}</span><b>{displayedWeb4Confidence===null?"待更新":displayedWeb4Confidence}<small>{displayedWeb4Confidence===null?"":"/100"}</small></b></div><em>{l2ConsoleStatus.label} · {liveDataGate.label}</em>
         </div>
       </section>
+      {stock.code==="601899"&&<details className="l2-provenance"><summary>L2 数据来源与新鲜度</summary><p>{l2ProvenanceText(liveL2Status)}</p></details>}
 
       <section className="desk-core-strip" aria-label="做T核心指标">
         <div><span>持仓 / 可卖</span><b>{displayedShares.toLocaleString()}<small> / {effectiveLivePosition.sellable.toLocaleString()} 股</small></b></div>
@@ -8228,6 +8226,9 @@ type ZijinShadowProgressStatus = {
 };
 type L2FootprintLevel={price:number;buyVolume:number;sellVolume:number;deltaVolume:number;buyNotional?:number;sellNotional?:number;trades:number};
 type ZijinL2State = {
+  updatedAt?:string;
+  streams?:Record<string,{exchangeTime?:string|null;receivedAt?:string|null;available?:boolean;sequence?:number|null;channel?:number|null}>;
+  latestTrade?:{price?:number;volume?:number;available?:boolean;sequence?:number|null;channel?:number|null};
   node?:string; error?:string; lastExchangeTime?:string;
   status?:{connected?:boolean;transportConnected?:boolean;authorized?:boolean;collectorAlive?:boolean;collectorStale?:boolean;heartbeatAgeSeconds?:number|null;feedAgeSeconds?:number|null;stale?:boolean;ageSeconds?:number};
   meta?:{collectorAlive?:boolean;collectorStale?:boolean;heartbeatAgeSeconds?:number|null;stale?:boolean;servedAt?:string};
