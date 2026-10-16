@@ -12,7 +12,7 @@ from zijin_l2_stream_state import StreamState
 
 
 def record(clock=93041000, index=1, channel=1, price=297300):
-    return dict(date=20261015, time=clock, index=index, channel=channel,
+    return dict(symbol="000001", market=0, bs_flag="B", date=20261015, time=clock, index=index, channel=channel,
                 price=price, volume=100, turnover=2973)
 
 
@@ -131,6 +131,7 @@ class CollectorCallbackTests(unittest.TestCase):
         rows["snapshot"]["last"] = 297300
         rows["snapshot"]["volume"] = 7159911
         rows["transaction"]["price"] = 297200; rows["transaction"]["volume"] = 100
+        rows["transaction"]["symbol"] = b"000001"; rows["transaction"]["bs_flag"] = b"B"
         rows["transaction"]["index"] = 1; rows["order"]["index"] = 1
         collector.parse = lambda data, dtype: rows[data]
         async def run():

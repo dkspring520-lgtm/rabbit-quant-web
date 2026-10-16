@@ -692,10 +692,15 @@ class Collector:
             self.message_counts["transaction"] += 1
             if not self.stream_state.accept("transaction", row, received):
                 continue
+            event = self.stream_state.last_accepted_event
+            if event["aggregationDisposition"] != "forward-trade":
+                # Retain typed/late records in the audit ledger without rewinding
+                # latest price or the forward minute aggregates.
+                continue
             side, price, volume = decoded(row["bs_flag"]).upper(), float(row["price"]) / 10000, int(row["volume"])
             notional = int(row["turnover"]) or price * volume
             self.transactions.append((received, side, volume, notional, price))
-            minute = exchange_minute(self.stream_state.streams["transaction"]["exchangeTime"])
+            minute = exchange_minute(event["exchangeTime"])
             if minute:
                 self.update_minute_flow(minute, side, volume, notional, price)
                 if price > 0:
@@ -826,12 +831,19 @@ class Collector:
             "lastExchangeTime": self.last_exchange_time,
             "lastExchangeTimeSource": "snapshot",
             "streams": streams,
-            "latestTrade": None if self.stream_state.latest_trade is None else {
-                **self.stream_state.latest_trade, "available": streams["transaction"]["available"]},
+            "latestTrade": self.stream_state.latest_trade_public(now, streams["transaction"]["available"] and not self.authorization_error, self.stale_seconds),
             "tradeEvents": list(self.stream_state.events),
             "tradeEventsMeta": {"limit": 128, "lastId": self.stream_state.event_id,
                                 "generation": self.stream_state.generation, "completeHistory": False,
                                 "continuityCertified": False},
+            "transactionEvents": list(self.stream_state.transaction_events),
+            "transactionEventsMeta": {"limit": 128, "classificationCounts": dict(self.stream_state.classification_counts),
+                "generation": self.stream_state.generation, "completeHistory": False,
+                "continuityCertified": False, "idSemantics": "accepted-transaction-records-including-non-trades",
+                "lateTradeAggregation": "ledger-only; forward aggregates are not a complete event reconstruction"},
+            "orderEvents": list(self.stream_state.order_events),
+            "orderEventsMeta": {"limit": 128, "completeHistory": False, "continuityCertified": False,
+                "classification": "raw vendor fields retained; unverified order function enums stay unknown"},
             "status": {"connected": self.connected, "authorized": not self.authorization_error,
                        "stale": feed_stale, "ageSeconds": None if age is None else round(age, 3),
                        "parseErrors": self.parse_errors, "reconnects": self.reconnects,
