@@ -9,6 +9,10 @@ created here: they may only be attached after the future minute has arrived.
 import asyncio
 import json
 import os
+import signal
+import stat
+import subprocess
+import sys
 import tempfile
 import time
 from collections import deque
@@ -30,6 +34,77 @@ from zijin_l2_second_state import (
     flow_window,
     weighted_book,
 )
+
+
+def heartbeat_signature(path):
+    """Metadata progress only; never promote a stale payload to fresh data."""
+    try:
+        info = Path(path).stat()
+        if stat.S_ISREG(info.st_mode):
+            return info.st_ino, info.st_mtime_ns, info.st_size
+    except OSError:
+        pass
+    return None
+
+
+def stop_reader(process, timeout):
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=timeout)
+
+
+def supervise_collector(command=None, state_path=None, *, heartbeat_timeout=15,
+                        startup_timeout=30, poll_interval=.5,
+                        termination_timeout=2, stop_requested=lambda: False):
+    """Keep liveness outside the reader event loop, including a busy-loop stall.
+
+    The 15s heartbeat and 30s startup grace match the existing route/healthcheck.
+    Docker's existing restart policy handles this supervisor's nonzero exit.
+    No broker connection, credential handling or trading decision happens here.
+    """
+    command = command or [sys.executable, "-B", str(Path(__file__).resolve()), "--collector-child"]
+    state_path = state_path or os.getenv("L2_STATE_PATH", "/training-state/zijin-l2-orderflow.json")
+    previous = heartbeat_signature(state_path)
+    last_progress = time.monotonic()
+    published = False
+    reader = subprocess.Popen(command)
+    try:
+        while True:
+            code = reader.poll()
+            if code is not None:
+                return code if code >= 0 else 128 - code
+            if stop_requested():
+                return 0
+            current = heartbeat_signature(state_path)
+            now = time.monotonic()
+            if current is not None and current != previous:
+                previous = current
+                last_progress = now
+                published = True
+            limit = heartbeat_timeout if published else startup_timeout
+            if now - last_progress >= limit:
+                print("L2 collector heartbeat stopped advancing; exiting for container restart", file=sys.stderr, flush=True)
+                return 1
+            time.sleep(min(poll_interval, limit - (now - last_progress)))
+    finally:
+        stop_reader(reader, termination_timeout)
+
+
+def run_supervised_collector():
+    stopping = False
+
+    def request_stop(_signal, _frame):
+        nonlocal stopping
+        stopping = True
+
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
+    return supervise_collector(stop_requested=lambda: stopping)
 
 SNAPSHOT = np.dtype([
     ("symbol", "S32"), ("market", "u1"), ("date", "<i4"), ("time", "<i4"),
@@ -1111,4 +1186,7 @@ class Collector:
                 await reverse_shadow_peers
 
 if __name__ == "__main__":
-    asyncio.run(Collector().run())
+    if "--collector-child" in sys.argv:
+        asyncio.run(Collector().run())
+    else:
+        raise SystemExit(run_supervised_collector())
