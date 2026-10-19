@@ -287,6 +287,7 @@ class Collector:
         self.restored_minute_rows = {}
         self.forward_label_count = 0
         self.forward_research_status = "collecting-forward-evidence"
+        self.forward_research_requested = asyncio.Event()
         self.forward_minute_buffer = ForwardMinuteBuffer()
         self.reverse_shadow = ZijinClosureV2ReverseShadow(
             event_path=self.reverse_shadow_event_path,
@@ -296,7 +297,16 @@ class Collector:
         self.load_intraday_flow_state()
         self.load_intraday_flow_forward_fallback()
         self.load_forward_index()
-        self.refresh_forward_research()
+        self.forward_research_requested.set()
+
+    async def refresh_forward_research_background(self):
+        # Full-ledger JSON parsing and labeling must not stall NATS callbacks or
+        # the 250ms publisher. One worker serializes writes and coalesces requests;
+        # a request arriving during a refresh schedules a further pass.
+        while True:
+            await self.forward_research_requested.wait()
+            self.forward_research_requested.clear()
+            await asyncio.to_thread(self.refresh_forward_research)
 
     def load_intraday_flow_state(self):
         """Resume today's published minute flow after a collector restart."""
@@ -980,7 +990,7 @@ class Collector:
         except Exception:
             # Shadow research must never interrupt the production L2 collector.
             pass
-        self.refresh_forward_research()
+        self.forward_research_requested.set()
 
     def append_forward_sample(self, state):
         minute = exchange_minute(state.get("lastExchangeTime"))
@@ -1087,6 +1097,7 @@ class Collector:
             if "authorization" in str(error).lower(): self.authorization_error = True
         async def disconnected_callback(): self.connected = False
         writer = asyncio.create_task(self.publish_state())
+        forward_research = asyncio.create_task(self.refresh_forward_research_background())
         reverse_shadow_regime = asyncio.create_task(self.refresh_reverse_shadow_regime())
         reverse_shadow_peers = asyncio.create_task(self.refresh_reverse_shadow_peers())
         node_index = 0
@@ -1176,10 +1187,13 @@ class Collector:
                 await asyncio.sleep(0.35 if is_live_a_share_session() else 2)
         finally:
             writer.cancel()
+            forward_research.cancel()
             reverse_shadow_regime.cancel()
             reverse_shadow_peers.cancel()
             with suppress(asyncio.CancelledError):
                 await writer
+            with suppress(asyncio.CancelledError):
+                await forward_research
             with suppress(asyncio.CancelledError):
                 await reverse_shadow_regime
             with suppress(asyncio.CancelledError):
