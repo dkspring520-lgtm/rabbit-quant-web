@@ -82,7 +82,7 @@ services:
     volumes:
       - /opt/rabbit-quant-state:/training-state
     healthcheck:
-      test: ["CMD", "python", "-c", "import json,time,datetime;p=json.load(open('/training-state/zijin-l2-orderflow.json'));s=p.get('status',{});assert time.time()-datetime.datetime.fromisoformat(p['updatedAt'].replace('Z','+00:00')).timestamp()<15 and s.get('connected') is True and s.get('stale') is False and (s.get('ageSeconds') is not None and s['ageSeconds']<=15)"]
+      test: ["CMD", "python", "scripts/zijin_l2_healthcheck.py"]
       interval: 20s
       timeout: 5s
       retries: 3

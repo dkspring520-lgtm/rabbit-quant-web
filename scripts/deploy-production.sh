@@ -204,13 +204,41 @@ ASSETS
   log "生产运维脚本、定时器和日志策略已同步。"
 }
 
+compose_change_is_l2_health_only() {
+  # A service-local health command must not force-recreate Web or Trainer.
+  # Compare every byte outside the existing L2 healthcheck block; all other
+  # Compose changes retain the full-service deployment path.
+  python3 - "$REPO_DIR" "$deployed_sha" "$target_sha" <<'PY_L2_HEALTH_SCOPE'
+import subprocess, sys
+
+def without_l2_health(text):
+    lines = text.splitlines(keepends=True)
+    start = lines.index("  l2:\n") + 1
+    end = next((i for i in range(start, len(lines))
+                if lines[i].startswith("  ") and not lines[i].startswith("   ")
+                and lines[i].strip()), len(lines))
+    health = next(i for i in range(start, end) if lines[i] == "    healthcheck:\n")
+    stop = next((i for i in range(health + 1, end)
+                 if lines[i].strip() and not lines[i].startswith("      ")), end)
+    return lines[:health] + ["    # L2 healthcheck comparison boundary\n"] + lines[stop:]
+
+try:
+    before, after = (subprocess.check_output(
+        ["git", "-C", sys.argv[1], "show", ref + ":compose.web.yml"]
+    ).decode("utf-8") for ref in sys.argv[2:4])
+    sys.exit(0 if before != after and without_l2_health(before) == without_l2_health(after) else 1)
+except (ValueError, StopIteration, UnicodeError, subprocess.CalledProcessError):
+    sys.exit(1)
+PY_L2_HEALTH_SCOPE
+}
+
 classify_changed_path() {
   local path="$1"
   case "$path" in
     deploy/paperclip/*|services/paperclip-bridge/*|lib/factor-research/*|scripts/run-factor-research.mjs)
       paperclip_update_needed=1
       ;;
-    Dockerfile.l2|requirements.l2.txt|scripts/zijin_l2_collector.py|scripts/zijin_l2_forward_labels.py|scripts/zijin_l2_second_state.py)
+    Dockerfile.l2|requirements.l2.txt|scripts/zijin_l2_collector.py|scripts/zijin_l2_forward_labels.py|scripts/zijin_l2_second_state.py|scripts/zijin_l2_healthcheck.py)
       l2_build_needed=1
       l2_service_needed=1
       ;;
@@ -237,7 +265,11 @@ classify_changed_path() {
       web_service_needed=1
       ;;
     compose.web.yml)
-      compose_changed=1
+      if compose_change_is_l2_health_only; then
+        l2_service_needed=1
+      else
+        compose_changed=1
+      fi
       ;;
     *)
       web_build_needed=1
