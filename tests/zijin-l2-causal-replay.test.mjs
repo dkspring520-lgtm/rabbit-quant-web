@@ -10,6 +10,9 @@ function l2Minute(time, ratio) {
   return {
     time,
     exchangeMinute:`20260728-${time}`,
+    // Synthetic verified fixture; production rows are never upgraded here.
+    quality:{verified:true,minuteFinality:"verified"},
+    timeContract:{observedAt:`2026-07-28T${time.slice(0,2)}:${time.slice(2)}:58+08:00`,persistedAt:`2026-07-28T${time.slice(0,2)}:${time.slice(2)}:59+08:00`},
     activeBuyRatio:ratio,
     activeBuyNotional:1_000_000 * ratio,
     activeSellNotional:1_000_000 * (1 - ratio),

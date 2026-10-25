@@ -20,3 +20,13 @@ New regression cases were run failing before implementation for buffer mutation/
 Build and hosting-artifact validation pass using the existing dependencies (matching package-lock SHA256); no installation. Full-project typecheck fails in untouched UI files and bundled Remotion examples; this branch does not change their code or tsconfig. Narrow route typecheck passes. Windows skips Linux-only deployment execution tests; deployment Node tests inspect the script contract, not a live VPS.
 
 This is a draft data-quality guard patch, not completion of P0/P1/P2 or certification of new research data. Exact minute closure across all feeds, source finality, durable write receipts, downstream replay availability scheduling, paper account fees/idempotency/T+1 and UI remain outstanding. Existing archived Oct23 data is not repaired or certified. No broker connection, strategy threshold change, production deployment or profitable-result claim is included.
+
+## Follow-up: fail-closed replay and labels
+
+The real producer still has no certified finality/durable receipt, so its rows cannot produce strict research replay markers or new forward outcome labels. This intentionally removes unverified research markers from both historical replay and the shared live chart helper; ordinary market curves remain. No trading strategy threshold was changed. A positive synthetic fixture is not a production certificate.
+
+The replay scheduler requires explicit source verification, minute finality and ordered observed/persisted times. It uses persistedAt for clock eligibility, rejects late/duplicate minute backfills, and attaches availableAt to any synthetic qualified marker. The labeler rejects missing receipts, outcomes preceding feature availability and outcomes not available at labeling time. Existing unverified label files are retained but excluded from readiness totals. Collector trainingReady also requires the qualified study status.
+
+Executable tests include fsync failure (no in-memory success or shadow publication), restart with unknown amounts, unavailable/future receipt, reordered arrival, and existing uncertified labels excluded from readiness. This is safe degradation, not a new producer capable of generating qualified data.
+
+Full baseline diagnostic comparison is in l2-typecheck-baseline-20261025.md. Before release, require an explicit decision on the unchanged baseline typecheck failures, review the deliberate loss of unverified research markers, and obtain real producer availability/finality acceptance before enabling new research. No production merge is authorized in this review phase.

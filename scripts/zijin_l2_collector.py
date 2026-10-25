@@ -917,7 +917,9 @@ class Collector:
             exchange_minute_key=exchange_clock[:4],
         )
         second_state["marketMode"] = market_mode
-        ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
+        ready = (len(self.forward_minutes) >= self.forward_min_samples
+                 and len(self.forward_days) >= self.forward_min_days
+                 and self.forward_research_status == "minimum-forward-evidence-collected")
         shadow_status = self.reverse_shadow.public_status()
         return {
             "schemaVersion": 6, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
