@@ -28,6 +28,7 @@ from zijin_l2_forward_labels import refresh_labels_and_state
 from zijin_closure_v2_reverse_shadow import ZijinClosureV2ReverseShadow
 from zijin_l2_second_state import (
     ForwardMinuteBuffer,
+    annotate_forward_record,
     SecondLevelSignalMachine,
     book_persistence,
     freeze_microstructure_features,
@@ -364,6 +365,10 @@ class Collector:
                 "volume": int(row.get("volume", 0) or 0),
                 "amount": float(row.get("amount", 0) or 0),
                 "averagePrice": row.get("averagePrice"),
+                "quality": row.get("quality", {"verified": False, "restored": True}),
+                "fieldSources": row.get("fieldSources", {}),
+                "timeContract": row.get("timeContract", {"semantics": "legacy-unverified"}),
+                "flowRecovery": row.get("flowRecovery"),
             }
 
     def load_intraday_flow_forward_fallback(self):
@@ -428,7 +433,10 @@ class Collector:
                 "volume": 0,
                 "amount": 0,
                 "averagePrice": None,
-                "flowRecovery": "causal-rolling-60s",
+                "flowRecovery": "unverified-rolling-60s",
+                "quality": {"verified": False, "recoveredFromForward": True},
+                "fieldSources": record.get("fieldSources", {}),
+                "timeContract": record.get("timeContract", {"semantics": "legacy-unverified"}),
             }
 
     def load_forward_index(self):
@@ -754,6 +762,7 @@ class Collector:
                 continue
             restored = rows.get(minute)
             rows[minute] = {
+                **(restored or {}),
                 "time": minute[-4:],
                 "exchangeMinute": minute,
                 "price": bar["close"],
@@ -767,7 +776,8 @@ class Collector:
                 ),
             }
         return [
-            {**rows[minute], **self.minute_flow_payload(minute)}
+            {**rows[minute], **self.minute_flow_payload(minute),
+             **({"volume": None, "amount": None} if rows[minute].get("flowRecovery") else {})}
             for minute in sorted(rows)[-260:]
         ]
 
@@ -1022,7 +1032,8 @@ class Collector:
                 key: state["book"].get(key) for key in (
                     "bid1Volume", "ask1Volume", "nearBidVolume", "nearAskVolume",
                     "nearTouchImbalance", "spreadBps", "microprice", "micropriceEdgeBps",
-                    "bidPrices", "askPrices", "bidVolumes", "askVolumes"
+                    "bidPrices", "askPrices", "bidVolumes", "askVolumes",
+                    "source", "exchangeTime", "receivedAt", "available"
                 )
             },
             "messages": dict(messages), "target": None,
@@ -1031,6 +1042,7 @@ class Collector:
                 state.get("secondState"), state.get("flow"), state.get("book"), messages
             ),
         }
+        record = annotate_forward_record(record, state)
         completed = self.forward_minute_buffer.push(record)
         if completed is not None:
             self.write_forward_record(completed)

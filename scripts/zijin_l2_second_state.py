@@ -8,6 +8,7 @@ rolling transaction/book evidence into a small, auditable state:
 NORMAL -> WATCH -> READY -> TRIGGER -> COOLDOWN
 """
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 
@@ -159,9 +160,48 @@ def freeze_microstructure_features(second_state, flow, book, messages=None):
     return features
 
 
+def annotate_forward_record(record, state):
+    """Describe an observed mixed-stream snapshot, never a certified closed bar."""
+    result = deepcopy(record)
+    book = state.get("book") or {}
+    session = state.get("session") or {}
+    bar = (state.get("volatility") or {}).get("currentBar") or {}
+    bar_minute = bar.get("minute")
+    aligned = bar_minute is not None and bar_minute == record.get("exchangeMinute")
+    if not aligned:
+        result["minuteHigh"] = None
+        result["minuteLow"] = None
+    result.update({
+        "causal": False,
+        "streams": deepcopy(state.get("streams") or {}),
+        "sourceQuality": {key: deepcopy(state.get(key)) for key in
+                          ("dataQuality", "tradeEventsMeta", "transactionEventsMeta", "orderEventsMeta", "status")},
+        "quality": {"verified": False, "minuteFinality": "unverified",
+                    "currentBarAligned": aligned},
+        "timeContract": {"version": "observed-snapshot-v1",
+                         "semantics": "mixed-stream-as-observed",
+                         "observedAt": state.get("updatedAt"),
+                         "availabilityLowerBound": state.get("updatedAt"),
+                         "currentBarMinute": bar_minute,
+                         "flowWindow": "rolling-received-60s",
+                         "persistedAt": None},
+        "fieldSources": {
+            "book": {"source": book.get("source"), "exchangeTime": book.get("exchangeTime"),
+                     "receivedAt": book.get("receivedAt"), "available": book.get("available")},
+            "cumulativeVwap": {"source": session.get("source"), "exchangeTime": session.get("exchangeTime"),
+                               "receivedAt": session.get("receivedAt"), "units": session.get("units")},
+            "minuteHighLow": {"source": "transaction-currentBar", "exchangeMinute": bar_minute},
+            "flow": {"source": "received-transaction-order-window", "windowSeconds": 60},
+        },
+    })
+    return result
+
+
 @dataclass
 class ForwardMinuteBuffer:
-    """Keep only the latest causal snapshot until its minute has ended."""
+    """Buffer observed snapshots until a strictly later snapshot minute arrives.
+
+    This does not certify cross-stream alignment or exchange-minute finality."""
 
     pending: dict | None = field(default=None)
 
@@ -169,14 +209,20 @@ class ForwardMinuteBuffer:
         minute = (record or {}).get("exchangeMinute")
         if not minute:
             return None
+        if self.pending is not None and minute < self.pending["exchangeMinute"]:
+            # An out-of-order snapshot cannot close or roll back the buffer.
+            return None
+        frozen = deepcopy(record)
         if self.pending is None:
-            self.pending = record
+            self.pending = frozen
             return None
         if self.pending.get("exchangeMinute") == minute:
-            self.pending = record
+            self.pending = frozen
             return None
         completed = self.pending
-        self.pending = record
+        if "timeContract" in completed:
+            completed["timeContract"]["bufferReleasedAt"] = record.get("observedAt")
+        self.pending = frozen
         return completed
 
 

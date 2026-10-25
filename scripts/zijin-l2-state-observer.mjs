@@ -1,3 +1,4 @@
+import { readOptionalJson, mergeUnverifiedArchive } from "../lib/zijin-replay-storage.mjs";
 import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -56,9 +57,10 @@ export function isAshareContinuousSessionAt(at = new Date()) {
 }
 
 export function isFreshLiveExchangeMinute(exchangeMinute, observedAt = new Date(), maximumLagMinutes = 3) {
-  const match = String(exchangeMinute ?? "").match(/^(\d{8})-?(\d{2})(\d{2})$/);
+  const match = String(exchangeMinute ?? "").match(/^(\d{8})-?(\d{2})(\d{2})(?:([0-5]\d)\d{0,6})?$/);
   if (!match) return false;
   const [, date, hours, minutes] = match;
+  if (Number(hours) > 23 || Number(minutes) > 59) return false;
   const exchangeClock = Number(hours) * 60 + Number(minutes);
   const now = shanghaiClockParts(observedAt);
   const inContinuousSession = (exchangeClock >= 9 * 60 + 30 && exchangeClock <= 11 * 60 + 30)
@@ -67,11 +69,12 @@ export function isFreshLiveExchangeMinute(exchangeMinute, observedAt = new Date(
   return date === now.date && inContinuousSession && lag >= 0 && lag <= maximumLagMinutes;
 }
 
-async function readJsonLines(path) {
+export async function readJsonLines(path) {
   try {
     return (await readFile(path, "utf8")).split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
-  } catch {
-    return [];
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw new Error("L2 ledger read failed", { cause: error });
   }
 }
 
@@ -91,21 +94,20 @@ async function writeJsonAtomic(path, value) {
 async function archiveReplayMinutes(exchangeMinute, minutes) {
   const date = String(exchangeMinute ?? "").replace(/\D/g, "").slice(0, 8);
   if (!/^\d{8}$/.test(date) || !Array.isArray(minutes) || !minutes.length) return;
-  await writeJsonAtomic(`${replayArchiveDir}/${date}.json`, {
-    schemaVersion: 1,
-    symbol: "601899",
-    date,
-    updatedAt: new Date().toISOString(),
-    causal: true,
-    minutes,
-  });
+  const path = `${replayArchiveDir}/${date}.json`;
+  const previous = await readOptionalJson(path);
+  const next = mergeUnverifiedArchive(previous, date, minutes, new Date().toISOString());
+  if (previous && JSON.stringify(previous.minutes) === JSON.stringify(next.minutes) && previous.completionStatus === next.completionStatus) return;
+  if (previous) await appendJsonLines(`${replayArchiveDir}/.versions/${date}.jsonl`, [previous]);
+  await writeJsonAtomic(path, next);
 }
 
 async function readPreviousState() {
   try {
     return JSON.parse(await readFile(statePath, "utf8"));
-  } catch {
-    return { suppressedRepeats: 0 };
+  } catch (error) {
+    if (error?.code === "ENOENT") return { suppressedRepeats: 0 };
+    throw new Error("L2 audit state read failed", { cause: error });
   }
 }
 
@@ -127,7 +129,9 @@ async function fetchMarketReplay() {
   return response.json();
 }
 
-function mergeMarketAndL2Minutes(l2Minutes, marketPayload, exchangeMinute) {
+const nullableNumber = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
+
+export function mergeMarketAndL2Minutes(l2Minutes, marketPayload, exchangeMinute) {
   const date = String(exchangeMinute ?? "").replace(/\D/g, "").slice(0, 8);
   const session = (Array.isArray(marketPayload?.intradaySessions) ? marketPayload.intradaySessions : [])
     .find(item => String(item?.date ?? "").replace(/\D/g, "").slice(0, 8) === date);
@@ -142,15 +146,18 @@ function mergeMarketAndL2Minutes(l2Minutes, marketPayload, exchangeMinute) {
       time,
       exchangeMinute: l2?.exchangeMinute ?? `${date}-${time}`,
       price: Number(l2?.price) > 0 ? Number(l2.price) : Number(row?.price),
-      volume: Number(row?.volume) || 0,
-      amount: Number(row?.amount) || 0,
+      volume: nullableNumber(row?.volume) ?? nullableNumber(l2?.volume),
+      amount: nullableNumber(row?.amount) ?? nullableNumber(l2?.amount),
+      fieldSources: { ...l2?.fieldSources,
+        volume: nullableNumber(row?.volume) !== null ? "public-market" : nullableNumber(l2?.volume) !== null ? "l2" : "unknown",
+        amount: nullableNumber(row?.amount) !== null ? "public-market" : nullableNumber(l2?.amount) !== null ? "l2" : "unknown" },
       averagePrice: Number(row?.averagePrice) || null,
     };
   });
 }
 
-export async function runOnce() {
-  const now = new Date().toISOString();
+export async function runOnce(at = new Date()) {
+  const now = new Date(at).toISOString();
   const [payload, marketPayload, observations, existingLabels, previous] = await Promise.all([
     fetchL2State(),
     fetchMarketReplay().catch(() => null),
@@ -162,7 +169,6 @@ export async function runOnce() {
   const stale = Boolean(payload?.meta?.stale || payload?.status?.stale);
   const exchangeMinute = payload.lastExchangeTime ?? rawMinutes.at(-1)?.exchangeMinute;
   const minutes = mergeMarketAndL2Minutes(rawMinutes, marketPayload, exchangeMinute);
-  await archiveReplayMinutes(exchangeMinute, minutes);
   const freshLiveMinute = isFreshLiveExchangeMinute(exchangeMinute, now);
   if (!payload?.status?.connected || !payload?.status?.authorized || stale || !rawMinutes.length || !freshLiveMinute) {
     const audit = summarizeZijinL2Audit({
@@ -186,6 +192,7 @@ export async function runOnce() {
     return { state, marketOpen: false };
   }
 
+  await archiveReplayMinutes(exchangeMinute, minutes);
   const structure = evaluateZijinStructure({ minutes });
   const evaluation = evaluateZijinLargeOrder({ minutes, structure });
   const repair = evaluateZijinRepairCandidate(minutes);
@@ -243,7 +250,7 @@ async function main() {
     try {
       ({ marketOpen } = await runOnce());
     } catch (error) {
-      const previous = await readPreviousState();
+      const previous = await readPreviousState().catch(() => ({}));
       await writeJsonAtomic(statePath, {
         ...previous,
         updatedAt: new Date().toISOString(),
