@@ -53,6 +53,8 @@ services:
       dockerfile: Dockerfile.l2
     container_name: rabbit-quant-zijin-l2
     restart: unless-stopped
+    # Child: connection close 2s + checkpoint 5s + drain 5s; parent waits 15s.
+    stop_grace_period: 20s
     env_file:
       - /opt/rabbit-quant-secrets/l2.env
     environment:

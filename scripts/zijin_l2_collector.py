@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from collections import deque
 from contextlib import suppress
@@ -51,18 +52,28 @@ def heartbeat_signature(path):
 
 def stop_reader(process, timeout):
     if process.poll() is not None:
-        return
-    process.terminate()
+        return process.returncode == 0
+    # A pipe also works on Windows, where terminate() cannot run Python finally.
+    try:
+        process.stdin.write(b"stop\n")
+        process.stdin.flush()
+    except (OSError, AttributeError):
+        if os.name != 'nt':process.terminate()
     try:
         process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
+        print("L2 collector graceful stop timed out; forcing kill, recovery not guaranteed", file=sys.stderr, flush=True)
         process.kill()
-        process.wait(timeout=timeout)
+        process.wait(timeout=2)
+        return False
+    finally:
+        if process.stdin is not None:process.stdin.close()
+    return process.returncode == 0
 
 
 def supervise_collector(command=None, state_path=None, *, heartbeat_timeout=15,
                         startup_timeout=30, poll_interval=.5,
-                        termination_timeout=2, stop_requested=lambda: False):
+                        termination_timeout=15, stop_requested=lambda: False):
     """Keep liveness outside the reader event loop, including a busy-loop stall.
 
     The 15s heartbeat and 30s startup grace match the existing route/healthcheck.
@@ -74,14 +85,14 @@ def supervise_collector(command=None, state_path=None, *, heartbeat_timeout=15,
     previous = heartbeat_signature(state_path)
     last_progress = time.monotonic()
     published = False
-    reader = subprocess.Popen(command)
+    reader = subprocess.Popen(command, stdin=subprocess.PIPE)
     try:
         while True:
             code = reader.poll()
             if code is not None:
                 return code if code >= 0 else 128 - code
             if stop_requested():
-                return 0
+                return 0 if stop_reader(reader, termination_timeout) else 1
             current = heartbeat_signature(state_path)
             now = time.monotonic()
             if current is not None and current != previous:
@@ -95,6 +106,39 @@ def supervise_collector(command=None, state_path=None, *, heartbeat_timeout=15,
             time.sleep(min(poll_interval, limit - (now - last_progress)))
     finally:
         stop_reader(reader, termination_timeout)
+        if reader.stdin is not None:reader.stdin.close()
+
+
+async def run_collector_child(factory=None):
+    """Translate supervisor control/Unix SIGTERM into one cooperative cancellation."""
+    loop = asyncio.get_running_loop()
+    task = None
+    stopping = False
+    def request_stop():
+        nonlocal stopping
+        if stopping:return
+        stopping = True
+        if task is not None:task.cancel()
+    def on_signal(_number, _frame):
+        loop.call_soon_threadsafe(request_stop)
+    previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
+    for number in previous:signal.signal(number, on_signal)
+    def control_reader():
+        try:
+            if sys.stdin.buffer.readline() == b'stop\n':
+                loop.call_soon_threadsafe(request_stop)
+        except (OSError, ValueError, RuntimeError):
+            pass  # Closed control pipe/loop is not a new stop command.
+    try:
+        task = asyncio.create_task((factory or Collector)().run())
+        threading.Thread(target=control_reader, daemon=True).start()
+        try:
+            await task
+        except asyncio.CancelledError:
+            if not stopping:raise
+        return 0
+    finally:
+        for number, handler in previous.items():signal.signal(number, handler)
 
 
 def run_supervised_collector():
@@ -1334,6 +1378,6 @@ class Collector:
 
 if __name__ == "__main__":
     if "--collector-child" in sys.argv:
-        asyncio.run(Collector().run())
+        raise SystemExit(asyncio.run(run_collector_child()))
     else:
         raise SystemExit(run_supervised_collector())

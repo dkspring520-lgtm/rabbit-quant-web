@@ -42,9 +42,11 @@ class SupervisorTests(unittest.TestCase):
 
         scope = dict(__name__="__main__", sys=SimpleNamespace(argv=[str(SOURCE), "--collector-child"]),
                      run_supervised_collector=forbidden,
-                     Collector=lambda: SimpleNamespace(run=lambda: "reader-coroutine"),
-                     asyncio=SimpleNamespace(run=lambda value: called.append(value)))
-        exec(compile(ast.Module(body=[tree.body[-1]], type_ignores=[]), str(SOURCE), "exec"), scope)
+                     run_collector_child=lambda: "reader-coroutine",
+                     asyncio=SimpleNamespace(run=lambda value: called.append(value) or 0))
+        with self.assertRaises(SystemExit) as stopped:
+            exec(compile(ast.Module(body=[tree.body[-1]], type_ignores=[]), str(SOURCE), "exec"), scope)
+        self.assertEqual(stopped.exception.code,0)
         self.assertEqual(called, ["reader-coroutine"])
 
     def exercise(self, code, *, preexisting=False, stop_after=None, future_mtime=False):
@@ -56,13 +58,13 @@ class SupervisorTests(unittest.TestCase):
                     os.utime(path, (time.time() + 86400, time.time() + 86400))
             children = []
 
-            def spawn(command):
-                child = subprocess.Popen(command)
+            def spawn(command, **kwargs):
+                child = subprocess.Popen(command, **kwargs)
                 children.append(child)
                 return child
 
             original = env["subprocess"]
-            env["subprocess"] = SimpleNamespace(Popen=spawn, TimeoutExpired=subprocess.TimeoutExpired)
+            env["subprocess"] = SimpleNamespace(Popen=spawn, PIPE=subprocess.PIPE, TimeoutExpired=subprocess.TimeoutExpired)
             started = time.monotonic()
             stderr = io.StringIO()
             try:
@@ -121,9 +123,14 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(log, "")
 
     def test_requested_stop_reaps_reader_without_restart_failure(self):
-        result, _, log = self.exercise("while True: pass", stop_after=.15)
+        result, _, log = self.exercise("import sys;sys.stdin.buffer.readline()", stop_after=.15)
         self.assertEqual(result, 0)
         self.assertEqual(log, "")
+
+    def test_requested_stop_forced_kill_is_not_reported_clean(self):
+        result, _, log = self.exercise("while True: pass",stop_after=.15)
+        self.assertEqual(result,1)
+        self.assertIn('forcing kill',log)
 
     def test_missing_or_nonregular_state_is_not_progress(self):
         with tempfile.TemporaryDirectory() as folder:
