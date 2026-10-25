@@ -17,6 +17,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zijin_l2_persistence_receipt import read_valid_receipts
 
 
 EXPERIMENT_ID = "zijin-opening-l2-forward-shadow-v2"
@@ -374,6 +375,13 @@ def refresh_labels_and_state(
     **cost_options: Any,
 ) -> dict[str, Any]:
     records = read_jsonl(forward_path)
+    receipts = read_valid_receipts(forward_path)
+    for record in records:
+        if record.get("persistenceContract") == "local-append-receipt-v1":
+            record["localPersistenceReceipt"] = receipts.get(record.get("exchangeMinute"))
+            # Local fsync evidence alone never establishes market finality.
+            record["quality"] = {**record.get("quality", {}), "verified": False,
+                                 "minuteFinality": "unverified"}
     labels = read_jsonl(label_path)
     existing_ids = {
         item.get("labelId")

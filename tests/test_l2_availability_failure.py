@@ -12,7 +12,7 @@ class AvailabilityFailureTest(unittest.TestCase):
   tree=ast.parse(source.read_text(encoding='utf-8'))
   method=next(x for x in ast.walk(tree) if isinstance(x,ast.FunctionDef) and x.name=='write_forward_record')
   def fail(_): raise OSError('synthetic fsync failure')
-  env={'Path':Path,'json':json,'os':SimpleNamespace(fsync=fail)}
+  env={'Path':Path,'json':json,'os':os,'append_with_receipt':lambda path,row: fail(None)}
   exec(compile(ast.Module(body=[method],type_ignores=[]),str(source),'exec'),env)
   with tempfile.TemporaryDirectory() as folder:
    seen=[]

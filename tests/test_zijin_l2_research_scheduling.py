@@ -15,7 +15,10 @@ tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 collector = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "Collector")
 names = {"write_forward_record", "publish_state", "refresh_forward_research_background", "refresh_forward_research"}
 methods = [n for n in collector.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in names]
-scope = dict(asyncio=asyncio, Path=Path, json=json, os=os)
+import sys
+sys.path.insert(0, str(SOURCE.parents[0]))
+from zijin_l2_persistence_receipt import append_with_receipt
+scope = dict(asyncio=asyncio, Path=Path, json=json, os=os, append_with_receipt=append_with_receipt)
 exec(compile(ast.fix_missing_locations(ast.Module(body=[ast.ClassDef(name="CollectorUnderTest", bases=[], keywords=[], body=methods, decorator_list=[])], type_ignores=[])), str(SOURCE), "exec"), scope)
 CollectorUnderTest = scope["CollectorUnderTest"]
 

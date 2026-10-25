@@ -1,0 +1,28 @@
+# Receipt and manual simulation integration
+
+This checkpoint supersedes the earlier "not wired" status of the receipt helper and manual paper adapter. It does not merge/deploy production or certify market data.
+
+## Actual connections
+
+- Collector `write_forward_record` now calls `append_with_receipt`. New rows explicitly declare `persistenceContract: local-append-receipt-v1`; existing schema-3/legacy rows are not retroactively recertified. `load_forward_index` resumes missing receipts only for this contract. The normal sampler retries one pending receipt per invocation and rotates failures. Receipt exceptions surface in `forwardPersistence` while ordinary state publication continues.
+- Raw data is flushed/fsynced before sidecar parsing/writing; a corrupt receipt ledger therefore does not prevent the next raw minute append. Same-minute identical retries reuse the original bytes/offset; conflicts fail visibly. Recovered receipts do not replay shadow signals. Partial active-file tails are saved and fsynced under content-addressed `.torn-*` backups before truncating only the incomplete suffix. Valid prior lines and historical JSON archives are unchanged.
+- The label consumer reads and validates receipt schema, row boundaries, length, SHA256 and minute identity. Receipt absence stays unverified, corruption raises a visible research retry error. Local durability never promotes source finality. Generation, observation, source event/received clocks, feature cutoff and write-completion evidence are separate; unknown source generation/cutoff remains null. Clock regression within a write or across existing receipts sets `clockOrdered=false`; `verified=false` remains unconditional.
+- Dockerfile.l2 copies the new dependency, and the existing deployment change classifier includes it. No dependency installation or production deployment occurred.
+- Main cockpit mounts `ManualPaperPanel`, using `openManualPaperSession` and the existing durable generic paper engine. It requires explicit hypothetical cash, overnight inventory and date; no real account holdings are copied. Manual buy/sell input includes an explicit stable simulation order ID. Storage succeeds before React state is published. Restore checks engine/account/symbol/config identity; same intent retries deduplicate, conflicts are rejected. Existing quick manual rows are labelled as manual simulation records and retain separate storage; engine orders display their own origin and calculated fees.
+- Fee units remain commission 0.025% each side/minimum 5, sell stamp 0.05%, transfer 0.001% each side. T+1/date regression, cash and lots apply. This is manually priced simulation: no real orders, automatic signals, partial fills, order-book execution or validated 1000-share strategy returns.
+
+## Executed validation
+
+- 21 Node tests covering replay availability, actual manual-session bridge, both durable paper adapters, existing forward label/casuality cases passed. Some existing causality cases are structural checks; they are not substitutes for the executable integration cases.
+- Receipt tests 8, collector method integration tests 2, availability failure tests 5 and asynchronous research scheduling tests 6 passed. They use synthetic temporary files, not production data.
+- The ordinary sandbox hung at the asynchronous test runner and denied one synthetic `os.replace` with WinError 5. Those attempts were stopped/reported; the same suites passed through formal elevated approval. No safety/proxy setting was changed.
+- Full typecheck retains exactly 34 baseline Remotion/example errors, no app/lib diagnostics; no exclusions or ignore directives.
+- Verified build/hosting artifact validation passed. No container build or production canary was run.
+- Chrome loaded the built local full cockpit in demo mode. Synthetic initialization: cash 20000/1000 overnight shares. Buy 100 at 10 produced cash 18994.99, shares 1100, sellable 1000, fee 5.01. A repeat click and repeat after page reload did not debit again; changed quantity under the same ID was rejected. Restored state and receipt list were visible. At actual 390x844 viewport the expanded panel bounded x=16..351.5 and wrapped inside the viewport. Viewport was reset. This synthetic local simulation ledger remains local to the demo origin; it is not the user's real portfolio.
+
+## Review limits and release gates
+
+- This was same-worktree implementation and self-review, not a separate independent reviewer. Source is available in the isolated repair worktree/PR. No access was attempted to the denied Library object.
+- The receipt writer assumes a single collector writer. It scans existing rows/receipts and has no inter-process lock or measured production-size latency bound. Tail backups are fsynced, but cross-filesystem/directory-entry power-loss guarantees were not verified. Interior raw corruption remains a recording error requiring explicit recovery; bytes are not silently discarded. These limits require operational acceptance before production.
+- The manual adapter is single-writer localStorage with stale-writer checks, not a cross-tab transactional database. The UI explicitly requests single-tab use. Storage failure is executable-tested, not browser fault-injected. Existing manual records are not migrated or counted as engine fills; no combined performance claim is made.
+- Real upstream finality is still unavailable. Strict research labels remain blocked. A new production session must pass provenance, source clock, retention and quality acceptance before new T research. No inference about actual live deployment or production data completeness follows from local tests.

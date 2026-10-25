@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo
 import nats
 import numpy as np
 from zijin_l2_stream_state import StreamState
+from zijin_l2_persistence_receipt import append_with_receipt, complete_lines, read_valid_receipts
 from zijin_l2_forward_labels import refresh_labels_and_state
 from zijin_closure_v2_reverse_shadow import ZijinClosureV2ReverseShadow
 from zijin_l2_second_state import (
@@ -440,20 +441,27 @@ class Collector:
             }
 
     def load_forward_index(self):
+        self.forward_receipt_pending = {}
+        self.forward_receipt_error = None
+        receipts = {}
         try:
-            with Path(self.forward_path).open("r", encoding="utf-8") as handle:
-                for line in handle:
-                    try:
-                        value = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    minute = value.get("exchangeMinute")
-                    if isinstance(minute, str) and is_a_share_cash_session(minute):
-                        self.forward_minutes.add(minute)
-                        self.forward_days.add(minute[:8])
-                        self.last_forward_minute = minute
+            complete_lines(Path(self.forward_path).with_name(Path(self.forward_path).name + ".receipts.jsonl"))
+            receipts = read_valid_receipts(self.forward_path)
+        except (OSError, ValueError) as exc:
+            self.forward_receipt_error = type(exc).__name__
+        try:
+            for _, _, value in complete_lines(self.forward_path):
+                minute = value.get("exchangeMinute")
+                if isinstance(minute, str) and is_a_share_cash_session(minute):
+                    self.forward_minutes.add(minute)
+                    self.forward_days.add(minute[:8])
+                    self.last_forward_minute = minute
+                    if value.get("persistenceContract") == "local-append-receipt-v1" and minute not in receipts:
+                        self.forward_receipt_pending[minute] = value
         except FileNotFoundError:
             pass
+        except (OSError, ValueError) as exc:
+            self.forward_receipt_error = type(exc).__name__
 
     def refresh_forward_research(self):
         """Write delayed outcomes separately; this is never part of V4 execution."""
@@ -988,12 +996,12 @@ class Collector:
         minute = record.get("exchangeMinute")
         if not minute or minute in self.forward_minutes:
             return
-        target = Path(self.forward_path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("a", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        record = {**record, "persistenceContract": "local-append-receipt-v1"}
+        pending = getattr(self, "forward_receipt_pending", {})
+        self.forward_receipt_pending = pending
+        pending[minute] = record
+        append_with_receipt(self.forward_path, record)
+        pending.pop(minute, None)
         self.forward_minutes.add(minute)
         self.forward_days.add(minute[:8])
         self.last_forward_minute = minute
@@ -1005,6 +1013,20 @@ class Collector:
         self.forward_research_requested.set()
 
     def append_forward_sample(self, state):
+        # Retry independently: a receipt failure must not prevent recording the
+        # next minute or publishing ordinary live market state.
+        for key, pending in list(getattr(self, "forward_receipt_pending", {}).items())[:1]:
+            try:
+                append_with_receipt(self.forward_path, pending)
+                self.forward_receipt_pending.pop(key, None)
+                self.forward_minutes.add(key)
+                self.forward_days.add(key[:8])
+            except (OSError, ValueError) as exc:
+                self.forward_receipt_error = type(exc).__name__
+                self.forward_receipt_pending.pop(key, None)
+                self.forward_receipt_pending[key] = pending
+        if not getattr(self, "forward_receipt_pending", {}):
+            self.forward_receipt_error = None
         minute = exchange_minute(state.get("lastExchangeTime"))
         phase = market_phase(minute)
         status = state.get("status", {})
@@ -1047,7 +1069,10 @@ class Collector:
         record = annotate_forward_record(record, state)
         completed = self.forward_minute_buffer.push(record)
         if completed is not None:
-            self.write_forward_record(completed)
+            try:
+                self.write_forward_record(completed)
+            except (OSError, ValueError) as exc:
+                self.forward_receipt_error = type(exc).__name__
 
     def append_second_event(self, state):
         signal = state.get("secondState") or {}
@@ -1088,6 +1113,12 @@ class Collector:
             state = self.state()
             self.append_second_event(state)
             self.append_forward_sample(state)
+            state["forwardPersistence"] = {
+                "status": "retry-pending" if getattr(self, "forward_receipt_error", None) else "local-receipts-only",
+                "error": getattr(self, "forward_receipt_error", None),
+                "pending": len(getattr(self, "forward_receipt_pending", {})),
+                "marketFinality": "unverified",
+            }
             # Publish the exact evaluated state. Re-evaluating here could advance
             # a state twice in one 250ms cycle and create artificial confirmations.
             atomic_json(self.state_path, state)

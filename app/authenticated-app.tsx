@@ -1,5 +1,6 @@
 "use client";
 
+import {ManualPaperPanel} from "./manual-paper-panel.mjs";
 import {XhtmlDiv} from "./xhtml-div.mjs";
 import {DataStateStrip,formatDataTime} from "./data-state-strip.mjs";
 import {persistLocalLedger,readLocalLedger} from "../lib/local-ledger-persistence.mjs";
@@ -6472,7 +6473,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const row:TradeLedgerRow={
       id,tradingDate,time,side,price,quantity,
       cycle:"操盘台模拟待配对",fee:"待计算",result:"—",status:"未配对",
-      source:"cockpit-simulated",simulated:true,marketDate:activeChartDate??tradingDate,chartTime,
+      source:"cockpit-manual",simulated:true,marketDate:activeChartDate??tradingDate,chartTime,
     };
     const next=[row,...tradeLedgerRows];
     if(!saveTradeLedgerRows(next)){setQuickOrderFeedback("保存失败，未记账");return;}
@@ -6951,6 +6952,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         </div>
       </header>
       {(activeView==="操盘台"||activeView==="持仓对账"||activeView==="模拟回测")&&<DataStateStrip source={liveL2PriceUsable?"L2快照":currentTrial?.provider??currentMarket?.provider} sourceTime={liveL2PriceUsable?liveL2Status?.lastExchangeTime:currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp} fetchedAt={liveL2PriceUsable?liveL2FetchedAt:currentTrial?.fetchedAt??currentMarket?.fetchedAt} status={liveDataGate.label} detail={liveDataGate.detail} demo={demoMode} researchBlocked={isZijinStock} storageError={ledgerSaveError}/>}
+      {activeView==="操盘台"&&<ManualPaperPanel key={`${accountName}:${stock.code}`} accountKey={accountName} symbol={stock.code}/>}
       {demoMode&&<div className="demo-ribbon" role="status"><b>免注册演示</b><span>当前为本机临时体验，不代表正式账户；下单接口关闭，演示操作不会同步到其他设备。</span><button onClick={()=>{setDemoMode(false);setLocalAuth(false);onLogout?.()}}>创建测试账户</button></div>}
 
       {activeView === "首页" ? <HomeView onNavigate={setActiveView} onOpenZijin={openZijinExperiment} stockCount={stockList.length} canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} referralCredits={accountMembership?.referralCredits??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} /> : activeView === "邀请中心" ? <ReferralCenter canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} demoMode={demoMode} referralCode={accountMembership?.referralCode??null} referralCredits={accountMembership?.referralCredits??0} referralReviews={accountMembership?.referralReviews??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} onOpenAccount={()=>setAccountOpen(true)} /> : activeView === "量化工具" ? <QuantToolsView onNavigate={setActiveView} /> : activeView === "操盘台" ? <>
@@ -7436,7 +7438,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <p className="accent"><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></p>
               <p><span>预估净收益</span><b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"--"}</b></p>
             </div>
-            <div className="quick-sim-order" aria-label="快捷模拟下单">
+            <div className="quick-sim-order" aria-label="手工模拟流水">
+              <p>手工模拟记录 · 不经过执行引擎，费用待核算；独立模拟账户在页面上方。</p>
               <div className="quick-sim-order-inputs">
                 <label><span>模拟成交价</span><span className="quick-price-field"><input aria-label="模拟成交价" inputMode="decimal" value={quickOrderPrice} onChange={event=>{setQuickOrderPrice(event.target.value);setQuickOrderFeedback("")}} placeholder={quickOrderLatestPrice?.toFixed(2)??"0.00"}/><span className="quick-price-actions" role="group" aria-label="快捷填入模拟成交价"><button type="button" disabled={!quickOrderLatestPrice} onClick={()=>{if(quickOrderLatestPrice){setQuickOrderPrice(quickOrderLatestPrice.toFixed(2));setQuickOrderFeedback("")}}}>现价</button><button type="button" disabled={!quickOrderLatestPrice} onClick={()=>{if(quickOrderLatestPrice){setQuickOrderPrice((quickOrderLatestPrice*.99).toFixed(2));setQuickOrderFeedback("")}}}>-1%</button><button type="button" disabled={!quickOrderLatestPrice} onClick={()=>{if(quickOrderLatestPrice){setQuickOrderPrice((quickOrderLatestPrice*1.01).toFixed(2));setQuickOrderFeedback("")}}}>+1%</button></span></span></label>
                 <label><span>数量</span><input aria-label="模拟成交数量" inputMode="numeric" value={quickOrderQuantity} onChange={event=>{setQuickOrderQuantity(event.target.value.replace(/\D/g,""));setQuickOrderFeedback("")}} placeholder="1000"/></label>
