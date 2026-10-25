@@ -30,3 +30,24 @@ The replay scheduler requires explicit source verification, minute finality and 
 Executable tests include fsync failure (no in-memory success or shadow publication), restart with unknown amounts, unavailable/future receipt, reordered arrival, and existing uncertified labels excluded from readiness. This is safe degradation, not a new producer capable of generating qualified data.
 
 Full baseline diagnostic comparison is in l2-typecheck-baseline-20261025.md. Before release, require an explicit decision on the unchanged baseline typecheck failures, review the deliberate loss of unverified research markers, and obtain real producer availability/finality acceptance before enabling new research. No production merge is authorized in this review phase.
+
+## Paper and UI follow-up
+
+Two paper engines remain distinct. The generic engine uses commission/stamp/transfer percentages; the RL engine uses commission percent and stamp/transfer fractions. Legacy research defaults remain identifiable and unchanged; the new durable adapter supplies explicit .025% commission (minimum 5), .05% sell stamp and .001% per-side transfer fee. It requires explicit account identity and order IDs, preserves engine kind/configuration, rejects conflicting retries, restores T+1 inventory, and publishes state only after synchronous storage succeeds. It is a single-writer local adapter, not a server transaction or a multi-tab locking guarantee. It is not wired into the existing manual quick-entry ledger, and does not turn research into automatic trading.
+
+Both engines reject backwards dates; the stateful RL engine now settles forward dates. Explicit stale inputs are rejected. No partial-fill model was added.
+
+Existing UI manual entry now saves before updating React state, reports quota/write errors, and blocks overwrite after a ledger read/parse failure. The new rendered status strip separates source time and fetch time, renders unknown source time as unknown, and explains research-unready is not no-signal. It appears on the console, reconciliation and replay surfaces. Fetch timestamps no longer substitute for source timestamps in the two existing freshness calculations. Ordinary price curves are not removed by the research eligibility gate.
+
+Typecheck after UI wiring has 53 diagnostics versus baseline 54: no added diagnostics; one duplicate bars property removed without changing its previous effective value. The other 19 application and 34 example diagnostics remain. No config exclusions.
+
+Chrome loaded the actual React-rendered component at http://127.0.0.1:4177 with explicitly synthetic inputs; AX text and console checks succeeded. Screenshot capture timed out. Requested 390px viewport remained 585px in measured DOM, so mobile visual acceptance is not claimed. Whole-app dev start failed loading node:async_hooks in the existing vinext Workers environment. Component inspection is not whole-app acceptance.
+
+## Concrete remaining producer plan (not implemented/certified)
+
+1. Preserve generation and accepted event IDs, exchange timestamp, receipt timestamp and immutable per-stream watermarks in each observation. Snapshot/transaction/order clocks must stay separate. Restart establishes a new generation; stale or late events enter a separate audit stream rather than rewriting a sealed observation.
+2. Choose an explicit protocol: mixed-stream as-observed research or exchange-minute-final research. Existing vendor sequence/completeness metadata cannot certify exchange finality. A timeout only establishes policy closure and must never set exchange finality to verified. An as-observed protocol would require its own versioned acceptance criteria before the current strict gate can be changed.
+3. Add an append-only commit receipt referencing row hash, byte range and generation after data fsync succeeds. Receipt failures keep rows unpublishable. Record downstream first-observed availability separately; replay uses a conservative observed upper bound, never the minute label or a pre-write timestamp. Crash tests must cover before data flush, failed fsync, partial receipt, receipt replay and clock regression.
+4. Validate at least one new trading session against raw retained source evidence: cross-stream minute boundary, lunch/close, reconnect, duplicate/late events, gaps, field units and missing depth. Only then can a versioned eligibility producer be enabled. Historical Oct23 rows and labels are never recertified automatically.
+
+No current schema writes verified finality or a durable receipt. New qualified-data research therefore remains blocked; this plan describes the concrete missing producer work rather than claiming collection is fixed.

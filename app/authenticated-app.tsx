@@ -1,4 +1,7 @@
 "use client";
+
+import {DataStateStrip,formatDataTime} from "./data-state-strip.mjs";
+import {persistLocalLedger,readLocalLedger} from "../lib/local-ledger-persistence.mjs";
 import {l2ProvenanceText, shouldApplyL2Response, withL2Provenance} from '../lib/l2-provenance.mjs';
 import {openingPathEvents} from '../lib/opening-path.mjs';
 import {advanceSlice} from '../lib/slice-alerts.mjs';
@@ -246,7 +249,6 @@ function mergeMarketDataSnapshot(current:MarketData|null|undefined,incoming:Mark
   if(!sameTradingDate||(incoming.minutes?.length??0)>0||(current.minutes?.length??0)===0)return incoming;
   return {
     ...incoming,
-    bars:incoming.bars?.length?incoming.bars:current.bars,
     minutes:current.minutes, bars:current.bars, intradaySessions:current.intradaySessions,
   };
 }
@@ -2002,6 +2004,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // Guard the local simulator against pointer/click bursts. A repeated click
   // should never create a wall of identical B/S markers on the chart.
   const lastQuickOrderRef = useRef<{key:string;at:number}|null>(null);
+  const [ledgerSaveError,setLedgerSaveError]=useState("");
+  const [ledgerReadErrorKey,setLedgerReadErrorKey]=useState("");
   const [tradeLedgerState,setTradeLedgerState]=useState<{key:string;rows:TradeLedgerRow[]}>({key:"",rows:[]});
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
   const [trialError, setTrialError] = useState("");
@@ -2369,6 +2373,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   };
   const [liveL2ByMinute,setLiveL2ByMinute]=useState<Record<string,ZijinL2State>>({});
   const [liveL2Status,setLiveL2Status]=useState<ZijinL2State|null>(null);
+  const [liveL2FetchedAt,setLiveL2FetchedAt]=useState<string|null>(null);
   const [liveL2Transport,setLiveL2Transport]=useState<"connecting"|"stream"|"polling">("connecting");
   const [liveL2PushLatencyMs,setLiveL2PushLatencyMs]=useState<number|null>(null);
   const [aiL2Review,setAiL2Review]=useState<AiL2Review|null>(null);
@@ -2407,6 +2412,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
       const stale=payload.status?.stale||payload.meta?.stale;
       if(!active)return;
+      setLiveL2FetchedAt(new Date().toISOString());
       const servedAt=Date.parse(payload.meta?.servedAt??"");
       setLiveL2PushLatencyMs(Number.isFinite(servedAt)?Math.max(0,Date.now()-servedAt):null);
       setLiveL2Status(current=>{
@@ -2571,7 +2577,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[baseActiveQuote,liveL2PriceUsable,liveL2LastPrice,liveL2Status?.session,stock.name]);
   const liveQuoteFresh=useMemo(()=>{
     if(liveL2PriceUsable)return true;
-    const sourceTimestamp=currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp??currentTrial?.fetchedAt??currentMarket?.fetchedAt;
+    const sourceTimestamp=currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp;
     const sourceTime=sourceTimestamp?Date.parse(sourceTimestamp):NaN;
     return Number.isFinite(sourceTime)&&Date.now()-sourceTime<=8_000;
   },[currentMarket?.fetchedAt,currentMarket?.sourceTimestamp,currentTrial?.fetchedAt,currentTrial?.sourceTimestamp,liveL2PriceUsable]);
@@ -2580,7 +2586,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const nowMs=clockNow?.getTime()??Date.now();
     const authoritativeTimestamp=liveL2PriceUsable
       ?liveL2Status?.lastExchangeTime??currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp
-      :currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp??currentTrial?.fetchedAt??currentMarket?.fetchedAt;
+      :currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp;
     const sourceMs=authoritativeTimestamp?Date.parse(authoritativeTimestamp):NaN;
     const sourceDate=normalizeMarketDate(authoritativeTimestamp??currentTrial?.sampleDate??currentMarket?.sampleDate);
     const nowDate=normalizeMarketDate(clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??null);
@@ -6211,11 +6217,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(!ledgerStorageKey||!stock?.code||tradingDate==="1970-01-01")return;
     const timer=window.setTimeout(()=>{
       try{
-        const saved=localStorage.getItem(ledgerStorageKey);
-        const parsed=saved?JSON.parse(saved):[];
+        const parsed=readLocalLedger(localStorage,ledgerStorageKey);
+        setLedgerReadErrorKey("");
+        setLedgerSaveError("");
         setTradeLedgerState({key:ledgerStorageKey,rows:normalizeTradeLedgerRows(parsed,tradingDate)});
       }catch{
-        setTradeLedgerState({key:ledgerStorageKey,rows:[]});
+        setLedgerReadErrorKey(ledgerStorageKey);
+        setLedgerSaveError("本机账本读取失败，已停止记账。请保留原数据并检查浏览器存储。");
       }
     },0);
     return()=>window.clearTimeout(timer);
@@ -6429,10 +6437,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
   };
   const saveTradeLedgerRows=(next:TradeLedgerRow[])=>{
-    if(!ledgerStorageKey)return;
+    if(ledgerReadErrorKey===ledgerStorageKey){setLedgerSaveError("账本读取失败，禁止覆盖原数据");return false;}
+    if(!ledgerStorageKey){setLedgerSaveError("本机账本尚未就绪，未记账");return false;}
     const normalized=normalizeTradeLedgerRows(next,tradingDate);
+    try{persistLocalLedger(localStorage,ledgerStorageKey,normalized);}
+    catch{setLedgerSaveError("保存失败，未记账。请检查浏览器存储权限或空间后重试。");return false;}
     setTradeLedgerState({key:ledgerStorageKey,rows:normalized});
-    try{localStorage.setItem(ledgerStorageKey,JSON.stringify(normalized));}catch{}
+    setLedgerSaveError("");
+    return true;
   };
   const quickOrderLatestPrice=liveSecondPoints.at(-1)?.price??activeQuote?.price??null;
   const recordQuickSimulatedTrade=(side:TradeLedgerRow["side"])=>{
@@ -6462,7 +6474,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       source:"cockpit-simulated",simulated:true,marketDate:activeChartDate??tradingDate,chartTime,
     };
     const next=[row,...tradeLedgerRows];
-    saveTradeLedgerRows(next);
+    if(!saveTradeLedgerRows(next)){setQuickOrderFeedback("保存失败，未记账");return;}
     const nextSummary=summarizeTradeLedger(next,activePosition,tradingDate);
     setQuickOrderPrice(price.toFixed(2));
     setQuickOrderFeedback(`${side}已记录 · 持仓 ${nextSummary.currentShares.toLocaleString("zh-CN")} · 可卖 ${nextSummary.remainingSellable.toLocaleString("zh-CN")}`);
@@ -6927,7 +6939,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className="top-actions">
           <span className={`market-open ${marketSession.tone}`} title={`${marketSession.label}：${marketSession.detail}；法定节假日以交易所公告为准`} aria-label={`${marketSession.label}：${marketSession.detail}`}><i /><span className="market-open-label">{marketSession.live?"监控中":marketSession.label}</span></span>
           <span className={`auto-off ${marketSession.live?"running":"paused"}`}><i />{marketSession.live?"自动判断运行中":"自动判断已暂停"} · 下单未连接</span>
-          <span className="clock">{currentTrial ? new Date(currentTrial.sourceTimestamp || currentTrial.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : currentMarket ? new Date(currentMarket.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
+          <span className="clock">行情 {formatDataTime(liveL2PriceUsable?liveL2Status?.lastExchangeTime:currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp)}</span>
           <button className="profile-cycle" onClick={()=>setStrategyOpen(true)} aria-label={`内置闭环当前使用${profile}，点击查看策略档位`} title="操盘台与模拟回测共用此档位"><span>闭环 · {profile.replace('档','')}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
           <button className="dashboard-layout-trigger" type="button" onClick={()=>setDashboardLayoutOpen(true)} aria-label="打开工作台布局管理器">布局</button>
@@ -6937,6 +6949,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <button className="icon-button" onClick={()=>setOnboardingOpen(true)} aria-label="打开账户与监控设置" title="账户与监控设置">⚙</button>
         </div>
       </header>
+      {(activeView==="操盘台"||activeView==="持仓对账"||activeView==="模拟回测")&&<DataStateStrip source={liveL2PriceUsable?"L2快照":currentTrial?.provider??currentMarket?.provider} sourceTime={liveL2PriceUsable?liveL2Status?.lastExchangeTime:currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp} fetchedAt={liveL2PriceUsable?liveL2FetchedAt:currentTrial?.fetchedAt??currentMarket?.fetchedAt} status={liveDataGate.label} detail={liveDataGate.detail} demo={demoMode} researchBlocked={isZijinStock} storageError={ledgerSaveError}/>}
       {demoMode&&<div className="demo-ribbon" role="status"><b>免注册演示</b><span>当前为本机临时体验，不代表正式账户；下单接口关闭，演示操作不会同步到其他设备。</span><button onClick={()=>{setDemoMode(false);setLocalAuth(false);onLogout?.()}}>创建测试账户</button></div>}
 
       {activeView === "首页" ? <HomeView onNavigate={setActiveView} onOpenZijin={openZijinExperiment} stockCount={stockList.length} canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} referralCredits={accountMembership?.referralCredits??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} /> : activeView === "邀请中心" ? <ReferralCenter canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} demoMode={demoMode} referralCode={accountMembership?.referralCode??null} referralCredits={accountMembership?.referralCredits??0} referralReviews={accountMembership?.referralReviews??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} onOpenAccount={()=>setAccountOpen(true)} /> : activeView === "量化工具" ? <QuantToolsView onNavigate={setActiveView} /> : activeView === "操盘台" ? <>
