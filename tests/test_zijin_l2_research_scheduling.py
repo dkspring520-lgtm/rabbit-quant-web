@@ -26,6 +26,34 @@ CollectorUnderTest = scope["CollectorUnderTest"]
 
 
 class ResearchSchedulingTests(unittest.IsolatedAsyncioTestCase):
+    def enterContext(self, context):
+        # Python 3.10 equivalent: only register exit after successful entry.
+        # addCleanup is LIFO, so writer locks close before temporary directories.
+        cls = type(context)
+        enter, exit = cls.__enter__, cls.__exit__
+        result = enter(context)
+        self.addCleanup(exit, context, None, None, None)
+        return result
+
+    def test_context_cleanup_preserves_exit_arguments_and_lifo_on_failure(self):
+        probe = unittest.TestCase()
+        events = []
+        class Context:
+            def __enter__(self):events.append('enter');return 'value'
+            def __exit__(self, *args):events.append(('exit', args))
+        self.assertEqual(ResearchSchedulingTests.enterContext(probe, Context()), 'value')
+        probe.addCleanup(events.append, 'writer-close')
+        try:
+            raise RuntimeError('synthetic body failure')
+        except RuntimeError:
+            probe.doCleanups()
+        self.assertEqual(events, ['enter', 'writer-close', ('exit', (None, None, None))])
+        class FailedEntry(Context):
+            def __enter__(self):raise ValueError('synthetic entry failure')
+        with self.assertRaises(ValueError):ResearchSchedulingTests.enterContext(probe, FailedEntry())
+        probe.doCleanups()
+        self.assertEqual(len(events), 3)
+
     async def test_run_cleanup_executes_even_when_shutdown_checkpoint_fails(self):
         folder=self.enterContext(tempfile.TemporaryDirectory())
         obj=self.fixture(folder)
