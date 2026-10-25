@@ -1,5 +1,11 @@
 # Production operations
 
+> LOCAL REPAIR CANDIDATE ONLY — not deployed. The backup section below describes
+> the former deployed design, not proof of current success. See
+> `BACKUP-SNAPSHOT-REPAIR.md` for the replacement's explicit limits and acceptance
+> gates. The replacement does not enable encryption, remote upload, retention,
+> credentials, or Windows scheduled tasks.
+
 ## Automatic deployment
 
 The deploy timer checks the production branch every minute. A release is built under an isolated Git worktree, and live containers are replaced only after both images build successfully. Failed health checks restore the previous images.
