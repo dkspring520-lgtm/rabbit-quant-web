@@ -8,7 +8,7 @@ export type DeliveryAlert = {
   eventKey?: string;
   source?: string;
   createdAt?: string;
-  level?: "candidate" | "signal" | "formal" | "risk";
+  level?: "candidate" | "signal" | "formal" | "risk" | "info";
   rabbit?: "buy" | "sell" | "both";
   title?: string;
   message?: string;
@@ -30,7 +30,7 @@ export function resolveAlertDelivery(input: {
 
 export function conciseAlertSpeech(input: {
   text: string;
-  level?: "candidate" | "signal" | "formal" | "risk";
+  level?: "candidate" | "signal" | "formal" | "risk" | "info";
   direction?: AlertDirection;
   risk?: boolean;
 }): string;
