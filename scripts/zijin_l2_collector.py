@@ -123,22 +123,59 @@ async def run_collector_child(factory=None):
         loop.call_soon_threadsafe(request_stop)
     previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
     for number in previous:signal.signal(number, on_signal)
+    reader_stop = threading.Event()
+    reader_thread = None
     def control_reader():
         try:
-            if sys.stdin.buffer.readline() == b'stop\n':
-                loop.call_soon_threadsafe(request_stop)
+            fd = sys.stdin.fileno()
+            if os.name == 'nt':
+                import ctypes
+                import msvcrt
+                from ctypes import wintypes
+                peek = ctypes.WinDLL('kernel32', use_last_error=True).PeekNamedPipe
+                peek.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD,
+                                 ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD),
+                                 ctypes.POINTER(wintypes.DWORD)]
+                peek.restype = wintypes.BOOL
+                handle = wintypes.HANDLE(msvcrt.get_osfhandle(fd))
+            else:
+                import select
+            command = b''
+            while not reader_stop.is_set():
+                if os.name == 'nt':
+                    available = wintypes.DWORD()
+                    if not peek(handle, None, 0, None, ctypes.byref(available), None):return
+                    if not available.value:
+                        reader_stop.wait(.05)
+                        continue
+                elif not select.select([fd], [], [], .05)[0]:
+                    continue
+                # Sole reader, after readiness: never hold BufferedReader's lock.
+                part = os.read(fd, 64 - len(command))
+                if not part:return
+                command += part
+                if b'\n' in command or len(command) == 64:
+                    if command.split(b'\n', 1)[0] == b'stop':
+                        loop.call_soon_threadsafe(request_stop)
+                    return
         except (OSError, ValueError, RuntimeError):
             pass  # Closed control pipe/loop is not a new stop command.
     try:
         task = asyncio.create_task((factory or Collector)().run())
-        threading.Thread(target=control_reader, daemon=True).start()
+        reader_thread = threading.Thread(target=control_reader, name='l2-control-reader')
+        reader_thread.start()
         try:
             await task
         except asyncio.CancelledError:
             if not stopping:raise
         return 0
     finally:
+        reader_stop.set()
+        if reader_thread is not None:
+            reader_thread.join(timeout=1)
         for number, handler in previous.items():signal.signal(number, handler)
+        if reader_thread is not None and reader_thread.is_alive():
+            raise RuntimeError('Control pipe reader failed to stop')
 
 
 def run_supervised_collector():

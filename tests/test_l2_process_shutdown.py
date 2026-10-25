@@ -58,6 +58,18 @@ class SyntheticCollector(scope['CollectorMethods']):
             await self.shutdown_forward_records(worker,timeout=.05)
 
 class ProcessShutdownTests(unittest.TestCase):
+    def test_idle_open_control_pipe_reader_is_joined_before_child_exit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            command=[sys.executable,'-B',str(Path(__file__).resolve()),'--fixture',folder,'recover']
+            child=subprocess.Popen(command,stdin=subprocess.PIPE,stderr=subprocess.PIPE)
+            try:
+                # Deliberately keep the parent pipe open and send no stop/EOF.
+                self.assertEqual(child.wait(timeout=5),0)
+                self.assertNotIn(b'Fatal Python error',child.stderr.read())
+            finally:
+                if child.poll() is None:child.kill();child.wait(timeout=2)
+                child.stdin.close();child.stderr.close()
+
     def test_parent_control_stop_then_new_child_recovers_pending_minute(self):
         with tempfile.TemporaryDirectory() as folder:
             command=[sys.executable,'-B',str(Path(__file__).resolve()),'--fixture',folder,'start']
@@ -80,19 +92,22 @@ class ProcessShutdownTests(unittest.TestCase):
     def test_posix_sigterm_enters_checkpoint_cleanup(self):
         with tempfile.TemporaryDirectory() as folder:
             command=[sys.executable,'-B',str(Path(__file__).resolve()),'--fixture',folder,'start']
-            child=subprocess.Popen(command,stdin=subprocess.PIPE)
+            child=subprocess.Popen(command,stdin=subprocess.PIPE,stderr=subprocess.PIPE)
             try:
                 deadline=time.monotonic()+5
                 while not (Path(folder)/'ready').exists() and time.monotonic()<deadline:time.sleep(.01)
                 self.assertTrue((Path(folder)/'ready').exists())
                 child.send_signal(signal.SIGTERM)
                 self.assertEqual(child.wait(timeout=3),0)
+                self.assertNotIn(b'Fatal Python error',child.stderr.read())
                 self.assertTrue(list(Path(folder).glob('*.pending-*.json')))
             finally:
                 if child.poll() is None:child.kill();child.wait(timeout=2)
-                child.stdin.close()
+                child.stdin.close();child.stderr.close()
 
 if __name__=='__main__':
     if '--fixture' in sys.argv:
-        raise SystemExit(asyncio.run(scope['run_collector_child'](lambda:SyntheticCollector(sys.argv[2],sys.argv[3]))))
+        code=asyncio.run(scope['run_collector_child'](lambda:SyntheticCollector(sys.argv[2],sys.argv[3])))
+        assert not [thread for thread in threading.enumerate() if thread is not threading.main_thread()], 'child leaked background threads'
+        raise SystemExit(code)
     unittest.main()
