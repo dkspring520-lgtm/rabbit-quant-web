@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 import nats
 import numpy as np
 from zijin_l2_stream_state import StreamState
-from zijin_l2_persistence_receipt import append_with_receipt, complete_lines, read_valid_receipts
+from zijin_l2_receipt_writer import ReceiptWriter
 from zijin_l2_forward_labels import refresh_labels_and_state
 from zijin_closure_v2_reverse_shadow import ZijinClosureV2ReverseShadow
 from zijin_l2_second_state import (
@@ -442,26 +442,107 @@ class Collector:
 
     def load_forward_index(self):
         self.forward_receipt_pending = {}
+        self.forward_retry_state = {}
+        self.forward_startup_error = None
+        self.forward_write_error = None
+        self.forward_worker_error = None
+        self.forward_stopping = False
         self.forward_receipt_error = None
-        receipts = {}
+        previous = getattr(self, "forward_writer", None)
+        if previous is not None:
+            previous.close()
+        self.forward_writer = None
         try:
-            complete_lines(Path(self.forward_path).with_name(Path(self.forward_path).name + ".receipts.jsonl"))
-            receipts = read_valid_receipts(self.forward_path)
-        except (OSError, ValueError) as exc:
-            self.forward_receipt_error = type(exc).__name__
-        try:
-            for _, _, value in complete_lines(self.forward_path):
+            writer = ReceiptWriter(self.forward_path)
+            self.forward_writer = writer
+            self.forward_startup_error = writer.receipt_error
+            for _, _, value in writer.rows.values():
                 minute = value.get("exchangeMinute")
                 if isinstance(minute, str) and is_a_share_cash_session(minute):
                     self.forward_minutes.add(minute)
                     self.forward_days.add(minute[:8])
                     self.last_forward_minute = minute
-                    if value.get("persistenceContract") == "local-append-receipt-v1" and minute not in receipts:
+                    if value.get("persistenceContract") == "local-append-receipt-v1" and minute not in writer.receipts:
                         self.forward_receipt_pending[minute] = value
-        except FileNotFoundError:
-            pass
+            self.forward_receipt_pending.update(writer.recover_pending())
         except (OSError, ValueError) as exc:
-            self.forward_receipt_error = type(exc).__name__
+            self.forward_startup_error = type(exc).__name__
+        self.forward_receipt_error = self.forward_startup_error
+
+    async def flush_forward_records_background(self):
+        try:
+            await self.flush_forward_records_loop()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Unexpected programming/storage failures stop this worker, not quotes.
+            self.forward_worker_error = type(exc).__name__
+            self.forward_receipt_error = self.forward_worker_error
+
+    async def flush_forward_records_loop(self):
+        self.forward_event_loop = asyncio.get_running_loop()
+        while True:
+            now = time.monotonic()
+            retry = self.forward_retry_state
+            ready = next(((key, row) for key, row in list(self.forward_receipt_pending.items())
+                          if retry.get(key, (0, 0))[0] < 5 and retry.get(key, (0, 0))[1] <= now), None)
+            if ready is None or self.forward_writer is None:
+                await asyncio.sleep(.25)
+                continue
+            key, row = ready
+            job = asyncio.create_task(asyncio.to_thread(self.write_forward_record, row))
+            self.forward_inflight = job
+            try:
+                await asyncio.shield(job)
+                retry.pop(key, None)
+                if not self.forward_receipt_pending:
+                    self.forward_write_error = None
+            except asyncio.CancelledError:
+                # Shutdown retains the lock until this thread actually finishes.
+                raise
+            except OSError as exc:
+                count = retry.get(key, (0, 0))[0] + 1
+                retry[key] = (count, time.monotonic() + min(60, 2 ** count))
+                self.forward_write_error = type(exc).__name__
+            except ValueError as exc:
+                retry[key] = (5, float('inf'))
+                self.forward_startup_error = type(exc).__name__
+            self.forward_receipt_error = self.forward_startup_error or self.forward_write_error
+
+    async def shutdown_forward_records(self, worker, timeout=5, checkpoint_timeout=5):
+        self.forward_stopping = True
+        owner = self.forward_writer
+        try:
+            # Snapshot before draining: late completion is idempotent on restart.
+            records = list(self.forward_receipt_pending.values())
+            if records:
+                if owner is None:
+                    raise RuntimeError('Forward shutdown cannot preserve pending records without writer ownership')
+                checkpoint = asyncio.create_task(asyncio.to_thread(owner.preserve_pending, records))
+                self.forward_checkpoint = checkpoint
+                await asyncio.wait_for(asyncio.shield(checkpoint), timeout=checkpoint_timeout)
+            deadline = time.monotonic() + timeout
+            while self.forward_receipt_pending and not worker.done() and time.monotonic() < deadline:
+                await asyncio.sleep(.01)
+        except Exception as exc:
+            self.forward_worker_error = 'ShutdownPreservationFailed:' + type(exc).__name__
+            self.forward_receipt_error = self.forward_worker_error
+            raise
+        finally:
+            worker.cancel()
+            await asyncio.gather(worker, return_exceptions=True)
+            jobs = [job for job in (getattr(self, 'forward_inflight', None),
+                                    getattr(self, 'forward_checkpoint', None)) if job is not None]
+            if owner is not None:
+                if any(not job.done() for job in jobs):
+                    async def close_when_finished():
+                        await asyncio.gather(*jobs, return_exceptions=True)
+                        owner.close()
+                    self.forward_close_task = asyncio.create_task(close_when_finished())
+                else:
+                    for job in jobs:
+                        if not job.cancelled():job.exception()
+                    owner.close()
 
     def refresh_forward_research(self):
         """Write delayed outcomes separately; this is never part of V4 execution."""
@@ -994,39 +1075,36 @@ class Collector:
 
     def write_forward_record(self, record):
         minute = record.get("exchangeMinute")
-        if not minute or minute in self.forward_minutes:
+        if not minute or (minute in self.forward_minutes and minute not in self.forward_receipt_pending):
             return
         record = {**record, "persistenceContract": "local-append-receipt-v1"}
         pending = getattr(self, "forward_receipt_pending", {})
         self.forward_receipt_pending = pending
         pending[minute] = record
-        append_with_receipt(self.forward_path, record)
+        if self.forward_writer is None:
+            raise ValueError("Forward startup validation failed")
+        self.forward_writer.append(record)
         pending.pop(minute, None)
         self.forward_minutes.add(minute)
         self.forward_days.add(minute[:8])
         self.last_forward_minute = minute
-        try:
-            self.reverse_shadow.observe(record)
-        except Exception:
-            # Shadow research must never interrupt the production L2 collector.
-            pass
-        self.forward_research_requested.set()
+        def notify():
+            try:
+                self.reverse_shadow.observe(record)
+            except Exception:
+                pass
+            self.forward_research_requested.set()
+        loop = getattr(self, "forward_event_loop", None)
+        if loop is not None:
+            loop.call_soon_threadsafe(notify)
+        else:
+            notify()
 
     def append_forward_sample(self, state):
-        # Retry independently: a receipt failure must not prevent recording the
-        # next minute or publishing ordinary live market state.
-        for key, pending in list(getattr(self, "forward_receipt_pending", {}).items())[:1]:
-            try:
-                append_with_receipt(self.forward_path, pending)
-                self.forward_receipt_pending.pop(key, None)
-                self.forward_minutes.add(key)
-                self.forward_days.add(key[:8])
-            except (OSError, ValueError) as exc:
-                self.forward_receipt_error = type(exc).__name__
-                self.forward_receipt_pending.pop(key, None)
-                self.forward_receipt_pending[key] = pending
-        if not getattr(self, "forward_receipt_pending", {}):
-            self.forward_receipt_error = None
+        if getattr(self, 'forward_stopping', False):
+            return
+        # This sampling path only freezes/enqueues records; no disk scan/fsync.
+        self.forward_receipt_error = getattr(self, "forward_worker_error", None) or getattr(self, "forward_startup_error", None) or getattr(self, "forward_write_error", None)
         minute = exchange_minute(state.get("lastExchangeTime"))
         phase = market_phase(minute)
         status = state.get("status", {})
@@ -1069,10 +1147,12 @@ class Collector:
         record = annotate_forward_record(record, state)
         completed = self.forward_minute_buffer.push(record)
         if completed is not None:
-            try:
-                self.write_forward_record(completed)
-            except (OSError, ValueError) as exc:
-                self.forward_receipt_error = type(exc).__name__
+            pending = self.forward_receipt_pending
+            if len(pending) >= 1024:
+                self.forward_startup_error = "ForwardQueueFull: recording gap requires review"
+            else:
+                completed = {**completed, "persistenceContract": "local-append-receipt-v1"}
+                pending.setdefault(completed["exchangeMinute"], completed)
 
     def append_second_event(self, state):
         signal = state.get("secondState") or {}
@@ -1113,8 +1193,15 @@ class Collector:
             state = self.state()
             self.append_second_event(state)
             self.append_forward_sample(state)
+            receipt_worker = getattr(self, 'forward_receipt_worker', None)
+            if receipt_worker is not None and receipt_worker.done() and not getattr(self, 'forward_stopping', False):
+                self.forward_worker_error = self.forward_worker_error or 'WorkerStopped'
+                self.forward_receipt_error = self.forward_worker_error
             state["forwardPersistence"] = {
-                "status": "retry-pending" if getattr(self, "forward_receipt_error", None) else "local-receipts-only",
+                "status": "worker-error" if getattr(self, "forward_worker_error", None) else "validation-error" if getattr(self, "forward_startup_error", None) else "retry-pending" if getattr(self, "forward_write_error", None) else "pending" if self.forward_receipt_pending else "local-receipts-only",
+                "workerError": getattr(self, "forward_worker_error", None),
+                "startupError": getattr(self, "forward_startup_error", None),
+                "writeError": getattr(self, "forward_write_error", None),
                 "error": getattr(self, "forward_receipt_error", None),
                 "pending": len(getattr(self, "forward_receipt_pending", {})),
                 "marketFinality": "unverified",
@@ -1141,6 +1228,8 @@ class Collector:
         async def error_callback(error):
             if "authorization" in str(error).lower(): self.authorization_error = True
         async def disconnected_callback(): self.connected = False
+        receipt_worker = asyncio.create_task(self.flush_forward_records_background())
+        self.forward_receipt_worker = receipt_worker
         writer = asyncio.create_task(self.publish_state())
         forward_research = asyncio.create_task(self.refresh_forward_research_background())
         reverse_shadow_regime = asyncio.create_task(self.refresh_reverse_shadow_regime())
@@ -1231,18 +1320,17 @@ class Collector:
                 node_index = (node_index + 1) % len(self.urls)
                 await asyncio.sleep(0.35 if is_live_a_share_session() else 2)
         finally:
+            self.forward_stopping = True
             writer.cancel()
             forward_research.cancel()
             reverse_shadow_regime.cancel()
             reverse_shadow_peers.cancel()
-            with suppress(asyncio.CancelledError):
-                await writer
-            with suppress(asyncio.CancelledError):
-                await forward_research
-            with suppress(asyncio.CancelledError):
-                await reverse_shadow_regime
-            with suppress(asyncio.CancelledError):
-                await reverse_shadow_peers
+            try:
+                await self.shutdown_forward_records(receipt_worker)
+            finally:
+                # A failed worker/checkpoint must not skip sibling cleanup.
+                await asyncio.gather(writer, forward_research, reverse_shadow_regime,
+                                     reverse_shadow_peers, return_exceptions=True)
 
 if __name__ == "__main__":
     if "--collector-child" in sys.argv:

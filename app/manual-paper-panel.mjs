@@ -20,21 +20,21 @@ export function ManualPaperPanel({accountKey,symbol}) {
       setSession(restored);setSnapshot(restored?.snapshot()??null);setError('');
     } catch {setSession(null);setSnapshot(null);setError('模拟账本读取失败，禁止覆盖。');}
   },[accountKey,symbol]);
-  const initialize=()=>{
+  const initialize=async()=>{
     try {
       if(error)throw new Error(error);
       const initialCash=Number(cash),initialPosition=Number(shares);
       if(!cash.trim()||!Number.isFinite(initialCash)||initialCash<0||!Number.isSafeInteger(initialPosition)||initialPosition<0||initialPosition%100)throw new Error('填写明确现金与100股整手隔夜股。');
       const candidate=openManualPaperSession({storage:localStorage,accountKey,symbol,initialOptions:{initialCash,initialPosition,initialSellablePosition:initialPosition}});
-      candidate.execute({date,time},{orderId:'initialize',side:'WAIT',quantity:0});
+      await candidate.execute({date,time},{orderId:'initialize',side:'WAIT',quantity:0});
       setSession(candidate);setSnapshot(candidate.snapshot());setFeedback('模拟账户已保存。');
     }catch(e){setFeedback(`未初始化：${e.message}`);}
   };
-  const execute=side=>{
+  const execute=async side=>{
     try {
       if(!session||!orderId.trim()||orderId==='initialize')throw new Error('先初始化并填写唯一模拟单号；重试使用同号。');
       if(!price.trim()||!quantity.trim())throw new Error('填写模拟价格与数量。');
-      const result=executeManualPaperOrder(session,{symbol,date,time,price:Number(price)},
+      const result=await executeManualPaperOrder(session,{symbol,date,time,price:Number(price)},
         {orderId:orderId.trim(),symbol,side,quantity:Number(quantity),orderPrice:Number(price),timestamp:`${date} ${time}`});
       // Only publish React state after durable storage acknowledges execution.
       setSnapshot(session.snapshot());
@@ -45,7 +45,7 @@ export function ManualPaperPanel({accountKey,symbol}) {
   const field=(label,value,setter,type='text')=>h('label',null,label,h('input',{type,value,onChange:e=>setter(e.target.value),'aria-label':label}));
   return h('details',{className:'manual-paper-panel'},
     h('summary',null,'独立模拟账户 · 手动执行'),
-    h('p',null,'仅本机模拟，与手工流水及真实持仓分离。1000股配置未经收益验证，不自动产生策略订单。单标签页使用，其他页面改动后须刷新。'),
+    h('p',null,'仅本机模拟，与手工流水及真实持仓分离。1000股配置未经收益验证，不自动产生策略订单。原生锁串行保存；锁不可用时禁止成交。'),
     h('p',null,'佣金每边0.025%最低5元；卖出印花税0.05%；过户每边0.001%。价格为手工假设，非盘口撮合，未模拟滑点/部分成交。'),
     error&&h('p',{role:'alert'},error),
     h('div',null,field('模拟交易日 YYYY-MM-DD',date,setDate),field('模拟时间 HH:mm',time,setTime)),

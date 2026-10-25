@@ -16,7 +16,7 @@ class AvailabilityFailureTest(unittest.TestCase):
   exec(compile(ast.Module(body=[method],type_ignores=[]),str(source),'exec'),env)
   with tempfile.TemporaryDirectory() as folder:
    seen=[]
-   state=SimpleNamespace(forward_path=str(Path(folder)/'rows.jsonl'),forward_minutes=set(),forward_days=set(),last_forward_minute=None,reverse_shadow=SimpleNamespace(observe=seen.append))
+   state=SimpleNamespace(forward_writer=SimpleNamespace(append=fail),forward_receipt_pending={},forward_path=str(Path(folder)/'rows.jsonl'),forward_minutes=set(),forward_days=set(),last_forward_minute=None,reverse_shadow=SimpleNamespace(observe=seen.append))
    row={'exchangeMinute':'20261023-0930','quality':{'verified':False},'timeContract':{'persistedAt':None}}
    with self.assertRaises(OSError):env['write_forward_record'](state,row)
    self.assertFalse(state.forward_minutes);self.assertEqual(seen,[]);self.assertIsNone(row['timeContract']['persistedAt'])

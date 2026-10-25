@@ -10,10 +10,14 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def complete_lines(path, sync=os.fsync):
+def complete_lines(path, sync=os.fsync, *, start=0):
     """Preserve a torn tail before repairing the active append file, never archives."""
     path = Path(path)
-    raw = path.read_bytes() if path.exists() else b""
+    if path.exists():
+        with path.open('rb') as handle:
+            handle.seek(start)
+            raw = handle.read()
+    else:raw = b""
     if raw and not raw.endswith(b"\n"):
         boundary = raw.rfind(b"\n") + 1
         tail = raw[boundary:]
@@ -23,11 +27,11 @@ def complete_lines(path, sync=os.fsync):
             handle.flush()
             sync(handle.fileno())
         with path.open("r+b") as handle:
-            handle.truncate(boundary)
+            handle.truncate(start + boundary)
             handle.flush()
             sync(handle.fileno())
         raw = raw[:boundary]
-    rows, offset = [], 0
+    rows, offset = [], start
     for line in raw.splitlines(keepends=True):
         value = json.loads(line)
         if not isinstance(value, dict):
@@ -88,63 +92,7 @@ def read_valid_receipts(path):
 
 
 def append_with_receipt(path, record, *, clock=utc_now, sync=os.fsync):
-    """Publish a sidecar only after data fsync; never certify historical rows.
-
-    A crash between appends leaves an unreceipted row, which remains unverified.
-    This requires the collector's existing single-writer ownership of the file.
-    """
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    rows = complete_lines(target, sync)
-    sidecar = target.with_name(target.name + ".receipts.jsonl")
-    generated_at = clock()
-    payload = (json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
-    matches = [(offset, raw, row) for offset, raw, row in rows if row.get("exchangeMinute") == record.get("exchangeMinute")]
-    if len(matches) > 1:
-        raise ValueError("Duplicate forward minute")
-    previous = matches[0] if matches else None
-    if previous and previous[2] != record:
-        raise ValueError("Conflicting forward minute")
-    start = previous[0] if previous else (target.stat().st_size if target.exists() else 0)
-    if previous:
-        payload = previous[1]
-    with target.open("ab") as handle:
-        if not previous:
-            handle.write(payload)
-        handle.flush()
-        sync(handle.fileno())
-    # Broken research receipts must not suppress the next raw minute append.
-    receipts = complete_lines(sidecar, sync)
-    for _, _, saved in receipts:
-        validate_receipt(target, saved)
-        if saved.get("byteOffset") == start:
-            # A prior receipt fsync may have failed despite visible bytes. Sync
-            # again before acknowledging an idempotent retry, including restart.
-            with sidecar.open("ab") as handle:
-                handle.flush()
-                sync(handle.fileno())
-            return saved
-    completed_at = clock()
-    sources = record.get("fieldSources") or {}
-    receipt = {
-        "schemaVersion": 1, "contract": "local-append-receipt-v1",
-        "exchangeMinute": record.get("exchangeMinute"),
-        "recordSha256": hashlib.sha256(payload).hexdigest(),
-        "byteOffset": start, "byteLength": len(payload),
-        "receiptGeneratedAt": generated_at,
-        "recordGeneratedAt": (record.get("timeContract") or {}).get("generatedAt"),
-        "observedAt": record.get("observedAt"),
-        "eventTimes": {key: value.get("exchangeTime") for key, value in sources.items() if isinstance(value, dict)},
-        "receivedTimes": {key: value.get("receivedAt") for key, value in sources.items() if isinstance(value, dict)},
-        "featureCutoffAt": (record.get("timeContract") or {}).get("featureCutoffAt"),
-        "dataWriteCompletedAt": completed_at,
-        "clockOrdered": (clock_ordered(record.get("observedAt"), generated_at, completed_at)
-                         and all(clock_ordered(saved.get("dataWriteCompletedAt"), generated_at, completed_at)
-                                 for _, _, saved in receipts)),
-        "minuteFinality": "unverified", "verified": False,
-    }
-    with sidecar.open("ab") as handle:
-        handle.write((json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"))
-        handle.flush()
-        sync(handle.fileno())
-    return receipt
+    """One-shot compatibility API; the collector retains one ReceiptWriter."""
+    from zijin_l2_receipt_writer import ReceiptWriter
+    with ReceiptWriter(path, clock=clock, sync=sync) as writer:
+        return writer.append(record)
