@@ -1,0 +1,23 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {openManualPaperSession,executeManualPaperOrder} from '../lib/paper-trading/manual-session.mjs';
+const market={symbol:'601899',date:'2026-10-23',time:'10:00',price:10};
+test('main manual simulation bridge persists before publish, restores and separates accounts',async()=>{
+ const map=new Map();let fail=false;
+ const storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>{if(fail)throw Error('quota');map.set(k,v);}};
+ const args={storage,accountKey:'synthetic',symbol:'601899'};
+ assert.equal(openManualPaperSession(args),null);
+ let session=openManualPaperSession({...args,initialOptions:{initialCash:10000,initialPosition:1000}});
+ const buy={orderId:'buy',side:'BUY',quantity:100,orderPrice:10,timestamp:'2026-10-23 10:00'};
+ fail=true;await assert.rejects(()=>executeManualPaperOrder(session,market,buy),/quota/);assert.equal(session.snapshot().cash,10000);
+ fail=false;const filled=await executeManualPaperOrder(session,market,buy);assert.equal(filled.fees,5.01);
+ session=openManualPaperSession(args);assert.equal(session.snapshot().position.availableSellablePosition,1000);
+ assert.deepEqual(await executeManualPaperOrder(session,market,buy),filled);
+ await assert.rejects(()=>executeManualPaperOrder(session,market,{...buy,quantity:200}),/conflicts/);
+ assert.equal((await executeManualPaperOrder(session,market,{orderId:'sell-all',side:'SELL',quantity:1100})).status,'REJECTED');
+ await assert.rejects(()=>executeManualPaperOrder(session,{...market,date:'2026-10-22'},{orderId:'back',side:'SELL',quantity:100}),/regression/);
+ assert.equal((await executeManualPaperOrder(session,{...market,date:'2026-10-26'},{orderId:'next',side:'SELL',quantity:1100})).status,'FILLED');
+ assert.equal(openManualPaperSession({...args,accountKey:'other'}),null);
+ assert.throws(()=>openManualPaperSession({...args,initialOptions:{initialCash:1,initialPosition:1000}}),/configuration/);
+ await assert.rejects(()=>executeManualPaperOrder(session,market,{...buy,quantity:100.5}),/100/);
+});

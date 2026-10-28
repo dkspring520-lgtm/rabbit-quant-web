@@ -11,6 +11,7 @@ test("paper schema keeps T+1 total and sellable position separate", () => {
 test("paper schema normalizes shared cost configuration without hardcoding", () => {
   assert.deepEqual(normalizePaperCostConfig({ commission: 0.025, minimumCommission: 5, stampDuty: 0.0005, slippage: 0.02 }), {
     commission: 0.025, minimumCommission: 5, stampDuty: 0.0005, slippage: 0.02, slippageUnit: "percent",
+    transferFee: 0, transferFeeConfigured: false, rateUnits: {commission:"percent",stampDuty:"percent",transferFee:"percent"},
   });
 });
 
@@ -26,4 +27,12 @@ test("paper account is cash and position scoped", () => {
   assert.equal(account.accountId, "paper-1");
   assert.equal(account.currency, "CNY");
   assert.equal(account.positions["601899"].totalPosition, 10000);
+});
+
+test("cost normalization retains explicit and legacy transfer-fee provenance",()=>{
+  const legacy=normalizePaperCostConfig({commission:.025});
+  assert.equal(normalizePaperCostConfig(legacy).transferFeeConfigured,false);
+  const configured=normalizePaperCostConfig({transferFee:.001});
+  assert.equal(configured.transferFee,.001);
+  assert.equal(configured.transferFeeConfigured,true);
 });

@@ -17,6 +17,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zijin_l2_persistence_receipt import read_valid_receipts
 
 
 EXPERIMENT_ID = "zijin-opening-l2-forward-shadow-v2"
@@ -34,12 +35,12 @@ def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
     try:
         with Path(path).open("r", encoding="utf-8") as handle:
             for line in handle:
-                try:
-                    value = json.loads(line)
-                except json.JSONDecodeError:
+                if not line.strip():
                     continue
-                if isinstance(value, dict):
-                    records.append(value)
+                value = json.loads(line)
+                if not isinstance(value, dict):
+                    raise ValueError("L2 ledger row must be an object")
+                records.append(value)
     except FileNotFoundError:
         pass
     return records
@@ -158,6 +159,21 @@ def _valid_price(record: dict[str, Any]) -> float | None:
     return price if price > 0 else None
 
 
+def verified_available_at(record):
+    quality = record.get("quality") or {}
+    timing = record.get("timeContract") or {}
+    if quality.get("verified") is not True or quality.get("minuteFinality") != "verified":
+        return None
+    try:
+        observed = datetime.fromisoformat(timing["observedAt"].replace("Z", "+00:00"))
+        persisted = datetime.fromisoformat(timing["persistedAt"].replace("Z", "+00:00"))
+        if observed.tzinfo is None or persisted.tzinfo is None or persisted < observed:
+            return None
+        return persisted
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+
+
 def _future_chain(by_minute: dict[str, dict[str, Any]], anchor_minute: str, horizon: int) -> list[dict[str, Any]] | None:
     future: list[dict[str, Any]] = []
     cursor = anchor_minute
@@ -203,6 +219,8 @@ def build_labels(
     minimum_gross_spread_yuan: float = 0.10,
 ) -> list[dict[str, Any]]:
     """Create only matured same-day labels for records not already labelled."""
+    records = [record for record in records if verified_available_at(record) is not None]
+    evaluation_time = datetime.fromisoformat((labeled_at or utc_now()).replace("Z", "+00:00"))
     by_day: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
     for record in records:
         minute = record.get("exchangeMinute")
@@ -252,6 +270,11 @@ def build_labels(
             future = _future_chain(day_rows, anchor_minute, horizon)
             if future is None:
                 continue
+            available = [verified_available_at(record), *[verified_available_at(row) for row in future]]
+            if any(at is None for at in available) or any(left >= right for left, right in zip(available, available[1:])):
+                continue
+            if evaluation_time.tzinfo is None or available[-1] > evaluation_time:
+                continue
             labels.append({
                 "schemaVersion": 2,
                 "experimentId": EXPERIMENT_ID,
@@ -259,6 +282,8 @@ def build_labels(
                 "observationId": identifier,
                 "symbol": "601899",
                 "featureObservedAt": record.get("observedAt"),
+                "featureAvailableAt": record["timeContract"]["persistedAt"],
+                "dataQuality": {"verified": True, "availabilityContract": "durable-ordered-v1"},
                 "featureExchangeMinute": minute,
                 "marketPhase": phase,
                 "horizonMinutes": horizon,
@@ -278,7 +303,7 @@ def build_labels(
 
 
 def summarize(records: list[dict[str, Any]], labels: list[dict[str, Any]], minimum_labels: int, minimum_days: int, minimum_opening_labels: int) -> dict[str, Any]:
-    labels = [item for item in labels if item.get("experimentId") == EXPERIMENT_ID]
+    labels = [item for item in labels if item.get("experimentId") == EXPERIMENT_ID and (item.get("dataQuality") or {}).get("verified") is True]
     label_ids = {item.get("observationId") for item in labels}
     observations = [item for item in records if observation_id(item)]
     opening_labels = [item for item in labels if item.get("marketPhase") in OPENING_PHASES]
@@ -350,6 +375,13 @@ def refresh_labels_and_state(
     **cost_options: Any,
 ) -> dict[str, Any]:
     records = read_jsonl(forward_path)
+    receipts = read_valid_receipts(forward_path)
+    for record in records:
+        if record.get("persistenceContract") == "local-append-receipt-v1":
+            record["localPersistenceReceipt"] = receipts.get(record.get("exchangeMinute"))
+            # Local fsync evidence alone never establishes market finality.
+            record["quality"] = {**record.get("quality", {}), "verified": False,
+                                 "minuteFinality": "unverified"}
     labels = read_jsonl(label_path)
     existing_ids = {
         item.get("labelId")

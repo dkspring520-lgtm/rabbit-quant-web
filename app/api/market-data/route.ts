@@ -1,12 +1,13 @@
 import { readEastmoneyMinuteSnapshot } from "@/lib/indicators/eastmoney-minute-source.mjs";
 import { assessMarketDataQuality } from "@/lib/market-data-quality.mjs";
+import {currentChartWindow,filterChartMinutes,tradingDate} from "@/lib/chart-session.mjs";
 
 type Quote = {
   code: string; name: string; price: number | null; previousClose: number | null;
   change: number | null; changePercent: number | null; open: number | null;
   high: number | null; low: number | null; volume: number | null; amount: number | null;
 };
-type MinutePoint = { time: string; price: number; volume: number; averagePrice?: number | null };
+type MinutePoint = { date?: string | null; time: string; price: number; volume: number; averagePrice?: number | null };
 type IntradaySession = { date: string; previousClose: number | null; minutes: MinutePoint[] };
 
 type EastmoneyQuote = { f43?: number; f44?: number; f45?: number; f46?: number; f47?: number; f48?: number; f57?: string; f58?: string; f60?: number; f169?: number; f170?: number; };
@@ -50,31 +51,8 @@ function isMainlandMarketRealtimeWindow(now = new Date()) {
   return minutes >= 9 * 60 + 15 && minutes <= 15 * 60 + 30;
 }
 
-// Public minute endpoints can briefly return a cached tail or rows that are
-// ahead of the local clock. The monitor must only expose the prefix that was
-// actually available at the request minute; lunch is intentionally frozen at
-// 11:30 until the afternoon session starts.
-function realtimeMinuteCutoff(now = new Date()) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Shanghai",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(now).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-  if (parts.weekday === "Sat" || parts.weekday === "Sun") return null;
-  const currentMinute = Number(parts.hour) * 60 + Number(parts.minute);
-  if (currentMinute < 9 * 60 + 30) return null;
-  if (currentMinute <= 11 * 60 + 30) return `${parts.hour}${parts.minute}`;
-  if (currentMinute < 13 * 60) return "1130";
-  if (currentMinute <= 15 * 60) return `${parts.hour}${parts.minute}`;
-  return "1500";
-}
-
 function trimRealtimeMinutes(minutes: MinutePoint[], now = new Date()) {
-  const cutoff = realtimeMinuteCutoff(now);
-  if (!cutoff) return [];
-  return minutes.filter((point) => point.time <= cutoff);
+  return filterChartMinutes(minutes,currentChartWindow(now));
 }
 
 function number(value: unknown, scale = 1) { return typeof value === "number" && Number.isFinite(value) ? value / scale : null; }
@@ -104,8 +82,9 @@ async function fromTencent(code: string): Promise<{ provider: string; quote: Quo
 async function fromTencentMinutes(code: string): Promise<MinutePoint[]> {
   const response = await upstreamFetch(`https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=${marketPrefix(code)}${code}`, { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0 (compatible; SmartTMonitor/1.0)" } });
   if (!response.ok) throw new Error("腾讯分时不可用");
-  const payload = await response.json() as { data?: Record<string, { data?: { data?: string[] } }> };
+  const payload = await response.json() as { data?: Record<string, { data?: { date?: string; data?: string[] } }> };
   const rows = payload.data?.[`${marketPrefix(code)}${code}`]?.data?.data ?? [];
+  const date = tradingDate(payload.data?.[`${marketPrefix(code)}${code}`]?.data?.date);
   let previousVolume = 0;
   return rows.map((row) => {
     const [time, rawPrice, rawVolume, rawAmount] = row.split(" ");
@@ -116,7 +95,7 @@ async function fromTencentMinutes(code: string): Promise<MinutePoint[]> {
     const averagePrice = cumulativeVolume > 0 && Number.isFinite(cumulativeAmount)
       ? cumulativeAmount / (cumulativeVolume * 100)
       : null;
-    return { time, price, volume, averagePrice };
+    return { date, time, price, volume, averagePrice };
   }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price));
 }
 
@@ -159,7 +138,7 @@ async function fromEastmoneyMinutes(code: string): Promise<MinutePoint[]> {
     return { date: timestamp.slice(0, 10), time: timestamp.slice(-5).replace(":", ""), price: Number(close), volume: Number(volume) };
   }).filter((point) => /^\d{4}$/.test(point.time) && Number.isFinite(point.price) && point.price > 0);
   const latestDate = datedPoints.at(-1)?.date;
-  const points = datedPoints.filter((point) => point.date === latestDate).map(({ time, price, volume }) => ({ time, price, volume }));
+  const points = datedPoints.filter((point) => point.date === latestDate);
   if (!response.ok || points.length < 2) throw new Error("东方财富分时不可用");
   return points;
 }
@@ -305,6 +284,7 @@ export async function GET(request: Request) {
     const headers = mode === "realtime" || isMainlandMarketRealtimeWindow() ? realtimeHeaders : closedMarketHeaders;
     const fetchedAt = new Date().toISOString();
     const provider = quoteResult?.provider ?? "tencent-public";
+    minutes.minutes = trimRealtimeMinutes(minutes.minutes);
     const quality = assessMarketDataQuality({ provider, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, fetchedAt, minutes: minutes.minutes, requestedRealtime: mode === "realtime", minuteFailures: minutes.failures });
     return Response.json({ provider, quote: quoteResult?.quote ?? fallbackQuote, sourceTimestamp: quoteResult?.sourceTimestamp ?? null, minuteProvider: minutes.provider, minutes: minutes.minutes, quality, intradaySessions, listingDate, delayed: true, fetchedAt, bars }, { headers });
   } catch (error) { return Response.json({ error: error instanceof Error ? error.message : "行情请求失败" }, { status: 502, headers: realtimeHeaders }); }

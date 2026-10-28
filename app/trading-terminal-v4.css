@@ -913,3 +913,9 @@
     padding-block: 9px;
   }
 }
+
+.data-state-strip { margin: 8px 16px; padding: 10px 12px; border: 1px solid var(--border, #a1a8a1); border-radius: 8px; font-size: 12px; line-height: 1.6; color: inherit; }
+.data-state-strip-times { display: flex; flex-wrap: wrap; gap: 4px 18px; font-variant-numeric: tabular-nums; }
+.data-state-strip p { margin: 6px 0 0; max-width: 80ch; }
+.data-state-strip [role="alert"] { font-weight: 600; }
+@media (max-width: 640px) { .data-state-strip { margin: 8px; } .data-state-strip-times { gap: 4px 12px; } }

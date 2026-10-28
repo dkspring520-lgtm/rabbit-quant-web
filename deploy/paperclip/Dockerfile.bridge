@@ -5,6 +5,7 @@ ARG APP_COMMIT_SHA=unknown
 WORKDIR /app
 
 COPY lib/factor-research ./lib/factor-research
+COPY lib/indicators/causal-kdj.mjs ./lib/indicators/causal-kdj.mjs
 COPY lib/personal-replay-training.mjs lib/qmt-orderflow-confirmation.mjs ./lib/
 COPY scripts/run-factor-research.mjs ./scripts/run-factor-research.mjs
 COPY services/paperclip-bridge ./services/paperclip-bridge

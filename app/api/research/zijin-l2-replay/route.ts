@@ -18,15 +18,23 @@ export async function GET(request:Request) {
   let source = "archive";
   try {
     payload = await readJson(join(archiveDir, `${date}.json`));
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      return Response.json({ available:false, causal:false, reason:"归档读取失败" }, {status:503});
+    }
     source = "current-session";
-    try { payload = await readJson(statePath); } catch { payload = null; }
+    try { payload = await readJson(statePath); } catch (stateError) {
+      if ((stateError as NodeJS.ErrnoException)?.code !== "ENOENT") {
+        return Response.json({ available:false, causal:false, reason:"当前行情状态读取失败" }, {status:503});
+      }
+      payload = null;
+    }
   }
   const normalized = normalizeZijinL2ReplayPayload(payload, date);
   return Response.json({
     ...normalized,
     source: normalized.available ? source : "unavailable",
-    causal: true,
+    causal: normalized.causal === true,
     researchOnly: true,
   }, {
     headers: { "Cache-Control":"no-store, no-cache, must-revalidate, max-age=0" },

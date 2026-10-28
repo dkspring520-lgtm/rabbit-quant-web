@@ -9,7 +9,9 @@ import test from "node:test";
 const script = fileURLToPath(new URL("../scripts/zijin_l2_forward_labels.py", import.meta.url));
 
 function record(clock, price, phase = "open-discovery") {
-  return { schemaVersion: 2, symbol: "601899", observedAt: `2026-07-27T${clock.slice(0, 2)}:${clock.slice(2)}:00Z`, exchangeMinute: `20260727-${clock}`, marketPhase: phase, lastPrice: price, target: null };
+  // Synthetic durability-certified records exercise label economics, not production certification.
+  const at = `2026-07-27T${clock.slice(0, 2)}:${clock.slice(2)}:00+08:00`;
+  return { quality:{verified:true,minuteFinality:"verified"},timeContract:{observedAt:at,persistedAt:at},schemaVersion: 2, symbol: "601899", observedAt: `2026-07-27T${clock.slice(0, 2)}:${clock.slice(2)}:00Z`, exchangeMinute: `20260727-${clock}`, marketPhase: phase, lastPrice: price, target: null };
 }
 
 test("L2 forward labels are delayed, same-day and preserve feature records", () => {

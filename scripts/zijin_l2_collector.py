@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from collections import deque
 from contextlib import suppress
@@ -24,10 +25,12 @@ from zoneinfo import ZoneInfo
 import nats
 import numpy as np
 from zijin_l2_stream_state import StreamState
+from zijin_l2_receipt_writer import ReceiptWriter
 from zijin_l2_forward_labels import refresh_labels_and_state
 from zijin_closure_v2_reverse_shadow import ZijinClosureV2ReverseShadow
 from zijin_l2_second_state import (
     ForwardMinuteBuffer,
+    annotate_forward_record,
     SecondLevelSignalMachine,
     book_persistence,
     freeze_microstructure_features,
@@ -49,18 +52,28 @@ def heartbeat_signature(path):
 
 def stop_reader(process, timeout):
     if process.poll() is not None:
-        return
-    process.terminate()
+        return process.returncode == 0
+    # A pipe also works on Windows, where terminate() cannot run Python finally.
+    try:
+        process.stdin.write(b"stop\n")
+        process.stdin.flush()
+    except (OSError, AttributeError):
+        if os.name != 'nt':process.terminate()
     try:
         process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
+        print("L2 collector graceful stop timed out; forcing kill, recovery not guaranteed", file=sys.stderr, flush=True)
         process.kill()
-        process.wait(timeout=timeout)
+        process.wait(timeout=2)
+        return False
+    finally:
+        if process.stdin is not None:process.stdin.close()
+    return process.returncode == 0
 
 
 def supervise_collector(command=None, state_path=None, *, heartbeat_timeout=15,
                         startup_timeout=30, poll_interval=.5,
-                        termination_timeout=2, stop_requested=lambda: False):
+                        termination_timeout=15, stop_requested=lambda: False):
     """Keep liveness outside the reader event loop, including a busy-loop stall.
 
     The 15s heartbeat and 30s startup grace match the existing route/healthcheck.
@@ -72,14 +85,14 @@ def supervise_collector(command=None, state_path=None, *, heartbeat_timeout=15,
     previous = heartbeat_signature(state_path)
     last_progress = time.monotonic()
     published = False
-    reader = subprocess.Popen(command)
+    reader = subprocess.Popen(command, stdin=subprocess.PIPE)
     try:
         while True:
             code = reader.poll()
             if code is not None:
                 return code if code >= 0 else 128 - code
             if stop_requested():
-                return 0
+                return 0 if stop_reader(reader, termination_timeout) else 1
             current = heartbeat_signature(state_path)
             now = time.monotonic()
             if current is not None and current != previous:
@@ -93,6 +106,76 @@ def supervise_collector(command=None, state_path=None, *, heartbeat_timeout=15,
             time.sleep(min(poll_interval, limit - (now - last_progress)))
     finally:
         stop_reader(reader, termination_timeout)
+        if reader.stdin is not None:reader.stdin.close()
+
+
+async def run_collector_child(factory=None):
+    """Translate supervisor control/Unix SIGTERM into one cooperative cancellation."""
+    loop = asyncio.get_running_loop()
+    task = None
+    stopping = False
+    def request_stop():
+        nonlocal stopping
+        if stopping:return
+        stopping = True
+        if task is not None:task.cancel()
+    def on_signal(_number, _frame):
+        loop.call_soon_threadsafe(request_stop)
+    previous = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
+    for number in previous:signal.signal(number, on_signal)
+    reader_stop = threading.Event()
+    reader_thread = None
+    def control_reader():
+        try:
+            fd = sys.stdin.fileno()
+            if os.name == 'nt':
+                import ctypes
+                import msvcrt
+                from ctypes import wintypes
+                peek = ctypes.WinDLL('kernel32', use_last_error=True).PeekNamedPipe
+                peek.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD,
+                                 ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD),
+                                 ctypes.POINTER(wintypes.DWORD)]
+                peek.restype = wintypes.BOOL
+                handle = wintypes.HANDLE(msvcrt.get_osfhandle(fd))
+            else:
+                import select
+            command = b''
+            while not reader_stop.is_set():
+                if os.name == 'nt':
+                    available = wintypes.DWORD()
+                    if not peek(handle, None, 0, None, ctypes.byref(available), None):return
+                    if not available.value:
+                        reader_stop.wait(.05)
+                        continue
+                elif not select.select([fd], [], [], .05)[0]:
+                    continue
+                # Sole reader, after readiness: never hold BufferedReader's lock.
+                part = os.read(fd, 64 - len(command))
+                if not part:return
+                command += part
+                if b'\n' in command or len(command) == 64:
+                    if command.split(b'\n', 1)[0] == b'stop':
+                        loop.call_soon_threadsafe(request_stop)
+                    return
+        except (OSError, ValueError, RuntimeError):
+            pass  # Closed control pipe/loop is not a new stop command.
+    try:
+        task = asyncio.create_task((factory or Collector)().run())
+        reader_thread = threading.Thread(target=control_reader, name='l2-control-reader')
+        reader_thread.start()
+        try:
+            await task
+        except asyncio.CancelledError:
+            if not stopping:raise
+        return 0
+    finally:
+        reader_stop.set()
+        if reader_thread is not None:
+            reader_thread.join(timeout=1)
+        for number, handler in previous.items():signal.signal(number, handler)
+        if reader_thread is not None and reader_thread.is_alive():
+            raise RuntimeError('Control pipe reader failed to stop')
 
 
 def run_supervised_collector():
@@ -364,6 +447,10 @@ class Collector:
                 "volume": int(row.get("volume", 0) or 0),
                 "amount": float(row.get("amount", 0) or 0),
                 "averagePrice": row.get("averagePrice"),
+                "quality": row.get("quality", {"verified": False, "restored": True}),
+                "fieldSources": row.get("fieldSources", {}),
+                "timeContract": row.get("timeContract", {"semantics": "legacy-unverified"}),
+                "flowRecovery": row.get("flowRecovery"),
             }
 
     def load_intraday_flow_forward_fallback(self):
@@ -428,24 +515,115 @@ class Collector:
                 "volume": 0,
                 "amount": 0,
                 "averagePrice": None,
-                "flowRecovery": "causal-rolling-60s",
+                "flowRecovery": "unverified-rolling-60s",
+                "quality": {"verified": False, "recoveredFromForward": True},
+                "fieldSources": record.get("fieldSources", {}),
+                "timeContract": record.get("timeContract", {"semantics": "legacy-unverified"}),
             }
 
     def load_forward_index(self):
+        self.forward_receipt_pending = {}
+        self.forward_retry_state = {}
+        self.forward_startup_error = None
+        self.forward_write_error = None
+        self.forward_worker_error = None
+        self.forward_stopping = False
+        self.forward_receipt_error = None
+        previous = getattr(self, "forward_writer", None)
+        if previous is not None:
+            previous.close()
+        self.forward_writer = None
         try:
-            with Path(self.forward_path).open("r", encoding="utf-8") as handle:
-                for line in handle:
-                    try:
-                        value = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    minute = value.get("exchangeMinute")
-                    if isinstance(minute, str) and is_a_share_cash_session(minute):
-                        self.forward_minutes.add(minute)
-                        self.forward_days.add(minute[:8])
-                        self.last_forward_minute = minute
-        except FileNotFoundError:
-            pass
+            writer = ReceiptWriter(self.forward_path)
+            self.forward_writer = writer
+            self.forward_startup_error = writer.receipt_error
+            for _, _, value in writer.rows.values():
+                minute = value.get("exchangeMinute")
+                if isinstance(minute, str) and is_a_share_cash_session(minute):
+                    self.forward_minutes.add(minute)
+                    self.forward_days.add(minute[:8])
+                    self.last_forward_minute = minute
+                    if value.get("persistenceContract") == "local-append-receipt-v1" and minute not in writer.receipts:
+                        self.forward_receipt_pending[minute] = value
+            self.forward_receipt_pending.update(writer.recover_pending())
+        except (OSError, ValueError) as exc:
+            self.forward_startup_error = type(exc).__name__
+        self.forward_receipt_error = self.forward_startup_error
+
+    async def flush_forward_records_background(self):
+        try:
+            await self.flush_forward_records_loop()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Unexpected programming/storage failures stop this worker, not quotes.
+            self.forward_worker_error = type(exc).__name__
+            self.forward_receipt_error = self.forward_worker_error
+
+    async def flush_forward_records_loop(self):
+        self.forward_event_loop = asyncio.get_running_loop()
+        while True:
+            now = time.monotonic()
+            retry = self.forward_retry_state
+            ready = next(((key, row) for key, row in list(self.forward_receipt_pending.items())
+                          if retry.get(key, (0, 0))[0] < 5 and retry.get(key, (0, 0))[1] <= now), None)
+            if ready is None or self.forward_writer is None:
+                await asyncio.sleep(.25)
+                continue
+            key, row = ready
+            job = asyncio.create_task(asyncio.to_thread(self.write_forward_record, row))
+            self.forward_inflight = job
+            try:
+                await asyncio.shield(job)
+                retry.pop(key, None)
+                if not self.forward_receipt_pending:
+                    self.forward_write_error = None
+            except asyncio.CancelledError:
+                # Shutdown retains the lock until this thread actually finishes.
+                raise
+            except OSError as exc:
+                count = retry.get(key, (0, 0))[0] + 1
+                retry[key] = (count, time.monotonic() + min(60, 2 ** count))
+                self.forward_write_error = type(exc).__name__
+            except ValueError as exc:
+                retry[key] = (5, float('inf'))
+                self.forward_startup_error = type(exc).__name__
+            self.forward_receipt_error = self.forward_startup_error or self.forward_write_error
+
+    async def shutdown_forward_records(self, worker, timeout=5, checkpoint_timeout=5):
+        self.forward_stopping = True
+        owner = self.forward_writer
+        try:
+            # Snapshot before draining: late completion is idempotent on restart.
+            records = list(self.forward_receipt_pending.values())
+            if records:
+                if owner is None:
+                    raise RuntimeError('Forward shutdown cannot preserve pending records without writer ownership')
+                checkpoint = asyncio.create_task(asyncio.to_thread(owner.preserve_pending, records))
+                self.forward_checkpoint = checkpoint
+                await asyncio.wait_for(asyncio.shield(checkpoint), timeout=checkpoint_timeout)
+            deadline = time.monotonic() + timeout
+            while self.forward_receipt_pending and not worker.done() and time.monotonic() < deadline:
+                await asyncio.sleep(.01)
+        except Exception as exc:
+            self.forward_worker_error = 'ShutdownPreservationFailed:' + type(exc).__name__
+            self.forward_receipt_error = self.forward_worker_error
+            raise
+        finally:
+            worker.cancel()
+            await asyncio.gather(worker, return_exceptions=True)
+            jobs = [job for job in (getattr(self, 'forward_inflight', None),
+                                    getattr(self, 'forward_checkpoint', None)) if job is not None]
+            if owner is not None:
+                if any(not job.done() for job in jobs):
+                    async def close_when_finished():
+                        await asyncio.gather(*jobs, return_exceptions=True)
+                        owner.close()
+                    self.forward_close_task = asyncio.create_task(close_when_finished())
+                else:
+                    for job in jobs:
+                        if not job.cancelled():job.exception()
+                    owner.close()
 
     def refresh_forward_research(self):
         """Write delayed outcomes separately; this is never part of V4 execution."""
@@ -754,6 +932,7 @@ class Collector:
                 continue
             restored = rows.get(minute)
             rows[minute] = {
+                **(restored or {}),
                 "time": minute[-4:],
                 "exchangeMinute": minute,
                 "price": bar["close"],
@@ -767,7 +946,8 @@ class Collector:
                 ),
             }
         return [
-            {**rows[minute], **self.minute_flow_payload(minute)}
+            {**rows[minute], **self.minute_flow_payload(minute),
+             **({"volume": None, "amount": None} if rows[minute].get("flowRecovery") else {})}
             for minute in sorted(rows)[-260:]
         ]
 
@@ -907,7 +1087,9 @@ class Collector:
             exchange_minute_key=exchange_clock[:4],
         )
         second_state["marketMode"] = market_mode
-        ready = len(self.forward_minutes) >= self.forward_min_samples and len(self.forward_days) >= self.forward_min_days
+        ready = (len(self.forward_minutes) >= self.forward_min_samples
+                 and len(self.forward_days) >= self.forward_min_days
+                 and self.forward_research_status == "minimum-forward-evidence-collected")
         shadow_status = self.reverse_shadow.public_status()
         return {
             "schemaVersion": 6, "source": "base32-l2-nats", "node": self.url.split("//")[-1],
@@ -974,25 +1156,36 @@ class Collector:
 
     def write_forward_record(self, record):
         minute = record.get("exchangeMinute")
-        if not minute or minute in self.forward_minutes:
+        if not minute or (minute in self.forward_minutes and minute not in self.forward_receipt_pending):
             return
-        target = Path(self.forward_path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("a", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        record = {**record, "persistenceContract": "local-append-receipt-v1"}
+        pending = getattr(self, "forward_receipt_pending", {})
+        self.forward_receipt_pending = pending
+        pending[minute] = record
+        if self.forward_writer is None:
+            raise ValueError("Forward startup validation failed")
+        self.forward_writer.append(record)
+        pending.pop(minute, None)
         self.forward_minutes.add(minute)
         self.forward_days.add(minute[:8])
         self.last_forward_minute = minute
-        try:
-            self.reverse_shadow.observe(record)
-        except Exception:
-            # Shadow research must never interrupt the production L2 collector.
-            pass
-        self.forward_research_requested.set()
+        def notify():
+            try:
+                self.reverse_shadow.observe(record)
+            except Exception:
+                pass
+            self.forward_research_requested.set()
+        loop = getattr(self, "forward_event_loop", None)
+        if loop is not None:
+            loop.call_soon_threadsafe(notify)
+        else:
+            notify()
 
     def append_forward_sample(self, state):
+        if getattr(self, 'forward_stopping', False):
+            return
+        # This sampling path only freezes/enqueues records; no disk scan/fsync.
+        self.forward_receipt_error = getattr(self, "forward_worker_error", None) or getattr(self, "forward_startup_error", None) or getattr(self, "forward_write_error", None)
         minute = exchange_minute(state.get("lastExchangeTime"))
         phase = market_phase(minute)
         status = state.get("status", {})
@@ -1022,7 +1215,8 @@ class Collector:
                 key: state["book"].get(key) for key in (
                     "bid1Volume", "ask1Volume", "nearBidVolume", "nearAskVolume",
                     "nearTouchImbalance", "spreadBps", "microprice", "micropriceEdgeBps",
-                    "bidPrices", "askPrices", "bidVolumes", "askVolumes"
+                    "bidPrices", "askPrices", "bidVolumes", "askVolumes",
+                    "source", "exchangeTime", "receivedAt", "available"
                 )
             },
             "messages": dict(messages), "target": None,
@@ -1031,9 +1225,15 @@ class Collector:
                 state.get("secondState"), state.get("flow"), state.get("book"), messages
             ),
         }
+        record = annotate_forward_record(record, state)
         completed = self.forward_minute_buffer.push(record)
         if completed is not None:
-            self.write_forward_record(completed)
+            pending = self.forward_receipt_pending
+            if len(pending) >= 1024:
+                self.forward_startup_error = "ForwardQueueFull: recording gap requires review"
+            else:
+                completed = {**completed, "persistenceContract": "local-append-receipt-v1"}
+                pending.setdefault(completed["exchangeMinute"], completed)
 
     def append_second_event(self, state):
         signal = state.get("secondState") or {}
@@ -1074,6 +1274,19 @@ class Collector:
             state = self.state()
             self.append_second_event(state)
             self.append_forward_sample(state)
+            receipt_worker = getattr(self, 'forward_receipt_worker', None)
+            if receipt_worker is not None and receipt_worker.done() and not getattr(self, 'forward_stopping', False):
+                self.forward_worker_error = self.forward_worker_error or 'WorkerStopped'
+                self.forward_receipt_error = self.forward_worker_error
+            state["forwardPersistence"] = {
+                "status": "worker-error" if getattr(self, "forward_worker_error", None) else "validation-error" if getattr(self, "forward_startup_error", None) else "retry-pending" if getattr(self, "forward_write_error", None) else "pending" if self.forward_receipt_pending else "local-receipts-only",
+                "workerError": getattr(self, "forward_worker_error", None),
+                "startupError": getattr(self, "forward_startup_error", None),
+                "writeError": getattr(self, "forward_write_error", None),
+                "error": getattr(self, "forward_receipt_error", None),
+                "pending": len(getattr(self, "forward_receipt_pending", {})),
+                "marketFinality": "unverified",
+            }
             # Publish the exact evaluated state. Re-evaluating here could advance
             # a state twice in one 250ms cycle and create artificial confirmations.
             atomic_json(self.state_path, state)
@@ -1096,6 +1309,8 @@ class Collector:
         async def error_callback(error):
             if "authorization" in str(error).lower(): self.authorization_error = True
         async def disconnected_callback(): self.connected = False
+        receipt_worker = asyncio.create_task(self.flush_forward_records_background())
+        self.forward_receipt_worker = receipt_worker
         writer = asyncio.create_task(self.publish_state())
         forward_research = asyncio.create_task(self.refresh_forward_research_background())
         reverse_shadow_regime = asyncio.create_task(self.refresh_reverse_shadow_regime())
@@ -1186,21 +1401,20 @@ class Collector:
                 node_index = (node_index + 1) % len(self.urls)
                 await asyncio.sleep(0.35 if is_live_a_share_session() else 2)
         finally:
+            self.forward_stopping = True
             writer.cancel()
             forward_research.cancel()
             reverse_shadow_regime.cancel()
             reverse_shadow_peers.cancel()
-            with suppress(asyncio.CancelledError):
-                await writer
-            with suppress(asyncio.CancelledError):
-                await forward_research
-            with suppress(asyncio.CancelledError):
-                await reverse_shadow_regime
-            with suppress(asyncio.CancelledError):
-                await reverse_shadow_peers
+            try:
+                await self.shutdown_forward_records(receipt_worker)
+            finally:
+                # A failed worker/checkpoint must not skip sibling cleanup.
+                await asyncio.gather(writer, forward_research, reverse_shadow_regime,
+                                     reverse_shadow_peers, return_exceptions=True)
 
 if __name__ == "__main__":
     if "--collector-child" in sys.argv:
-        asyncio.run(Collector().run())
+        raise SystemExit(asyncio.run(run_collector_child()))
     else:
         raise SystemExit(run_supervised_collector())

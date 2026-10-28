@@ -1,11 +1,16 @@
 "use client";
+
+import {ManualPaperPanel} from "./manual-paper-panel.mjs";
+import {XhtmlDiv} from "./xhtml-div.mjs";
+import {DataStateStrip,formatDataTime} from "./data-state-strip.mjs";
+import {persistLocalLedger,readLocalLedger} from "../lib/local-ledger-persistence.mjs";
 import {l2ProvenanceText, shouldApplyL2Response, withL2Provenance} from '../lib/l2-provenance.mjs';
 import {openingPathEvents} from '../lib/opening-path.mjs';
 import {advanceSlice} from '../lib/slice-alerts.mjs';
 import {openingScoreEvents} from '../lib/opening-score.mjs';
 import OrderFlowDrawer from './order-flow-drawer';
 import {groupChartEvents} from '../lib/chart-event-groups.mjs';
-import {selectChartSession,snapshotTradingDate} from '../lib/chart-session.mjs';
+import {selectChartSession,snapshotTradingDate,currentChartWindow,filterChartMinutes,chartSessionNotice,mergeDatedMinuteMap,currentMinuteMap} from '../lib/chart-session.mjs';
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import dynamic from "next/dynamic";
@@ -195,11 +200,11 @@ const base64UrlToUint8Array = (value:string) => {
 };
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
-type IntradayMinute = {time:string;price:number;volume:number;open?:number|null;high?:number|null;low?:number|null;averagePrice?:number|null;timeVolumeBaseline?:number|null};
+type IntradayMinute = {date?:string|null;time:string;price:number;volume:number;open?:number|null;high?:number|null;low?:number|null;averagePrice?:number|null;timeVolumeBaseline?:number|null};
 type LiveSecondPoint = { date:string; time:string; timestamp:number; price:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:IntradayMinute[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
-type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quality?:{status?:string;signalEligible?:boolean;reasons?:string[];failures?:string[];lastMinute?:string|null;minuteCount?:number;expectedMinuteCount?:number;missingMinutes?:number;minuteLag?:number|null;quoteAgeSeconds?:number|null}; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
+type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; minuteDate?:string|null; quality?:{status?:string;signalEligible?:boolean;reasons?:string[];failures?:string[];lastMinute?:string|null;minuteCount?:number;expectedMinuteCount?:number;missingMinutes?:number;minuteLag?:number|null;quoteAgeSeconds?:number|null}; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
 type AiMonitorRemotePayload = {
   error?:string;
   errors?:string[];
@@ -246,7 +251,6 @@ function mergeMarketDataSnapshot(current:MarketData|null|undefined,incoming:Mark
   if(!sameTradingDate||(incoming.minutes?.length??0)>0||(current.minutes?.length??0)===0)return incoming;
   return {
     ...incoming,
-    bars:incoming.bars?.length?incoming.bars:current.bars,
     minutes:current.minutes, bars:current.bars, intradaySessions:current.intradaySessions,
   };
 }
@@ -291,7 +295,7 @@ type TObservation = { status:string; timestamp:string|number|null; feature:TObse
 type TradingDeskSnapshot = { fetchedAt:string; market:MarketData|null; context:MarketContext|null; eventRadar:EventRadarResponse|null; shadowResearch:ShadowResearch|null; tObservation?:TObservation|null; zijinHk:ZijinHkMarket|null; errors:string[] };
 type AlertSettings = { sound:boolean; system:boolean; background:boolean };
 type FormalSyncState = { status:"idle"|"syncing"|"ok"|"error"; message:string; at:number|null };
-type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; marketDate?:string; marketTime?:string; price?:number; level:"candidate"|"signal"|"risk"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
+type TradeAlertToast = { id?:string; code?:string; eventKey?:string; source?:string; createdAt?:string; marketDate?:string; marketTime?:string; price?:number; level:"candidate"|"signal"|"risk"|"info"; rabbit:"buy"|"sell"|"both"; title:string; message:string };
 type ServerControlAlert = {
   id:string|number; code?:string; name?:string; createdAt:string; marketDate?:string; marketTime?:string;
   level?:string; title:string; message:string; eventKey?:string|null;
@@ -2002,8 +2006,11 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   // Guard the local simulator against pointer/click bursts. A repeated click
   // should never create a wall of identical B/S markers on the chart.
   const lastQuickOrderRef = useRef<{key:string;at:number}|null>(null);
+  const [ledgerSaveError,setLedgerSaveError]=useState("");
+  const [ledgerReadErrorKey,setLedgerReadErrorKey]=useState("");
   const [tradeLedgerState,setTradeLedgerState]=useState<{key:string;rows:TradeLedgerRow[]}>({key:"",rows:[]});
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
+  const [chartLoadError,setChartLoadError]=useState<{code:string}|null>(null);
   const [trialError, setTrialError] = useState("");
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [zijinHkMarket,setZijinHkMarket]=useState<ZijinHkMarket|null>(null);
@@ -2369,6 +2376,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   };
   const [liveL2ByMinute,setLiveL2ByMinute]=useState<Record<string,ZijinL2State>>({});
   const [liveL2Status,setLiveL2Status]=useState<ZijinL2State|null>(null);
+  const [liveL2FetchedAt,setLiveL2FetchedAt]=useState<string|null>(null);
   const [liveL2Transport,setLiveL2Transport]=useState<"connecting"|"stream"|"polling">("connecting");
   const [liveL2PushLatencyMs,setLiveL2PushLatencyMs]=useState<number|null>(null);
   const [aiL2Review,setAiL2Review]=useState<AiL2Review|null>(null);
@@ -2407,6 +2415,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       const minute=payload.lastExchangeTime?.match(/^\d{8}-(\d{4})/)?.[1];
       const stale=payload.status?.stale||payload.meta?.stale;
       if(!active)return;
+      setLiveL2FetchedAt(new Date().toISOString());
       const servedAt=Date.parse(payload.meta?.servedAt??"");
       setLiveL2PushLatencyMs(Number.isFinite(servedAt)?Math.max(0,Date.now()-servedAt):null);
       setLiveL2Status(current=>{
@@ -2417,7 +2426,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       });
       if(payload.status?.connected&&!stale){
         setLiveL2ByMinute(current=>{
-          const next={...current};
+          const next:Record<string,ZijinL2State>={};
           for(const bar of payload.recentMinutes??[]){
             if(!/^\d{4}$/.test(bar.time))continue;
             const isCurrent=bar.time===minute;
@@ -2444,7 +2453,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               };
           }
           if(minute&&!(payload.recentMinutes??[]).some(bar=>bar.time===minute))next[minute]=payload;
-          return next;
+          return mergeDatedMinuteMap(current,next,payload.lastExchangeTime,new Date());
         });
       }
     };
@@ -2571,16 +2580,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   },[baseActiveQuote,liveL2PriceUsable,liveL2LastPrice,liveL2Status?.session,stock.name]);
   const liveQuoteFresh=useMemo(()=>{
     if(liveL2PriceUsable)return true;
-    const sourceTimestamp=currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp??currentTrial?.fetchedAt??currentMarket?.fetchedAt;
+    const sourceTimestamp=currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp;
     const sourceTime=sourceTimestamp?Date.parse(sourceTimestamp):NaN;
     return Number.isFinite(sourceTime)&&Date.now()-sourceTime<=8_000;
   },[currentMarket?.fetchedAt,currentMarket?.sourceTimestamp,currentTrial?.fetchedAt,currentTrial?.sourceTimestamp,liveL2PriceUsable]);
   const liveDataGate=useMemo(()=>{
-    if(!marketSession.live)return {ready:true as const,state:"closed" as const,label:"非实时",detail:"当前为收盘或复盘数据"};
+    if(!marketSession.live)return {ready:true as const,state:"closed" as const,label:"非实时",detail:marketSession.label};
     const nowMs=clockNow?.getTime()??Date.now();
     const authoritativeTimestamp=liveL2PriceUsable
       ?liveL2Status?.lastExchangeTime??currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp
-      :currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp??currentTrial?.fetchedAt??currentMarket?.fetchedAt;
+      :currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp;
     const sourceMs=authoritativeTimestamp?Date.parse(authoritativeTimestamp):NaN;
     const sourceDate=normalizeMarketDate(authoritativeTimestamp??currentTrial?.sampleDate??currentMarket?.sampleDate);
     const nowDate=normalizeMarketDate(clockNow?.toLocaleDateString("sv-SE",{timeZone:"Asia/Shanghai"})??null);
@@ -2667,23 +2676,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : marketSession.live
     ? {tone:"stale",label:"L2：订单流不可用",detail:`${l2ConsoleNode} · L2已过期，订单流影子观察已暂停；普通行情独立核验 · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
-  const selectedChartSession=useMemo(()=>selectChartSession([currentTrial,currentMarket,marketSnapshots[stock.code]]),[currentTrial,currentMarket,marketSnapshots,stock.code]);
+  const chartWindow=useMemo(()=>currentChartWindow(clockNow),[clockNow]);
+  const selectedChartSession=useMemo(()=>selectChartSession([currentTrial,currentMarket,marketSnapshots[stock.code]],{mode:"current",now:clockNow,code:stock.code}),[currentTrial,currentMarket,marketSnapshots,stock.code,clockNow]);
   const incomingMinutePoints=selectedChartSession.minutes as IntradayMinute[];
-  const minutePointCacheKey=`${stock.code}:${selectedChartSession.date??'unknown'}`;
-  const minutePointCacheRef=useRef<{key:string;points:typeof incomingMinutePoints}>({key:"",points:[]});
-  const rawMinutePoints=useMemo(()=>{
-    if(incomingMinutePoints.length){
-      minutePointCacheRef.current={key:minutePointCacheKey,points:incomingMinutePoints};
-      return incomingMinutePoints;
-    }
-    return selectedChartSession.date&&minutePointCacheRef.current.key===minutePointCacheKey
-      ?minutePointCacheRef.current.points
-      :incomingMinutePoints;
-  },[incomingMinutePoints,minutePointCacheKey,selectedChartSession.date]);
-  const l2MinutePoints=useMemo(()=>stock.code==="601899"?liveL2ByMinute:{},[stock.code,liveL2ByMinute]);
+  // The selected same-day snapshot already survives failed requests. Do not
+  // resurrect a second, independently dated cache after selection rejected it.
+  const rawMinutePoints=incomingMinutePoints;
+  const l2MinutePoints=useMemo(()=>stock.code==="601899"?currentMinuteMap(liveL2ByMinute,clockNow) as Record<string,ZijinL2State>:{},[stock.code,liveL2ByMinute,clockNow]);
   const minutePoints = useMemo(() => {
     type LiveMinutePoint = {
-      time:string; price:number; volume:number; open?:number|null; high?:number|null; low?:number|null; averagePrice?:number|null;
+      date?:string|null; time:string; price:number; volume:number; open?:number|null; high?:number|null; low?:number|null; averagePrice?:number|null;
       dataSource:"public-fallback"|"l2-primary"; l2?:ZijinL2State;
     };
     const merged=new Map<string,LiveMinutePoint>(rawMinutePoints
@@ -2715,6 +2717,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             : 0;
       merged.set(time,{
         ...(base??{time,price:l2Price,volume:0}),
+        date:chartWindow.date,
         price:l2Price,
         high:Number.isFinite(l2High)&&l2High>0?l2High:base?.high??l2Price,
         low:Number.isFinite(l2Low)&&l2Low>0?l2Low:base?.low??l2Price,
@@ -2726,6 +2729,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     const secondExtremes=new Map<string,{high:number;low:number}>();
     for(const tick of liveSecondPoints){
+      if(tick.date!==chartWindow.date)continue;
       const minute=String(tick.time).replace(/\D/g,"").slice(0,4);
       if(!/^\d{4}$/.test(minute)||!Number.isFinite(tick.price)||tick.price<=0)continue;
       const previous=secondExtremes.get(minute);
@@ -2734,7 +2738,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         low:Math.min(previous?.low??tick.price,tick.price),
       });
     }
-    return [...merged.values()].sort((a,b)=>a.time.localeCompare(b.time)).map(point=>{
+    return filterChartMinutes([...merged.values()],chartWindow).sort((a,b)=>a.time.localeCompare(b.time)).map(point=>{
       // Some upstream snapshots occasionally carry a day-level high/low in a
       // minute bar.  It must not stretch the intraday scale when it is plainly
       // inconsistent with that minute's last price.
@@ -2762,7 +2766,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         low:Number.isFinite(low)&&low<=price&&low>=price*.94?low:price,
       };
     });
-  }, [rawMinutePoints,l2MinutePoints,liveSecondPoints]);
+  }, [rawMinutePoints,l2MinutePoints,liveSecondPoints,chartWindow]);
+  const chartNotice=chartSessionNotice({now:clockNow,minutes:minutePoints,quoteDate:snapshotTradingDate(liveL2PriceUsable?{sourceTimestamp:liveL2Status?.lastExchangeTime}:currentTrial??currentMarket),phase:marketSession.phase,error:Boolean(chartLoadError?.code===stock.code||marketError)});
   const l2CalculationCoverage=useMemo(
     ()=>stock?.code==="601899"?minutePoints.filter(point=>point.dataSource==="l2-primary").length:0,
     [stock?.code,minutePoints],
@@ -2968,6 +2973,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     let current:Array<{x:number;y:number;price:number;time:string}>=[];
     let previous:LiveSecondPoint|null=null;
     for(const point of liveSecondPoints){
+      const window=chartWindow;
+      if(point.date!==window.date||!window.cutoff||point.time.slice(0,4)>window.cutoff)continue;
       const x=viewportSecondX(point.time);
       const y=liveChartPriceY(point.price,chartModel.min,chartModel.max);
       const gap=previous!==null&&(point.date!==previous.date||point.timestamp-previous.timestamp>90_000);
@@ -2984,7 +2991,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       segments.push({points:current.map(item=>`${item.x},${item.y}`).join(" "),last});
     }
     return segments.length?{segments,last:segments.at(-1)!.last}:null;
-  },[chartModel,liveSecondPoints,viewportSecondX]);
+  },[chartModel,liveSecondPoints,viewportSecondX,chartWindow]);
   const liveChartLast=useMemo(()=>{
     if(!chartModel)return null;
     const quotePrice=activeQuote?.price;
@@ -6211,11 +6218,13 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     if(!ledgerStorageKey||!stock?.code||tradingDate==="1970-01-01")return;
     const timer=window.setTimeout(()=>{
       try{
-        const saved=localStorage.getItem(ledgerStorageKey);
-        const parsed=saved?JSON.parse(saved):[];
+        const parsed=readLocalLedger(localStorage,ledgerStorageKey);
+        setLedgerReadErrorKey("");
+        setLedgerSaveError("");
         setTradeLedgerState({key:ledgerStorageKey,rows:normalizeTradeLedgerRows(parsed,tradingDate)});
       }catch{
-        setTradeLedgerState({key:ledgerStorageKey,rows:[]});
+        setLedgerReadErrorKey(ledgerStorageKey);
+        setLedgerSaveError("本机账本读取失败，已停止记账。请保留原数据并检查浏览器存储。");
       }
     },0);
     return()=>window.clearTimeout(timer);
@@ -6362,12 +6371,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         if (!response.ok) throw new Error("trial chart unavailable");
         const data = await response.json() as MarketData;
         if (!cancelled) {
+          setChartLoadError(null);
           setTrialQuote(current=>mergeMarketDataSnapshot(current,data));
           setMarketQuotes(current=>({...current,[data.quote.code]:data.quote}));
           setMarketSnapshots(current=>({...current,[data.quote.code]:mergeMarketDataSnapshot(current[data.quote.code],data)}));
           setTrialError("");
         }
       } catch {
+        if (!cancelled) setChartLoadError({code:stock.code});
         if (!cancelled) setTrialError("分时图暂时更新失败，已保留最后一次有效数据。");
       }
     };
@@ -6429,10 +6440,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
   };
   const saveTradeLedgerRows=(next:TradeLedgerRow[])=>{
-    if(!ledgerStorageKey)return;
+    if(ledgerReadErrorKey===ledgerStorageKey){setLedgerSaveError("账本读取失败，禁止覆盖原数据");return false;}
+    if(!ledgerStorageKey){setLedgerSaveError("本机账本尚未就绪，未记账");return false;}
     const normalized=normalizeTradeLedgerRows(next,tradingDate);
+    try{persistLocalLedger(localStorage,ledgerStorageKey,normalized);}
+    catch{setLedgerSaveError("保存失败，未记账。请检查浏览器存储权限或空间后重试。");return false;}
     setTradeLedgerState({key:ledgerStorageKey,rows:normalized});
-    try{localStorage.setItem(ledgerStorageKey,JSON.stringify(normalized));}catch{}
+    setLedgerSaveError("");
+    return true;
   };
   const quickOrderLatestPrice=liveSecondPoints.at(-1)?.price??activeQuote?.price??null;
   const recordQuickSimulatedTrade=(side:TradeLedgerRow["side"])=>{
@@ -6459,10 +6474,10 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     const row:TradeLedgerRow={
       id,tradingDate,time,side,price,quantity,
       cycle:"操盘台模拟待配对",fee:"待计算",result:"—",status:"未配对",
-      source:"cockpit-simulated",simulated:true,marketDate:activeChartDate??tradingDate,chartTime,
+      source:"cockpit-manual",simulated:true,marketDate:activeChartDate??tradingDate,chartTime,
     };
     const next=[row,...tradeLedgerRows];
-    saveTradeLedgerRows(next);
+    if(!saveTradeLedgerRows(next)){setQuickOrderFeedback("保存失败，未记账");return;}
     const nextSummary=summarizeTradeLedger(next,activePosition,tradingDate);
     setQuickOrderPrice(price.toFixed(2));
     setQuickOrderFeedback(`${side}已记录 · 持仓 ${nextSummary.currentShares.toLocaleString("zh-CN")} · 可卖 ${nextSummary.remainingSellable.toLocaleString("zh-CN")}`);
@@ -6892,7 +6907,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       layoutOpen={dashboardLayoutOpen}
       onLayoutClose={()=>setDashboardLayoutOpen(false)}
       stock={{code:stock.code,name:stock.name}}
-      quote={activeQuote}
+      quote={activeQuote??null}
       minutePoints={minutePoints}
       chartType={redesignChartType}
       onChartTypeChange={setRedesignChartType}
@@ -6927,7 +6942,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div className="top-actions">
           <span className={`market-open ${marketSession.tone}`} title={`${marketSession.label}：${marketSession.detail}；法定节假日以交易所公告为准`} aria-label={`${marketSession.label}：${marketSession.detail}`}><i /><span className="market-open-label">{marketSession.live?"监控中":marketSession.label}</span></span>
           <span className={`auto-off ${marketSession.live?"running":"paused"}`}><i />{marketSession.live?"自动判断运行中":"自动判断已暂停"} · 下单未连接</span>
-          <span className="clock">{currentTrial ? new Date(currentTrial.sourceTimestamp || currentTrial.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : currentMarket ? new Date(currentMarket.fetchedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) : "--:--"}</span>
+          <span className="clock">行情 {formatDataTime(liveL2PriceUsable?liveL2Status?.lastExchangeTime:currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp)}</span>
           <button className="profile-cycle" onClick={()=>setStrategyOpen(true)} aria-label={`内置闭环当前使用${profile}，点击查看策略档位`} title="操盘台与模拟回测共用此档位"><span>闭环 · {profile.replace('档','')}</span><i>⌄</i></button>
           <button className="strategy-help" onClick={()=>setStrategyOpen(true)}>策略说明</button>
           <button className="dashboard-layout-trigger" type="button" onClick={()=>setDashboardLayoutOpen(true)} aria-label="打开工作台布局管理器">布局</button>
@@ -6937,6 +6952,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
           <button className="icon-button" onClick={()=>setOnboardingOpen(true)} aria-label="打开账户与监控设置" title="账户与监控设置">⚙</button>
         </div>
       </header>
+      {(activeView==="操盘台"||activeView==="持仓对账"||activeView==="模拟回测")&&<DataStateStrip source={liveL2PriceUsable?"L2快照":currentTrial?.provider??currentMarket?.provider} sourceTime={liveL2PriceUsable?liveL2Status?.lastExchangeTime:currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp} fetchedAt={liveL2PriceUsable?liveL2FetchedAt:currentTrial?.fetchedAt??currentMarket?.fetchedAt} status={liveDataGate.label} detail={liveDataGate.detail} demo={demoMode} researchBlocked={isZijinStock} storageError={ledgerSaveError}/>}
+      {activeView==="操盘台"&&<ManualPaperPanel key={`${accountName}:${stock.code}`} accountKey={accountName} symbol={stock.code}/>}
       {demoMode&&<div className="demo-ribbon" role="status"><b>免注册演示</b><span>当前为本机临时体验，不代表正式账户；下单接口关闭，演示操作不会同步到其他设备。</span><button onClick={()=>{setDemoMode(false);setLocalAuth(false);onLogout?.()}}>创建测试账户</button></div>}
 
       {activeView === "首页" ? <HomeView onNavigate={setActiveView} onOpenZijin={openZijinExperiment} stockCount={stockList.length} canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} referralCredits={accountMembership?.referralCredits??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} /> : activeView === "邀请中心" ? <ReferralCenter canInvite={!demoMode&&accountRole!=='admin'&&Boolean(accountMembership?.referralCode)} demoMode={demoMode} referralCode={accountMembership?.referralCode??null} referralCredits={accountMembership?.referralCredits??0} referralReviews={accountMembership?.referralReviews??0} onCopyInvite={()=>void copyReferralLink()} inviteMessage={inviteMessage} onOpenAccount={()=>setAccountOpen(true)} /> : activeView === "量化工具" ? <QuantToolsView onNavigate={setActiveView} /> : activeView === "操盘台" ? <>
@@ -7010,11 +7027,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div><span>持仓 / 可卖</span><b>{displayedShares.toLocaleString()}<small> / {effectiveLivePosition.sellable.toLocaleString()} 股</small></b></div>
         <div><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></div>
         <div><span>信号置信度</span><b className={decisionModel.status==="ready"?"ready":decisionModel.status==="locked"?"risk":""}>{decisionModel.confirmed}/4</b></div>
-        <div className="desk-core-reason"><span>当前依据</span><b>{marketSession.live?decisionModel.reason:"复盘模式"}</b></div>
+        <div className="desk-core-reason"><span>当前依据</span><b>{marketSession.live?decisionModel.reason:marketSession.label}</b></div>
       </section>
 
       <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionPanelCollapsed?'decision-panel-collapsed':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${chartAnnotationMode==="compact"?"compact-chart-labels":""} ${signalLayerVisible?'':'hide-signal-layer'} ${formalSignalVisible?'':'hide-formal-signal-layer'} ${v29SignalVisible?'':'hide-v29-signal-layer'} ${v1SignalVisible?'':'hide-v1-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'} ${rabbitTrackerVisible?'':'hide-rabbit-tracker'}`} ref={workspaceRef} style={{"--decision-panel-width":`${decisionPanelWidth}px`,"--order-flow-height":`${orderFlowHeight}px`} as CSSProperties}>
         <div className="chart-zone">
+          <div className="chart-session-status" role="status">{chartNotice.detail}</div>
           <div className={`chart-tools ${chartToolsExpanded?"expanded":"collapsed"}`}>
             <div className="legend primary-chart-legend">
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
@@ -7031,9 +7049,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 </div>
               </details>
             </div>
-            <span className={`live-scan ${marketSession.live?"":"paused"}`} title={marketSession.live?(currentTrial?"1 秒轮询试用 · 实时行情源":trialError||(currentMarket?`公开行情 · ${currentMarket.delayed?"延迟数据":"已更新"}`:marketError||"连接行情中")):"当前为收盘复盘模式"}><i/>{marketSession.live?(currentTrial?"实时行情":currentMarket?currentMarket.delayed?"行情延迟":"行情已更新":"连接行情"):"复盘模式"}</span>
-            <div className="intraday-only" title="1分钟K使用真实开高低收；数据不完整时自动回退分时线">
-              <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"} <small>{intradayChartType==="candle"&&chartModel?.candleReady?(chartModel.candleEstimated?"估算 OHLC":"真实 OHLC"):"分钟历史 · 秒级观察"}</small>
+            <span className={`live-scan ${marketSession.live?"":"paused"}`} title={chartNotice.detail}><i/>{chartNotice.label}</span>
+            <div className="intraday-only" title="仅显示日期已确认的分钟数据">
+              <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"}
             </div>
              <div id="chart-tool-controls" className="chart-control-groups" aria-label="图表控制">
                <div className="chart-control-group">
@@ -7103,7 +7121,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 const hoverKey=marker.key;
                 const counter=marker.kind==="counter-t-watch";
                 const detail=`${marker.title} · ${marker.detail}${marker.displayCount>1?` · 附近 ${marker.displayCount} 条同类观察（仅合并图上展示）`:''} · 仅作辅助观察，不生成交易动作`;
-                return <g key={hoverKey} className={`t-guidance-chart-marker ${marker.kind}`} tabIndex={0} role="img" style={{pointerEvents:"auto",cursor:"help"}} onFocus={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.title,detail})} onBlur={()=>setHoveredChartSignal(null)} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.title,detail})} onPointerLeave={()=>setHoveredChartSignal(null)} aria-label={`${marker.time} ${marker.title}`}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${detail}`}</title>{counter?<polygon points={`${marker.x},${marker.y-3} ${marker.x+3},${marker.y} ${marker.x},${marker.y+3} ${marker.x-3},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="2.5"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.title}</strong><span>{detail}</span></div></foreignObject>}</g>;
+                return <g key={hoverKey} className={`t-guidance-chart-marker ${marker.kind}`} tabIndex={0} role="img" style={{pointerEvents:"auto",cursor:"help"}} onFocus={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.title,detail})} onBlur={()=>setHoveredChartSignal(null)} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.title,detail})} onPointerLeave={()=>setHoveredChartSignal(null)} aria-label={`${marker.time} ${marker.title}`}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${detail}`}</title>{counter?<polygon points={`${marker.x},${marker.y-3} ${marker.x+3},${marker.y} ${marker.x},${marker.y+3} ${marker.x-3},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="2.5"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><XhtmlDiv xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.title}</strong><span>{detail}</span></XhtmlDiv></foreignObject>}</g>;
               })}
               {false&&isZijinStock&&orderFlowChartPoint&&<g className="intraday-order-flow-badge" transform={`translate(${orderFlowChartPoint.x} ${orderFlowChartPoint.y})`} aria-label={`订单流影子评分：正T ${orderFlowBuyStrength.label}，反T ${orderFlowSellStrength.label}`}>
                 <title>{`${orderFlowChartPoint.time.slice(0,2)}:${orderFlowChartPoint.time.slice(2)} · 订单流影子评分 · 正T ${orderFlowBuyStrength.label} · 反T ${orderFlowSellStrength.label} · 仅作质量观察，不影响正式闭环`}</title>
@@ -7111,14 +7129,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 <text x="0" y="-1" textAnchor="middle">OF 影子</text>
                 <text x="0" y="8" textAnchor="middle" className="scores">正T {orderFlowBuyStrength.label} · 反T {orderFlowSellStrength.label}</text>
               </g>}
-              {intradayMarkerLayout.riskMarkers.map(marker=>{const hoverKey=`risk-${marker.kind}-${marker.time}-${marker.index}`;return <g key={hoverKey} className={`intraday-risk-marker ${marker.kind}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.label,detail:marker.detail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.detail}`}</title><circle cx={marker.x} cy={marker.y} r="5"/><text x={marker.x+8} y={marker.y-7}>{marker.label}</text>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.label}</strong><span>{marker.detail}</span></div></foreignObject>}</g>})}
-              {intradayMarkerLayout.fusionMarkers.map(marker=>{const hoverKey=`fusion-${marker.time}`;return <g key={hoverKey} className={`candidate-signal-marker fusion-marker ${marker.side} ${marker.labelRendered?"with-label":"dot-only"}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.label,detail:marker.detail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.label} · ${marker.detail}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.chartLabel??marker.label}/></text></>}<circle cx={marker.x} cy={marker.y} r="6"/>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.label}</strong><span>{marker.detail}</span></div></foreignObject>}</g>})}
-              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";const hoverKey=`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`;const hoverTitle=marker.currentLabel;const hoverDetail=`${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`;return <g key={hoverKey} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${hoverDetail}`}</title>{marker.labelVisible&&marker.labelRendered&&(chartAnnotationMode==="full"||marker.strategy==="closure")&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.currentLabel}/></text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></div></foreignObject>}</g>})}
-              {intradayMarkerLayout.shadowActions.map(marker=>{const hoverKey=`shadow-${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`;const hoverTitle=marker.label;const hoverDetail=`影子参考，不可执行 · ${marker.action.reason??marker.label}`;return <g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={hoverKey} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${hoverTitle} · ${hoverDetail}`}</title>{chartAnnotationMode==="full"&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.chartLabel??marker.label}/></text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="3"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></div></foreignObject>}</g>})}
+              {intradayMarkerLayout.riskMarkers.map(marker=>{const hoverKey=`risk-${marker.kind}-${marker.time}-${marker.index}`;return <g key={hoverKey} className={`intraday-risk-marker ${marker.kind}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.label,detail:marker.detail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.detail}`}</title><circle cx={marker.x} cy={marker.y} r="5"/><text x={marker.x+8} y={marker.y-7}>{marker.label}</text>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><XhtmlDiv xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.label}</strong><span>{marker.detail}</span></XhtmlDiv></foreignObject>}</g>})}
+              {intradayMarkerLayout.fusionMarkers.map(marker=>{const hoverKey=`fusion-${marker.time}`;return <g key={hoverKey} className={`candidate-signal-marker fusion-marker ${marker.side} ${marker.labelRendered?"with-label":"dot-only"}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:marker.label,detail:marker.detail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.time.slice(0,2)}:${marker.time.slice(2)} · ${marker.label} · ${marker.detail}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.chartLabel??marker.label}/></text></>}<circle cx={marker.x} cy={marker.y} r="6"/>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><XhtmlDiv xmlns="http://www.w3.org/1999/xhtml"><strong>{marker.label}</strong><span>{marker.detail}</span></XhtmlDiv></foreignObject>}</g>})}
+              {intradayMarkerLayout.observations.map(marker=>{const observationClass=marker.strategy==="observation"?`observation-layer ${marker.observation.observationKind??""} ${marker.observation.direction==="反T"?"pivot-top":"pivot-bottom"}`:marker.strategy==="v29"?"v29-shadow-marker":marker.strategy==="v1"?"v1-context-marker":"closure-signal-marker";const calibrationNote=marker.observation.observationKind?.startsWith("pivot-")?(marker.observation.calibratedHitRate!==undefined?` · 历史校准 ${(marker.observation.calibratedHitRate*100).toFixed(0)}%（${marker.observation.calibrationSamples??0}样本）`:" · 概率未校准") :"";const hoverKey=`candidate-${marker.strategy}-${marker.observation.time}-${marker.index}`;const hoverTitle=marker.currentLabel;const hoverDetail=`${marker.fullLabel??marker.currentLabel}${calibrationNote}${marker.strategy!=="closure"?" · 观察参考，不可执行":""}`;return <g key={hoverKey} className={`candidate-signal-marker ${observationClass} ${marker.qualified?marker.sideClass:"watch"} ${marker.assessment} ${marker.labelRendered?"with-label":"dot-only"}`} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.observation.time.slice(0,2)}:${marker.observation.time.slice(2,4)} · ${hoverDetail}`}</title>{marker.labelVisible&&marker.labelRendered&&(chartAnnotationMode==="full"||marker.strategy==="closure")&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.currentLabel}/></text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="4.5"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><XhtmlDiv xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></XhtmlDiv></foreignObject>}</g>})}
+              {intradayMarkerLayout.shadowActions.map(marker=>{const hoverKey=`shadow-${marker.strategy}-${marker.action.time}-${marker.action.side}-${marker.index}`;const hoverTitle=marker.label;const hoverDetail=`影子参考，不可执行 · ${marker.action.reason??marker.label}`;return <g className={`candidate-signal-marker ${marker.strategy==="v1"?"v1-context-marker":"v29-shadow-marker"} ${marker.isSell?'sell':'buy'} with-label`} key={hoverKey} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${hoverTitle} · ${hoverDetail}`}</title>{chartAnnotationMode==="full"&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+5:marker.labelY-11} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-11} width={marker.labelWidth} height="16" rx="8"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle"><SignalBadgeText label={marker.chartLabel??marker.label}/></text></>}{marker.strategy==="v1"?<polygon points={`${marker.x},${marker.y-4.5} ${marker.x+4.5},${marker.y} ${marker.x},${marker.y+4.5} ${marker.x-4.5},${marker.y}`}/>:<circle cx={marker.x} cy={marker.y} r="3"/>}{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><XhtmlDiv xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></XhtmlDiv></foreignObject>}</g>})}
               {/* Recorded candidate reminders remain available to the
                   crosshair/audit data, but their unlabeled anchor dots are
                   intentionally not painted on the trading chart. */}
-              {intradayMarkerLayout.actions.map(marker=>{const hoverKey=`formal-${marker.action.time}-${marker.action.side}-${marker.index}`;const hoverTitle=marker.label;const hoverDetail=marker.action.reason??marker.label;return <g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={hoverKey} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${hoverTitle} · ${hoverDetail}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}><SignalBadgeText label={marker.chartLabel??marker.label} formalSide={marker.isSell?"sell":"buy"}/></text></>}<circle cx={marker.x} cy={marker.y} r="4.5" className={marker.isSell?'sell':'buy'}/>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></div></foreignObject>}</g>})}
+              {intradayMarkerLayout.actions.map(marker=>{const hoverKey=`formal-${marker.action.time}-${marker.action.side}-${marker.index}`;const hoverTitle=marker.label;const hoverDetail=marker.action.reason??marker.label;return <g className={`live-signal-marker ${marker.isSell?'sell':'buy'}`} key={hoverKey} style={{pointerEvents:"auto",cursor:"help"}} onPointerEnter={()=>setHoveredChartSignal({key:hoverKey,x:marker.x,y:marker.y,title:hoverTitle,detail:hoverDetail})} onPointerLeave={()=>setHoveredChartSignal(null)}><title>{`${marker.action.time.slice(0,2)}:${marker.action.time.slice(2,4)} · ${hoverTitle} · ${hoverDetail}`}</title>{marker.labelRendered&&<><line x1={marker.x} y1={marker.labelAbove?marker.y-7:marker.y+7} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+6:marker.labelY-12} className="marker-label-leader"/><rect x={marker.labelX-marker.labelWidth/2} y={marker.labelY-12} width={marker.labelWidth} height="18" rx="9"/><text x={marker.labelX} y={marker.labelY} textAnchor="middle" className={marker.isSell?'sell':'buy'}><SignalBadgeText label={marker.chartLabel??marker.label} formalSide={marker.isSell?"sell":"buy"}/></text></>}<circle cx={marker.x} cy={marker.y} r="4.5" className={marker.isSell?'sell':'buy'}/>{hoveredChartSignal?.key===hoverKey&&<foreignObject className="chart-signal-hover" x={Math.min(LIVE_CHART.plotRight-240,Math.max(LIVE_CHART.plotLeft,marker.x+12))} y={Math.max(LIVE_CHART.priceTop,marker.y-72)} width="240" height="64"><XhtmlDiv xmlns="http://www.w3.org/1999/xhtml"><strong>{hoverTitle}</strong><span>{hoverDetail}</span></XhtmlDiv></foreignObject>}</g>})}
               {intradayMarkerLayout.manualTrades.map(marker=><g className={`manual-trade-marker ${marker.isSell?"sell":"buy"}`} key={`manual-${marker.row.id}`}><title>{`${marker.row.time??marker.time} · ${marker.row.side}模拟成交 · ¥${marker.row.price.toFixed(2)} · ${marker.row.quantity.toLocaleString("zh-CN")}股`}</title><circle className="manual-trade-anchor" cx={marker.x} cy={marker.y} r="3"/><line x1={marker.x} y1={marker.labelAbove?marker.y-5:marker.y+5} x2={marker.labelX} y2={marker.labelAbove?marker.labelY+4:marker.labelY-12} className="marker-label-leader"/><circle className="manual-trade-badge" cx={marker.labelX} cy={marker.labelY-4} r="8"/><text x={marker.labelX} y={marker.labelY-1} textAnchor="middle">{marker.label}</text></g>)}
               <g key={rabbitTrackerSignal?.key??`rabbit-${rabbitTrackerMode}`} className={`chart-rabbit-tracker ${rabbitTrackerMode} ${rabbitTrackerSignal?.tone??""}`} style={{transform:`translate(${Math.max(LIVE_CHART.plotLeft+18,Math.min(LIVE_CHART.plotRight-18,chartModel.lastX+16))}px, ${Math.max(LIVE_CHART.priceTop+18,Math.min(LIVE_CHART.priceBottom-18,chartModel.lastY-19))}px)`} as CSSProperties} aria-label={rabbitTrackerSignal?.label??"兔兔正在跟踪最新分时"}>
                 <image className="rabbit-brand-reference" href="/rabbit-daylight-pair.webp" width="0" height="0" opacity="0" aria-hidden="true"/>
@@ -7422,7 +7440,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               <p className="accent"><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></p>
               <p><span>预估净收益</span><b className={(tCalculator?.net??0)>=0?"positive":"negative"}>{tCalculator?money(tCalculator.net):"--"}</b></p>
             </div>
-            <div className="quick-sim-order" aria-label="快捷模拟下单">
+            <div className="quick-sim-order" aria-label="手工模拟流水">
+              <p>手工模拟记录 · 不经过执行引擎，费用待核算；独立模拟账户在页面上方。</p>
               <div className="quick-sim-order-inputs">
                 <label><span>模拟成交价</span><span className="quick-price-field"><input aria-label="模拟成交价" inputMode="decimal" value={quickOrderPrice} onChange={event=>{setQuickOrderPrice(event.target.value);setQuickOrderFeedback("")}} placeholder={quickOrderLatestPrice?.toFixed(2)??"0.00"}/><span className="quick-price-actions" role="group" aria-label="快捷填入模拟成交价"><button type="button" disabled={!quickOrderLatestPrice} onClick={()=>{if(quickOrderLatestPrice){setQuickOrderPrice(quickOrderLatestPrice.toFixed(2));setQuickOrderFeedback("")}}}>现价</button><button type="button" disabled={!quickOrderLatestPrice} onClick={()=>{if(quickOrderLatestPrice){setQuickOrderPrice((quickOrderLatestPrice*.99).toFixed(2));setQuickOrderFeedback("")}}}>-1%</button><button type="button" disabled={!quickOrderLatestPrice} onClick={()=>{if(quickOrderLatestPrice){setQuickOrderPrice((quickOrderLatestPrice*1.01).toFixed(2));setQuickOrderFeedback("")}}}>+1%</button></span></span></label>
                 <label><span>数量</span><input aria-label="模拟成交数量" inputMode="numeric" value={quickOrderQuantity} onChange={event=>{setQuickOrderQuantity(event.target.value.replace(/\D/g,""));setQuickOrderFeedback("")}} placeholder="1000"/></label>
@@ -7548,7 +7567,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <footer><span>一级官方事件可进入风险闸门</span><em>二、三级仅影子观察，不改变正式策略</em></footer>
           </details>}
           {isZijinStock&&displayedZijinPricePlan&&<details className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"} ${premiumEnabled&&!displayedZijinPricePlan.ready?"compact-waiting":""}`} aria-label="紫金矿业预判买入卖出价区间">
-            <summary className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":marketSession.live?"紫金会员 · 实时因果":"紫金会员 · 收盘复盘"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":marketSession.live?"实时参考价区":"复盘参考价区"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":marketSession.live?"等待分时":"已收盘"):"会员功能"}</em></summary>
+            <summary className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":marketSession.live?"紫金会员 · 实时因果":marketSession.phase==="lunch"?"紫金会员 · 午间休市":"紫金会员 · 收盘分时"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":marketSession.live?"实时参考价区":marketSession.phase==="lunch"?"午休参考价区":"收盘参考价区"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":marketSession.live?"等待分时":"已收盘"):"会员功能"}</em></summary>
             {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
               <div className="zijin-price-plan-grid">
                 <div className="buy"><small title="正T：先买入、后卖出等量旧仓，目标是降低持仓成本">{isPreopenPlanPhase?"开盘正T观察区":"正T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.buyRange[0].toFixed(2)}–{displayedZijinPricePlan.buyRange[1].toFixed(2)}</b><span>到区后等价格与量价结构确认</span></div>

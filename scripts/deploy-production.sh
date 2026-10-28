@@ -238,7 +238,7 @@ classify_changed_path() {
     deploy/paperclip/*|services/paperclip-bridge/*|lib/factor-research/*|scripts/run-factor-research.mjs)
       paperclip_update_needed=1
       ;;
-    Dockerfile.l2|requirements.l2.txt|scripts/zijin_l2_collector.py|scripts/zijin_l2_forward_labels.py|scripts/zijin_l2_second_state.py|scripts/zijin_l2_healthcheck.py)
+    Dockerfile.l2|requirements.l2.txt|scripts/zijin_l2_collector.py|scripts/zijin_l2_forward_labels.py|scripts/zijin_l2_persistence_receipt.py|scripts/zijin_l2_receipt_writer.py|scripts/zijin_l2_second_state.py|scripts/zijin_l2_healthcheck.py)
       l2_build_needed=1
       l2_service_needed=1
       ;;
