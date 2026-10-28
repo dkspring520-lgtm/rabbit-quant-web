@@ -34,10 +34,10 @@ printf '%s' "${MOCK_HTTP:-200}"
 MOCK
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
-bash "$root/scripts/accept-research-network.sh" > "$tmp/pass.log"
+bash "$root/deploy/paperclip/accept-research-network.sh" > "$tmp/pass.log"
 grep -q 'CANDIDATE_HTTP_PASS internal_only_host=false dual_network_host=true' "$tmp/pass.log"
 [[ $(find "$MOCK_STATE" -type f ! -name calls | wc -l) == 0 ]]
-if MOCK_HTTP=503 bash "$root/scripts/accept-research-network.sh" > "$tmp/fail.log"; then echo 'unexpected success'; exit 1; fi
+if MOCK_HTTP=503 bash "$root/deploy/paperclip/accept-research-network.sh" > "$tmp/fail.log"; then echo 'unexpected success'; exit 1; fi
 grep -q DUAL_NETWORK_FAILED "$tmp/fail.log"
 [[ $(find "$MOCK_STATE" -type f ! -name calls | wc -l) == 0 ]]
 ! grep -Eq 'pull |prune|production|rabbit-quant-paperclip' "$MOCK_STATE/calls"

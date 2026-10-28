@@ -26,7 +26,7 @@ resource cleanup. These are not Linux/Docker network acceptance.
 
 ## Release gates (not executed)
 
-1. Run scripts/accept-research-network.sh on existing server; retain full log.
+1. Run deploy/paperclip/accept-research-network.sh on existing server; retain full log.
 2. Validate recovery snapshot and image/config rollback, including Paperclip data.
 3. Keep deploy timer paused and service inactive during approved switch. Read and
    reconcile paperclip-pending-sha with the chosen release; do not blindly delete
@@ -43,3 +43,14 @@ Chart commit 8f3f78d is separate and excluded. It needs a separate reviewed rele
 the existing deploy classifier treats lib changes as affecting more than Web.
 No production network, daemon, firewall, Web/L2 or timer operation was performed
 by this branch. No claim of production deployment or strategy readiness.
+
+Server candidate evidence supplied by user: 2026-10-28 08:56:32Z,
+Docker 29.1.3, owner rabbit-network-vcpVXAeh, fixed cached Node ID matched.
+Internal-only app HTTP passed but had no published port; dual network app passed
+and loopback port 32768 returned HTTP 200. Both containers and networks removed,
+exit 0; log /tmp/rabbit-network-candidate.vcpVXAeh/acceptance.log.
+This proves synthetic ingress, not application auth, outbound policy or strategy.
+The script was moved unchanged from scripts/ to deploy/paperclip/ so the existing
+publisher does not classify it as a Web/Trainer/support runtime change.
+Original delivered bytes: SHA256
+6418aecbbc3d689492619fddec1cf30a32d5cde9fbd97cfb2bc7b187828691ea.
