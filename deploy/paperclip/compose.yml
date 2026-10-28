@@ -19,11 +19,12 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}
       PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: ${PAPERCLIP_TOOL_ACTION_SIGNING_SECRET:?PAPERCLIP_TOOL_ACTION_SIGNING_SECRET must be set}
     ports:
-      - "${PAPERCLIP_BIND_HOST:-127.0.0.1}:${PAPERCLIP_PORT:-3100}:3100"
+      - "127.0.0.1:${PAPERCLIP_PORT:-3100}:3100"
     volumes:
       - paperclip-home:/paperclip
     networks:
       - research-control
+      - research-access
     labels:
       rabbit-quant.research.commit: ${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
     security_opt:
@@ -53,7 +54,7 @@ services:
       PAPERCLIP_BRIDGE_STATE_ROOT: /state
       PAPERCLIP_BRIDGE_TOKENS_FILE: /config/tokens.json
     ports:
-      - "${PAPERCLIP_BRIDGE_BIND_HOST:-127.0.0.1}:${PAPERCLIP_BRIDGE_PORT:-3210}:3210"
+      - "127.0.0.1:${PAPERCLIP_BRIDGE_PORT:-3210}:3210"
     volumes:
       - "${PAPERCLIP_DATASET_ROOT:?PAPERCLIP_DATASET_ROOT must be set}:/datasets:ro"
       - "${PAPERCLIP_BRIDGE_CONFIG_ROOT:-./config}:/config:ro"
@@ -61,6 +62,7 @@ services:
       - bridge-state:/state
     networks:
       - research-control
+      - research-access
     labels:
       rabbit-quant.research.commit: ${APP_COMMIT_SHA:?APP_COMMIT_SHA must be the full application commit}
     read_only: true
@@ -80,6 +82,11 @@ services:
 networks:
   research-control:
     internal: true
+  research-access:
+    driver: bridge
+    internal: false
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: nat
 
 volumes:
   paperclip-home:
