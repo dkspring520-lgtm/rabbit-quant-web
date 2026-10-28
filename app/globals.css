@@ -6032,3 +6032,4 @@ dialog.flow-detail-drawer::backdrop {background:rgb(0 0 0 / 30%)}
 .manual-paper-panel input{max-width:100%;min-width:0;padding:6px;border:1px solid #64748b66;border-radius:5px;color:inherit;background:transparent}
 .manual-paper-panel button{padding:7px 12px;border:1px solid #64748b66;border-radius:5px}
 .manual-paper-panel p,.manual-paper-panel li{overflow-wrap:anywhere}
+.chart-session-status{flex:0 0 auto;padding:8px 16px;border-bottom:1px solid var(--line);color:var(--text);font-size:12px;line-height:1.5;overflow-wrap:anywhere}

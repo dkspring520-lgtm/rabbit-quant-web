@@ -10,7 +10,7 @@ import {advanceSlice} from '../lib/slice-alerts.mjs';
 import {openingScoreEvents} from '../lib/opening-score.mjs';
 import OrderFlowDrawer from './order-flow-drawer';
 import {groupChartEvents} from '../lib/chart-event-groups.mjs';
-import {selectChartSession,snapshotTradingDate} from '../lib/chart-session.mjs';
+import {selectChartSession,snapshotTradingDate,currentChartWindow,filterChartMinutes,chartSessionNotice,mergeDatedMinuteMap,currentMinuteMap} from '../lib/chart-session.mjs';
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import dynamic from "next/dynamic";
@@ -200,11 +200,11 @@ const base64UrlToUint8Array = (value:string) => {
 };
 
 type MarketBar = { date:string; open:number; close:number; high:number; low:number; volume:number; amount:number };
-type IntradayMinute = {time:string;price:number;volume:number;open?:number|null;high?:number|null;low?:number|null;averagePrice?:number|null;timeVolumeBaseline?:number|null};
+type IntradayMinute = {date?:string|null;time:string;price:number;volume:number;open?:number|null;high?:number|null;low?:number|null;averagePrice?:number|null;timeVolumeBaseline?:number|null};
 type LiveSecondPoint = { date:string; time:string; timestamp:number; price:number };
 type IntradaySession = { date:string; previousClose:number|null; minutes:IntradayMinute[] };
 type PersonalReplayArchive = { session:IntradaySession; source:string; coverage:{sessions:number;firstDate:string;lastDate:string|null} };
-type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; quality?:{status?:string;signalEligible?:boolean;reasons?:string[];failures?:string[];lastMinute?:string|null;minuteCount?:number;expectedMinuteCount?:number;missingMinutes?:number;minuteLag?:number|null;quoteAgeSeconds?:number|null}; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
+type MarketData = { provider:string; delayed:boolean; trial?:boolean; fetchedAt:string; sourceTimestamp?:string|null; sampleDate?:string; minuteDate?:string|null; quality?:{status?:string;signalEligible?:boolean;reasons?:string[];failures?:string[];lastMinute?:string|null;minuteCount?:number;expectedMinuteCount?:number;missingMinutes?:number;minuteLag?:number|null;quoteAgeSeconds?:number|null}; quote:{ code:string; name:string; price:number|null; previousClose?:number|null; change:number|null; changePercent:number|null; open:number|null; high:number|null; low:number|null; volume?:number|null; amount?:number|null }; bars:MarketBar[]; minutes?:IntradayMinute[]; intradaySessions?:IntradaySession[] };
 type AiMonitorRemotePayload = {
   error?:string;
   errors?:string[];
@@ -2010,6 +2010,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
   const [ledgerReadErrorKey,setLedgerReadErrorKey]=useState("");
   const [tradeLedgerState,setTradeLedgerState]=useState<{key:string;rows:TradeLedgerRow[]}>({key:"",rows:[]});
   const [trialQuote, setTrialQuote] = useState<MarketData | null>(null);
+  const [chartLoadError,setChartLoadError]=useState<{code:string}|null>(null);
   const [trialError, setTrialError] = useState("");
   const [marketContext, setMarketContext] = useState<MarketContext | null>(null);
   const [zijinHkMarket,setZijinHkMarket]=useState<ZijinHkMarket|null>(null);
@@ -2425,7 +2426,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       });
       if(payload.status?.connected&&!stale){
         setLiveL2ByMinute(current=>{
-          const next={...current};
+          const next:Record<string,ZijinL2State>={};
           for(const bar of payload.recentMinutes??[]){
             if(!/^\d{4}$/.test(bar.time))continue;
             const isCurrent=bar.time===minute;
@@ -2452,7 +2453,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
               };
           }
           if(minute&&!(payload.recentMinutes??[]).some(bar=>bar.time===minute))next[minute]=payload;
-          return next;
+          return mergeDatedMinuteMap(current,next,payload.lastExchangeTime,new Date());
         });
       }
     };
@@ -2584,7 +2585,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     return Number.isFinite(sourceTime)&&Date.now()-sourceTime<=8_000;
   },[currentMarket?.fetchedAt,currentMarket?.sourceTimestamp,currentTrial?.fetchedAt,currentTrial?.sourceTimestamp,liveL2PriceUsable]);
   const liveDataGate=useMemo(()=>{
-    if(!marketSession.live)return {ready:true as const,state:"closed" as const,label:"非实时",detail:"当前为收盘或复盘数据"};
+    if(!marketSession.live)return {ready:true as const,state:"closed" as const,label:"非实时",detail:marketSession.label};
     const nowMs=clockNow?.getTime()??Date.now();
     const authoritativeTimestamp=liveL2PriceUsable
       ?liveL2Status?.lastExchangeTime??currentTrial?.sourceTimestamp??currentMarket?.sourceTimestamp
@@ -2675,23 +2676,16 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     : marketSession.live
     ? {tone:"stale",label:"L2：订单流不可用",detail:`${l2ConsoleNode} · L2已过期，订单流影子观察已暂停；普通行情独立核验 · ${liveL2LatencyText}`}
       : {tone:"off",label:"L2：接口 OFF",detail:`${l2ConsoleNode} · 连接未建立`};
-  const selectedChartSession=useMemo(()=>selectChartSession([currentTrial,currentMarket,marketSnapshots[stock.code]]),[currentTrial,currentMarket,marketSnapshots,stock.code]);
+  const chartWindow=useMemo(()=>currentChartWindow(clockNow),[clockNow]);
+  const selectedChartSession=useMemo(()=>selectChartSession([currentTrial,currentMarket,marketSnapshots[stock.code]],{mode:"current",now:clockNow,code:stock.code}),[currentTrial,currentMarket,marketSnapshots,stock.code,clockNow]);
   const incomingMinutePoints=selectedChartSession.minutes as IntradayMinute[];
-  const minutePointCacheKey=`${stock.code}:${selectedChartSession.date??'unknown'}`;
-  const minutePointCacheRef=useRef<{key:string;points:typeof incomingMinutePoints}>({key:"",points:[]});
-  const rawMinutePoints=useMemo(()=>{
-    if(incomingMinutePoints.length){
-      minutePointCacheRef.current={key:minutePointCacheKey,points:incomingMinutePoints};
-      return incomingMinutePoints;
-    }
-    return selectedChartSession.date&&minutePointCacheRef.current.key===minutePointCacheKey
-      ?minutePointCacheRef.current.points
-      :incomingMinutePoints;
-  },[incomingMinutePoints,minutePointCacheKey,selectedChartSession.date]);
-  const l2MinutePoints=useMemo(()=>stock.code==="601899"?liveL2ByMinute:{},[stock.code,liveL2ByMinute]);
+  // The selected same-day snapshot already survives failed requests. Do not
+  // resurrect a second, independently dated cache after selection rejected it.
+  const rawMinutePoints=incomingMinutePoints;
+  const l2MinutePoints=useMemo(()=>stock.code==="601899"?currentMinuteMap(liveL2ByMinute,clockNow) as Record<string,ZijinL2State>:{},[stock.code,liveL2ByMinute,clockNow]);
   const minutePoints = useMemo(() => {
     type LiveMinutePoint = {
-      time:string; price:number; volume:number; open?:number|null; high?:number|null; low?:number|null; averagePrice?:number|null;
+      date?:string|null; time:string; price:number; volume:number; open?:number|null; high?:number|null; low?:number|null; averagePrice?:number|null;
       dataSource:"public-fallback"|"l2-primary"; l2?:ZijinL2State;
     };
     const merged=new Map<string,LiveMinutePoint>(rawMinutePoints
@@ -2723,6 +2717,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             : 0;
       merged.set(time,{
         ...(base??{time,price:l2Price,volume:0}),
+        date:chartWindow.date,
         price:l2Price,
         high:Number.isFinite(l2High)&&l2High>0?l2High:base?.high??l2Price,
         low:Number.isFinite(l2Low)&&l2Low>0?l2Low:base?.low??l2Price,
@@ -2734,6 +2729,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     }
     const secondExtremes=new Map<string,{high:number;low:number}>();
     for(const tick of liveSecondPoints){
+      if(tick.date!==chartWindow.date)continue;
       const minute=String(tick.time).replace(/\D/g,"").slice(0,4);
       if(!/^\d{4}$/.test(minute)||!Number.isFinite(tick.price)||tick.price<=0)continue;
       const previous=secondExtremes.get(minute);
@@ -2742,7 +2738,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         low:Math.min(previous?.low??tick.price,tick.price),
       });
     }
-    return [...merged.values()].sort((a,b)=>a.time.localeCompare(b.time)).map(point=>{
+    return filterChartMinutes([...merged.values()],chartWindow).sort((a,b)=>a.time.localeCompare(b.time)).map(point=>{
       // Some upstream snapshots occasionally carry a day-level high/low in a
       // minute bar.  It must not stretch the intraday scale when it is plainly
       // inconsistent with that minute's last price.
@@ -2770,7 +2766,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         low:Number.isFinite(low)&&low<=price&&low>=price*.94?low:price,
       };
     });
-  }, [rawMinutePoints,l2MinutePoints,liveSecondPoints]);
+  }, [rawMinutePoints,l2MinutePoints,liveSecondPoints,chartWindow]);
+  const chartNotice=chartSessionNotice({now:clockNow,minutes:minutePoints,quoteDate:snapshotTradingDate(liveL2PriceUsable?{sourceTimestamp:liveL2Status?.lastExchangeTime}:currentTrial??currentMarket),phase:marketSession.phase,error:Boolean(chartLoadError?.code===stock.code||marketError)});
   const l2CalculationCoverage=useMemo(
     ()=>stock?.code==="601899"?minutePoints.filter(point=>point.dataSource==="l2-primary").length:0,
     [stock?.code,minutePoints],
@@ -2976,6 +2973,8 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
     let current:Array<{x:number;y:number;price:number;time:string}>=[];
     let previous:LiveSecondPoint|null=null;
     for(const point of liveSecondPoints){
+      const window=chartWindow;
+      if(point.date!==window.date||!window.cutoff||point.time.slice(0,4)>window.cutoff)continue;
       const x=viewportSecondX(point.time);
       const y=liveChartPriceY(point.price,chartModel.min,chartModel.max);
       const gap=previous!==null&&(point.date!==previous.date||point.timestamp-previous.timestamp>90_000);
@@ -2992,7 +2991,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
       segments.push({points:current.map(item=>`${item.x},${item.y}`).join(" "),last});
     }
     return segments.length?{segments,last:segments.at(-1)!.last}:null;
-  },[chartModel,liveSecondPoints,viewportSecondX]);
+  },[chartModel,liveSecondPoints,viewportSecondX,chartWindow]);
   const liveChartLast=useMemo(()=>{
     if(!chartModel)return null;
     const quotePrice=activeQuote?.price;
@@ -6372,12 +6371,14 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         if (!response.ok) throw new Error("trial chart unavailable");
         const data = await response.json() as MarketData;
         if (!cancelled) {
+          setChartLoadError(null);
           setTrialQuote(current=>mergeMarketDataSnapshot(current,data));
           setMarketQuotes(current=>({...current,[data.quote.code]:data.quote}));
           setMarketSnapshots(current=>({...current,[data.quote.code]:mergeMarketDataSnapshot(current[data.quote.code],data)}));
           setTrialError("");
         }
       } catch {
+        if (!cancelled) setChartLoadError({code:stock.code});
         if (!cancelled) setTrialError("分时图暂时更新失败，已保留最后一次有效数据。");
       }
     };
@@ -7026,11 +7027,12 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
         <div><span>持仓 / 可卖</span><b>{displayedShares.toLocaleString()}<small> / {effectiveLivePosition.sellable.toLocaleString()} 股</small></b></div>
         <div><span>本次做T</span><b>{cycleQuantity.toLocaleString()}<small> 股</small></b></div>
         <div><span>信号置信度</span><b className={decisionModel.status==="ready"?"ready":decisionModel.status==="locked"?"risk":""}>{decisionModel.confirmed}/4</b></div>
-        <div className="desk-core-reason"><span>当前依据</span><b>{marketSession.live?decisionModel.reason:"复盘模式"}</b></div>
+        <div className="desk-core-reason"><span>当前依据</span><b>{marketSession.live?decisionModel.reason:marketSession.label}</b></div>
       </section>
 
       <section className={`workspace ${isZijinStock?'with-main-force':''} ${workspaceFullscreen?'workspace-fullscreen':''} ${decisionPanelCollapsed?'decision-panel-collapsed':''} ${decisionZoneMode==="focus"?"decision-focus":"decision-all"} ${chartAnnotationMode==="compact"?"compact-chart-labels":""} ${signalLayerVisible?'':'hide-signal-layer'} ${formalSignalVisible?'':'hide-formal-signal-layer'} ${v29SignalVisible?'':'hide-v29-signal-layer'} ${v1SignalVisible?'':'hide-v1-signal-layer'} ${pricePlanLayerVisible?'':'hide-price-plan-layer'} ${volumeLayerVisible?'':'hide-volume-layer'} ${rabbitTrackerVisible?'':'hide-rabbit-tracker'}`} ref={workspaceRef} style={{"--decision-panel-width":`${decisionPanelWidth}px`,"--order-flow-height":`${orderFlowHeight}px`} as CSSProperties}>
         <div className="chart-zone">
+          <div className="chart-session-status" role="status">{chartNotice.detail}</div>
           <div className={`chart-tools ${chartToolsExpanded?"expanded":"collapsed"}`}>
             <div className="legend primary-chart-legend">
               <span className="latest-price-legend"><i className="coral-line"/>最新价 <b>{activeQuote?.price?.toFixed(2) ?? "--"}</b></span>
@@ -7047,9 +7049,9 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
                 </div>
               </details>
             </div>
-            <span className={`live-scan ${marketSession.live?"":"paused"}`} title={marketSession.live?(currentTrial?"1 秒轮询试用 · 实时行情源":trialError||(currentMarket?`公开行情 · ${currentMarket.delayed?"延迟数据":"已更新"}`:marketError||"连接行情中")):"当前为收盘复盘模式"}><i/>{marketSession.live?(currentTrial?"实时行情":currentMarket?currentMarket.delayed?"行情延迟":"行情已更新":"连接行情"):"复盘模式"}</span>
-            <div className="intraday-only" title="1分钟K使用真实开高低收；数据不完整时自动回退分时线">
-              <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"} <small>{intradayChartType==="candle"&&chartModel?.candleReady?(chartModel.candleEstimated?"估算 OHLC":"真实 OHLC"):"分钟历史 · 秒级观察"}</small>
+            <span className={`live-scan ${marketSession.live?"":"paused"}`} title={chartNotice.detail}><i/>{chartNotice.label}</span>
+            <div className="intraday-only" title="仅显示日期已确认的分钟数据">
+              <i/>{intradayChartType==="candle"?"1分钟K":"当日分时"}
             </div>
              <div id="chart-tool-controls" className="chart-control-groups" aria-label="图表控制">
                <div className="chart-control-group">
@@ -7565,7 +7567,7 @@ export default function Home({initialAuth,onLogout,theme:uiTheme,onToggleTheme:t
             <footer><span>一级官方事件可进入风险闸门</span><em>二、三级仅影子观察，不改变正式策略</em></footer>
           </details>}
           {isZijinStock&&displayedZijinPricePlan&&<details className={`zijin-price-plan ${premiumEnabled?displayedZijinPricePlan.status:"locked"} ${premiumEnabled&&!displayedZijinPricePlan.ready?"compact-waiting":""}`} aria-label="紫金矿业预判买入卖出价区间">
-            <summary className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":marketSession.live?"紫金会员 · 实时因果":"紫金会员 · 收盘复盘"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":marketSession.live?"实时参考价区":"复盘参考价区"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":marketSession.live?"等待分时":"已收盘"):"会员功能"}</em></summary>
+            <summary className="zijin-price-plan-head"><div><span>{isPreopenPlanPhase?"紫金会员 · 集合竞价":marketSession.live?"紫金会员 · 实时因果":marketSession.phase==="lunch"?"紫金会员 · 午间休市":"紫金会员 · 收盘分时"}</span><b>{isPreopenPlanPhase?"9:25盘前预判":marketSession.live?"实时参考价区":marketSession.phase==="lunch"?"午休参考价区":"收盘参考价区"}</b></div><em>{premiumEnabled?(displayedZijinPricePlan.asOfTime?`${displayedZijinPricePlan.asOfTime.slice(0,2)}:${displayedZijinPricePlan.asOfTime.slice(2)}`:isPreopenPlanPhase?"等待竞价":marketSession.live?"等待分时":"已收盘"):"会员功能"}</em></summary>
             {!premiumEnabled?<div className="premium-feature-lock"><p>精确买卖区间、9:25竞价预判与 L2 深度结论仅会员可查看。</p><button onClick={()=>setAccountOpen(true)}>查看会员权益</button></div>:!displayedZijinPricePlan.ready?<p>{displayedZijinPricePlan.reason}</p>:<>
               <div className="zijin-price-plan-grid">
                 <div className="buy"><small title="正T：先买入、后卖出等量旧仓，目标是降低持仓成本">{isPreopenPlanPhase?"开盘正T观察区":"正T关注区"} <sup>ⓘ</sup></small><b>¥{displayedZijinPricePlan.buyRange[0].toFixed(2)}–{displayedZijinPricePlan.buyRange[1].toFixed(2)}</b><span>到区后等价格与量价结构确认</span></div>
