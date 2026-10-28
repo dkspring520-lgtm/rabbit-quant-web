@@ -45,8 +45,8 @@ test("Paperclip deployment stays pinned, private and isolated from production", 
   assert.match(compose, /PAPERCLIP_DEPLOYMENT_MODE:\s*authenticated/);
   assert.match(compose, /PAPERCLIP_DEPLOYMENT_EXPOSURE:\s*private/);
   assert.match(compose, /PAPERCLIP_TELEMETRY_DISABLED:\s*"1"/);
-  assert.match(compose, /PAPERCLIP_BIND_HOST:-127\.0\.0\.1/);
-  assert.match(compose, /PAPERCLIP_BRIDGE_BIND_HOST:-127\.0\.0\.1/);
+  assert.match(compose, /127\.0\.0\.1:\$\{PAPERCLIP_PORT:-3100\}/);
+  assert.match(compose, /127\.0\.0\.1:\$\{PAPERCLIP_BRIDGE_PORT:-3210\}/);
   assert.match(compose, /image:\s*rabbit-quant-research-bridge:\$\{APP_COMMIT_SHA/);
   assert.match(compose, /context:\s*\$\{PAPERCLIP_RELEASE_ROOT:/);
   assert.match(compose, /research-control:\s*\r?\n\s+internal:\s*true/);
